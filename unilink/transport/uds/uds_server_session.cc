@@ -266,9 +266,32 @@ bool UdsServerSession::async_try_write_shared(std::shared_ptr<const std::vector<
   return true;
 }
 
-void UdsServerSession::on_bytes(OnBytes cb) { on_bytes_ = std::move(cb); }
-void UdsServerSession::on_backpressure(OnBackpressure cb) { on_bp_ = std::move(cb); }
-void UdsServerSession::on_close(OnClose cb) { on_close_ = std::move(cb); }
+// Dispatched onto the strand rather than assigned directly: these setters
+// may be called from any user thread (e.g. UdsServer::on_backpressure()
+// forwarding to an already-accepted session), while the strand-confined
+// read sites below access the same fields with no other synchronization.
+// Matches the pattern already used correctly by TcpServerSession (#436).
+void UdsServerSession::on_bytes(OnBytes cb) {
+  auto self = shared_from_this();
+  net::dispatch(strand_, [self, cb = std::move(cb)]() mutable {
+    if (self->closing_.load()) return;
+    self->on_bytes_ = std::move(cb);
+  });
+}
+void UdsServerSession::on_backpressure(OnBackpressure cb) {
+  auto self = shared_from_this();
+  net::dispatch(strand_, [self, cb = std::move(cb)]() mutable {
+    if (self->closing_.load()) return;
+    self->on_bp_ = std::move(cb);
+  });
+}
+void UdsServerSession::on_close(OnClose cb) {
+  auto self = shared_from_this();
+  net::dispatch(strand_, [self, cb = std::move(cb)]() mutable {
+    if (self->closing_.load()) return;
+    self->on_close_ = std::move(cb);
+  });
+}
 
 void UdsServerSession::start_read() {
   socket_->async_read_some(

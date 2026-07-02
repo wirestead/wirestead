@@ -426,10 +426,18 @@ struct UdpServer::Impl {
       }
 
       if (channel) {
-        channel->on_bytes_from(nullptr);
-        channel->on_state(nullptr);
         lock.unlock();
         channel->stop();
+        // Clear callbacks after stop() rather than before: the
+        // transport-level fix (#436) already synchronizes callback reads
+        // against these setters, but clearing after stop() means no
+        // in-flight handler can observe a null callback mid-shutdown in the
+        // first place - belt and braces once the underlying race is fixed
+        // at the source. Also now clears on_backpressure, which this path
+        // previously never did at all.
+        channel->on_bytes_from(nullptr);
+        channel->on_state(nullptr);
+        channel->on_backpressure(nullptr);
         lock.lock();
       }
 

@@ -306,7 +306,12 @@ struct TcpServer::Impl {
         }
       });
 
-      if (accept_impl->on_bp_) new_session->on_backpressure(accept_impl->on_bp_);
+      OnBackpressure bp_cb;
+      {
+        std::lock_guard<std::mutex> lock(accept_impl->sessions_mutex_);
+        bp_cb = accept_impl->on_bp_;
+      }
+      if (bp_cb) new_session->on_backpressure(bp_cb);
 
       new_session->on_close([weak_self, client_id, new_session] {
         auto shared_self = weak_self.lock();
@@ -711,17 +716,16 @@ void TcpServer::on_state(OnState cb) {
 }
 void TcpServer::on_backpressure(OnBackpressure cb) {
   auto impl = get_impl();
+  std::shared_ptr<TcpServerSession> session;
+  OnBackpressure bp_cb;
   {
     std::lock_guard<std::mutex> lock(impl->sessions_mutex_);
     impl->on_bp_ = std::move(cb);
-  }
-  std::shared_ptr<TcpServerSession> session;
-  {
-    std::lock_guard<std::mutex> lock(impl->sessions_mutex_);
+    bp_cb = impl->on_bp_;
     session = impl->current_session_;
   }
 
-  if (session) session->on_backpressure(impl->on_bp_);
+  if (session) session->on_backpressure(bp_cb);
 }
 
 bool TcpServer::broadcast(std::string_view message) {

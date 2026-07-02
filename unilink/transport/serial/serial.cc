@@ -80,13 +80,25 @@ struct Serial::Impl {
   std::optional<BufferVariant> current_write_buffer_;
   bool writing_ = false;
   std::atomic<size_t> queued_bytes_{0};
-  base::constants::BackpressureStrategy bp_strategy_{base::constants::BackpressureStrategy::Reliable};
+  // Atomic rather than mutex-guarded: read both from the strand and from
+  // arbitrary caller threads (async_try_write_* fast-fail prechecks) - a
+  // strand-post/dispatch here would only protect the former (#436).
+  std::atomic<base::constants::BackpressureStrategy> bp_strategy_{base::constants::BackpressureStrategy::Reliable};
+  // Mirrors cfg_.retry_interval_ms but is the one actually read by
+  // schedule_retry(); set_retry_interval() writes only this atomic rather
+  // than mutating cfg_ directly, so the read/write pair for this specific
+  // field doesn't need a mutex (#436).
+  std::atomic<unsigned> retry_interval_ms_;
   size_t bp_high_;
   size_t bp_limit_;
   size_t bp_low_;
   std::atomic<bool> backpressure_active_{false};
   diagnostics::RuntimeStatsCounters stats_;
 
+  // Guards on_bytes_/on_state_/on_bp_. Setters (called from any user thread)
+  // and the strand-confined read sites both take this lock; readers copy
+  // the callback under lock then invoke the copy outside the lock (#436).
+  mutable std::mutex callback_mtx_;
   OnBytes on_bytes_;
   OnState on_state_;
   OnBackpressure on_bp_;
@@ -112,6 +124,7 @@ struct Serial::Impl {
         cfg_(cfg),
         retry_timer_(ioc_),
         bp_strategy_(cfg.backpressure_strategy),
+        retry_interval_ms_(cfg.retry_interval_ms),
         bp_high_(cfg.backpressure_threshold) {
     init();
     port_ = std::make_unique<BoostSerialPort>(ioc_);
@@ -125,6 +138,7 @@ struct Serial::Impl {
         cfg_(cfg),
         retry_timer_(ioc),
         bp_strategy_(cfg.backpressure_strategy),
+        retry_interval_ms_(cfg.retry_interval_ms),
         bp_high_(cfg.backpressure_threshold) {
     init();
   }
@@ -230,9 +244,14 @@ struct Serial::Impl {
             return;
           }
           if (n > 0) impl->stats_.record_received(n);
-          if (impl->on_bytes_) {
+          OnBytes on_bytes;
+          {
+            std::lock_guard<std::mutex> lock(impl->callback_mtx_);
+            on_bytes = impl->on_bytes_;
+          }
+          if (on_bytes) {
             try {
-              impl->on_bytes_(memory::ConstByteSpan(impl->rx_.data(), n));
+              on_bytes(memory::ConstByteSpan(impl->rx_.data(), n));
             } catch (const std::exception& e) {
               UNILINK_LOG_ERROR("serial", "on_bytes", fmt::format("Exception in callback: {}", e.what()));
               if (impl->cfg_.stop_on_callback_exception) {
@@ -373,7 +392,7 @@ struct Serial::Impl {
     (void)ec;
     UNILINK_LOG_INFO("serial", "retry", fmt::format("Scheduling retry at {}", where));
     if (stopping_.load()) return;
-    retry_timer_.expires_after(std::chrono::milliseconds(cfg_.retry_interval_ms));
+    retry_timer_.expires_after(std::chrono::milliseconds(retry_interval_ms_.load()));
     retry_timer_.async_wait([self](auto e) {
       if (!e && self && !self->get_impl()->stopping_.load()) self->get_impl()->open_and_configure(self);
     });
@@ -387,9 +406,15 @@ struct Serial::Impl {
   }
 
   void notify_state() {
-    if (stopping_.load() || !on_state_) return;
+    if (stopping_.load()) return;
+    OnState on_state;
+    {
+      std::lock_guard<std::mutex> lock(callback_mtx_);
+      on_state = on_state_;
+    }
+    if (!on_state) return;
     try {
-      on_state_(state_.state());
+      on_state(state_.state());
     } catch (...) {
     }
   }
@@ -398,12 +423,18 @@ struct Serial::Impl {
     if (stopping_.load()) return;
     observe_queue();
 
+    OnBackpressure on_bp;
+    {
+      std::lock_guard<std::mutex> lock(callback_mtx_);
+      on_bp = on_bp_;
+    }
+
     if (!backpressure_active_ && qb >= bp_high_) {
       backpressure_active_ = true;
       stats_.record_backpressure_event();
-      if (on_bp_) {
+      if (on_bp) {
         try {
-          on_bp_(qb);
+          on_bp(qb);
         } catch (...) {
         }
       }
@@ -418,9 +449,9 @@ struct Serial::Impl {
       observe_queue();
       backpressure_active_ = false;
       stats_.record_backpressure_event();
-      if (on_bp_) {
+      if (on_bp) {
         try {
-          on_bp_(qb);
+          on_bp(qb);
         } catch (...) {
         }  // fire OFF with pre-flush queue size
       }
@@ -428,9 +459,9 @@ struct Serial::Impl {
       if (queued_bytes_ >= bp_high_) {
         backpressure_active_ = true;
         stats_.record_backpressure_event();
-        if (on_bp_) {
+        if (on_bp) {
           try {
-            on_bp_(queued_bytes_);
+            on_bp(queued_bytes_);
           } catch (...) {
           }
         }
@@ -853,15 +884,26 @@ bool Serial::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> 
   return true;
 }
 
-void Serial::on_bytes(OnBytes cb) { impl_->on_bytes_ = std::move(cb); }
-void Serial::on_state(OnState cb) { impl_->on_state_ = std::move(cb); }
-void Serial::on_backpressure(OnBackpressure cb) { impl_->on_bp_ = std::move(cb); }
-
-void Serial::set_backpressure_strategy(base::constants::BackpressureStrategy strategy) {
-  get_impl()->bp_strategy_ = strategy;
+void Serial::on_bytes(OnBytes cb) {
+  std::lock_guard<std::mutex> lock(impl_->callback_mtx_);
+  impl_->on_bytes_ = std::move(cb);
+}
+void Serial::on_state(OnState cb) {
+  std::lock_guard<std::mutex> lock(impl_->callback_mtx_);
+  impl_->on_state_ = std::move(cb);
+}
+void Serial::on_backpressure(OnBackpressure cb) {
+  std::lock_guard<std::mutex> lock(impl_->callback_mtx_);
+  impl_->on_bp_ = std::move(cb);
 }
 
-void Serial::set_retry_interval(unsigned interval_ms) { get_impl()->cfg_.retry_interval_ms = interval_ms; }
+void Serial::set_backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+  get_impl()->bp_strategy_.store(strategy, std::memory_order_relaxed);
+}
+
+void Serial::set_retry_interval(unsigned interval_ms) {
+  get_impl()->retry_interval_ms_.store(interval_ms, std::memory_order_relaxed);
+}
 
 }  // namespace transport
 }  // namespace unilink

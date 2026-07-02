@@ -76,7 +76,10 @@ struct UdpChannel::Impl {
   bool writing_{false};
   std::atomic<size_t> queue_bytes_{0};
   config::UdpConfig cfg_;
-  base::constants::BackpressureStrategy bp_strategy_{base::constants::BackpressureStrategy::Reliable};
+  // Atomic rather than mutex-guarded: read both from the strand (report_backpressure,
+  // do_write) and from arbitrary caller threads (the async_try_write_* fast-fail
+  // prechecks) - a strand-post here would only protect the former, not the latter (#436).
+  std::atomic<base::constants::BackpressureStrategy> bp_strategy_{base::constants::BackpressureStrategy::Reliable};
   size_t bp_high_;
   size_t bp_low_;
   size_t bp_limit_;
@@ -91,6 +94,12 @@ struct UdpChannel::Impl {
   ThreadSafeLinkState state_{LinkState::Idle};
   std::atomic<bool> terminal_state_notified_{false};
 
+  // Guards on_bytes_/on_bytes_from_/on_state_/on_bp_. Setters (called from
+  // any user thread) and the strand-confined read sites below both take
+  // this lock; readers copy the callback under lock then invoke the copy
+  // outside the lock, matching the pattern already used correctly by
+  // TcpClient/UdsClient/both servers (see #436).
+  mutable std::mutex callback_mtx_;
   OnBytes on_bytes_;
   UdpChannel::OnBytesFrom on_bytes_from_;
   OnState on_state_;
@@ -266,9 +275,16 @@ struct UdpChannel::Impl {
 
     if (bytes > 0) {
       stats_.record_received(bytes);
-      if (on_bytes_) {
+      OnBytes on_bytes;
+      UdpChannel::OnBytesFrom on_bytes_from;
+      {
+        std::lock_guard<std::mutex> lock(callback_mtx_);
+        on_bytes = on_bytes_;
+        on_bytes_from = on_bytes_from_;
+      }
+      if (on_bytes) {
         try {
-          on_bytes_(memory::ConstByteSpan(rx_.data(), bytes));
+          on_bytes(memory::ConstByteSpan(rx_.data(), bytes));
         } catch (const std::exception& e) {
           UNILINK_LOG_ERROR("udp", "on_bytes", fmt::format("Exception in bytes callback: {}", e.what()));
           if (cfg_.stop_on_callback_exception) {
@@ -284,9 +300,9 @@ struct UdpChannel::Impl {
         }
       }
 
-      if (on_bytes_from_) {
+      if (on_bytes_from) {
         try {
-          on_bytes_from_(memory::ConstByteSpan(rx_.data(), bytes), recv_endpoint_);
+          on_bytes_from(memory::ConstByteSpan(rx_.data(), bytes), recv_endpoint_);
         } catch (const std::exception& e) {
           UNILINK_LOG_ERROR("udp", "on_bytes_from", fmt::format("Exception in bytes callback: {}", e.what()));
           if (cfg_.stop_on_callback_exception) {
@@ -319,10 +335,17 @@ struct UdpChannel::Impl {
     pending_bytes_ = 0;
     const bool had_backpressure = backpressure_active_;
     backpressure_active_ = false;
-    if (had_backpressure && on_bp_) {
-      try {
-        on_bp_(queue_bytes_);
-      } catch (...) {
+    if (had_backpressure) {
+      OnBackpressure on_bp;
+      {
+        std::lock_guard<std::mutex> lock(callback_mtx_);
+        on_bp = on_bp_;
+      }
+      if (on_bp) {
+        try {
+          on_bp(queue_bytes_);
+        } catch (...) {
+        }
       }
     }
   }
@@ -428,9 +451,14 @@ struct UdpChannel::Impl {
   }
 
   void notify_state() {
-    if (!on_state_) return;
+    OnState on_state;
+    {
+      std::lock_guard<std::mutex> lock(callback_mtx_);
+      on_state = on_state_;
+    }
+    if (!on_state) return;
     try {
-      on_state_(state_.state());
+      on_state(state_.state());
     } catch (const std::exception& e) {
       UNILINK_LOG_ERROR("udp", "on_state", fmt::format("Exception in state callback: {}", e.what()));
     } catch (...) {
@@ -442,12 +470,18 @@ struct UdpChannel::Impl {
     if (stop_requested_.load()) return;
     observe_queue();
 
+    OnBackpressure on_bp;
+    {
+      std::lock_guard<std::mutex> lock(callback_mtx_);
+      on_bp = on_bp_;
+    }
+
     if (!backpressure_active_ && queued_bytes >= bp_high_) {
       backpressure_active_ = true;
       stats_.record_backpressure_event();
-      if (on_bp_) {
+      if (on_bp) {
         try {
-          on_bp_(queued_bytes);
+          on_bp(queued_bytes);
         } catch (const std::exception& e) {
           UNILINK_LOG_ERROR("udp", "on_backpressure", fmt::format("Exception in backpressure callback: {}", e.what()));
         } catch (...) {
@@ -465,9 +499,9 @@ struct UdpChannel::Impl {
       observe_queue();
       backpressure_active_ = false;
       stats_.record_backpressure_event();
-      if (on_bp_) {
+      if (on_bp) {
         try {
-          on_bp_(queued_bytes);
+          on_bp(queued_bytes);
         } catch (...) {
         }  // fire OFF with pre-flush queue size
       }
@@ -475,9 +509,9 @@ struct UdpChannel::Impl {
       if (queue_bytes_ >= bp_high_) {
         backpressure_active_ = true;
         stats_.record_backpressure_event();
-        if (on_bp_) {
+        if (on_bp) {
           try {
-            on_bp_(queue_bytes_);
+            on_bp(queue_bytes_);
           } catch (...) {
           }
         }
@@ -595,10 +629,17 @@ struct UdpChannel::Impl {
       writing_ = false;
       const bool had_backpressure = backpressure_active_;
       backpressure_active_ = false;
-      if (had_backpressure && on_bp_) {
-        try {
-          on_bp_(queue_bytes_);
-        } catch (...) {
+      if (had_backpressure) {
+        OnBackpressure on_bp;
+        {
+          std::lock_guard<std::mutex> lock(callback_mtx_);
+          on_bp = on_bp_;
+        }
+        if (on_bp) {
+          try {
+            on_bp(queue_bytes_);
+          } catch (...) {
+          }
         }
       }
       connected_.store(false);
@@ -607,9 +648,12 @@ struct UdpChannel::Impl {
         work_guard_->reset();
       }
       transition_to(LinkState::Closed);
-      on_bytes_ = nullptr;
-      on_state_ = nullptr;
-      on_bp_ = nullptr;
+      {
+        std::lock_guard<std::mutex> lock(callback_mtx_);
+        on_bytes_ = nullptr;
+        on_state_ = nullptr;
+        on_bp_ = nullptr;
+      }
     } catch (...) {
     }
   }
@@ -714,6 +758,7 @@ void UdpChannel::stop() {
 
   if (!impl->started_) {
     impl->transition_to(LinkState::Closed);
+    std::lock_guard<std::mutex> lock(impl->callback_mtx_);
     impl->on_bytes_ = nullptr;
     impl->on_state_ = nullptr;
     impl->on_bp_ = nullptr;
@@ -984,14 +1029,23 @@ bool UdpChannel::async_try_write_shared(std::shared_ptr<const std::vector<uint8_
   return true;
 }
 
-void UdpChannel::on_bytes(OnBytes cb) { impl_->on_bytes_ = std::move(cb); }
+void UdpChannel::on_bytes(OnBytes cb) {
+  std::lock_guard<std::mutex> lock(impl_->callback_mtx_);
+  impl_->on_bytes_ = std::move(cb);
+}
 
-void UdpChannel::on_state(OnState cb) { impl_->on_state_ = std::move(cb); }
+void UdpChannel::on_state(OnState cb) {
+  std::lock_guard<std::mutex> lock(impl_->callback_mtx_);
+  impl_->on_state_ = std::move(cb);
+}
 
-void UdpChannel::on_backpressure(OnBackpressure cb) { impl_->on_bp_ = std::move(cb); }
+void UdpChannel::on_backpressure(OnBackpressure cb) {
+  std::lock_guard<std::mutex> lock(impl_->callback_mtx_);
+  impl_->on_bp_ = std::move(cb);
+}
 
 void UdpChannel::set_backpressure_strategy(base::constants::BackpressureStrategy strategy) {
-  net::post(impl_->strand_, [impl = impl_.get(), strategy]() { impl->bp_strategy_ = strategy; });
+  impl_->bp_strategy_.store(strategy, std::memory_order_relaxed);
 }
 
 bool UdpChannel::async_write_to(memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& destination) {

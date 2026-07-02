@@ -78,14 +78,18 @@ class UNILINK_API TcpClient : public Channel, public std::enable_shared_from_thi
   bool async_try_write_move(std::vector<uint8_t>&& data) override;
   bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
 
-  // Callbacks must be configured before start() is invoked to avoid setter races.
+  // Thread-safe: may be called at any time, including after start(). Each
+  // setter takes effect for subsequent operations (callback replacement is
+  // synchronized against concurrent reads on the io thread; see #436).
   void on_bytes(OnBytes cb) override;
   void on_state(OnState cb) override;
   void on_backpressure(OnBackpressure cb) override;
 
   std::optional<diagnostics::ErrorInfo> last_error_info() const;
 
-  // Dynamic configuration methods
+  // Dynamic configuration methods. Thread-safe; take effect for the next
+  // reconnect/idle-timeout decision, not retroactively for one already in
+  // flight.
   void set_backpressure_strategy(base::constants::BackpressureStrategy strategy);
   void set_retry_interval(unsigned interval_ms);
   void set_max_retries(int max_retries);

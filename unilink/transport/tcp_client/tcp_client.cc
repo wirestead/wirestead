@@ -78,6 +78,15 @@ struct TcpClient::Impl {
   std::atomic<uint64_t> current_seq_{0};
   tcp::resolver resolver_;
   tcp::socket socket_;
+  // Guards the mutable subset of cfg_ (retry_interval_ms, max_retries,
+  // connection_timeout_ms, idle_timeout_ms, idle_timeout_action) and
+  // reconnect_policy_ below - the fields that have runtime setters
+  // (set_retry_interval() etc.) reachable from any user thread while the
+  // strand concurrently reads them for reconnect/idle-timeout decisions.
+  // Fields with no runtime setter (tcp_no_delay, keep_alive, buffer sizes)
+  // are set once at construction and read only at connect time, so they
+  // don't need this lock (#436).
+  mutable std::mutex cfg_mtx_;
   TcpClientConfig cfg_;
   net::steady_timer retry_timer_;
   net::steady_timer connect_timer_;
@@ -95,7 +104,9 @@ struct TcpClient::Impl {
   std::optional<BufferVariant> current_write_buffer_;
   bool writing_ = false;
   std::atomic<size_t> queue_bytes_{0};
-  base::constants::BackpressureStrategy bp_strategy_{base::constants::BackpressureStrategy::Reliable};
+  // Atomic rather than mutex-guarded: read both from the strand and from
+  // arbitrary caller threads (async_try_write_* fast-fail prechecks) (#436).
+  std::atomic<base::constants::BackpressureStrategy> bp_strategy_{base::constants::BackpressureStrategy::Reliable};
   size_t bp_high_;
   size_t bp_low_;
   size_t bp_limit_;
@@ -670,15 +681,31 @@ void TcpClient::on_backpressure(OnBackpressure cb) {
   impl_->on_bp_ = std::move(cb);
 }
 void TcpClient::set_backpressure_strategy(base::constants::BackpressureStrategy strategy) {
-  impl_->bp_strategy_ = strategy;
+  impl_->bp_strategy_.store(strategy, std::memory_order_relaxed);
 }
 
-void TcpClient::set_retry_interval(unsigned interval_ms) { impl_->cfg_.retry_interval_ms = interval_ms; }
-void TcpClient::set_max_retries(int max_retries) { impl_->cfg_.max_retries = max_retries; }
-void TcpClient::set_connection_timeout(unsigned timeout_ms) { impl_->cfg_.connection_timeout_ms = timeout_ms; }
-void TcpClient::set_idle_timeout(unsigned timeout_ms) { impl_->cfg_.idle_timeout_ms = timeout_ms; }
-void TcpClient::set_idle_timeout_action(IdleTimeoutAction action) { impl_->cfg_.idle_timeout_action = action; }
+void TcpClient::set_retry_interval(unsigned interval_ms) {
+  std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
+  impl_->cfg_.retry_interval_ms = interval_ms;
+}
+void TcpClient::set_max_retries(int max_retries) {
+  std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
+  impl_->cfg_.max_retries = max_retries;
+}
+void TcpClient::set_connection_timeout(unsigned timeout_ms) {
+  std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
+  impl_->cfg_.connection_timeout_ms = timeout_ms;
+}
+void TcpClient::set_idle_timeout(unsigned timeout_ms) {
+  std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
+  impl_->cfg_.idle_timeout_ms = timeout_ms;
+}
+void TcpClient::set_idle_timeout_action(IdleTimeoutAction action) {
+  std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
+  impl_->cfg_.idle_timeout_action = action;
+}
 void TcpClient::set_reconnect_policy(ReconnectPolicy policy) {
+  std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
   if (policy) {
     impl_->reconnect_policy_ = std::move(policy);
   } else {
@@ -736,26 +763,41 @@ void TcpClient::Impl::do_resolve_connect(std::shared_ptr<TcpClient> self, uint64
           return;
         }
         if (ec) {
-          uint32_t current_attempts = self->impl_->reconnect_policy_
-                                          ? self->impl_->reconnect_attempt_count_
-                                          : static_cast<uint32_t>(self->impl_->retry_attempts_);
+          bool has_policy;
+          {
+            std::lock_guard<std::mutex> lock(self->impl_->cfg_mtx_);
+            has_policy = self->impl_->reconnect_policy_.has_value();
+          }
+          uint32_t current_attempts =
+              has_policy ? self->impl_->reconnect_attempt_count_ : static_cast<uint32_t>(self->impl_->retry_attempts_);
           self->impl_->record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "resolve",
                                     ec, fmt::format("Resolution failed: {}", ec.message()),
                                     diagnostics::is_retryable_tcp_connect_error(ec), current_attempts);
           self->impl_->schedule_retry(self, seq);
           return;
         }
-        self->impl_->connect_timer_.expires_after(std::chrono::milliseconds(self->impl_->cfg_.connection_timeout_ms));
+        unsigned connection_timeout_ms;
+        {
+          std::lock_guard<std::mutex> lock(self->impl_->cfg_mtx_);
+          connection_timeout_ms = self->impl_->cfg_.connection_timeout_ms;
+        }
+        self->impl_->connect_timer_.expires_after(std::chrono::milliseconds(connection_timeout_ms));
         self->impl_->connect_timer_.async_wait([self, seq](const boost::system::error_code& timer_ec) {
           if (timer_ec == net::error::operation_aborted || seq != self->impl_->current_seq_.load()) {
             return;
           }
           if (!timer_ec && !self->impl_->stop_requested_.load() && !self->impl_->stopping_.load()) {
+            bool has_policy;
+            unsigned timeout_ms;
+            {
+              std::lock_guard<std::mutex> lock(self->impl_->cfg_mtx_);
+              has_policy = self->impl_->reconnect_policy_.has_value();
+              timeout_ms = self->impl_->cfg_.connection_timeout_ms;
+            }
             UNILINK_LOG_ERROR("tcp_client", "connect_timeout",
-                              fmt::format("Connection timed out after {}ms", self->impl_->cfg_.connection_timeout_ms));
-            uint32_t current_attempts = self->impl_->reconnect_policy_
-                                            ? self->impl_->reconnect_attempt_count_
-                                            : static_cast<uint32_t>(self->impl_->retry_attempts_);
+                              fmt::format("Connection timed out after {}ms", timeout_ms));
+            uint32_t current_attempts = has_policy ? self->impl_->reconnect_attempt_count_
+                                                   : static_cast<uint32_t>(self->impl_->retry_attempts_);
             self->impl_->record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "connect",
                                       boost::asio::error::timed_out, "Connection timed out",
                                       diagnostics::is_retryable_tcp_connect_error(boost::asio::error::timed_out),
@@ -775,9 +817,13 @@ void TcpClient::Impl::do_resolve_connect(std::shared_ptr<TcpClient> self, uint64
           }
           if (ec2) {
             self->impl_->connect_timer_.cancel();
-            uint32_t current_attempts = self->impl_->reconnect_policy_
-                                            ? self->impl_->reconnect_attempt_count_
-                                            : static_cast<uint32_t>(self->impl_->retry_attempts_);
+            bool has_policy;
+            {
+              std::lock_guard<std::mutex> lock(self->impl_->cfg_mtx_);
+              has_policy = self->impl_->reconnect_policy_.has_value();
+            }
+            uint32_t current_attempts = has_policy ? self->impl_->reconnect_attempt_count_
+                                                   : static_cast<uint32_t>(self->impl_->retry_attempts_);
             self->impl_->record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "connect",
                                       ec2, fmt::format("Connection failed: {}", ec2.message()),
                                       diagnostics::is_retryable_tcp_connect_error(ec2), current_attempts);
@@ -836,10 +882,22 @@ void TcpClient::Impl::schedule_retry(std::shared_ptr<TcpClient> self, uint64_t s
                                       make_error_code(boost::asio::error::not_connected), true);
   }
 
-  // Determine current attempt count based on active mode
-  uint32_t current_attempts = reconnect_policy_ ? reconnect_attempt_count_ : static_cast<uint32_t>(retry_attempts_);
+  // Snapshot once rather than locking repeatedly for each read below -
+  // cfg_/reconnect_policy_ can change concurrently via set_retry_interval()
+  // etc. from any user thread while this runs on the strand (#436).
+  TcpClientConfig cfg_snapshot;
+  std::optional<ReconnectPolicy> reconnect_policy_snapshot;
+  {
+    std::lock_guard<std::mutex> lock(cfg_mtx_);
+    cfg_snapshot = cfg_;
+    reconnect_policy_snapshot = reconnect_policy_;
+  }
 
-  auto decision = detail::decide_reconnect(cfg_, *last_err, current_attempts, reconnect_policy_);
+  // Determine current attempt count based on active mode
+  uint32_t current_attempts =
+      reconnect_policy_snapshot ? reconnect_attempt_count_ : static_cast<uint32_t>(retry_attempts_);
+
+  auto decision = detail::decide_reconnect(cfg_snapshot, *last_err, current_attempts, reconnect_policy_snapshot);
 
   if (!decision.should_retry) {
     UNILINK_LOG_INFO("tcp_client", "retry", "Reconnect stopped by policy/config");
@@ -849,8 +907,8 @@ void TcpClient::Impl::schedule_retry(std::shared_ptr<TcpClient> self, uint64_t s
   }
 
   // The decider returns a base delay for both policy and fallback paths.
-  std::chrono::milliseconds delay = decision.delay.value_or(std::chrono::milliseconds(cfg_.retry_interval_ms));
-  if (reconnect_policy_) {
+  std::chrono::milliseconds delay = decision.delay.value_or(std::chrono::milliseconds(cfg_snapshot.retry_interval_ms));
+  if (reconnect_policy_snapshot) {
     reconnect_attempt_count_++;
   } else {
     // Preserve existing "fast first retry" behavior for non-policy mode.
@@ -1019,9 +1077,13 @@ void TcpClient::Impl::handle_close(std::shared_ptr<TcpClient> self, uint64_t seq
   }
   UNILINK_LOG_INFO("tcp_client", "handle_close", fmt::format("Closing connection. Error: {}", ec.message()));
   if (ec) {
+    bool has_policy;
+    {
+      std::lock_guard<std::mutex> lock(cfg_mtx_);
+      has_policy = reconnect_policy_.has_value();
+    }
     const bool retryable = diagnostics::is_retryable_tcp_connect_error(ec);
-    const uint32_t current_attempts =
-        reconnect_policy_ ? reconnect_attempt_count_ : static_cast<uint32_t>(retry_attempts_);
+    const uint32_t current_attempts = has_policy ? reconnect_attempt_count_ : static_cast<uint32_t>(retry_attempts_);
 
     record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "handle_close", ec,
                  fmt::format("Connection closed with error: {}", ec.message()), retryable, current_attempts);
@@ -1044,13 +1106,22 @@ void TcpClient::Impl::handle_idle_timeout(std::shared_ptr<TcpClient> self, uint6
     return;
   }
 
+  IdleTimeoutAction idle_timeout_action;
+  unsigned idle_timeout_ms;
+  bool has_policy;
+  {
+    std::lock_guard<std::mutex> lock(cfg_mtx_);
+    idle_timeout_action = cfg_.idle_timeout_action;
+    idle_timeout_ms = cfg_.idle_timeout_ms;
+    has_policy = reconnect_policy_.has_value();
+  }
+
   const auto ec = make_error_code(boost::asio::error::timed_out);
-  const bool should_reconnect = cfg_.idle_timeout_action == IdleTimeoutAction::Reconnect;
-  const uint32_t current_attempts =
-      reconnect_policy_ ? reconnect_attempt_count_ : static_cast<uint32_t>(retry_attempts_);
+  const bool should_reconnect = idle_timeout_action == IdleTimeoutAction::Reconnect;
+  const uint32_t current_attempts = has_policy ? reconnect_attempt_count_ : static_cast<uint32_t>(retry_attempts_);
 
   UNILINK_LOG_WARNING("tcp_client", "idle_timeout",
-                      fmt::format("Idle timeout expired after {}ms; {}", cfg_.idle_timeout_ms,
+                      fmt::format("Idle timeout expired after {}ms; {}", idle_timeout_ms,
                                   should_reconnect ? "scheduling reconnect" : "closing connection"));
   record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "idle_timeout", ec,
                "Idle timeout expired", should_reconnect, current_attempts);
@@ -1308,12 +1379,17 @@ void TcpClient::Impl::reset_io_objects() {
 }
 
 void TcpClient::Impl::reset_idle_timer(std::shared_ptr<TcpClient> self, uint64_t seq) {
-  if (cfg_.idle_timeout_ms == 0 || !connected_.load() || stop_requested_.load() || stopping_.load()) {
+  unsigned idle_timeout_ms;
+  {
+    std::lock_guard<std::mutex> lock(cfg_mtx_);
+    idle_timeout_ms = cfg_.idle_timeout_ms;
+  }
+  if (idle_timeout_ms == 0 || !connected_.load() || stop_requested_.load() || stopping_.load()) {
     return;
   }
 
   idle_timer_.cancel();
-  idle_timer_.expires_after(std::chrono::milliseconds(cfg_.idle_timeout_ms));
+  idle_timer_.expires_after(std::chrono::milliseconds(idle_timeout_ms));
   idle_timer_.async_wait([self, seq](const boost::system::error_code& ec) {
     if (ec == net::error::operation_aborted || seq != self->impl_->current_seq_.load()) {
       return;
