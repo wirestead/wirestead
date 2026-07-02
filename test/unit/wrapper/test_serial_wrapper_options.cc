@@ -17,6 +17,8 @@
 #include <gtest/gtest.h>
 
 #include <boost/asio.hpp>
+#include <chrono>
+#include <thread>
 
 #include "unilink/framer/line_framer.hpp"
 #include "unilink/wrapper/serial/serial.hpp"
@@ -31,6 +33,16 @@ TEST(SerialWrapperOptionsTest, StartMultipleTimes) {
   wrapper::Serial s("/dev/null", 9600);
   (void)s.start();
   (void)s.start();
+
+  // /dev/null isn't a tty, so the transport's async open fails immediately
+  // and (with the default reopen_on_error=true) schedules a retry rather
+  // than settling into a terminal Connected/Error state - the two start()
+  // futures above are never fulfilled. Give the shared io thread a brief
+  // window to actually run that failed open attempt to completion before
+  // tearing the object down, instead of racing the destructor against a
+  // still in-flight strand-posted operation.
+  std::this_thread::sleep_for(50ms);
+  s.stop();
 }
 
 TEST(SerialWrapperOptionsTest, ExternalIoContextManagement) {
