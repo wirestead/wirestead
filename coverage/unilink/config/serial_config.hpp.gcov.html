@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 13:59:00</td>
+            <td class="headerValue">2026-07-02 23:22:02</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -138,30 +138,30 @@
 <span id="L57"><span class="lineNum">      57</span>                 :             :   }</span>
 <span id="L58"><span class="lineNum">      58</span>                 :             : </span>
 <span id="L59"><span class="lineNum">      59</span>                 :             :   // Apply validation and clamp values to valid ranges</span>
-<span id="L60"><span class="lineNum">      60</span>                 :<span class="tlaGNC">          33 :   void validate_and_clamp() {</span></span>
-<span id="L61"><span class="lineNum">      61</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 32 times"> + </span>]:<span class="tlaGNC">          33 :     if (char_size &lt; 5)</span></span>
+<span id="L60"><span class="lineNum">      60</span>                 :<span class="tlaGNC">          35 :   void validate_and_clamp() {</span></span>
+<span id="L61"><span class="lineNum">      61</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 34 times"> + </span>]:<span class="tlaGNC">          35 :     if (char_size &lt; 5)</span></span>
 <span id="L62"><span class="lineNum">      62</span>                 :<span class="tlaGNC">           1 :       char_size = 5;</span></span>
-<span id="L63"><span class="lineNum">      63</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 31 times"> + </span>]:<span class="tlaGNC">          32 :     else if (char_size &gt; 8)</span></span>
+<span id="L63"><span class="lineNum">      63</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 33 times"> + </span>]:<span class="tlaGNC">          34 :     else if (char_size &gt; 8)</span></span>
 <span id="L64"><span class="lineNum">      64</span>                 :<span class="tlaGNC">           1 :       char_size = 8;</span></span>
 <span id="L65"><span class="lineNum">      65</span>                 :             : </span>
-<span id="L66"><span class="lineNum">      66</span>   [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 31 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 3 was taken 1 time"> + </span>]:<span class="tlaGNC">          33 :     if (stop_bits != 1 &amp;&amp; stop_bits != 2) stop_bits = 1;</span></span>
+<span id="L66"><span class="lineNum">      66</span>   [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 33 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 3 was taken 1 time"> + </span>]:<span class="tlaGNC">          35 :     if (stop_bits != 1 &amp;&amp; stop_bits != 2) stop_bits = 1;</span></span>
 <span id="L67"><span class="lineNum">      67</span>                 :             : </span>
-<span id="L68"><span class="lineNum">      68</span>         [<span class="tlaGBC" title="Branch 0 was taken 6 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 27 times"> + </span>]:<span class="tlaGNC">          33 :     if (retry_interval_ms &lt; base::constants::MIN_RETRY_INTERVAL_MS) {</span></span>
+<span id="L68"><span class="lineNum">      68</span>         [<span class="tlaGBC" title="Branch 0 was taken 6 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 29 times"> + </span>]:<span class="tlaGNC">          35 :     if (retry_interval_ms &lt; base::constants::MIN_RETRY_INTERVAL_MS) {</span></span>
 <span id="L69"><span class="lineNum">      69</span>                 :<span class="tlaGNC">           6 :       retry_interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;</span></span>
-<span id="L70"><span class="lineNum">      70</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 26 times"> + </span>]:<span class="tlaGNC">          27 :     } else if (retry_interval_ms &gt; base::constants::MAX_RETRY_INTERVAL_MS) {</span></span>
+<span id="L70"><span class="lineNum">      70</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 28 times"> + </span>]:<span class="tlaGNC">          29 :     } else if (retry_interval_ms &gt; base::constants::MAX_RETRY_INTERVAL_MS) {</span></span>
 <span id="L71"><span class="lineNum">      71</span>                 :<span class="tlaGNC">           1 :       retry_interval_ms = base::constants::MAX_RETRY_INTERVAL_MS;</span></span>
 <span id="L72"><span class="lineNum">      72</span>                 :             :     }</span>
 <span id="L73"><span class="lineNum">      73</span>                 :             : </span>
-<span id="L74"><span class="lineNum">      74</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 32 times"> + </span>]:<span class="tlaGNC">          33 :     if (backpressure_threshold &lt; base::constants::MIN_BACKPRESSURE_THRESHOLD) {</span></span>
+<span id="L74"><span class="lineNum">      74</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 34 times"> + </span>]:<span class="tlaGNC">          35 :     if (backpressure_threshold &lt; base::constants::MIN_BACKPRESSURE_THRESHOLD) {</span></span>
 <span id="L75"><span class="lineNum">      75</span>                 :<span class="tlaGNC">           1 :       backpressure_threshold = base::constants::MIN_BACKPRESSURE_THRESHOLD;</span></span>
-<span id="L76"><span class="lineNum">      76</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 31 times"> + </span>]:<span class="tlaGNC">          32 :     } else if (backpressure_threshold &gt; base::constants::MAX_BACKPRESSURE_THRESHOLD) {</span></span>
+<span id="L76"><span class="lineNum">      76</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 33 times"> + </span>]:<span class="tlaGNC">          34 :     } else if (backpressure_threshold &gt; base::constants::MAX_BACKPRESSURE_THRESHOLD) {</span></span>
 <span id="L77"><span class="lineNum">      77</span>                 :<span class="tlaGNC">           1 :       backpressure_threshold = base::constants::MAX_BACKPRESSURE_THRESHOLD;</span></span>
 <span id="L78"><span class="lineNum">      78</span>                 :             :     }</span>
 <span id="L79"><span class="lineNum">      79</span>                 :             : </span>
-<span id="L80"><span class="lineNum">      80</span>   [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 32 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 1 time"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          33 :     if (max_retries != -1 &amp;&amp; max_retries &gt; base::constants::MAX_RETRIES_LIMIT) {</span></span>
+<span id="L80"><span class="lineNum">      80</span>   [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 34 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 1 time"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          35 :     if (max_retries != -1 &amp;&amp; max_retries &gt; base::constants::MAX_RETRIES_LIMIT) {</span></span>
 <span id="L81"><span class="lineNum">      81</span>                 :<span class="tlaGNC">           1 :       max_retries = base::constants::MAX_RETRIES_LIMIT;</span></span>
 <span id="L82"><span class="lineNum">      82</span>                 :             :     }</span>
-<span id="L83"><span class="lineNum">      83</span>                 :<span class="tlaGNC">          33 :   }</span></span>
+<span id="L83"><span class="lineNum">      83</span>                 :<span class="tlaGNC">          35 :   }</span></span>
 <span id="L84"><span class="lineNum">      84</span>                 :             : };</span>
 <span id="L85"><span class="lineNum">      85</span>                 :             : </span>
 <span id="L86"><span class="lineNum">      86</span>                 :             : }  // namespace config</span>

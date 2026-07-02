@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 13:59:00</td>
+            <td class="headerValue">2026-07-02 23:22:02</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -114,7 +114,7 @@
 <span id="L36"><span class="lineNum">      36</span>                 :             :   using Base::Base;</span>
 <span id="L37"><span class="lineNum">      37</span>                 :             : </span>
 <span id="L38"><span class="lineNum">      38</span>                 :             :   // Polyfill for C++17 pointer+size constructor (std::span requires contiguous_iterator)</span>
-<span id="L39"><span class="lineNum">      39</span>                 :<span class="tlaGNC tlaBgGNC">        2580 :   constexpr SafeSpan(T* data, std::size_t size) noexcept : Base(data, size) {}</span></span>
+<span id="L39"><span class="lineNum">      39</span>                 :<span class="tlaGNC tlaBgGNC">        2584 :   constexpr SafeSpan(T* data, std::size_t size) noexcept : Base(data, size) {}</span></span>
 <span id="L40"><span class="lineNum">      40</span>                 :             : </span>
 <span id="L41"><span class="lineNum">      41</span>                 :             :   // Constructor from std::span</span>
 <span id="L42"><span class="lineNum">      42</span>                 :<span class="tlaGNC">        1030 :   constexpr SafeSpan(Base s) noexcept : Base(s) {}</span></span>

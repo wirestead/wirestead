@@ -31,13 +31,13 @@
             <td class="headerValue">unilink Coverage Report</td>
             <td></td>
             <td class="headerItem">Lines:</td>
-            <td class="headerCovTableEntryLo">74.7&nbsp;%</td>
+            <td class="headerCovTableEntryLo">74.9&nbsp;%</td>
             <td class="headerCovTableEntry">478</td>
-            <td class="headerCovTableEntry">357</td>
+            <td class="headerCovTableEntry">358</td>
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 13:59:00</td>
+            <td class="headerValue">2026-07-02 23:22:02</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryMed">85.9&nbsp;%</td>
@@ -56,9 +56,9 @@
 </td>
             <td></td>
             <td class="headerItem">Branches:</td>
-            <td class="headerCovTableEntryLo">46.5&nbsp;%</td>
+            <td class="headerCovTableEntryLo">47.0&nbsp;%</td>
             <td class="headerCovTableEntry">666</td>
-            <td class="headerCovTableEntry">310</td>
+            <td class="headerCovTableEntry">313</td>
           </tr>
                   <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
                 </table>
@@ -696,32 +696,32 @@
 <span id="L578"><span class="lineNum">     578</span>                 :             :   }));</span>
 <span id="L579"><span class="lineNum">     579</span>         [<span class="tlaGBC" title="Branch 0 was taken 5 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span>]:<span class="tlaGNC tlaBgGNC">           6 : }</span></span>
 <span id="L580"><span class="lineNum">     580</span>                 :             : </span>
-<span id="L581"><span class="lineNum">     581</span>                 :<span class="tlaGNC">          34 : void UdsClient::Impl::start_read(std::shared_ptr&lt;UdsClient&gt; self, uint64_t seq) {</span></span>
-<span id="L582"><span class="lineNum">     582</span>   [<span class="tlaGBC" title="Branch 0 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">          68 :   if (stop_requested_.load() || stopping_.load() || seq != current_seq_.load()) {</span></span>
-<span class="lineNum">        </span>    <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaGBC" title="Branch 5 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 6 was not taken"> - </span><span class="tlaGBC" title="Branch 7 was taken 34 times"> + </span>]
-<span id="L583"><span class="lineNum">     583</span>                 :<span class="tlaUNC tlaBgUNC">           0 :     return;</span></span>
+<span id="L581"><span class="lineNum">     581</span>                 :<span class="tlaGNC">          35 : void UdsClient::Impl::start_read(std::shared_ptr&lt;UdsClient&gt; self, uint64_t seq) {</span></span>
+<span id="L582"><span class="lineNum">     582</span>   [<span class="tlaGBC" title="Branch 0 was taken 34 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 2 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">          69 :   if (stop_requested_.load() || stopping_.load() || seq != current_seq_.load()) {</span></span>
+<span class="lineNum">        </span>    <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaGBC" title="Branch 5 was taken 34 times"> + </span><span class="tlaGBC" title="Branch 6 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 7 was taken 34 times"> + </span>]
+<span id="L583"><span class="lineNum">     583</span>                 :<span class="tlaGNC">           1 :     return;</span></span>
 <span id="L584"><span class="lineNum">     584</span>                 :             :   }</span>
 <span id="L585"><span class="lineNum">     585</span>                 :             : </span>
-<span id="L586"><span class="lineNum">     586</span>   [<span class="tlaGBC" title="Branch 0 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC tlaBgGNC">          68 :   socket_-&gt;async_read_some(net::buffer(rx_),</span></span>
+<span id="L586"><span class="lineNum">     586</span>   [<span class="tlaGBC" title="Branch 0 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          68 :   socket_-&gt;async_read_some(net::buffer(rx_),</span></span>
 <span id="L587"><span class="lineNum">     587</span>   [<span class="tlaGBC" title="Branch 0 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          68 :                            net::bind_executor(strand_, [self, seq](const boost::system::error_code&amp; ec, size_t bytes) {</span></span>
-<span id="L588"><span class="lineNum">     588</span>   [<span class="tlaGBC" title="Branch 0 was taken 14 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 10 times"> + </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 14 times"> + </span> :<span class="tlaGNC">          40 :                              if (ec == net::error::operation_aborted || seq != self-&gt;impl_-&gt;current_seq_.load()) return;</span></span>
-<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 10 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 14 times"> + </span>]
-<span id="L589"><span class="lineNum">     589</span>   [<span class="tlaGBC" title="Branch 0 was taken 14 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 14 times"> + </span> :<span class="tlaGNC">          14 :                              if (self-&gt;impl_-&gt;stop_requested_.load() || self-&gt;impl_-&gt;stopping_.load()) return;</span></span>
-<span class="lineNum">        </span>          <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaGBC" title="Branch 5 was taken 14 times"> + </span>]
-<span id="L590"><span class="lineNum">     590</span>         [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 12 times"> + </span>]:<span class="tlaGNC">          14 :                              if (ec) {</span></span>
+<span id="L588"><span class="lineNum">     588</span>   [<span class="tlaGBC" title="Branch 0 was taken 15 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 9 times"> + </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 15 times"> + </span> :<span class="tlaGNC">          41 :                              if (ec == net::error::operation_aborted || seq != self-&gt;impl_-&gt;current_seq_.load()) return;</span></span>
+<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 9 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 15 times"> + </span>]
+<span id="L589"><span class="lineNum">     589</span>   [<span class="tlaGBC" title="Branch 0 was taken 15 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 15 times"> + </span> :<span class="tlaGNC">          15 :                              if (self-&gt;impl_-&gt;stop_requested_.load() || self-&gt;impl_-&gt;stopping_.load()) return;</span></span>
+<span class="lineNum">        </span>          <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaGBC" title="Branch 5 was taken 15 times"> + </span>]
+<span id="L590"><span class="lineNum">     590</span>         [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 13 times"> + </span>]:<span class="tlaGNC">          15 :                              if (ec) {</span></span>
 <span id="L591"><span class="lineNum">     591</span>         [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">           2 :                                self-&gt;impl_-&gt;handle_close(self, seq, ec);</span></span>
 <span id="L592"><span class="lineNum">     592</span>                 :<span class="tlaGNC">           2 :                                return;</span></span>
 <span id="L593"><span class="lineNum">     593</span>                 :             :                              }</span>
 <span id="L594"><span class="lineNum">     594</span>                 :             : </span>
-<span id="L595"><span class="lineNum">     595</span>                 :<span class="tlaGNC">          12 :                              OnBytes cb;</span></span>
+<span id="L595"><span class="lineNum">     595</span>                 :<span class="tlaGNC">          13 :                              OnBytes cb;</span></span>
 <span id="L596"><span class="lineNum">     596</span>                 :             :                              {</span>
-<span id="L597"><span class="lineNum">     597</span>         [<span class="tlaGBC" title="Branch 0 was taken 12 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          12 :                                std::lock_guard&lt;std::mutex&gt; lock(self-&gt;impl_-&gt;callback_mtx_);</span></span>
-<span id="L598"><span class="lineNum">     598</span>         [<span class="tlaGBC" title="Branch 0 was taken 12 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          12 :                                cb = self-&gt;impl_-&gt;on_bytes_;</span></span>
-<span id="L599"><span class="lineNum">     599</span>                 :<span class="tlaGNC">          12 :                              }</span></span>
-<span id="L600"><span class="lineNum">     600</span>         [<span class="tlaGBC" title="Branch 0 was taken 12 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          12 :                              if (bytes &gt; 0) self-&gt;impl_-&gt;stats_.record_received(bytes);</span></span>
-<span id="L601"><span class="lineNum">     601</span>   [<span class="tlaGBC" title="Branch 0 was taken 12 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 12 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          24 :                              if (cb) cb(memory::ConstByteSpan(self-&gt;impl_-&gt;rx_.data(), bytes));</span></span>
-<span id="L602"><span class="lineNum">     602</span>         [<span class="tlaGBC" title="Branch 0 was taken 12 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          12 :                              self-&gt;impl_-&gt;start_read(self, seq);</span></span>
-<span id="L603"><span class="lineNum">     603</span>                 :<span class="tlaGNC">          12 :                            }));</span></span>
+<span id="L597"><span class="lineNum">     597</span>         [<span class="tlaGBC" title="Branch 0 was taken 13 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          13 :                                std::lock_guard&lt;std::mutex&gt; lock(self-&gt;impl_-&gt;callback_mtx_);</span></span>
+<span id="L598"><span class="lineNum">     598</span>         [<span class="tlaGBC" title="Branch 0 was taken 13 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          13 :                                cb = self-&gt;impl_-&gt;on_bytes_;</span></span>
+<span id="L599"><span class="lineNum">     599</span>                 :<span class="tlaGNC">          13 :                              }</span></span>
+<span id="L600"><span class="lineNum">     600</span>         [<span class="tlaGBC" title="Branch 0 was taken 13 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          13 :                              if (bytes &gt; 0) self-&gt;impl_-&gt;stats_.record_received(bytes);</span></span>
+<span id="L601"><span class="lineNum">     601</span>   [<span class="tlaGBC" title="Branch 0 was taken 12 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 2 was taken 12 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          25 :                              if (cb) cb(memory::ConstByteSpan(self-&gt;impl_-&gt;rx_.data(), bytes));</span></span>
+<span id="L602"><span class="lineNum">     602</span>         [<span class="tlaGBC" title="Branch 0 was taken 13 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          13 :                              self-&gt;impl_-&gt;start_read(self, seq);</span></span>
+<span id="L603"><span class="lineNum">     603</span>                 :<span class="tlaGNC">          13 :                            }));</span></span>
 <span id="L604"><span class="lineNum">     604</span>                 :             : }</span>
 <span id="L605"><span class="lineNum">     605</span>                 :             : </span>
 <span id="L606"><span class="lineNum">     606</span>                 :<span class="tlaGNC">          38 : void UdsClient::Impl::do_write(std::shared_ptr&lt;UdsClient&gt; self, uint64_t seq) {</span></span>

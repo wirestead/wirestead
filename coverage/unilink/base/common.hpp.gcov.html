@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 13:59:00</td>
+            <td class="headerValue">2026-07-02 23:22:02</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -262,8 +262,8 @@
 <span id="L184"><span class="lineNum">     184</span>                 :             :  * @param str The string to convert</span>
 <span id="L185"><span class="lineNum">     185</span>                 :             :  * @return std::pair&lt;const uint8_t*, size_t&gt; containing pointer and size</span>
 <span id="L186"><span class="lineNum">     186</span>                 :             :  */</span>
-<span id="L187"><span class="lineNum">     187</span>                 :<span class="tlaGNC">        1211 : inline std::pair&lt;const uint8_t*, size_t&gt; string_to_bytes(std::string_view str) {</span></span>
-<span id="L188"><span class="lineNum">     188</span>                 :<span class="tlaGNC">        1211 :   return {reinterpret_cast&lt;const uint8_t*&gt;(str.data()), str.size()};</span></span>
+<span id="L187"><span class="lineNum">     187</span>                 :<span class="tlaGNC">        1214 : inline std::pair&lt;const uint8_t*, size_t&gt; string_to_bytes(std::string_view str) {</span></span>
+<span id="L188"><span class="lineNum">     188</span>                 :<span class="tlaGNC">        1214 :   return {reinterpret_cast&lt;const uint8_t*&gt;(str.data()), str.size()};</span></span>
 <span id="L189"><span class="lineNum">     189</span>                 :             : }</span>
 <span id="L190"><span class="lineNum">     190</span>                 :             : }  // namespace safe_convert</span>
 <span id="L191"><span class="lineNum">     191</span>                 :             : </span>

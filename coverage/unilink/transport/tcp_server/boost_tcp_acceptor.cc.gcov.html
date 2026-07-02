@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 13:59:00</td>
+            <td class="headerValue">2026-07-02 23:22:02</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -99,31 +99,31 @@
 <span id="L21"><span class="lineNum">      21</span>                 :             : </span>
 <span id="L22"><span class="lineNum">      22</span>                 :             : namespace net = boost::asio;</span>
 <span id="L23"><span class="lineNum">      23</span>                 :             : </span>
-<span id="L24"><span class="lineNum">      24</span>         [<span class="tlaGBC" title="Branch 0 was taken 101 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC tlaBgGNC">         101 : BoostTcpAcceptor::BoostTcpAcceptor(net::io_context&amp; ioc) : acceptor_(ioc) {}</span></span>
+<span id="L24"><span class="lineNum">      24</span>         [<span class="tlaGBC" title="Branch 0 was taken 104 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC tlaBgGNC">         104 : BoostTcpAcceptor::BoostTcpAcceptor(net::io_context&amp; ioc) : acceptor_(ioc) {}</span></span>
 <span id="L25"><span class="lineNum">      25</span>                 :             : </span>
-<span id="L26"><span class="lineNum">      26</span>                 :<span class="tlaGNC">          83 : void BoostTcpAcceptor::open(const net::ip::tcp&amp; protocol, boost::system::error_code&amp; ec) {</span></span>
-<span id="L27"><span class="lineNum">      27</span>         [<span class="tlaGBC" title="Branch 0 was taken 83 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          83 :   acceptor_.open(protocol, ec);</span></span>
-<span id="L28"><span class="lineNum">      28</span>         [<span class="tlaGBC" title="Branch 0 was taken 83 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          83 :   if (!ec) {</span></span>
+<span id="L26"><span class="lineNum">      26</span>                 :<span class="tlaGNC">          86 : void BoostTcpAcceptor::open(const net::ip::tcp&amp; protocol, boost::system::error_code&amp; ec) {</span></span>
+<span id="L27"><span class="lineNum">      27</span>         [<span class="tlaGBC" title="Branch 0 was taken 86 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          86 :   acceptor_.open(protocol, ec);</span></span>
+<span id="L28"><span class="lineNum">      28</span>         [<span class="tlaGBC" title="Branch 0 was taken 86 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          86 :   if (!ec) {</span></span>
 <span id="L29"><span class="lineNum">      29</span>                 :             :     // Set SO_REUSEADDR to allow immediate port reuse after server shutdown</span>
 <span id="L30"><span class="lineNum">      30</span>                 :             :     // This prevents &quot;Address already in use&quot; errors in tests and quick restarts</span>
-<span id="L31"><span class="lineNum">      31</span>         [<span class="tlaGBC" title="Branch 0 was taken 83 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          83 :     acceptor_.set_option(net::socket_base::reuse_address(true), ec);</span></span>
+<span id="L31"><span class="lineNum">      31</span>         [<span class="tlaGBC" title="Branch 0 was taken 86 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          86 :     acceptor_.set_option(net::socket_base::reuse_address(true), ec);</span></span>
 <span id="L32"><span class="lineNum">      32</span>                 :             :   }</span>
-<span id="L33"><span class="lineNum">      33</span>                 :<span class="tlaGNC">          83 : }</span></span>
+<span id="L33"><span class="lineNum">      33</span>                 :<span class="tlaGNC">          86 : }</span></span>
 <span id="L34"><span class="lineNum">      34</span>                 :             : </span>
-<span id="L35"><span class="lineNum">      35</span>                 :<span class="tlaGNC">          85 : void BoostTcpAcceptor::bind(const net::ip::tcp::endpoint&amp; endpoint, boost::system::error_code&amp; ec) {</span></span>
-<span id="L36"><span class="lineNum">      36</span>         [<span class="tlaGBC" title="Branch 0 was taken 85 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          85 :   acceptor_.bind(endpoint, ec);</span></span>
-<span id="L37"><span class="lineNum">      37</span>                 :<span class="tlaGNC">          85 : }</span></span>
+<span id="L35"><span class="lineNum">      35</span>                 :<span class="tlaGNC">          88 : void BoostTcpAcceptor::bind(const net::ip::tcp::endpoint&amp; endpoint, boost::system::error_code&amp; ec) {</span></span>
+<span id="L36"><span class="lineNum">      36</span>         [<span class="tlaGBC" title="Branch 0 was taken 88 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          88 :   acceptor_.bind(endpoint, ec);</span></span>
+<span id="L37"><span class="lineNum">      37</span>                 :<span class="tlaGNC">          88 : }</span></span>
 <span id="L38"><span class="lineNum">      38</span>                 :             : </span>
-<span id="L39"><span class="lineNum">      39</span>         [<span class="tlaGBC" title="Branch 0 was taken 82 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          82 : void BoostTcpAcceptor::listen(int backlog, boost::system::error_code&amp; ec) { acceptor_.listen(backlog, ec); }</span></span>
+<span id="L39"><span class="lineNum">      39</span>         [<span class="tlaGBC" title="Branch 0 was taken 85 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          85 : void BoostTcpAcceptor::listen(int backlog, boost::system::error_code&amp; ec) { acceptor_.listen(backlog, ec); }</span></span>
 <span id="L40"><span class="lineNum">      40</span>                 :             : </span>
-<span id="L41"><span class="lineNum">      41</span>                 :<span class="tlaGNC">         459 : bool BoostTcpAcceptor::is_open() const { return acceptor_.is_open(); }</span></span>
+<span id="L41"><span class="lineNum">      41</span>                 :<span class="tlaGNC">         469 : bool BoostTcpAcceptor::is_open() const { return acceptor_.is_open(); }</span></span>
 <span id="L42"><span class="lineNum">      42</span>                 :             : </span>
-<span id="L43"><span class="lineNum">      43</span>         [<span class="tlaGBC" title="Branch 0 was taken 83 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          83 : void BoostTcpAcceptor::close(boost::system::error_code&amp; ec) { acceptor_.close(ec); }</span></span>
+<span id="L43"><span class="lineNum">      43</span>         [<span class="tlaGBC" title="Branch 0 was taken 86 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          86 : void BoostTcpAcceptor::close(boost::system::error_code&amp; ec) { acceptor_.close(ec); }</span></span>
 <span id="L44"><span class="lineNum">      44</span>                 :             : </span>
-<span id="L45"><span class="lineNum">      45</span>                 :<span class="tlaGNC">         172 : void BoostTcpAcceptor::async_accept(</span></span>
+<span id="L45"><span class="lineNum">      45</span>                 :<span class="tlaGNC">         173 : void BoostTcpAcceptor::async_accept(</span></span>
 <span id="L46"><span class="lineNum">      46</span>                 :             :     std::function&lt;void(const boost::system::error_code&amp;, net::ip::tcp::socket)&gt; handler) {</span>
-<span id="L47"><span class="lineNum">      47</span>                 :<span class="tlaGNC">         172 :   acceptor_.async_accept(std::move(handler));</span></span>
-<span id="L48"><span class="lineNum">      48</span>                 :<span class="tlaGNC">         172 : }</span></span>
+<span id="L47"><span class="lineNum">      47</span>                 :<span class="tlaGNC">         173 :   acceptor_.async_accept(std::move(handler));</span></span>
+<span id="L48"><span class="lineNum">      48</span>                 :<span class="tlaGNC">         173 : }</span></span>
 <span id="L49"><span class="lineNum">      49</span>                 :             : </span>
 <span id="L50"><span class="lineNum">      50</span>                 :             : }  // namespace transport</span>
 <span id="L51"><span class="lineNum">      51</span>                 :             : }  // namespace unilink</span>
