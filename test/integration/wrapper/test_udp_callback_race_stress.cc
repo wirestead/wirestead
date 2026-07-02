@@ -33,59 +33,72 @@ using namespace std::chrono_literals;
 // Regression/stress test for jwsung91/unilink#436: UdpChannel's on_bytes_/
 // on_state_/on_bp_ callback slots used to be assigned directly with no
 // synchronization at all, while the io thread concurrently read the same
-// members on every received datagram. This drives real I/O directly
-// against the transport (not through the wrapper, which already
-// synchronizes its own handler fields separately) so the io thread is
-// actively reading the callback slots, while another thread concurrently
-// replaces every callback for ~300ms. Under ThreadSanitizer this reliably
-// reported a data race before the #436 fix and is clean after it.
+// members on every received datagram. Uses a separate sender/receiver pair
+// (the same pattern as TransportUdpTest.LoopbackSendReceive) rather than a
+// self-addressed socket - a self-send loopback proved unreliable on Windows
+// ARM64 CI. Drives real I/O on the receiver's io thread while another
+// thread concurrently replaces every one of the receiver's callbacks for
+// ~1.5s. Under ThreadSanitizer this reliably reported a data race before
+// the #436 fix and is clean after it.
 TEST(UdpCallbackRaceStressTest, ConcurrentCallbackReplacementDuringActiveIo) {
-  const uint16_t port = TestUtils::getAvailableTestPort();
+  const uint16_t receiver_port = TestUtils::getAvailableTestPort();
 
-  UdpConfig cfg;
-  cfg.bind_address = "127.0.0.1";
-  cfg.local_port = port;
-  cfg.remote_address = "127.0.0.1";
-  cfg.remote_port = port;  // self-addressed: every send arrives back as a receive
+  UdpConfig receiver_cfg;
+  receiver_cfg.local_port = receiver_port;
+  auto receiver = UdpChannel::create(receiver_cfg);
+  receiver->on_bytes([](memory::ConstByteSpan) {});
+  receiver->on_state([](base::LinkState) {});
+  receiver->on_backpressure([](size_t) {});
 
-  auto channel = UdpChannel::create(cfg);
-  channel->on_bytes([](memory::ConstByteSpan) {});
-  channel->on_state([](base::LinkState) {});
-  channel->on_backpressure([](size_t) {});
-  channel->start();
+  UdpConfig sender_cfg;
+  sender_cfg.local_port = 0;
+  sender_cfg.remote_address = "127.0.0.1";
+  sender_cfg.remote_port = receiver_port;
+  auto sender = UdpChannel::create(sender_cfg);
 
-  std::this_thread::sleep_for(50ms);
-  ASSERT_TRUE(channel->is_connected());
+  std::atomic<bool> receiver_ready{false};
+  receiver->on_state([&](base::LinkState s) {
+    if (s == base::LinkState::Listening) receiver_ready = true;
+  });
+  std::atomic<bool> sender_ready{false};
+  sender->on_state([&](base::LinkState s) {
+    if (s == base::LinkState::Connected) sender_ready = true;
+  });
+
+  receiver->start();
+  sender->start();
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return receiver_ready.load() && sender_ready.load(); }, 1000));
 
   std::atomic<bool> stop{false};
 
-  // Thread A: continuously send so the io thread keeps reading on_bytes_/
-  // on_state_/on_bp_ on every receive-completion.
-  std::thread sender([&] {
+  // Thread A: continuously send so the receiver's io thread keeps reading
+  // on_bytes_/on_state_/on_bp_ on every receive-completion.
+  std::thread sender_thread([&] {
     std::vector<uint8_t> payload{1};
     while (!stop.load()) {
-      channel->async_try_write_copy(memory::ConstByteSpan(payload.data(), payload.size()));
+      sender->async_try_write_copy(memory::ConstByteSpan(payload.data(), payload.size()));
     }
   });
 
   // Thread B: hammer every callback setter concurrently, directly on the
   // transport (bypassing the wrapper's own already-synchronized handlers).
-  std::thread setter([&] {
+  std::thread setter_thread([&] {
     while (!stop.load()) {
-      channel->on_bytes([](memory::ConstByteSpan) {});
-      channel->on_state([](base::LinkState) {});
-      channel->on_backpressure([](size_t) {});
+      receiver->on_bytes([](memory::ConstByteSpan) {});
+      receiver->on_state([](base::LinkState) {});
+      receiver->on_backpressure([](size_t) {});
     }
   });
 
   std::this_thread::sleep_for(1500ms);
   stop.store(true);
-  sender.join();
-  setter.join();
+  sender_thread.join();
+  setter_thread.join();
 
   // Sanity check: if this is 0, the test isn't exercising the io thread's
   // callback read path at all and any TSan result would be meaningless.
-  EXPECT_GT(channel->stats().messages_received, 0u);
+  EXPECT_GT(receiver->stats().messages_received, 0u);
 
-  channel->stop();
+  sender->stop();
+  receiver->stop();
 }
