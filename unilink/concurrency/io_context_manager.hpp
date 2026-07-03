@@ -26,8 +26,14 @@ namespace unilink {
 namespace concurrency {
 
 /**
- * Global io_context manager
- * All Transports share one io_context for improved memory efficiency
+ * Global io_context manager.
+ *
+ * Every transport (TcpClient/TcpServer/UdsClient/UdsServer/UdpChannel/Serial)
+ * owns a dedicated io_context + thread by default (#440). This singleton
+ * backs the opt-in shared_context() builder/wrapper setter on TcpServer and
+ * Serial only, for callers who deliberately want many instances in one
+ * process to share a single thread (trading per-instance parallelism for
+ * reduced thread/memory overhead) instead of each running independently.
  */
 class UNILINK_API IoContextManager {
  public:
