@@ -121,6 +121,16 @@ TEST_F(ImprovedArchitectureTest, ProposedIndependentResourceManagement) {
 
 /**
  * @brief Upper API Auto-initialization Test
+ *
+ * Every builder constructor (TcpServerBuilder, TcpClientBuilder, etc.) calls
+ * AutoInitializer::ensure_io_context_running() unconditionally, so the global
+ * IoContextManager singleton comes up as a side effect of constructing *any*
+ * builder - this has nothing to do with whether the resulting transport
+ * actually uses that shared context. Since #440, TcpServer/Serial default to
+ * a dedicated io_context + thread and never touch the singleton at all; see
+ * TcpServerIndependentOfIoContextManager below for the assertion that
+ * actually matters post-#440 (the server keeps working even if the
+ * singleton is stopped).
  */
 TEST_F(ImprovedArchitectureTest, UpperAPIAutoInitialization) {
   std::cout << "Testing upper API auto-initialization..." << std::endl;
@@ -133,7 +143,8 @@ TEST_F(ImprovedArchitectureTest, UpperAPIAutoInitialization) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 
-  // IoContextManager starts automatically when using builder
+  // The *builder constructor* starts IoContextManager (AutoInitializer),
+  // regardless of whether build()'s resulting server ends up using it.
   server_ = unilink::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   ASSERT_NE(server_, nullptr);
@@ -142,6 +153,35 @@ TEST_F(ImprovedArchitectureTest, UpperAPIAutoInitialization) {
   EXPECT_TRUE(unilink::concurrency::IoContextManager::instance().is_running());
 
   std::cout << "Upper API auto-initialization test completed" << std::endl;
+}
+
+/**
+ * @brief #440: TcpServer defaults to a dedicated io_context + thread and
+ * must keep running normally even if the (now-unrelated) global
+ * IoContextManager singleton is stopped.
+ */
+TEST_F(ImprovedArchitectureTest, TcpServerIndependentOfIoContextManager) {
+  uint16_t test_port = TestUtils::getAvailableTestPort();
+
+  server_ = unilink::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  ASSERT_NE(server_, nullptr);
+
+  auto f = server_->start();
+  EXPECT_TRUE(TestUtils::waitForCondition([&] { return server_->listening(); }, 1000));
+
+  // Stopping the global singleton (started as an AutoInitializer side effect
+  // of building the *builder*, not because this server needs it) must not
+  // affect this server's own dedicated io_context/thread at all.
+  if (unilink::concurrency::IoContextManager::instance().is_running()) {
+    unilink::concurrency::IoContextManager::instance().stop();
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  EXPECT_TRUE(server_->listening());
+
+  client_ = unilink::tcp_client("127.0.0.1", test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  client_->start();
+  EXPECT_TRUE(TestUtils::waitForCondition([&] { return client_->connected(); }, 2000));
 }
 
 /**
