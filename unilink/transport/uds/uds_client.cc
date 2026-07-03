@@ -446,6 +446,7 @@ void UdsClient::set_backpressure_strategy(base::constants::BackpressureStrategy 
 void UdsClient::set_retry_interval(unsigned interval_ms) {
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
   impl_->cfg_.retry_interval_ms = interval_ms;
+  impl_->cfg_.validate_and_clamp();
 }
 
 void UdsClient::set_reconnect_policy(ReconnectPolicy policy) {

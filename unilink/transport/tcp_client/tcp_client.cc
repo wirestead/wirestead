@@ -546,18 +546,22 @@ void TcpClient::set_backpressure_strategy(base::constants::BackpressureStrategy 
 void TcpClient::set_retry_interval(unsigned interval_ms) {
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
   impl_->cfg_.retry_interval_ms = interval_ms;
+  impl_->cfg_.validate_and_clamp();
 }
 void TcpClient::set_max_retries(int max_retries) {
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
   impl_->cfg_.max_retries = max_retries;
+  impl_->cfg_.validate_and_clamp();
 }
 void TcpClient::set_connection_timeout(unsigned timeout_ms) {
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
   impl_->cfg_.connection_timeout_ms = timeout_ms;
+  impl_->cfg_.validate_and_clamp();
 }
 void TcpClient::set_idle_timeout(unsigned timeout_ms) {
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
   impl_->cfg_.idle_timeout_ms = timeout_ms;
+  impl_->cfg_.validate_and_clamp();
 }
 void TcpClient::set_idle_timeout_action(IdleTimeoutAction action) {
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);

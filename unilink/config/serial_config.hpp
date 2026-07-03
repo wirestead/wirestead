@@ -19,6 +19,7 @@
 #include <string>
 
 #include "unilink/base/constants.hpp"
+#include "unilink/util/input_validator.hpp"
 
 namespace unilink {
 namespace config {
@@ -54,8 +55,9 @@ struct SerialConfig {
 
   // Validation methods
   bool is_valid() const {
-    return !device.empty() && baud_rate > 0 && char_size >= 5 && char_size <= 8 && (stop_bits == 1 || stop_bits == 2) &&
-           retry_interval_ms >= base::constants::MIN_RETRY_INTERVAL_MS &&
+    return util::InputValidator::is_valid_device_path(device) && baud_rate >= base::constants::MIN_BAUD_RATE &&
+           baud_rate <= base::constants::MAX_BAUD_RATE && char_size >= 5 && char_size <= 8 &&
+           (stop_bits == 1 || stop_bits == 2) && retry_interval_ms >= base::constants::MIN_RETRY_INTERVAL_MS &&
            retry_interval_ms <= base::constants::MAX_RETRY_INTERVAL_MS &&
            backpressure_threshold >= base::constants::MIN_BACKPRESSURE_THRESHOLD &&
            backpressure_threshold <= base::constants::MAX_BACKPRESSURE_THRESHOLD &&
@@ -64,6 +66,12 @@ struct SerialConfig {
 
   // Apply validation and clamp values to valid ranges
   void validate_and_clamp() {
+    if (baud_rate < base::constants::MIN_BAUD_RATE) {
+      baud_rate = base::constants::MIN_BAUD_RATE;
+    } else if (baud_rate > base::constants::MAX_BAUD_RATE) {
+      baud_rate = base::constants::MAX_BAUD_RATE;
+    }
+
     if (char_size < 5)
       char_size = 5;
     else if (char_size > 8)

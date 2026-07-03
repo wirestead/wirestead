@@ -77,6 +77,7 @@ struct UdsServer::Impl {
         ioc_(ioc_ptr ? ioc_ptr : owned_ioc_.get()),
         owns_ioc_(!ioc_ptr),
         cfg_(cfg) {
+    cfg_.validate_and_clamp();
     acceptor_ = std::make_unique<BoostUdsAcceptor>(*ioc_);
   }
   ~Impl() {

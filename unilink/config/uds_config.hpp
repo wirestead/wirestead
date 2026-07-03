@@ -43,6 +43,8 @@ struct UdsClientConfig {
     return util::InputValidator::is_valid_uds_path(socket_path) &&
            retry_interval_ms >= base::constants::MIN_RETRY_INTERVAL_MS &&
            retry_interval_ms <= base::constants::MAX_RETRY_INTERVAL_MS &&
+           connection_timeout_ms >= base::constants::MIN_CONNECTION_TIMEOUT_MS &&
+           connection_timeout_ms <= base::constants::MAX_CONNECTION_TIMEOUT_MS &&
            backpressure_threshold >= base::constants::MIN_BACKPRESSURE_THRESHOLD &&
            backpressure_threshold <= base::constants::MAX_BACKPRESSURE_THRESHOLD &&
            (max_retries == -1 || (max_retries >= 0 && max_retries <= base::constants::MAX_RETRIES_LIMIT));
@@ -53,6 +55,12 @@ struct UdsClientConfig {
       retry_interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;
     } else if (retry_interval_ms > base::constants::MAX_RETRY_INTERVAL_MS) {
       retry_interval_ms = base::constants::MAX_RETRY_INTERVAL_MS;
+    }
+
+    if (connection_timeout_ms < base::constants::MIN_CONNECTION_TIMEOUT_MS) {
+      connection_timeout_ms = base::constants::MIN_CONNECTION_TIMEOUT_MS;
+    } else if (connection_timeout_ms > base::constants::MAX_CONNECTION_TIMEOUT_MS) {
+      connection_timeout_ms = base::constants::MAX_CONNECTION_TIMEOUT_MS;
     }
 
     if (backpressure_threshold < base::constants::MIN_BACKPRESSURE_THRESHOLD) {
@@ -82,7 +90,8 @@ struct UdsServerConfig {
     return util::InputValidator::is_valid_uds_path(socket_path) &&
            backpressure_threshold >= base::constants::MIN_BACKPRESSURE_THRESHOLD &&
            backpressure_threshold <= base::constants::MAX_BACKPRESSURE_THRESHOLD && max_connections >= 0 &&
-           idle_timeout_ms >= 0;
+           (idle_timeout_ms == 0 || (idle_timeout_ms >= static_cast<int>(base::constants::MIN_IDLE_TIMEOUT_MS) &&
+                                     idle_timeout_ms <= static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS)));
   }
 
   void validate_and_clamp() {
@@ -100,6 +109,12 @@ struct UdsServerConfig {
 
     if (idle_timeout_ms < 0) {
       idle_timeout_ms = 0;
+    } else if (idle_timeout_ms != 0) {
+      if (idle_timeout_ms < static_cast<int>(base::constants::MIN_IDLE_TIMEOUT_MS)) {
+        idle_timeout_ms = static_cast<int>(base::constants::MIN_IDLE_TIMEOUT_MS);
+      } else if (idle_timeout_ms > static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS)) {
+        idle_timeout_ms = static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS);
+      }
     }
   }
 };
