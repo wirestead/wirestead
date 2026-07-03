@@ -18,7 +18,7 @@
 
 #include "unilink/transport/base/error_info_holder.hpp"
 
-using namespace unilink::transport::base;
+using namespace unilink::transport;
 using namespace unilink::diagnostics;
 
 TEST(ErrorInfoHolderTest, StartsWithNoError) {

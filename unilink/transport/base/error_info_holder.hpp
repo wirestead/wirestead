@@ -32,7 +32,6 @@
 // only two of seven having any detailed-error mechanism at all.
 namespace unilink {
 namespace transport {
-namespace base {
 
 class ErrorInfoHolder {
  public:
@@ -57,6 +56,5 @@ class ErrorInfoHolder {
   std::optional<diagnostics::ErrorInfo> last_error_info_;
 };
 
-}  // namespace base
 }  // namespace transport
 }  // namespace unilink
