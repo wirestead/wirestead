@@ -99,31 +99,7 @@ bool UdsServerSession::async_write_move(std::vector<uint8_t>&& data) {
   net::post(strand_, [this, self = shared_from_this(), data = std::move(data)]() mutable {
     if (!alive_) return;
     size_t added = data.size();
-
-    // Reliable: route to pending_ when backpressure is active
-    if (bp_strategy_ == base::constants::BackpressureStrategy::Reliable && backpressure_active_.load()) {
-      if (queue_bytes_ + pending_bytes_ + added > bp_limit_) {
-        UNILINK_LOG_ERROR("uds_server_session", "write", "Queue limit exceeded, dropping message");
-        return;
-      }
-      pending_bytes_ += added;
-      pending_.emplace_back(std::move(data));
-      observe_queue();
-      return;
-    }
-
-    maybe_flush_for_keep_latest(added);
-    if (queue_bytes_ + added > bp_limit_) {
-      UNILINK_LOG_ERROR("uds_server_session", "write", "Queue limit exceeded, dropping message");
-      report_backpressure(queue_bytes_ + added);
-      return;
-    }
-
-    queue_bytes_ += added;
-    tx_.emplace_back(std::move(data));
-    observe_queue();
-    report_backpressure(queue_bytes_);
-    if (!writing_) do_write();
+    route_enqueued_buffer(BufferVariant{std::move(data)}, added);
   });
   return true;
 }
@@ -141,31 +117,7 @@ bool UdsServerSession::async_write_shared(std::shared_ptr<const std::vector<uint
   net::post(strand_, [this, self = shared_from_this(), data = std::move(data)]() mutable {
     if (!alive_) return;
     size_t added = data->size();
-
-    // Reliable: route to pending_ when backpressure is active
-    if (bp_strategy_ == base::constants::BackpressureStrategy::Reliable && backpressure_active_.load()) {
-      if (queue_bytes_ + pending_bytes_ + added > bp_limit_) {
-        UNILINK_LOG_ERROR("uds_server_session", "write", "Queue limit exceeded, dropping message");
-        return;
-      }
-      pending_bytes_ += added;
-      pending_.emplace_back(std::move(data));
-      observe_queue();
-      return;
-    }
-
-    maybe_flush_for_keep_latest(added);
-    if (queue_bytes_ + added > bp_limit_) {
-      UNILINK_LOG_ERROR("uds_server_session", "write", "Queue limit exceeded, dropping message");
-      report_backpressure(queue_bytes_ + added);
-      return;
-    }
-
-    queue_bytes_ += added;
-    tx_.emplace_back(std::move(data));
-    observe_queue();
-    report_backpressure(queue_bytes_);
-    if (!writing_) do_write();
+    route_enqueued_buffer(BufferVariant{std::move(data)}, added);
   });
   return true;
 }
@@ -355,24 +307,21 @@ void UdsServerSession::do_close() {
   socket_->close(ec);
 
   // Drain queued/pending writes and unconditionally clear backpressure,
-  // notifying any waiter directly - mirrors UdpChannel's
-  // drain_queue_and_clear_backpressure(). Must run before on_bp_ is cleared
-  // below: otherwise a Reliable-mode caller blocked in send_to_blocking()
-  // for this client would never be woken up when the client disconnects via
-  // a read error or idle timeout (jwsung91/unilink#452).
-  tx_.clear();
-  current_write_buffer_ = std::nullopt;
-  queue_bytes_ = 0;
-  pending_.clear();
-  pending_bytes_ = 0;
+  // notifying any waiter directly - shares UdpChannel's terminal-drain
+  // helper (#434). Must run before on_bp_ is cleared below: otherwise a
+  // Reliable-mode caller blocked in send_to_blocking() for this client
+  // would never be woken up when the client disconnects via a read error
+  // or idle timeout (jwsung91/unilink#452).
   writing_ = false;
-  const bool had_backpressure = backpressure_active_;
-  backpressure_active_ = false;
-  if (had_backpressure && on_bp_) {
-    try {
-      on_bp_(queue_bytes_);
-    } catch (...) {
-    }
+  {
+    auto f = bp_fields();
+    queue_util::drain_and_clear_backpressure(f, on_bp_, [&]() {
+      tx_.clear();
+      current_write_buffer_ = std::nullopt;
+      queue_bytes_ = 0;
+      pending_.clear();
+      pending_bytes_ = 0;
+    });
   }
 
   on_bytes_ = nullptr;
@@ -386,10 +335,33 @@ void UdsServerSession::do_close() {
   }
 }
 
-void UdsServerSession::maybe_flush_for_keep_latest(size_t added) {
-  const auto dropped =
-      queue_util::maybe_flush_for_keep_latest(bp_strategy_, added, bp_high_, tx_, queue_bytes_, backpressure_active_);
+queue_util::BackpressureFields UdsServerSession::bp_fields() {
+  return queue_util::BackpressureFields{queue_bytes_, pending_bytes_, backpressure_active_, bp_high_,
+                                        bp_low_,      bp_limit_,      bp_strategy_};
+}
+
+void UdsServerSession::route_enqueued_buffer(BufferVariant&& buf, size_t added) {
+  auto f = bp_fields();
+  queue_util::DropAccounting dropped;
+  auto decision = queue_util::decide_enqueue(f, added, tx_, dropped);
   if (dropped.any()) stats_.record_dropped(dropped.messages, dropped.bytes);
+
+  if (decision == queue_util::EnqueueDecision::Rejected) {
+    UNILINK_LOG_ERROR("uds_server_session", "write", "Queue limit exceeded, dropping message");
+    report_backpressure(queue_bytes_ + added);
+    return;
+  }
+  if (decision == queue_util::EnqueueDecision::Pending) {
+    pending_bytes_ += added;
+    pending_.emplace_back(std::move(buf));
+    observe_queue();
+    return;
+  }
+  queue_bytes_ += added;
+  tx_.emplace_back(std::move(buf));
+  observe_queue();
+  report_backpressure(queue_bytes_);
+  if (!writing_) do_write();
 }
 
 void UdsServerSession::observe_queue() {
@@ -399,46 +371,21 @@ void UdsServerSession::observe_queue() {
 void UdsServerSession::report_backpressure(size_t queued_bytes) {
   if (closing_ || !alive_) return;
   observe_queue();
-
-  if (!backpressure_active_ && queued_bytes >= bp_high_) {
-    backpressure_active_ = true;
-    stats_.record_backpressure_event();
-    if (on_bp_) {
-      try {
-        on_bp_(queued_bytes);
-      } catch (...) {
-      }
-    }
-  } else if (backpressure_active_ && queued_bytes <= bp_low_) {
-    // Flush pending_ → tx_
-    const size_t moved = pending_bytes_.exchange(0);
-    queue_bytes_ += moved;
-    while (!pending_.empty()) {
-      tx_.emplace_back(std::move(pending_.front()));
-      pending_.pop_front();
-    }
-    observe_queue();
-    backpressure_active_ = false;
-    stats_.record_backpressure_event();
-    if (on_bp_) {
-      try {
-        on_bp_(queued_bytes);
-      } catch (...) {
-      }  // fire OFF with pre-flush queue size
-    }
-    // If post-flush queue is still high, fire ON again
-    if (queue_bytes_ >= bp_high_) {
-      backpressure_active_ = true;
-      stats_.record_backpressure_event();
-      if (on_bp_) {
-        try {
-          on_bp_(queue_bytes_);
-        } catch (...) {
+  auto f = bp_fields();
+  queue_util::report_backpressure(
+      f, queued_bytes, on_bp_, stats_,
+      [&]() -> size_t {
+        const size_t moved = pending_bytes_.exchange(0);
+        while (!pending_.empty()) {
+          tx_.emplace_back(std::move(pending_.front()));
+          pending_.pop_front();
         }
-      }
-    }
-    if (!writing_) do_write();
-  }
+        return moved;
+      },
+      [&]() {
+        observe_queue();
+        if (!writing_) do_write();
+      });
 }
 
 void UdsServerSession::reset_idle_timer() {
