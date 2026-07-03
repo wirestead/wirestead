@@ -17,6 +17,7 @@
 #include "unilink/builder/udp_builder.hpp"
 
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/address.hpp>
 
 #include "unilink/builder/auto_initializer.hpp"
 #include "unilink/diagnostics/exceptions.hpp"
@@ -112,6 +113,11 @@ UdpClientBuilder<State>& UdpClientBuilder<State>::bind_address(const std::string
 
 template <uint32_t State>
 UdpClientBuilder<State>& UdpClientBuilder<State>::remote_endpoint(const std::string& host, uint16_t port) {
+  boost::system::error_code ec;
+  boost::asio::ip::make_address(host, ec);
+  if (ec) {
+    throw diagnostics::BuilderException("Invalid remote address: " + host, "udp");
+  }
   remote_host_ = host;
   remote_port_ = port;
   return *this;
