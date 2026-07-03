@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-03 00:28:11</td>
+            <td class="headerValue">2026-07-03 02:03:20</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -112,8 +112,8 @@
 <span id="L34"><span class="lineNum">      34</span>                 :             :  */</span>
 <span id="L35"><span class="lineNum">      35</span>                 :             : class MessageContext {</span>
 <span id="L36"><span class="lineNum">      36</span>                 :             :  public:</span>
-<span id="L37"><span class="lineNum">      37</span>                 :<span class="tlaGNC tlaBgGNC">        3130 :   MessageContext(ClientId client_id, memory::SafeDataBuffer data, std::string client_info = &quot;&quot;)</span></span>
-<span id="L38"><span class="lineNum">      38</span>                 :<span class="tlaGNC">        3130 :       : client_id_(client_id), data_(std::move(data)), client_info_(std::move(client_info)) {}</span></span>
+<span id="L37"><span class="lineNum">      37</span>                 :<span class="tlaGNC tlaBgGNC">        3126 :   MessageContext(ClientId client_id, memory::SafeDataBuffer data, std::string client_info = &quot;&quot;)</span></span>
+<span id="L38"><span class="lineNum">      38</span>                 :<span class="tlaGNC">        3126 :       : client_id_(client_id), data_(std::move(data)), client_info_(std::move(client_info)) {}</span></span>
 <span id="L39"><span class="lineNum">      39</span>                 :             : </span>
 <span id="L40"><span class="lineNum">      40</span>                 :             :   /** @brief Get the client identifier */</span>
 <span id="L41"><span class="lineNum">      41</span>                 :<span class="tlaGNC">           6 :   ClientId client_id() const { return client_id_; }</span></span>
@@ -124,13 +124,13 @@
 <span id="L46"><span class="lineNum">      46</span>                 :             :    * The returned view is only valid for the lifetime of this MessageContext.</span>
 <span id="L47"><span class="lineNum">      47</span>                 :             :    * Do not store it past the callback's return — use data_as_string() instead.</span>
 <span id="L48"><span class="lineNum">      48</span>                 :             :    */</span>
-<span id="L49"><span class="lineNum">      49</span>                 :<span class="tlaGNC">         920 :   std::string_view data() const { return std::string_view(reinterpret_cast&lt;const char*&gt;(data_.data()), data_.size()); }</span></span>
+<span id="L49"><span class="lineNum">      49</span>                 :<span class="tlaGNC">         915 :   std::string_view data() const { return std::string_view(reinterpret_cast&lt;const char*&gt;(data_.data()), data_.size()); }</span></span>
 <span id="L50"><span class="lineNum">      50</span>                 :             : </span>
 <span id="L51"><span class="lineNum">      51</span>                 :             :   /** @brief Get the received data as a SafeDataBuffer reference */</span>
 <span id="L52"><span class="lineNum">      52</span>                 :             :   const memory::SafeDataBuffer&amp; safe_data() const { return data_; }</span>
 <span id="L53"><span class="lineNum">      53</span>                 :             : </span>
 <span id="L54"><span class="lineNum">      54</span>                 :             :   /** @brief Get the received data as a std::string */</span>
-<span id="L55"><span class="lineNum">      55</span>                 :<span class="tlaGNC">        1037 :   std::string data_as_string() const { return data_.as_string(); }</span></span>
+<span id="L55"><span class="lineNum">      55</span>                 :<span class="tlaGNC">        1036 :   std::string data_as_string() const { return data_.as_string(); }</span></span>
 <span id="L56"><span class="lineNum">      56</span>                 :             : </span>
 <span id="L57"><span class="lineNum">      57</span>                 :             :   /** @brief Get the received data as a std::vector&lt;uint8_t&gt; */</span>
 <span id="L58"><span class="lineNum">      58</span>                 :<span class="tlaGNC">           6 :   std::vector&lt;uint8_t&gt; data_as_vector() const {</span></span>

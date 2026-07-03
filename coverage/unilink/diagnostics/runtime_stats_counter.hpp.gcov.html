@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-03 00:28:11</td>
+            <td class="headerValue">2026-07-03 02:03:20</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -122,37 +122,37 @@
 <span id="L44"><span class="lineNum">      44</span>                 :             : </span>
 <span id="L45"><span class="lineNum">      45</span>                 :             :   std::atomic&lt;size_t&gt; max_queued_bytes{0};</span>
 <span id="L46"><span class="lineNum">      46</span>                 :             : </span>
-<span id="L47"><span class="lineNum">      47</span>                 :<span class="tlaGNC tlaBgGNC">      365780 :   void record_accepted(size_t bytes) {</span></span>
-<span id="L48"><span class="lineNum">      48</span>                 :<span class="tlaGNC">      365780 :     messages_accepted.fetch_add(1, std::memory_order_relaxed);</span></span>
-<span id="L49"><span class="lineNum">      49</span>                 :<span class="tlaGNC">      365780 :     bytes_accepted.fetch_add(bytes, std::memory_order_relaxed);</span></span>
-<span id="L50"><span class="lineNum">      50</span>                 :<span class="tlaGNC">      365780 :   }</span></span>
+<span id="L47"><span class="lineNum">      47</span>                 :<span class="tlaGNC tlaBgGNC">      378154 :   void record_accepted(size_t bytes) {</span></span>
+<span id="L48"><span class="lineNum">      48</span>                 :<span class="tlaGNC">      378154 :     messages_accepted.fetch_add(1, std::memory_order_relaxed);</span></span>
+<span id="L49"><span class="lineNum">      49</span>                 :<span class="tlaGNC">      378154 :     bytes_accepted.fetch_add(bytes, std::memory_order_relaxed);</span></span>
+<span id="L50"><span class="lineNum">      50</span>                 :<span class="tlaGNC">      378154 :   }</span></span>
 <span id="L51"><span class="lineNum">      51</span>                 :             : </span>
-<span id="L52"><span class="lineNum">      52</span>                 :<span class="tlaGNC">        1352 :   void record_sent(size_t bytes) {</span></span>
-<span id="L53"><span class="lineNum">      53</span>                 :<span class="tlaGNC">        1352 :     messages_sent.fetch_add(1, std::memory_order_relaxed);</span></span>
-<span id="L54"><span class="lineNum">      54</span>                 :<span class="tlaGNC">        1352 :     bytes_sent.fetch_add(bytes, std::memory_order_relaxed);</span></span>
-<span id="L55"><span class="lineNum">      55</span>                 :<span class="tlaGNC">        1352 :   }</span></span>
+<span id="L52"><span class="lineNum">      52</span>                 :<span class="tlaGNC">        1345 :   void record_sent(size_t bytes) {</span></span>
+<span id="L53"><span class="lineNum">      53</span>                 :<span class="tlaGNC">        1345 :     messages_sent.fetch_add(1, std::memory_order_relaxed);</span></span>
+<span id="L54"><span class="lineNum">      54</span>                 :<span class="tlaGNC">        1345 :     bytes_sent.fetch_add(bytes, std::memory_order_relaxed);</span></span>
+<span id="L55"><span class="lineNum">      55</span>                 :<span class="tlaGNC">        1345 :   }</span></span>
 <span id="L56"><span class="lineNum">      56</span>                 :             : </span>
-<span id="L57"><span class="lineNum">      57</span>                 :<span class="tlaGNC">        2310 :   void record_received(size_t bytes) {</span></span>
-<span id="L58"><span class="lineNum">      58</span>                 :<span class="tlaGNC">        2310 :     messages_received.fetch_add(1, std::memory_order_relaxed);</span></span>
-<span id="L59"><span class="lineNum">      59</span>                 :<span class="tlaGNC">        2310 :     bytes_received.fetch_add(bytes, std::memory_order_relaxed);</span></span>
-<span id="L60"><span class="lineNum">      60</span>                 :<span class="tlaGNC">        2310 :   }</span></span>
+<span id="L57"><span class="lineNum">      57</span>                 :<span class="tlaGNC">        2304 :   void record_received(size_t bytes) {</span></span>
+<span id="L58"><span class="lineNum">      58</span>                 :<span class="tlaGNC">        2304 :     messages_received.fetch_add(1, std::memory_order_relaxed);</span></span>
+<span id="L59"><span class="lineNum">      59</span>                 :<span class="tlaGNC">        2304 :     bytes_received.fetch_add(bytes, std::memory_order_relaxed);</span></span>
+<span id="L60"><span class="lineNum">      60</span>                 :<span class="tlaGNC">        2304 :   }</span></span>
 <span id="L61"><span class="lineNum">      61</span>                 :             : </span>
-<span id="L62"><span class="lineNum">      62</span>                 :<span class="tlaGNC">       53054 :   void record_failed_send() { failed_sends.fetch_add(1, std::memory_order_relaxed); }</span></span>
+<span id="L62"><span class="lineNum">      62</span>                 :<span class="tlaGNC">       61321 :   void record_failed_send() { failed_sends.fetch_add(1, std::memory_order_relaxed); }</span></span>
 <span id="L63"><span class="lineNum">      63</span>                 :             : </span>
 <span id="L64"><span class="lineNum">      64</span>                 :<span class="tlaGNC">          21 :   void record_dropped(size_t messages, size_t bytes) {</span></span>
 <span id="L65"><span class="lineNum">      65</span>                 :<span class="tlaGNC">          21 :     dropped_messages.fetch_add(static_cast&lt;uint64_t&gt;(messages), std::memory_order_relaxed);</span></span>
 <span id="L66"><span class="lineNum">      66</span>                 :<span class="tlaGNC">          21 :     dropped_bytes.fetch_add(static_cast&lt;uint64_t&gt;(bytes), std::memory_order_relaxed);</span></span>
 <span id="L67"><span class="lineNum">      67</span>                 :<span class="tlaGNC">          21 :   }</span></span>
 <span id="L68"><span class="lineNum">      68</span>                 :             : </span>
-<span id="L69"><span class="lineNum">      69</span>                 :<span class="tlaGNC">         180 :   void record_backpressure_event() { backpressure_events.fetch_add(1, std::memory_order_relaxed); }</span></span>
+<span id="L69"><span class="lineNum">      69</span>                 :<span class="tlaGNC">         172 :   void record_backpressure_event() { backpressure_events.fetch_add(1, std::memory_order_relaxed); }</span></span>
 <span id="L70"><span class="lineNum">      70</span>                 :             : </span>
-<span id="L71"><span class="lineNum">      71</span>                 :<span class="tlaGNC">      627465 :   void observe_queue(size_t queued) {</span></span>
-<span id="L72"><span class="lineNum">      72</span>                 :<span class="tlaGNC">      627465 :     size_t current = max_queued_bytes.load(std::memory_order_relaxed);</span></span>
-<span id="L73"><span class="lineNum">      73</span>   [<span class="tlaGBC" title="Branch 0 was taken 324591 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 302874 times"> + </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 324591 times"> + </span> :<span class="tlaGNC">      952056 :     while (queued &gt; current &amp;&amp; !max_queued_bytes.compare_exchange_weak(current, queued, std::memory_order_relaxed,</span></span>
-<span class="lineNum">        </span>          <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaGBC" title="Branch 5 was taken 627465 times"> + </span>]
+<span id="L71"><span class="lineNum">      71</span>                 :<span class="tlaGNC">      635690 :   void observe_queue(size_t queued) {</span></span>
+<span id="L72"><span class="lineNum">      72</span>                 :<span class="tlaGNC">      635690 :     size_t current = max_queued_bytes.load(std::memory_order_relaxed);</span></span>
+<span id="L73"><span class="lineNum">      73</span>   [<span class="tlaGBC" title="Branch 0 was taken 326300 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 309390 times"> + </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 326300 times"> + </span> :<span class="tlaGNC">      961990 :     while (queued &gt; current &amp;&amp; !max_queued_bytes.compare_exchange_weak(current, queued, std::memory_order_relaxed,</span></span>
+<span class="lineNum">        </span>          <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaGBC" title="Branch 5 was taken 635690 times"> + </span>]
 <span id="L74"><span class="lineNum">      74</span>                 :             :                                                                        std::memory_order_relaxed)) {</span>
 <span id="L75"><span class="lineNum">      75</span>                 :             :     }</span>
-<span id="L76"><span class="lineNum">      76</span>                 :<span class="tlaGNC">      627465 :   }</span></span>
+<span id="L76"><span class="lineNum">      76</span>                 :<span class="tlaGNC">      635690 :   }</span></span>
 <span id="L77"><span class="lineNum">      77</span>                 :             : </span>
 <span id="L78"><span class="lineNum">      78</span>                 :<span class="tlaGNC">          71 :   wrapper::RuntimeStats snapshot(size_t queued_bytes, size_t pending_bytes, bool backpressure_active) const {</span></span>
 <span id="L79"><span class="lineNum">      79</span>                 :<span class="tlaGNC">          71 :     wrapper::RuntimeStats stats;</span></span>

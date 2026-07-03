@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-03 00:28:11</td>
+            <td class="headerValue">2026-07-03 02:03:20</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">90.9&nbsp;%</td>
@@ -231,25 +231,25 @@
 <span id="L151"><span class="lineNum">     151</span>         [<span class="tlaGBC" title="Branch 0 was taken 4650 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        4650 :     std::lock_guard&lt;std::mutex&gt; lock(bucket.mutex_);</span></span>
 <span id="L152"><span class="lineNum">     152</span>                 :             : </span>
 <span id="L153"><span class="lineNum">     153</span>                 :             :     // Get from stack</span>
-<span id="L154"><span class="lineNum">     154</span>         [<span class="tlaGBC" title="Branch 0 was taken 3422 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1228 times"> + </span>]:<span class="tlaGNC">        4650 :     if (!bucket.buffers_.empty()) {</span></span>
-<span id="L155"><span class="lineNum">     155</span>                 :<span class="tlaGNC">        3422 :       buffer = std::move(bucket.buffers_.back());</span></span>
-<span id="L156"><span class="lineNum">     156</span>                 :<span class="tlaGNC">        3422 :       bucket.buffers_.pop_back();</span></span>
+<span id="L154"><span class="lineNum">     154</span>         [<span class="tlaGBC" title="Branch 0 was taken 3421 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1229 times"> + </span>]:<span class="tlaGNC">        4650 :     if (!bucket.buffers_.empty()) {</span></span>
+<span id="L155"><span class="lineNum">     155</span>                 :<span class="tlaGNC">        3421 :       buffer = std::move(bucket.buffers_.back());</span></span>
+<span id="L156"><span class="lineNum">     156</span>                 :<span class="tlaGNC">        3421 :       bucket.buffers_.pop_back();</span></span>
 <span id="L157"><span class="lineNum">     157</span>                 :             :     }</span>
 <span id="L158"><span class="lineNum">     158</span>                 :<span class="tlaGNC">        4650 :   }</span></span>
 <span id="L159"><span class="lineNum">     159</span>                 :             : </span>
-<span id="L160"><span class="lineNum">     160</span>         [<span class="tlaGBC" title="Branch 0 was taken 3422 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1228 times"> + </span>]:<span class="tlaGNC">        4650 :   if (buffer) {</span></span>
-<span id="L161"><span class="lineNum">     161</span>                 :<span class="tlaGNC">        3422 :     pool_hits_.fetch_add(1, std::memory_order_relaxed);</span></span>
-<span id="L162"><span class="lineNum">     162</span>                 :<span class="tlaGNC">        3422 :     total_allocations_.fetch_add(1, std::memory_order_relaxed);</span></span>
-<span id="L163"><span class="lineNum">     163</span>                 :<span class="tlaGNC">        3422 :     return buffer;</span></span>
+<span id="L160"><span class="lineNum">     160</span>         [<span class="tlaGBC" title="Branch 0 was taken 3421 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1229 times"> + </span>]:<span class="tlaGNC">        4650 :   if (buffer) {</span></span>
+<span id="L161"><span class="lineNum">     161</span>                 :<span class="tlaGNC">        3421 :     pool_hits_.fetch_add(1, std::memory_order_relaxed);</span></span>
+<span id="L162"><span class="lineNum">     162</span>                 :<span class="tlaGNC">        3421 :     total_allocations_.fetch_add(1, std::memory_order_relaxed);</span></span>
+<span id="L163"><span class="lineNum">     163</span>                 :<span class="tlaGNC">        3421 :     return buffer;</span></span>
 <span id="L164"><span class="lineNum">     164</span>                 :             :   }</span>
 <span id="L165"><span class="lineNum">     165</span>                 :             : </span>
 <span id="L166"><span class="lineNum">     166</span>                 :             :   // Create new buffer outside lock</span>
-<span id="L167"><span class="lineNum">     167</span>         [<span class="tlaGBC" title="Branch 0 was taken 1228 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1228 :   buffer = create_buffer(bucket.size_);</span></span>
-<span id="L168"><span class="lineNum">     168</span>         [<span class="tlaGBC" title="Branch 0 was taken 1228 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1228 :   if (buffer) {</span></span>
-<span id="L169"><span class="lineNum">     169</span>                 :<span class="tlaGNC">        1228 :     total_allocations_.fetch_add(1, std::memory_order_relaxed);</span></span>
+<span id="L167"><span class="lineNum">     167</span>         [<span class="tlaGBC" title="Branch 0 was taken 1229 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1229 :   buffer = create_buffer(bucket.size_);</span></span>
+<span id="L168"><span class="lineNum">     168</span>         [<span class="tlaGBC" title="Branch 0 was taken 1229 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1229 :   if (buffer) {</span></span>
+<span id="L169"><span class="lineNum">     169</span>                 :<span class="tlaGNC">        1229 :     total_allocations_.fetch_add(1, std::memory_order_relaxed);</span></span>
 <span id="L170"><span class="lineNum">     170</span>                 :             :   }</span>
 <span id="L171"><span class="lineNum">     171</span>                 :             : </span>
-<span id="L172"><span class="lineNum">     172</span>                 :<span class="tlaGNC">        1228 :   return buffer;</span></span>
+<span id="L172"><span class="lineNum">     172</span>                 :<span class="tlaGNC">        1229 :   return buffer;</span></span>
 <span id="L173"><span class="lineNum">     173</span>                 :<span class="tlaUNC tlaBgUNC">           0 : }</span></span>
 <span id="L174"><span class="lineNum">     174</span>                 :             : </span>
 <span id="L175"><span class="lineNum">     175</span>                 :<span class="tlaGNC tlaBgGNC">        4633 : void MemoryPool::release_to_bucket(PoolBucket&amp; bucket, std::unique_ptr&lt;uint8_t[]&gt; buffer) {</span></span>
@@ -268,14 +268,14 @@
 <span id="L188"><span class="lineNum">     188</span>                 :             :   MEMORY_TRACK_DEALLOCATION(buffer.get());</span>
 <span id="L189"><span class="lineNum">     189</span>                 :             : }</span>
 <span id="L190"><span class="lineNum">     190</span>                 :             : </span>
-<span id="L191"><span class="lineNum">     191</span>                 :<span class="tlaGNC">        1330 : std::unique_ptr&lt;uint8_t[]&gt; MemoryPool::create_buffer(size_t size) {</span></span>
-<span id="L192"><span class="lineNum">     192</span>                 :<span class="tlaGNC">        1330 :   uint8_t* raw_buffer = new (std::nothrow) uint8_t[size];</span></span>
-<span id="L193"><span class="lineNum">     193</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 1330 times"> + </span>]:<span class="tlaGNC">        1330 :   if (raw_buffer) {</span></span>
+<span id="L191"><span class="lineNum">     191</span>                 :<span class="tlaGNC">        1331 : std::unique_ptr&lt;uint8_t[]&gt; MemoryPool::create_buffer(size_t size) {</span></span>
+<span id="L192"><span class="lineNum">     192</span>                 :<span class="tlaGNC">        1331 :   uint8_t* raw_buffer = new (std::nothrow) uint8_t[size];</span></span>
+<span id="L193"><span class="lineNum">     193</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 1331 times"> + </span>]:<span class="tlaGNC">        1331 :   if (raw_buffer) {</span></span>
 <span id="L194"><span class="lineNum">     194</span>                 :             :     MEMORY_TRACK_ALLOCATION(raw_buffer, size);</span>
 <span id="L195"><span class="lineNum">     195</span>                 :             :   } else {</span>
 <span id="L196"><span class="lineNum">     196</span>                 :<span class="tlaUNC tlaBgUNC">           0 :     throw std::bad_alloc();  // Or handle error appropriately</span></span>
 <span id="L197"><span class="lineNum">     197</span>                 :             :   }</span>
-<span id="L198"><span class="lineNum">     198</span>                 :<span class="tlaGNC tlaBgGNC">        1330 :   return std::unique_ptr&lt;uint8_t[]&gt;(raw_buffer);</span></span>
+<span id="L198"><span class="lineNum">     198</span>                 :<span class="tlaGNC tlaBgGNC">        1331 :   return std::unique_ptr&lt;uint8_t[]&gt;(raw_buffer);</span></span>
 <span id="L199"><span class="lineNum">     199</span>                 :             : }</span>
 <span id="L200"><span class="lineNum">     200</span>                 :             : </span>
 <span id="L201"><span class="lineNum">     201</span>                 :<span class="tlaGNC">        9492 : void MemoryPool::validate_size(size_t size) const {</span></span>
@@ -319,19 +319,19 @@
 <span id="L239"><span class="lineNum">     239</span>         [<span class="tlaGBC" title="Branch 0 was taken 4 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">           4 :   buffer_ = pool_-&gt;acquire(size_);</span></span>
 <span id="L240"><span class="lineNum">     240</span>                 :<span class="tlaGNC">           4 : }</span></span>
 <span id="L241"><span class="lineNum">     241</span>                 :             : </span>
-<span id="L242"><span class="lineNum">     242</span>                 :<span class="tlaGNC">        8333 : PooledBuffer::~PooledBuffer() {</span></span>
-<span id="L243"><span class="lineNum">     243</span>   [<span class="tlaGBC" title="Branch 0 was taken 1178 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 7155 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 1178 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">        8333 :   if (buffer_ &amp;&amp; pool_) {</span></span>
-<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 1178 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 7155 times"> + </span>]
+<span id="L242"><span class="lineNum">     242</span>                 :<span class="tlaGNC">        9487 : PooledBuffer::~PooledBuffer() {</span></span>
+<span id="L243"><span class="lineNum">     243</span>   [<span class="tlaGBC" title="Branch 0 was taken 1178 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 8309 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 1178 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">        9487 :   if (buffer_ &amp;&amp; pool_) {</span></span>
+<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 1178 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 8309 times"> + </span>]
 <span id="L244"><span class="lineNum">     244</span>                 :<span class="tlaGNC">        1178 :     pool_-&gt;release(std::move(buffer_), size_);</span></span>
 <span id="L245"><span class="lineNum">     245</span>                 :             :   }</span>
-<span id="L246"><span class="lineNum">     246</span>                 :<span class="tlaGNC">        8333 : }</span></span>
+<span id="L246"><span class="lineNum">     246</span>                 :<span class="tlaGNC">        9487 : }</span></span>
 <span id="L247"><span class="lineNum">     247</span>                 :             : </span>
-<span id="L248"><span class="lineNum">     248</span>                 :<span class="tlaGNC">        7154 : PooledBuffer::PooledBuffer(PooledBuffer&amp;&amp; other) noexcept</span></span>
-<span id="L249"><span class="lineNum">     249</span>                 :<span class="tlaGNC">        7154 :     : buffer_(std::move(other.buffer_)), size_(other.size_), pool_(other.pool_) {</span></span>
-<span id="L250"><span class="lineNum">     250</span>                 :<span class="tlaGNC">        7154 :   other.buffer_ = nullptr;</span></span>
-<span id="L251"><span class="lineNum">     251</span>                 :<span class="tlaGNC">        7154 :   other.size_ = 0;</span></span>
-<span id="L252"><span class="lineNum">     252</span>                 :<span class="tlaGNC">        7154 :   other.pool_ = nullptr;</span></span>
-<span id="L253"><span class="lineNum">     253</span>                 :<span class="tlaGNC">        7154 : }</span></span>
+<span id="L248"><span class="lineNum">     248</span>                 :<span class="tlaGNC">        8308 : PooledBuffer::PooledBuffer(PooledBuffer&amp;&amp; other) noexcept</span></span>
+<span id="L249"><span class="lineNum">     249</span>                 :<span class="tlaGNC">        8308 :     : buffer_(std::move(other.buffer_)), size_(other.size_), pool_(other.pool_) {</span></span>
+<span id="L250"><span class="lineNum">     250</span>                 :<span class="tlaGNC">        8308 :   other.buffer_ = nullptr;</span></span>
+<span id="L251"><span class="lineNum">     251</span>                 :<span class="tlaGNC">        8308 :   other.size_ = 0;</span></span>
+<span id="L252"><span class="lineNum">     252</span>                 :<span class="tlaGNC">        8308 :   other.pool_ = nullptr;</span></span>
+<span id="L253"><span class="lineNum">     253</span>                 :<span class="tlaGNC">        8308 : }</span></span>
 <span id="L254"><span class="lineNum">     254</span>                 :             : </span>
 <span id="L255"><span class="lineNum">     255</span>                 :<span class="tlaGNC">           2 : PooledBuffer&amp; PooledBuffer::operator=(PooledBuffer&amp;&amp; other) noexcept {</span></span>
 <span id="L256"><span class="lineNum">     256</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span>]:<span class="tlaGNC">           2 :   if (this != &amp;other) {</span></span>

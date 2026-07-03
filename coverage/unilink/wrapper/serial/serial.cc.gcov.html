@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-03 00:28:11</td>
+            <td class="headerValue">2026-07-03 02:03:20</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">90.2&nbsp;%</td>
@@ -515,10 +515,10 @@
 <span id="L414"><span class="lineNum">     414</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">           1 :     });</span></span>
 <span id="L415"><span class="lineNum">     415</span>                 :             : </span>
 <span id="L416"><span class="lineNum">     416</span>   [<span class="tlaGBC" title="Branch 0 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          34 :     channel-&gt;on_state([this, weak_alive](base::LinkState state) {</span></span>
-<span id="L417"><span class="lineNum">     417</span>                 :<span class="tlaGNC">          23 :       auto alive = weak_alive.lock();</span></span>
-<span id="L418"><span class="lineNum">     418</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 23 times"> + </span>]:<span class="tlaGNC">          23 :       if (!alive) return;</span></span>
+<span id="L417"><span class="lineNum">     417</span>                 :<span class="tlaGNC">          22 :       auto alive = weak_alive.lock();</span></span>
+<span id="L418"><span class="lineNum">     418</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 22 times"> + </span>]:<span class="tlaGNC">          22 :       if (!alive) return;</span></span>
 <span id="L419"><span class="lineNum">     419</span>                 :             : </span>
-<span id="L420"><span class="lineNum">     420</span>      [<span class="tlaGBC" title="Branch 0 was taken 5 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 5 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 13 times"> + </span>]:<span class="tlaGNC">          23 :       switch (state) {</span></span>
+<span id="L420"><span class="lineNum">     420</span>      [<span class="tlaGBC" title="Branch 0 was taken 5 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 5 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 12 times"> + </span>]:<span class="tlaGNC">          22 :       switch (state) {</span></span>
 <span id="L421"><span class="lineNum">     421</span>                 :<span class="tlaGNC">           5 :         case base::LinkState::Connected: {</span></span>
 <span id="L422"><span class="lineNum">     422</span>                 :<span class="tlaGNC">           5 :           ConnectionHandler handler;</span></span>
 <span id="L423"><span class="lineNum">     423</span>                 :             :           {</span>
@@ -552,10 +552,10 @@
 <span id="L450"><span class="lineNum">     450</span>                 :             :           }</span>
 <span id="L451"><span class="lineNum">     451</span>                 :<span class="tlaGNC">           5 :           break;</span></span>
 <span id="L452"><span class="lineNum">     452</span>                 :<span class="tlaGNC">           5 :         }</span></span>
-<span id="L453"><span class="lineNum">     453</span>                 :<span class="tlaGNC">          13 :         default:</span></span>
-<span id="L454"><span class="lineNum">     454</span>                 :<span class="tlaGNC">          13 :           break;</span></span>
+<span id="L453"><span class="lineNum">     453</span>                 :<span class="tlaGNC">          12 :         default:</span></span>
+<span id="L454"><span class="lineNum">     454</span>                 :<span class="tlaGNC">          12 :           break;</span></span>
 <span id="L455"><span class="lineNum">     455</span>                 :             :       }</span>
-<span id="L456"><span class="lineNum">     456</span>         [<span class="tlaGBC" title="Branch 0 was taken 23 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          23 :     });</span></span>
+<span id="L456"><span class="lineNum">     456</span>         [<span class="tlaGBC" title="Branch 0 was taken 22 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          22 :     });</span></span>
 <span id="L457"><span class="lineNum">     457</span>                 :<span class="tlaGNC">          34 :   }</span></span>
 <span id="L458"><span class="lineNum">     458</span>                 :             : </span>
 <span id="L459"><span class="lineNum">     459</span>                 :<span class="tlaGNC">           4 :   void attach_framer_callback() {</span></span>

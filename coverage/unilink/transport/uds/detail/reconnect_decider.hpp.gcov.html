@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-03 00:28:11</td>
+            <td class="headerValue">2026-07-03 02:03:20</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -109,10 +109,10 @@
 <span id="L31"><span class="lineNum">      31</span>                 :             : /**</span>
 <span id="L32"><span class="lineNum">      32</span>                 :             :  * @brief Determines whether a UDS reconnection attempt should be made.</span>
 <span id="L33"><span class="lineNum">      33</span>                 :             :  */</span>
-<span id="L34"><span class="lineNum">      34</span>                 :<span class="tlaGNC tlaBgGNC">           5 : inline UdsReconnectLogicDecision decide_reconnect_uds(const config::UdsClientConfig&amp; cfg,</span></span>
+<span id="L34"><span class="lineNum">      34</span>                 :<span class="tlaGNC tlaBgGNC">           6 : inline UdsReconnectLogicDecision decide_reconnect_uds(const config::UdsClientConfig&amp; cfg,</span></span>
 <span id="L35"><span class="lineNum">      35</span>                 :             :                                                       const diagnostics::ErrorInfo&amp; error_info, uint32_t attempt_count,</span>
 <span id="L36"><span class="lineNum">      36</span>                 :             :                                                       const std::optional&lt;ReconnectPolicy&gt;&amp; policy) {</span>
-<span id="L37"><span class="lineNum">      37</span>                 :<span class="tlaGNC">           5 :   return decide_reconnect_common(cfg, error_info, attempt_count, policy);</span></span>
+<span id="L37"><span class="lineNum">      37</span>                 :<span class="tlaGNC">           6 :   return decide_reconnect_common(cfg, error_info, attempt_count, policy);</span></span>
 <span id="L38"><span class="lineNum">      38</span>                 :             : }</span>
 <span id="L39"><span class="lineNum">      39</span>                 :             : </span>
 <span id="L40"><span class="lineNum">      40</span>                 :             : }  // namespace detail</span>

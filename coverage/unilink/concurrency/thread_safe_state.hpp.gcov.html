@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-03 00:28:11</td>
+            <td class="headerValue">2026-07-03 02:03:20</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -249,32 +249,32 @@
 <span id="L171"><span class="lineNum">     171</span>         [<span class="tlaGBC" title="Branch 0 was taken 368 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC tlaBgGNC">         368 : ThreadSafeState&lt;StateType&gt;::ThreadSafeState(const State&amp; initial_state) : state_(initial_state) {}</span></span>
 <span id="L172"><span class="lineNum">     172</span>                 :             : </span>
 <span id="L173"><span class="lineNum">     173</span>                 :             : template &lt;typename StateType&gt;</span>
-<span id="L174"><span class="lineNum">     174</span>                 :<span class="tlaGNC">        1705 : StateType ThreadSafeState&lt;StateType&gt;::state() const {</span></span>
-<span id="L175"><span class="lineNum">     175</span>         [<span class="tlaGBC" title="Branch 0 was taken 1705 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1705 :   std::shared_lock&lt;std::shared_mutex&gt; lock(state_mutex_);</span></span>
-<span id="L176"><span class="lineNum">     176</span>                 :<span class="tlaGNC">        1705 :   return state_;</span></span>
-<span id="L177"><span class="lineNum">     177</span>                 :<span class="tlaGNC">        1705 : }</span></span>
+<span id="L174"><span class="lineNum">     174</span>                 :<span class="tlaGNC">        1704 : StateType ThreadSafeState&lt;StateType&gt;::state() const {</span></span>
+<span id="L175"><span class="lineNum">     175</span>         [<span class="tlaGBC" title="Branch 0 was taken 1704 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1704 :   std::shared_lock&lt;std::shared_mutex&gt; lock(state_mutex_);</span></span>
+<span id="L176"><span class="lineNum">     176</span>                 :<span class="tlaGNC">        1704 :   return state_;</span></span>
+<span id="L177"><span class="lineNum">     177</span>                 :<span class="tlaGNC">        1704 : }</span></span>
 <span id="L178"><span class="lineNum">     178</span>                 :             : </span>
 <span id="L179"><span class="lineNum">     179</span>                 :             : template &lt;typename StateType&gt;</span>
-<span id="L180"><span class="lineNum">     180</span>                 :<span class="tlaGNC">         635 : void ThreadSafeState&lt;StateType&gt;::set_state(const State&amp; new_state) {</span></span>
+<span id="L180"><span class="lineNum">     180</span>                 :<span class="tlaGNC">         636 : void ThreadSafeState&lt;StateType&gt;::set_state(const State&amp; new_state) {</span></span>
 <span id="L181"><span class="lineNum">     181</span>                 :             :   {</span>
-<span id="L182"><span class="lineNum">     182</span>         [<span class="tlaGBC" title="Branch 0 was taken 635 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         635 :     std::unique_lock&lt;std::shared_mutex&gt; lock(state_mutex_);</span></span>
-<span id="L183"><span class="lineNum">     183</span>                 :<span class="tlaGNC">         635 :     state_ = new_state;</span></span>
-<span id="L184"><span class="lineNum">     184</span>                 :<span class="tlaGNC">         635 :     state_changed_.store(true);</span></span>
-<span id="L185"><span class="lineNum">     185</span>                 :<span class="tlaGNC">         635 :   }</span></span>
-<span id="L186"><span class="lineNum">     186</span>                 :<span class="tlaGNC">         635 :   notify_callbacks(new_state);</span></span>
-<span id="L187"><span class="lineNum">     187</span>                 :<span class="tlaGNC">         635 :   state_cv_.notify_all();</span></span>
-<span id="L188"><span class="lineNum">     188</span>                 :<span class="tlaGNC">         635 : }</span></span>
+<span id="L182"><span class="lineNum">     182</span>         [<span class="tlaGBC" title="Branch 0 was taken 636 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         636 :     std::unique_lock&lt;std::shared_mutex&gt; lock(state_mutex_);</span></span>
+<span id="L183"><span class="lineNum">     183</span>                 :<span class="tlaGNC">         636 :     state_ = new_state;</span></span>
+<span id="L184"><span class="lineNum">     184</span>                 :<span class="tlaGNC">         636 :     state_changed_.store(true);</span></span>
+<span id="L185"><span class="lineNum">     185</span>                 :<span class="tlaGNC">         636 :   }</span></span>
+<span id="L186"><span class="lineNum">     186</span>                 :<span class="tlaGNC">         636 :   notify_callbacks(new_state);</span></span>
+<span id="L187"><span class="lineNum">     187</span>                 :<span class="tlaGNC">         636 :   state_cv_.notify_all();</span></span>
+<span id="L188"><span class="lineNum">     188</span>                 :<span class="tlaGNC">         636 : }</span></span>
 <span id="L189"><span class="lineNum">     189</span>                 :             : </span>
 <span id="L190"><span class="lineNum">     190</span>                 :             : template &lt;typename StateType&gt;</span>
-<span id="L191"><span class="lineNum">     191</span>                 :<span class="tlaGNC">         874 : void ThreadSafeState&lt;StateType&gt;::set_state(State&amp;&amp; new_state) {</span></span>
+<span id="L191"><span class="lineNum">     191</span>                 :<span class="tlaGNC">         868 : void ThreadSafeState&lt;StateType&gt;::set_state(State&amp;&amp; new_state) {</span></span>
 <span id="L192"><span class="lineNum">     192</span>                 :             :   {</span>
-<span id="L193"><span class="lineNum">     193</span>         [<span class="tlaGBC" title="Branch 0 was taken 874 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         874 :     std::unique_lock&lt;std::shared_mutex&gt; lock(state_mutex_);</span></span>
-<span id="L194"><span class="lineNum">     194</span>                 :<span class="tlaGNC">         874 :     state_ = std::move(new_state);</span></span>
-<span id="L195"><span class="lineNum">     195</span>                 :<span class="tlaGNC">         874 :     state_changed_.store(true);</span></span>
-<span id="L196"><span class="lineNum">     196</span>                 :<span class="tlaGNC">         874 :   }</span></span>
-<span id="L197"><span class="lineNum">     197</span>                 :<span class="tlaGNC">         874 :   notify_callbacks(state_);</span></span>
-<span id="L198"><span class="lineNum">     198</span>                 :<span class="tlaGNC">         874 :   state_cv_.notify_all();</span></span>
-<span id="L199"><span class="lineNum">     199</span>                 :<span class="tlaGNC">         874 : }</span></span>
+<span id="L193"><span class="lineNum">     193</span>         [<span class="tlaGBC" title="Branch 0 was taken 868 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         868 :     std::unique_lock&lt;std::shared_mutex&gt; lock(state_mutex_);</span></span>
+<span id="L194"><span class="lineNum">     194</span>                 :<span class="tlaGNC">         868 :     state_ = std::move(new_state);</span></span>
+<span id="L195"><span class="lineNum">     195</span>                 :<span class="tlaGNC">         868 :     state_changed_.store(true);</span></span>
+<span id="L196"><span class="lineNum">     196</span>                 :<span class="tlaGNC">         868 :   }</span></span>
+<span id="L197"><span class="lineNum">     197</span>                 :<span class="tlaGNC">         868 :   notify_callbacks(state_);</span></span>
+<span id="L198"><span class="lineNum">     198</span>                 :<span class="tlaGNC">         868 :   state_cv_.notify_all();</span></span>
+<span id="L199"><span class="lineNum">     199</span>                 :<span class="tlaGNC">         868 : }</span></span>
 <span id="L200"><span class="lineNum">     200</span>                 :             : </span>
 <span id="L201"><span class="lineNum">     201</span>                 :             : template &lt;typename StateType&gt;</span>
 <span id="L202"><span class="lineNum">     202</span>                 :             : bool ThreadSafeState&lt;StateType&gt;::compare_and_set(const State&amp; expected, const State&amp; desired) {</span>
@@ -341,10 +341,10 @@
 <span id="L263"><span class="lineNum">     263</span>                 :             : }</span>
 <span id="L264"><span class="lineNum">     264</span>                 :             : </span>
 <span id="L265"><span class="lineNum">     265</span>                 :             : template &lt;typename StateType&gt;</span>
-<span id="L266"><span class="lineNum">     266</span>                 :<span class="tlaGNC">     1361970 : bool ThreadSafeState&lt;StateType&gt;::is_state(const State&amp; expected_state) const {</span></span>
-<span id="L267"><span class="lineNum">     267</span>         [<span class="tlaGBC" title="Branch 0 was taken 1361970 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">     1361970 :   std::shared_lock&lt;std::shared_mutex&gt; lock(state_mutex_);</span></span>
-<span id="L268"><span class="lineNum">     268</span>                 :<span class="tlaGNC">     1361970 :   return state_ == expected_state;</span></span>
-<span id="L269"><span class="lineNum">     269</span>                 :<span class="tlaGNC">     1361970 : }</span></span>
+<span id="L266"><span class="lineNum">     266</span>                 :<span class="tlaGNC">     1394946 : bool ThreadSafeState&lt;StateType&gt;::is_state(const State&amp; expected_state) const {</span></span>
+<span id="L267"><span class="lineNum">     267</span>         [<span class="tlaGBC" title="Branch 0 was taken 1394946 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">     1394946 :   std::shared_lock&lt;std::shared_mutex&gt; lock(state_mutex_);</span></span>
+<span id="L268"><span class="lineNum">     268</span>                 :<span class="tlaGNC">     1394946 :   return state_ == expected_state;</span></span>
+<span id="L269"><span class="lineNum">     269</span>                 :<span class="tlaGNC">     1394946 : }</span></span>
 <span id="L270"><span class="lineNum">     270</span>                 :             : </span>
 <span id="L271"><span class="lineNum">     271</span>                 :             : template &lt;typename StateType&gt;</span>
 <span id="L272"><span class="lineNum">     272</span>                 :             : void ThreadSafeState&lt;StateType&gt;::notify_state_change() {</span>
@@ -352,16 +352,16 @@
 <span id="L274"><span class="lineNum">     274</span>                 :             : }</span>
 <span id="L275"><span class="lineNum">     275</span>                 :             : </span>
 <span id="L276"><span class="lineNum">     276</span>                 :             : template &lt;typename StateType&gt;</span>
-<span id="L277"><span class="lineNum">     277</span>                 :<span class="tlaGNC">        1509 : void ThreadSafeState&lt;StateType&gt;::notify_callbacks(const State&amp; new_state) {</span></span>
-<span id="L278"><span class="lineNum">     278</span>         [<span class="tlaGBC" title="Branch 0 was taken 1509 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1509 :   std::lock_guard&lt;std::mutex&gt; lock(callbacks_mutex_);</span></span>
-<span id="L279"><span class="lineNum">     279</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 1509 times"> + </span>]:<span class="tlaGNC">        1509 :   for (const auto&amp; info : callbacks_) {</span></span>
+<span id="L277"><span class="lineNum">     277</span>                 :<span class="tlaGNC">        1504 : void ThreadSafeState&lt;StateType&gt;::notify_callbacks(const State&amp; new_state) {</span></span>
+<span id="L278"><span class="lineNum">     278</span>         [<span class="tlaGBC" title="Branch 0 was taken 1504 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1504 :   std::lock_guard&lt;std::mutex&gt; lock(callbacks_mutex_);</span></span>
+<span id="L279"><span class="lineNum">     279</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 1504 times"> + </span>]:<span class="tlaGNC">        1504 :   for (const auto&amp; info : callbacks_) {</span></span>
 <span id="L280"><span class="lineNum">     280</span>                 :             :     try {</span>
 <span id="L281"><span class="lineNum">     281</span>         [<span class="tlaUNC" title="Branch 0 was not executed"> # </span><span class="tlaUNC" title="Branch 1 was not executed"> # </span>]:<span class="tlaUNC tlaBgUNC">           0 :       info.callback(new_state);</span></span>
 <span id="L282"><span class="lineNum">     282</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaUNC">           0 :     } catch (...) {</span></span>
 <span id="L283"><span class="lineNum">     283</span>                 :             :       // Ignore callback exceptions to prevent state corruption</span>
 <span id="L284"><span class="lineNum">     284</span>                 :             :     }</span>
 <span id="L285"><span class="lineNum">     285</span>                 :             :   }</span>
-<span id="L286"><span class="lineNum">     286</span>                 :<span class="tlaGNC tlaBgGNC">        1509 : }</span></span>
+<span id="L286"><span class="lineNum">     286</span>                 :<span class="tlaGNC tlaBgGNC">        1504 : }</span></span>
 <span id="L287"><span class="lineNum">     287</span>                 :             : </span>
 <span id="L288"><span class="lineNum">     288</span>                 :             : // AtomicState template implementations</span>
 <span id="L289"><span class="lineNum">     289</span>                 :             : template &lt;typename StateType&gt;</span>
