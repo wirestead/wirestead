@@ -41,6 +41,7 @@
 #include "unilink/memory/memory_pool.hpp"
 #include "unilink/transport/base/bp_state_machine.hpp"
 #include "unilink/transport/base/bp_utils.hpp"
+#include "unilink/transport/base/error_info_holder.hpp"
 #include "unilink/transport/uds/boost_uds_socket.hpp"
 #include "unilink/transport/uds/detail/reconnect_decider.hpp"
 
@@ -100,8 +101,7 @@ struct UdsClient::Impl {
   uint32_t reconnect_attempt_count_{0};
   std::optional<ReconnectPolicy> reconnect_policy_;
 
-  mutable std::mutex last_err_mtx_;
-  std::optional<diagnostics::ErrorInfo> last_error_info_;
+  ErrorInfoHolder error_info_holder_{"uds_client"};
 
   Impl(const UdsClientConfig& cfg, net::io_context* ioc_ptr,
        std::unique_ptr<interface::UdsSocketInterface> socket = nullptr)
@@ -458,8 +458,7 @@ void UdsClient::set_reconnect_policy(ReconnectPolicy policy) {
 }
 
 std::optional<diagnostics::ErrorInfo> UdsClient::last_error_info() const {
-  std::lock_guard<std::mutex> lock(impl_->last_err_mtx_);
-  return impl_->last_error_info_;
+  return impl_->error_info_holder_.last_error_info();
 }
 
 void UdsClient::Impl::do_connect(std::shared_ptr<UdsClient> self, uint64_t seq) {
@@ -769,9 +768,8 @@ void UdsClient::Impl::report_backpressure(std::shared_ptr<UdsClient> self, size_
 
 void UdsClient::Impl::record_error(diagnostics::ErrorLevel lvl, diagnostics::ErrorCategory cat,
                                    std::string_view operation, const boost::system::error_code& ec,
-                                   std::string_view msg, bool retryable, uint32_t) {
-  std::lock_guard<std::mutex> lock(last_err_mtx_);
-  last_error_info_ = diagnostics::ErrorInfo(lvl, cat, "uds_client", operation, msg, ec, retryable);
+                                   std::string_view msg, bool retryable, uint32_t retry_count) {
+  error_info_holder_.record_error(lvl, cat, operation, ec, msg, retryable, retry_count);
 }
 
 }  // namespace transport
