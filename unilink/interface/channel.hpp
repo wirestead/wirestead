@@ -18,11 +18,13 @@
 #include <boost/asio/any_io_executor.hpp>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "unilink/base/common.hpp"
 #include "unilink/base/visibility.hpp"
+#include "unilink/diagnostics/error_types.hpp"
 #include "unilink/memory/safe_span.hpp"
 #include "unilink/wrapper/runtime_stats.hpp"
 
@@ -42,6 +44,13 @@ class UNILINK_API Channel {
   virtual bool is_backpressure_active() const = 0;
   virtual wrapper::RuntimeStats stats() const { return {}; }
   virtual void reset_stats() {}
+
+  // Most recent error recorded by this channel, if any. Default no-op
+  // override (std::nullopt) so any transport not yet wired up to the
+  // shared ErrorInfoHolder plumbing (#445) just reports "no detail
+  // available" instead of failing to compile or requiring a stub
+  // override everywhere.
+  virtual std::optional<diagnostics::ErrorInfo> last_error_info() const { return std::nullopt; }
 
   virtual boost::asio::any_io_executor get_executor() = 0;
 

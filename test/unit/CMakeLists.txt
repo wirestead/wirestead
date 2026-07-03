@@ -197,6 +197,13 @@ unilink_add_unit_gtest(
   "unit_transport_backpressure_fast" 30
 )
 
+# Shared error-info holder (#445) - isolated, no sockets/io_context
+unilink_add_unit_gtest(
+  run_unit_test_error_info_holder
+  ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_error_info_holder.cc
+  "unit_transport_fast" 30
+)
+
 # New error handling tests
 unilink_add_unit_gtest(
   run_unit_test_tcp_abort
