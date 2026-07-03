@@ -1,4 +1,0 @@
-<map id="unilink::builder::BuilderInterface::on_message" name="unilink::builder::BuilderInterface::on_message">
-<area shape="rect" id="node1" title="Set message handler callback using member function pointer." alt="" coords="5,5,179,47"/>
-<area shape="rect" id="node2" href="$classunilink_1_1builder_1_1BuilderInterface.html#af22d16ecad9173ef65318864e9bffbb2" title="Set message handler callback (for framed messages)" alt="" coords="227,5,400,47"/>
-</map>

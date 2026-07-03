@@ -1,5 +1,0 @@
-<map id="unilink::wrapper::UdsClient::send" name="unilink::wrapper::UdsClient::send">
-<area shape="rect" id="Node000001" title="Enqueue data for transmission." alt="" coords="252,5,451,45"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1wrapper_1_1UdsClient.html#a2f4b0a463087c84d0600d3e1966edc5a" title="Enqueue a line (data + &quot;\n&quot;) for transmission." alt="" coords="5,5,204,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="238,28,204,28,204,23,238,23"/>
-</map>

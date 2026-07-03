@@ -1,4 +1,0 @@
-<map id="unilink::transport::detail::decide_reconnect" name="unilink::transport::detail::decide_reconnect">
-<area shape="rect" id="node1" title="Determines whether a reconnection attempt should be made and the base delay to use." alt="" coords="284,5,473,47"/>
-<area shape="rect" id="node2" href="$structunilink_1_1transport_1_1TcpClient_1_1Impl.html#a7eabd7a8fe2e95878d44ae3ef23178a9" title=" " alt="" coords="5,5,236,47"/>
-</map>

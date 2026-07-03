@@ -1,7 +1,0 @@
-<map id="unilink/transport/serial/boost_serial_port.hpp" name="unilink/transport/serial/boost_serial_port.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="103,5,273,45"/>
-<area shape="rect" id="Node000002" href="$channel__factory_8cc.html" title=" " alt="" coords="5,93,176,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="158,56,114,95,110,91,155,52"/>
-<area shape="rect" id="Node000003" href="$transport_2serial_2serial_8cc.html" title=" " alt="" coords="201,93,370,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="221,52,266,91,262,95,218,56"/>
-</map>

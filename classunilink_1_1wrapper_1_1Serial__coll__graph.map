@@ -1,5 +1,0 @@
-<map id="unilink::wrapper::Serial" name="unilink::wrapper::Serial">
-<area shape="rect" id="Node000001" title="Modernized Serial Wrapper." alt="" coords="13,333,177,619"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1wrapper_1_1ChannelInterface.html" title="Common interface for 1:1 point&#45;to&#45;point communication (e.g., TcpClient, Serial, Udp)" alt="" coords="5,5,185,285"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="98,299,98,333,93,333,93,299"/>
-</map>

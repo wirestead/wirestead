@@ -1,7 +1,0 @@
-<map id="unilink::config::TcpServerConfig::validate_and_clamp" name="unilink::config::TcpServerConfig::validate_and_clamp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="220,37,423,77"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1transport_1_1TcpServer_1_1Impl.html#ab1b23ec612681d3fe375c16a38446de5" title=" " alt="" coords="5,5,172,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="206,44,172,39,173,34,207,39"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1transport_1_1TcpServer_1_1Impl.html#ab8138dc970ce6f43a2cf355ed1c8f072" title=" " alt="" coords="5,69,172,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="207,76,173,81,172,75,206,71"/>
-</map>

@@ -1,8 +1,0 @@
-<map id="unilink::transport::Serial::start" name="unilink::transport::Serial::start">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,29,139,69"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1concurrency_1_1IoContextManager.html#af8bc9a1e74cd2b081311ae3686bbc8ba" title=" " alt="" coords="187,29,400,69"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="139,47,173,47,173,52,139,52"/>
-<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="252,30,249,20,256,10,271,5,293,3,319,6,333,13,331,18,318,11,293,8,272,10,259,15,255,21,257,28"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1concurrency_1_1IoContextManager.html#a9191142e76ce990859590213b01e947b" title=" " alt="" coords="448,22,669,77"/>
-<area shape="poly" id="edge3_Node000002_Node000003" title=" " alt="" coords="400,47,435,47,435,52,400,52"/>
-</map>

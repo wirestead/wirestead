@@ -1,6 +1,0 @@
-<map id="unilink::wrapper::UdsServer::framer" name="unilink::wrapper::UdsServer::framer">
-<area shape="rect" id="node1" title="Set a factory function to create a new framer for each client connection." alt="" coords="527,39,729,80"/>
-<area shape="rect" id="node2" href="$structunilink_1_1wrapper_1_1UdsServer_1_1Impl.html#a10ed4dde741e2d4077f3df717d38cde5" title=" " alt="" coords="256,39,479,80"/>
-<area shape="rect" id="node3" href="$structunilink_1_1wrapper_1_1UdsServer_1_1Impl.html#a82fa898e3d4786c76704919dea8dae46" title=" " alt="" coords="5,5,208,47"/>
-<area shape="rect" id="node4" href="$structunilink_1_1wrapper_1_1UdsServer_1_1Impl.html#a2883eed89960c9412febc1635c3bfa4d" title=" " alt="" coords="5,71,208,112"/>
-</map>

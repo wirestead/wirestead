@@ -1,5 +1,0 @@
-<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
-<area shape="rect" id="Node000000" href="$classunilink_1_1interface_1_1UdsAcceptorInterface.html" title="An interface abstracting Boost.Asio&#39;s local::stream_protocol::acceptor for testability...." alt="" coords="5,5,176,45"/>
-<area shape="rect" id="Node000001" href="$classunilink_1_1transport_1_1BoostUdsAcceptor.html" title="Boost.Asio implementation of UdsAcceptorInterface interface." alt="" coords="224,5,373,45"/>
-<area shape="poly" id="edge37_Node000000_Node000001" title=" " alt="" coords="189,23,224,23,224,28,189,28"/>
-</map>

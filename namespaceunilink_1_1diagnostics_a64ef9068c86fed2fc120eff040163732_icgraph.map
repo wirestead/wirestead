@@ -1,5 +1,0 @@
-<map id="unilink::diagnostics::is_retryable_uds_connect_error" name="unilink::diagnostics::is_retryable_uds_connect_error">
-<area shape="rect" id="Node000001" title="Determines if a UDS connection error is retryable." alt="" coords="208,13,441,53"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1transport_1_1UdsClient_1_1Impl.html#a7e512c94a8c957205d42043097ac0761" title=" " alt="" coords="5,5,160,60"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="194,35,160,35,160,30,194,30"/>
-</map>

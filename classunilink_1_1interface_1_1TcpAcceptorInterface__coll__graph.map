@@ -1,3 +1,0 @@
-<map id="unilink::interface::TcpAcceptorInterface" name="unilink::interface::TcpAcceptorInterface">
-<area shape="rect" id="Node000001" title="An interface abstracting Boost.Asio&#39;s tcp::acceptor for testability. This is an internal interface us..." alt="" coords="5,5,191,205"/>
-</map>

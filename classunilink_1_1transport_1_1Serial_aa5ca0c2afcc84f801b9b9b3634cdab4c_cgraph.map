@@ -1,9 +1,0 @@
-<map id="unilink::transport::Serial::async_write_copy" name="unilink::transport::Serial::async_write_copy">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,69,196,109"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1memory_1_1PooledBuffer.html#a7aa1378391f5ef5a4ddbf6abff971f81" title=" " alt="" coords="244,5,463,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="180,67,260,46,261,51,181,72"/>
-<area shape="rect" id="Node000003" href="$namespaceunilink_1_1base_1_1safe__memory.html#a4d7e2bd9069bd2febb47c18298fe5e0d" title="Safely copy memory with bounds checking." alt="" coords="262,69,445,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="196,87,248,87,248,92,196,92"/>
-<area shape="rect" id="Node000004" href="$classunilink_1_1memory_1_1PooledBuffer.html#abf8fb1fa73f66373f96a9eb2821d6cbf" title=" " alt="" coords="244,133,463,173"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="181,107,261,127,260,133,180,112"/>
-</map>

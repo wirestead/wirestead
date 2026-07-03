@@ -1,7 +1,0 @@
-<map id="unilink::transport::Serial" name="unilink::transport::Serial">
-<area shape="rect" id="Node000001" title="Serial Transport implementation." alt="" coords="103,393,293,733"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1interface_1_1Channel.html" title=" " alt="" coords="5,5,196,345"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="149,358,158,393,153,394,144,359"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="220,135,371,215"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="285,229,243,394,238,392,280,228"/>
-</map>

@@ -1,7 +1,0 @@
-<map id="unilink::diagnostics::MemoryException" name="unilink::diagnostics::MemoryException">
-<area shape="rect" id="Node000001" title="Exception thrown during memory operations." alt="" coords="5,327,173,467"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1UnilinkException.html" title="Base exception class for all unilink exceptions." alt="" coords="9,119,169,279"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="92,292,92,326,87,326,87,292"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="24,5,155,71"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="92,85,92,118,87,118,87,85"/>
-</map>

@@ -1,9 +1,0 @@
-<map id="unilink/transport/tcp_server/boost_tcp_acceptor.hpp" name="unilink/transport/tcp_server/boost_tcp_acceptor.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="196,5,423,45"/>
-<area shape="rect" id="Node000002" href="$channel__factory_8cc.html" title=" " alt="" coords="5,93,176,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="249,53,140,96,138,91,248,48"/>
-<area shape="rect" id="Node000003" href="$boost__tcp__acceptor_8cc.html" title=" " alt="" coords="201,93,418,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="312,59,312,93,307,93,307,59"/>
-<area shape="rect" id="Node000004" href="$transport_2tcp__server_2tcp__server_8cc.html" title=" " alt="" coords="442,93,601,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="369,48,476,91,474,96,367,53"/>
-</map>

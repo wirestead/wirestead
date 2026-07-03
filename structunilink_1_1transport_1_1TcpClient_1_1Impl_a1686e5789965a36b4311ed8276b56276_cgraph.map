@@ -1,5 +1,0 @@
-<map id="unilink::transport::TcpClient::Impl::handle_close" name="unilink::transport::TcpClient::Impl::handle_close">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,224,45"/>
-<area shape="rect" id="Node000002" href="$namespaceunilink_1_1diagnostics.html#ad1cee78c0c129f3819db60931664f453" title="Determines if a TCP connection error is retryable." alt="" coords="272,5,503,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="224,23,259,23,259,28,224,28"/>
-</map>

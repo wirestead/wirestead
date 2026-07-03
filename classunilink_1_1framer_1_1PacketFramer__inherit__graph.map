@@ -1,5 +1,0 @@
-<map id="unilink::framer::PacketFramer" name="unilink::framer::PacketFramer">
-<area shape="rect" id="Node000001" title="Framer for binary packet protocols." alt="" coords="5,179,212,324"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1framer_1_1IFramer.html" title="Abstract base class for message framing strategies." alt="" coords="25,5,193,131"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="111,145,111,179,106,179,106,145"/>
-</map>

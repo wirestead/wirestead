@@ -1,9 +1,0 @@
-<map id="unilink::transport::TcpClient::async_write_copy" name="unilink::transport::TcpClient::async_write_copy">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,69,219,109"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1memory_1_1PooledBuffer.html#a7aa1378391f5ef5a4ddbf6abff971f81" title=" " alt="" coords="267,5,485,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="195,67,279,46,281,51,196,72"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1memory_1_1PooledBuffer.html#a43bc690449f5a7035fbc6e4a7b797609" title=" " alt="" coords="267,69,485,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="219,87,253,87,253,92,219,92"/>
-<area shape="rect" id="Node000004" href="$classunilink_1_1memory_1_1PooledBuffer.html#abf8fb1fa73f66373f96a9eb2821d6cbf" title=" " alt="" coords="267,133,485,173"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="196,107,281,128,279,133,195,112"/>
-</map>

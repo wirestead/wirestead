@@ -1,9 +1,0 @@
-<map id="unilink::wrapper::Serial::Impl::on_message" name="unilink::wrapper::Serial::Impl::on_message">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,177,45"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1wrapper_1_1Serial_1_1Impl.html#a0322ca1987cff30ecb38f0873053bacc" title=" " alt="" coords="225,5,445,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="177,23,212,23,212,28,177,28"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1wrapper_1_1Serial_1_1Impl.html#a0e7c71aecd13c90db36d9c211cb821fa" title=" " alt="" coords="493,5,704,45"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="446,23,480,23,480,28,446,28"/>
-<area shape="rect" id="Node000004" href="$structunilink_1_1wrapper_1_1Serial_1_1Impl.html#a4a88daa9eae7d3c7aa9e15bfad883753" title=" " alt="" coords="752,5,924,45"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="704,23,738,23,738,28,704,28"/>
-</map>

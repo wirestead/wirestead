@@ -1,5 +1,0 @@
-<map id="unilink::diagnostics::Logger::should_log" name="unilink::diagnostics::Logger::should_log">
-<area shape="rect" id="Node000001" title="Check whether a message at the given level would be logged." alt="" coords="5,5,157,45"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1Logger.html#a4a88b05c250af04b01f2a3d94473d0e3" title="Get current log level." alt="" coords="205,5,353,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="158,23,191,23,191,28,158,28"/>
-</map>

@@ -1,6 +1,0 @@
-<map id="unilink::transport::TcpClient::Impl::schedule_retry" name="unilink::transport::TcpClient::Impl::schedule_retry">
-<area shape="rect" id="node1" title=" " alt="" coords="5,35,236,76"/>
-<area shape="rect" id="node2" href="$namespaceunilink_1_1transport_1_1detail.html#afea3187da4b3318894729cf30d8f512a" title="Determines whether a reconnection attempt should be made and the base delay to use." alt="" coords="284,5,473,47"/>
-<area shape="rect" id="node4" href="$namespaceunilink.html#a945182ee4d2e3137a6c39f60501f5355" title="Convert ErrorCode to human&#45;readable string." alt="" coords="313,71,444,98"/>
-<area shape="rect" id="node3" href="$namespaceunilink_1_1transport_1_1detail.html#a22e4060c24e0be5f58266c56c8b6cd6d" title=" " alt="" coords="521,5,751,47"/>
-</map>

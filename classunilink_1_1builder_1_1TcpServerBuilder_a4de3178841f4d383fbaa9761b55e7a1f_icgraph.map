@@ -1,5 +1,0 @@
-<map id="unilink::builder::TcpServerBuilder::max_clients" name="unilink::builder::TcpServerBuilder::max_clients">
-<area shape="rect" id="Node000001" title="Set maximum number of clients." alt="" coords="244,5,435,45"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1builder_1_1TcpServerBuilder.html#a69b66ca3b486d1241d517c7b3ebbcfa0" title="Configure server for multi&#45;client mode with limit." alt="" coords="5,5,196,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="230,28,196,28,196,23,230,23"/>
-</map>

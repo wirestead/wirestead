@@ -1,9 +1,0 @@
-<map id="unilink::transport::UdsClient::Impl::Impl" name="unilink::transport::UdsClient::Impl::Impl">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,49,172,89"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1transport_1_1UdsClient_1_1Impl.html#aef1ae6a00a18b455428034f113164489" title=" " alt="" coords="220,49,379,89"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="172,66,206,66,206,71,172,71"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1transport_1_1UdsClient_1_1Impl.html#aa644859c7138a6784c64529c8306f389" title=" " alt="" coords="427,5,637,60"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="379,54,413,48,413,54,380,59"/>
-<area shape="rect" id="Node000004" href="$structunilink_1_1config_1_1UdsClientConfig.html#a24ef12d48494b9751f1b2b70f106d49c" title=" " alt="" coords="431,85,633,125"/>
-<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="380,78,418,84,417,90,379,84"/>
-</map>

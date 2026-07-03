@@ -1,5 +1,0 @@
-<map id="unilink::transport::BoostUdsSocket" name="unilink::transport::BoostUdsSocket">
-<area shape="rect" id="Node000001" title="Boost.Asio implementation of UdsSocketInterface interface." alt="" coords="15,253,171,473"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1interface_1_1UdsSocketInterface.html" title="An interface abstracting Boost.Asio&#39;s local::stream_protocol::socket for testability...." alt="" coords="5,5,181,205"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="96,219,96,253,91,253,91,219"/>
-</map>

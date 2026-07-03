@@ -1,9 +1,0 @@
-<map id="unilink::wrapper::UdpServer::Impl::schedule_batch_timer" name="unilink::wrapper::UdpServer::Impl::schedule_batch_timer">
-<area shape="rect" id="Node000001" title=" " alt="" coords="527,37,737,77"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1wrapper_1_1UdpServer_1_1Impl.html#acc6c86c0987b2e7097c779d03fc009f8" title=" " alt="" coords="256,37,479,77"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="513,60,479,60,479,55,513,55"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1wrapper_1_1UdpServer_1_1Impl.html#a4282405e724797444608a3f312841dfa" title=" " alt="" coords="5,5,208,45"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="242,45,208,40,209,35,243,39"/>
-<area shape="rect" id="Node000004" href="$structunilink_1_1wrapper_1_1UdpServer_1_1Impl.html#aef2d453ea13990a3b0bdcd088dd64c46" title=" " alt="" coords="5,69,208,109"/>
-<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="243,75,209,80,208,74,242,70"/>
-</map>

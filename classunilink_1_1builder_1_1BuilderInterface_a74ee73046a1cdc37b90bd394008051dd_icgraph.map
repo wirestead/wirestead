@@ -1,5 +1,0 @@
-<map id="unilink::builder::BuilderInterface::on_disconnect" name="unilink::builder::BuilderInterface::on_disconnect">
-<area shape="rect" id="node1" title="Set disconnection handler callback." alt="" coords="235,39,416,80"/>
-<area shape="rect" id="node2" href="$classunilink_1_1builder_1_1SerialBuilder.html#aea59bfd17313e2607a96ea9f01c2dcda" title="Build and return the configured product." alt="" coords="14,5,178,47"/>
-<area shape="rect" id="node3" href="$classunilink_1_1builder_1_1BuilderInterface.html#ac0b1f54ba0ed2e4ef41ea3e351e2f200" title="Set disconnection handler callback using member function pointer." alt="" coords="5,71,187,112"/>
-</map>

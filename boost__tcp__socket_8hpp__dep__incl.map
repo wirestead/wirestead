@@ -1,7 +1,0 @@
-<map id="unilink/transport/tcp_server/boost_tcp_socket.hpp" name="unilink/transport/tcp_server/boost_tcp_socket.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="117,5,332,45"/>
-<area shape="rect" id="Node000002" href="$boost__tcp__socket_8cc.html" title=" " alt="" coords="5,93,209,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="189,56,135,95,132,91,186,52"/>
-<area shape="rect" id="Node000003" href="$tcp__server__session_8cc.html" title=" " alt="" coords="234,93,450,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="263,52,318,91,314,95,260,56"/>
-</map>

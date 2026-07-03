@@ -1,6 +1,0 @@
-<map id="unilink::diagnostics::error_reporting::report_system_error" name="unilink::diagnostics::error_reporting::report_system_error">
-<area shape="rect" id="Node000001" title="Report system&#45;level error." alt="" coords="187,29,361,84"/>
-<area shape="poly" id="edge1_Node000001_Node000001" title=" " alt="" coords="307,18,295,11,274,8,256,10,245,15,240,21,240,29,235,29,235,19,242,10,255,5,274,3,297,6,310,14"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1transport_1_1TcpClient.html#a886221c4b9a77e24fa31ceb767aa444a" title=" " alt="" coords="5,37,139,77"/>
-<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="173,59,139,59,139,54,173,54"/>
-</map>

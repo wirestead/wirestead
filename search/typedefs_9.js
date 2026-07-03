@@ -1,6 +1,0 @@
-var searchData=
-[
-  ['rebind_0',['rebind',['../classunilink_1_1builder_1_1SerialBuilder.html#aec397a86ed29539b1e85881039c8c807',1,'unilink::builder::SerialBuilder::Rebind'],['../classunilink_1_1builder_1_1TcpClientBuilder.html#a4105e13e5fd53fd591f89d52e04539b6',1,'unilink::builder::TcpClientBuilder::Rebind'],['../classunilink_1_1builder_1_1TcpServerBuilder.html#a7df63e432b7a10c13077e842b9b915ac',1,'unilink::builder::TcpServerBuilder::Rebind'],['../classunilink_1_1builder_1_1UdpClientBuilder.html#abeb1327751c1e24aeee25642837f662c',1,'unilink::builder::UdpClientBuilder::Rebind'],['../classunilink_1_1builder_1_1UdpServerBuilder.html#acb73e873bf2d3278c3f9ce45538b796f',1,'unilink::builder::UdpServerBuilder::Rebind'],['../classunilink_1_1builder_1_1UdsClientBuilder.html#abc43c0b412a8e87a53382b8b5656e9ab',1,'unilink::builder::UdsClientBuilder::Rebind'],['../classunilink_1_1builder_1_1UdsServerBuilder.html#a3f34668a1bf0fd61b7fa0ae7df71c226',1,'unilink::builder::UdsServerBuilder::Rebind']]],
-  ['reconnectpolicy_1',['ReconnectPolicy',['../namespaceunilink.html#a379951fa136aa3aa08929012fd614066',1,'unilink']]],
-  ['runtimestats_2',['RuntimeStats',['../namespaceunilink.html#a2878267339d2617c995bb323bc0a6ddc',1,'unilink']]]
-];

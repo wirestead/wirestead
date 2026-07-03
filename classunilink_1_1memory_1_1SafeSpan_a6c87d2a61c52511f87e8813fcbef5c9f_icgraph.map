@@ -1,7 +1,0 @@
-<map id="unilink::memory::SafeSpan::subspan" name="unilink::memory::SafeSpan::subspan">
-<area shape="rect" id="Node000001" title=" " alt="" coords="268,37,465,77"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1framer_1_1LineFramer.html#a5d2f38f248590d01685c302819a5c717" title="Push raw bytes into the framer&#39;s internal buffer." alt="" coords="13,5,212,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="254,46,212,40,213,35,255,41"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1framer_1_1PacketFramer.html#ae0de7a72e4794e1df90a30eb73289993" title="Push raw bytes into the framer&#39;s internal buffer." alt="" coords="5,69,220,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="255,74,221,78,220,73,254,69"/>
-</map>

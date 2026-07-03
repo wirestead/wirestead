@@ -1,6 +1,0 @@
-<map id="unilink::wrapper::UdsClient::start" name="unilink::wrapper::UdsClient::start">
-<area shape="rect" id="Node000001" title="Start the channel asynchronously." alt="" coords="252,29,451,69"/>
-<area shape="poly" id="edge2_Node000001_Node000001" title=" " alt="" coords="393,18,378,11,351,8,328,10,313,15,308,21,311,28,306,30,303,20,310,10,327,5,351,3,380,6,395,13"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1wrapper_1_1UdsClient.html#adf20a83b26047a02e61e3cf8484276d4" title=" " alt="" coords="5,29,204,69"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="238,52,204,52,204,47,238,47"/>
-</map>

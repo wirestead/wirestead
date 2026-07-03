@@ -1,5 +1,0 @@
-<map id="unilink::framer::PacketFramer::push_bytes" name="unilink::framer::PacketFramer::push_bytes">
-<area shape="rect" id="Node000001" title="Push raw bytes into the framer&#39;s internal buffer." alt="" coords="5,5,220,45"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1memory_1_1SafeSpan.html#a6c87d2a61c52511f87e8813fcbef5c9f" title=" " alt="" coords="268,5,465,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="220,23,254,23,254,28,220,28"/>
-</map>

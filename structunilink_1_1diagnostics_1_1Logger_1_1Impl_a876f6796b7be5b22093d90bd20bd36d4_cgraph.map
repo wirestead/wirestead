@@ -1,7 +1,0 @@
-<map id="unilink::diagnostics::Logger::Impl::parse_log_level" name="unilink::diagnostics::Logger::Impl::parse_log_level">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,34,160,89"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1Logger.html#a4a88b05c250af04b01f2a3d94473d0e3" title="Get current log level." alt="" coords="226,5,374,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="160,46,212,37,213,42,161,51"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1diagnostics_1_1Logger_1_1Impl.html#ac7b181f3941068a6cf13d5f8fc3a1f46" title=" " alt="" coords="208,70,392,125"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="161,71,195,77,194,82,160,77"/>
-</map>

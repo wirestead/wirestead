@@ -1,6 +1,0 @@
-<map id="unilink::transport::Serial::Impl::handle_error" name="unilink::transport::Serial::Impl::handle_error">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,37,200,77"/>
-<area shape="rect" id="Node000002" href="$namespaceunilink_1_1diagnostics_1_1error__reporting.html#a7f2b308de562edc3c4c1d821b9a65f5e" title="Report connection&#45;related error." alt="" coords="248,29,423,84"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="200,54,234,54,234,59,200,59"/>
-<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="290,29,290,19,298,10,313,5,335,3,362,6,377,14,374,18,360,11,335,8,315,10,301,15,295,21,295,29"/>
-</map>

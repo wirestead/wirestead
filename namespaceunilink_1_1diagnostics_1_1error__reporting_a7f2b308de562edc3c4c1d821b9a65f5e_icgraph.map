@@ -1,8 +1,0 @@
-<map id="unilink::diagnostics::error_reporting::report_connection_error" name="unilink::diagnostics::error_reporting::report_connection_error">
-<area shape="rect" id="Node000001" title="Report connection&#45;related error." alt="" coords="440,29,615,84"/>
-<area shape="poly" id="edge3_Node000001_Node000001" title=" " alt="" coords="566,18,552,11,527,8,507,10,493,15,487,21,487,29,482,29,482,19,490,10,505,5,527,3,554,6,569,14"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1transport_1_1Serial_1_1Impl.html#aa5e52109390c2e3c10257ad646c71478" title=" " alt="" coords="197,37,392,77"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="426,59,392,59,392,54,426,54"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1transport_1_1Serial_1_1Impl.html#af6a469ca2253395f5998f0e18bcdf615" title=" " alt="" coords="5,29,149,84"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="184,59,150,59,150,54,184,54"/>
-</map>

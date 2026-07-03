@@ -1,5 +1,0 @@
-<map id="unilink::transport::detail::clamp_reconnect_delay_uds" name="unilink::transport::detail::clamp_reconnect_delay_uds">
-<area shape="rect" id="Node000001" title=" " alt="" coords="272,5,459,60"/>
-<area shape="rect" id="Node000002" href="$namespaceunilink_1_1transport_1_1detail.html#a955086b549ba1ad4eabea036d9a7e5db" title="Determines whether a UDS reconnection attempt should be made." alt="" coords="5,13,224,53"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="258,35,224,35,224,30,258,30"/>
-</map>

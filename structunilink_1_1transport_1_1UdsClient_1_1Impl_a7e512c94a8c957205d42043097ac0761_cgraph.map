@@ -1,9 +1,0 @@
-<map id="unilink::transport::UdsClient::Impl::do_connect" name="unilink::transport::UdsClient::Impl::do_connect">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,30,160,85"/>
-<area shape="rect" id="Node000002" href="$namespaceunilink_1_1diagnostics.html#a64ef9068c86fed2fc120eff040163732" title="Determines if a UDS connection error is retryable." alt="" coords="208,5,441,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="160,44,194,40,195,45,161,50"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1config_1_1UdsClientConfig.html#a74d9851f4196a9614ab1a5ad44d9084c" title=" " alt="" coords="233,69,417,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="161,65,219,73,219,78,160,70"/>
-<area shape="rect" id="Node000004" href="$classunilink_1_1util_1_1InputValidator.html#a3298d974c57b24bd36f9aad2f3520e2d" title=" " alt="" coords="489,69,684,109"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="417,87,476,87,476,92,417,92"/>
-</map>

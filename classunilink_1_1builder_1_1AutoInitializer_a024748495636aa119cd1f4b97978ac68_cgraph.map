@@ -1,6 +1,0 @@
-<map id="unilink::builder::AutoInitializer::io_context_running" name="unilink::builder::AutoInitializer::io_context_running">
-<area shape="rect" id="node1" title="Check if IoContextManager is running." alt="" coords="5,50,224,91"/>
-<area shape="rect" id="node2" href="$classunilink_1_1concurrency_1_1IoContextManager.html#af8bc9a1e74cd2b081311ae3686bbc8ba" title=" " alt="" coords="272,13,485,54"/>
-<area shape="rect" id="node4" href="$classunilink_1_1concurrency_1_1IoContextManager.html#a196458736bcfd84254d59b8b510aad12" title=" " alt="" coords="294,79,463,135"/>
-<area shape="rect" id="node3" href="$classunilink_1_1concurrency_1_1IoContextManager.html#a9191142e76ce990859590213b01e947b" title=" " alt="" coords="533,5,755,61"/>
-</map>

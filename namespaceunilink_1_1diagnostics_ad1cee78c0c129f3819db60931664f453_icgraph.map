@@ -1,7 +1,0 @@
-<map id="unilink::diagnostics::is_retryable_tcp_connect_error" name="unilink::diagnostics::is_retryable_tcp_connect_error">
-<area shape="rect" id="Node000001" title="Determines if a TCP connection error is retryable." alt="" coords="272,49,503,89"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1transport_1_1TcpClient_1_1Impl.html#a411b306f1809d56a01cace0713d43d9b" title=" " alt="" coords="39,5,190,60"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="258,54,190,45,191,40,259,49"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1transport_1_1TcpClient_1_1Impl.html#a1686e5789965a36b4311ed8276b56276" title=" " alt="" coords="5,85,224,125"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="259,88,224,93,224,88,258,83"/>
-</map>

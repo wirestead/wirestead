@@ -1,9 +1,0 @@
-<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
-<area shape="rect" id="Node000000" href="$classunilink_1_1wrapper_1_1ServerInterface.html" title="Interface for 1:N server communication (e.g., TcpServer)" alt="" coords="5,47,183,87"/>
-<area shape="rect" id="Node000001" href="$classunilink_1_1wrapper_1_1TcpServer.html" title="Modernized TCP Server Wrapper." alt="" coords="233,5,431,31"/>
-<area shape="poly" id="edge43_Node000000_Node000001" title=" " alt="" coords="195,44,270,28,271,33,197,49"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1wrapper_1_1UdpServer.html" title="UDP implementation of ServerInterface using virtual sessions." alt="" coords="231,55,433,80"/>
-<area shape="poly" id="edge44_Node000000_Node000002" title=" " alt="" coords="196,65,230,65,230,70,196,70"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1wrapper_1_1UdsServer.html" title="Modernized UDS Server Wrapper." alt="" coords="231,104,433,129"/>
-<area shape="poly" id="edge45_Node000000_Node000003" title=" " alt="" coords="197,86,271,101,270,107,195,91"/>
-</map>

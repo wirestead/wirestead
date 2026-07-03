@@ -1,7 +1,0 @@
-<map id="unilink::transport::UdpChannel::Impl::start_receive" name="unilink::transport::UdpChannel::Impl::start_receive">
-<area shape="rect" id="Node000001" title=" " alt="" coords="208,45,363,100"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1transport_1_1UdpChannel_1_1Impl.html#aba65af15d38f615afb33e770f2fbcdbf" title=" " alt="" coords="5,5,160,60"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="194,57,160,51,161,45,195,52"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1transport_1_1UdpChannel_1_1Impl.html#a3662a44297cd68fef9d33e21a849a7d0" title=" " alt="" coords="5,84,160,139"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="195,93,161,99,160,94,194,87"/>
-</map>

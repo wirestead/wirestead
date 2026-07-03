@@ -1,7 +1,0 @@
-<map id="unilink::transport::detail::decide_reconnect" name="unilink::transport::detail::decide_reconnect">
-<area shape="rect" id="Node000001" title="Determines whether a reconnection attempt should be made and the base delay to use." alt="" coords="5,13,195,53"/>
-<area shape="rect" id="Node000002" href="$namespaceunilink_1_1transport_1_1detail.html#a7aaa24e40cce140eb8f2b3e228d3b8dd" title="Determines whether a reconnection attempt should be made and the base delay to use." alt="" coords="243,5,432,60"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="195,30,229,30,229,35,195,35"/>
-<area shape="rect" id="Node000003" href="$namespaceunilink_1_1transport_1_1detail.html#a22e4060c24e0be5f58266c56c8b6cd6d" title=" " alt="" coords="480,13,709,53"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="432,30,466,30,466,35,432,35"/>
-</map>

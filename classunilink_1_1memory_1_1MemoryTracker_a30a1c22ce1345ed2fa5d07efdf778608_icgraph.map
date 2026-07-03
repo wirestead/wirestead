@@ -1,8 +1,0 @@
-<map id="unilink::memory::MemoryTracker::instance" name="unilink::memory::MemoryTracker::instance">
-<area shape="rect" id="Node000001" title=" " alt="" coords="291,37,527,77"/>
-<area shape="poly" id="edge1_Node000001_Node000001" title=" " alt="" coords="457,26,440,19,409,16,381,18,365,23,358,29,361,36,356,38,353,28,362,18,380,13,409,11,441,13,459,21"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1memory_1_1ScopedMemoryTracker.html#a904e817da60e4661849e5a31f095b1ff" title=" " alt="" coords="5,5,243,45"/>
-<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="277,45,243,41,243,36,278,40"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1memory_1_1ScopedMemoryTracker.html#adc7f422ae656353820d2988110a01fef" title=" " alt="" coords="5,69,243,109"/>
-<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="278,75,243,79,243,73,277,69"/>
-</map>

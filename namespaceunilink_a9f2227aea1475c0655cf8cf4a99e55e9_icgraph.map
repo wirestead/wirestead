@@ -1,5 +1,0 @@
-<map id="unilink::serial" name="unilink::serial">
-<area shape="rect" id="Node000001" title="Create a Serial port builder." alt="" coords="217,13,328,38"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1builder_1_1SerialBuilder.html#aea59bfd17313e2607a96ea9f01c2dcda" title="Build and return the configured product." alt="" coords="5,5,169,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="203,28,169,28,169,23,203,23"/>
-</map>

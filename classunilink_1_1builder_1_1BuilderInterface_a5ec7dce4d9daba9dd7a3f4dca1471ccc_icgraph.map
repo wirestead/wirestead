@@ -1,7 +1,0 @@
-<map id="unilink::builder::BuilderInterface::on_message" name="unilink::builder::BuilderInterface::on_message">
-<area shape="rect" id="Node000001" title="Set message handler callback." alt="" coords="227,37,400,77"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1builder_1_1SerialBuilder.html#aa804e78bd46394d49545000cca88c77a" title="Build and return the configured product." alt="" coords="10,5,174,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="212,45,174,40,175,35,213,40"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1builder_1_1BuilderInterface.html#a135cfaa7b06dcd12ffef968024f4e04a" title="Set message handler callback using member function pointer." alt="" coords="5,69,179,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="213,74,179,79,178,74,213,69"/>
-</map>

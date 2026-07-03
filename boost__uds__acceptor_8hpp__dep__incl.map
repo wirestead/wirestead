@@ -1,9 +1,0 @@
-<map id="unilink/transport/uds/boost_uds_acceptor.hpp" name="unilink/transport/uds/boost_uds_acceptor.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="195,5,378,45"/>
-<area shape="rect" id="Node000002" href="$channel__factory_8cc.html" title=" " alt="" coords="5,93,176,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="232,53,135,96,133,91,230,48"/>
-<area shape="rect" id="Node000003" href="$boost__uds__acceptor_8cc.html" title=" " alt="" coords="201,93,373,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="289,59,289,93,284,93,284,59"/>
-<area shape="rect" id="Node000004" href="$transport_2uds_2uds__server_8cc.html" title=" " alt="" coords="397,93,553,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="341,49,435,91,432,96,339,53"/>
-</map>

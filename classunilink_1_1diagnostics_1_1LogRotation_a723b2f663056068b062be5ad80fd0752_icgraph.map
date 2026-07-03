@@ -1,5 +1,0 @@
-<map id="unilink::diagnostics::LogRotation::next_file_path" name="unilink::diagnostics::LogRotation::next_file_path">
-<area shape="rect" id="Node000001" title="Get next available log file path." alt="" coords="208,5,416,45"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1LogRotation.html#addeb72faa1cb4a58a282d8dcdcbdb9d5" title="Perform log rotation." alt="" coords="5,5,160,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="194,28,160,28,160,23,194,23"/>
-</map>

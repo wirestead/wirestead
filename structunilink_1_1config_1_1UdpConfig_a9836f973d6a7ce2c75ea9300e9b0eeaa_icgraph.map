@@ -1,9 +1,0 @@
-<map id="unilink::config::UdpConfig::validate_and_clamp" name="unilink::config::UdpConfig::validate_and_clamp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="459,37,647,77"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1transport_1_1UdpChannel_1_1Impl.html#afa3e5f935ae72cff77e2759d2beedfcf" title=" " alt="" coords="236,37,411,77"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="445,60,411,60,411,55,445,55"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1transport_1_1UdpChannel_1_1Impl.html#a18c6b0af67bb82bbeea338c372f6c3f9" title=" " alt="" coords="5,5,188,45"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="222,46,188,41,188,36,223,40"/>
-<area shape="rect" id="Node000004" href="$structunilink_1_1transport_1_1UdpChannel_1_1Impl.html#ac65bef895861f22c72e4f95dce6718b3" title=" " alt="" coords="5,69,188,109"/>
-<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="223,74,188,79,188,74,222,69"/>
-</map>

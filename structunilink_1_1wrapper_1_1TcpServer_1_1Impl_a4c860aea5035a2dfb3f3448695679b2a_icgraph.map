@@ -1,8 +1,0 @@
-<map id="unilink::wrapper::TcpServer::Impl::try_send_to" name="unilink::wrapper::TcpServer::Impl::try_send_to">
-<area shape="rect" id="Node000001" title=" " alt="" coords="499,5,697,45"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1wrapper_1_1TcpServer_1_1Impl.html#a05544bfff540abac6e60839c58294309" title=" " alt="" coords="5,5,204,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="485,25,451,24,252,24,204,25,204,20,252,19,451,19,485,19"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1wrapper_1_1TcpServer_1_1Impl.html#af9ba9f7ca559b421eb2c736c458cb63a" title=" " alt="" coords="252,33,451,73"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="485,41,451,45,451,39,485,35"/>
-<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="238,43,204,39,205,34,239,38"/>
-</map>

@@ -1,9 +1,0 @@
-<map id="unilink::util::InputValidator::is_valid_hostname" name="unilink::util::InputValidator::is_valid_hostname">
-<area shape="rect" id="Node000001" title=" " alt="" coords="491,37,685,77"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1util_1_1InputValidator.html#af4805041301f350197f4cd4f61258106" title=" " alt="" coords="248,37,443,77"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="477,60,443,60,443,55,477,55"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1config_1_1TcpClientConfig.html#aeed1e16a92e9161dea7b2cdd5e64e912" title=" " alt="" coords="13,5,193,45"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="234,45,193,40,193,35,235,40"/>
-<area shape="rect" id="Node000004" href="$classunilink_1_1util_1_1InputValidator.html#a5232897d49c042a539f2405306c9d0f2" title=" " alt="" coords="5,69,200,109"/>
-<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="235,75,201,79,200,74,234,69"/>
-</map>

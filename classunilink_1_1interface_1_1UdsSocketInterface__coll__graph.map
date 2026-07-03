@@ -1,3 +1,0 @@
-<map id="unilink::interface::UdsSocketInterface" name="unilink::interface::UdsSocketInterface">
-<area shape="rect" id="Node000001" title="An interface abstracting Boost.Asio&#39;s local::stream_protocol::socket for testability...." alt="" coords="5,5,181,205"/>
-</map>

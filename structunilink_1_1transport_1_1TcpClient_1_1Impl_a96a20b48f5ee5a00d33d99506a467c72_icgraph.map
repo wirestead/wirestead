@@ -1,7 +1,0 @@
-<map id="unilink::transport::TcpClient::Impl::recalculate_backpressure_bounds" name="unilink::transport::TcpClient::Impl::recalculate_backpressure_bounds">
-<area shape="rect" id="Node000001" title=" " alt="" coords="419,5,625,60"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1transport_1_1TcpClient_1_1Impl.html#a93a8ef25c35394b82b35e2c24cfdbb7c" title=" " alt="" coords="216,13,371,53"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="405,35,371,35,371,30,405,30"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1transport_1_1TcpClient_1_1Impl.html#a80bd87441726672a4f5cfad5d9168f39" title=" " alt="" coords="5,13,168,53"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="202,35,168,35,168,30,202,30"/>
-</map>

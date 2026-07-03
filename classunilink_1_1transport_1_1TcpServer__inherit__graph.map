@@ -1,7 +1,0 @@
-<map id="unilink::transport::TcpServer" name="unilink::transport::TcpServer">
-<area shape="rect" id="Node000001" title="Thread&#45;safe TCP Server implementation." alt="" coords="109,393,300,713"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1interface_1_1Channel.html" title=" " alt="" coords="5,5,196,345"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="154,358,163,392,158,394,149,359"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="221,135,397,215"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="297,229,251,394,246,392,292,228"/>
-</map>

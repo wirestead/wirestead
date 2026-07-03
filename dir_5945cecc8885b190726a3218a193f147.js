@@ -1,6 +1,0 @@
-var dir_5945cecc8885b190726a3218a193f147 =
-[
-    [ "detail", "dir_bb399f8cc3e2b96ebdd49be173011b1d.html", "dir_bb399f8cc3e2b96ebdd49be173011b1d" ],
-    [ "tcp_client.cc", "transport_2tcp__client_2tcp__client_8cc.html", "transport_2tcp__client_2tcp__client_8cc" ],
-    [ "tcp_client.hpp", "transport_2tcp__client_2tcp__client_8hpp.html", "transport_2tcp__client_2tcp__client_8hpp" ]
-];

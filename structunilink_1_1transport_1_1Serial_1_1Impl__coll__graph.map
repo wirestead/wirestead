@@ -1,7 +1,0 @@
-<map id="unilink::transport::Serial::Impl" name="unilink::transport::Serial::Impl">
-<area shape="rect" id="Node000001" title=" " alt="" coords="131,523,305,1097"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1config_1_1SerialConfig.html" title=" " alt="" coords="5,60,217,405"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="146,405,165,506,159,507,141,406"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1diagnostics_1_1RuntimeStatsCounters.html" title=" " alt="" coords="242,5,410,460"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="286,461,277,507,272,506,281,460"/>
-</map>

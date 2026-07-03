@@ -1,5 +1,0 @@
-<map id="unilink::diagnostics::Logger::has_outputs" name="unilink::diagnostics::Logger::has_outputs">
-<area shape="rect" id="Node000001" title="Return true when at least one output destination is active." alt="" coords="5,13,167,53"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1diagnostics_1_1Logger_1_1Impl.html#a798db3ed3e5ce581dd34d23a760a0e9c" title=" " alt="" coords="215,5,413,60"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="167,30,201,30,201,35,167,35"/>
-</map>

@@ -1,5 +1,0 @@
-<map id="unilink::diagnostics::LogRotation::cleanup_old_files" name="unilink::diagnostics::LogRotation::cleanup_old_files">
-<area shape="rect" id="Node000001" title="Clean up old log files." alt="" coords="208,5,375,60"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1LogRotation.html#addeb72faa1cb4a58a282d8dcdcbdb9d5" title="Perform log rotation." alt="" coords="5,13,160,53"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="195,35,160,35,160,30,195,30"/>
-</map>

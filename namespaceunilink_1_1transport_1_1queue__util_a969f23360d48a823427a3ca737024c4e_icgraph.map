@@ -1,7 +1,0 @@
-<map id="unilink::transport::queue_util::variant_buffer_size" name="unilink::transport::queue_util::variant_buffer_size">
-<area shape="rect" id="Node000001" title=" " alt="" coords="220,45,372,100"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1transport_1_1UdpChannel_1_1Impl.html#a9397ef06bddbc9e3c5518067f4a6abda" title=" " alt="" coords="11,5,166,60"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="206,58,166,50,167,45,207,53"/>
-<area shape="rect" id="Node000003" href="$namespaceunilink_1_1transport_1_1queue__util.html#a6f65a62a47c86fc0f5b6c7c55d3e89c5" title=" " alt="" coords="5,84,172,139"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="207,92,173,98,172,93,206,87"/>
-</map>

@@ -1,9 +1,0 @@
-var searchData=
-[
-  ['safedatahandler_0',['SafeDataHandler',['../namespaceunilink_1_1memory.html#ab24b0543c51948b5f6807fad9b3d94f6',1,'unilink::memory']]],
-  ['serial_1',['Serial',['../namespaceunilink.html#a2b404056fdf0a846b06ce934ae923bfc',1,'unilink']]],
-  ['serialbuilderdefault_2',['SerialBuilderDefault',['../namespaceunilink_1_1builder.html#af4f5614db6c9981e195b02bf73ec8f87',1,'unilink::builder']]],
-  ['state_3',['state',['../classunilink_1_1concurrency_1_1ThreadSafeState.html#a04390997b93863b05dbb1a8fce304484',1,'unilink::concurrency::ThreadSafeState::State'],['../classunilink_1_1concurrency_1_1AtomicState.html#a71c0084af08e110dd52386ec7d151cd4',1,'unilink::concurrency::AtomicState::State']]],
-  ['statecallback_4',['StateCallback',['../classunilink_1_1concurrency_1_1ThreadSafeState.html#a974567d33f60e72c4fd166f666c15c17',1,'unilink::concurrency::ThreadSafeState']]],
-  ['statecallbackhandle_5',['StateCallbackHandle',['../classunilink_1_1concurrency_1_1ThreadSafeState.html#a7302349515a2a7571b40780f35a93481',1,'unilink::concurrency::ThreadSafeState']]]
-];

@@ -1,3 +1,0 @@
-<map id="unilink::interface::UdsAcceptorInterface" name="unilink::interface::UdsAcceptorInterface">
-<area shape="rect" id="Node000001" title="An interface abstracting Boost.Asio&#39;s local::stream_protocol::acceptor for testability...." alt="" coords="5,5,195,205"/>
-</map>

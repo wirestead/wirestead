@@ -1,5 +1,0 @@
-<map id="unilink::wrapper::MessageContext::data_as_string" name="unilink::wrapper::MessageContext::data_as_string">
-<area shape="rect" id="Node000001" title="Get the received data as a std::string." alt="" coords="5,5,199,45"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1memory_1_1SafeDataBuffer.html#a8ef94ff8472ef352c3611ff4f3fd05c2" title=" " alt="" coords="247,5,443,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="199,23,233,23,233,28,199,28"/>
-</map>

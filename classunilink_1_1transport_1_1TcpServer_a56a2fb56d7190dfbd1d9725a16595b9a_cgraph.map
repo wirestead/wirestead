@@ -1,7 +1,0 @@
-<map id="unilink::transport::TcpServer::broadcast" name="unilink::transport::TcpServer::broadcast">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,35,171,75"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1memory_1_1SafeSpan.html#a3d1f1b920d4769b25c5bf8a058d203dd" title=" " alt="" coords="235,5,432,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="170,42,221,36,221,41,171,47"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1memory_1_1SafeSpan.html#a569f565034ab74fd20549f16af9d220c" title=" " alt="" coords="219,70,448,95"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="171,61,209,66,208,71,171,67"/>
-</map>

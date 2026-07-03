@@ -1,3 +1,0 @@
-<map id="unilink::interface::TcpSocketInterface" name="unilink::interface::TcpSocketInterface">
-<area shape="rect" id="Node000001" title="An interface abstracting Boost.Asio&#39;s tcp::socket for testability. This is an internal interface used..." alt="" coords="5,5,177,185"/>
-</map>

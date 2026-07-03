@@ -1,9 +1,0 @@
-<map id="unilink::wrapper::Serial::Impl::send_blocking" name="unilink::wrapper::Serial::Impl::send_blocking">
-<area shape="rect" id="Node000001" title=" " alt="" coords="464,37,636,77"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1wrapper_1_1Serial_1_1Impl.html#a2ff1f1ab9415cf563aad518cc05e4cc9" title=" " alt="" coords="235,5,407,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="450,46,406,40,407,35,451,41"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1wrapper_1_1Serial_1_1Impl.html#a0586e7f25cc0c91807c79106fc496d30" title=" " alt="" coords="225,69,416,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="450,74,417,79,416,73,450,69"/>
-<area shape="rect" id="Node000004" href="$structunilink_1_1wrapper_1_1Serial_1_1Impl.html#afcafeb7c7815cc1398f2c1eeeb363ea7" title=" " alt="" coords="5,69,177,109"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="212,92,177,92,177,87,212,87"/>
-</map>

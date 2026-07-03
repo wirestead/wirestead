@@ -1,9 +1,0 @@
-<map id="unilink::wrapper::UdpClient::Impl::send_line_blocking" name="unilink::wrapper::UdpClient::Impl::send_line_blocking">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,204,45"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1wrapper_1_1UdpClient_1_1Impl.html#a4d5daf16ae0bfec06f9df921f8eab4ee" title=" " alt="" coords="252,5,451,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="204,23,238,23,238,28,204,28"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1wrapper_1_1UdpClient_1_1Impl.html#a65fa1f016acd0ea9084a349f04056bbc" title=" " alt="" coords="499,5,697,45"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="451,23,485,23,485,28,451,28"/>
-<area shape="rect" id="Node000004" href="$namespaceunilink_1_1base_1_1safe__convert.html#a575f6a399b270deff205277e7b9c3b6c" title="Safely obtain a view of std::string as byte array without allocation." alt="" coords="745,5,932,45"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="698,23,731,23,731,28,698,28"/>
-</map>

@@ -1,6 +1,0 @@
-<map id="unilink::diagnostics::LogRotation::cleanup_old_files" name="unilink::diagnostics::LogRotation::cleanup_old_files">
-<area shape="rect" id="Node000001" title="Clean up old log files." alt="" coords="5,22,172,77"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1LogRotation.html#adfe39cfa25f3a9bd088093d684676e1a" title="Get all log files matching pattern." alt="" coords="220,29,391,69"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="172,47,207,47,207,52,172,52"/>
-<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="265,30,262,20,269,10,283,5,305,3,331,6,344,13,342,18,329,11,305,8,285,10,272,15,268,21,270,28"/>
-</map>

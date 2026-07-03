@@ -1,5 +1,0 @@
-<map id="unilink::builder::BuilderInterface::backpressure_strategy" name="unilink::builder::BuilderInterface::backpressure_strategy">
-<area shape="rect" id="Node000001" title="Set the backpressure strategy." alt="" coords="217,5,392,60"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1builder_1_1SerialBuilder.html#aa804e78bd46394d49545000cca88c77a" title="Build and return the configured product." alt="" coords="5,13,169,53"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="204,35,170,35,170,30,204,30"/>
-</map>

@@ -1,5 +1,0 @@
-<map id="unilink::wrapper::UdpServer::broadcast" name="unilink::wrapper::UdpServer::broadcast">
-<area shape="rect" id="Node000001" title="Send to all connected clients, honouring the backpressure strategy." alt="" coords="256,5,459,45"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1wrapper_1_1UdpServer.html#a9497a7bbeb4a53c57bec6da015ce1e2f" title="Send a line (data + &quot;\n&quot;) to all clients, honouring the backpressure strategy." alt="" coords="5,5,208,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="242,28,208,28,208,23,242,23"/>
-</map>

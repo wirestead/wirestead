@@ -1,7 +1,0 @@
-<map id="unilink::diagnostics::Logger::Impl::get_queue_size" name="unilink::diagnostics::Logger::Impl::get_queue_size">
-<area shape="rect" id="Node000001" title=" " alt="" coords="216,41,436,81"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1Logger.html#a4d95865a91294f933a01d52f5fc3feb2" title="Get async logging statistics." alt="" coords="7,5,166,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="202,45,166,40,166,35,203,40"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1diagnostics_1_1Logger_1_1Impl.html#ae587a15cc17475fec03f7e83716bf603" title=" " alt="" coords="5,70,168,125"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="203,83,169,88,168,83,202,77"/>
-</map>

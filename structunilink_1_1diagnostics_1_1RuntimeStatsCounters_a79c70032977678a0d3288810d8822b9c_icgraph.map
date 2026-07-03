@@ -1,7 +1,0 @@
-<map id="unilink::diagnostics::RuntimeStatsCounters::snapshot" name="unilink::diagnostics::RuntimeStatsCounters::snapshot">
-<area shape="rect" id="Node000001" title=" " alt="" coords="240,30,416,85"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1transport_1_1TcpServerSession.html#a74d23a524f746d273f285a08cfba1f74" title=" " alt="" coords="7,5,190,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="226,46,190,41,191,35,227,41"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1transport_1_1UdsServerSession.html#a64b4d1f7293386cab59e3ab25298ea47" title=" " alt="" coords="5,69,192,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="227,74,192,79,192,74,226,69"/>
-</map>

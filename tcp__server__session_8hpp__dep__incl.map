@@ -1,7 +1,0 @@
-<map id="unilink/transport/tcp_server/tcp_server_session.hpp" name="unilink/transport/tcp_server/tcp_server_session.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="77,5,303,45"/>
-<area shape="rect" id="Node000002" href="$transport_2tcp__server_2tcp__server_8cc.html" title=" " alt="" coords="5,93,164,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="158,56,110,95,106,91,155,52"/>
-<area shape="rect" id="Node000003" href="$tcp__server__session_8cc.html" title=" " alt="" coords="189,93,405,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="226,52,275,91,271,95,223,56"/>
-</map>

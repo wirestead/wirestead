@@ -1,9 +1,0 @@
-<map id="unilink::config::SerialConfig::validate_and_clamp" name="unilink::config::SerialConfig::validate_and_clamp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="376,37,575,77"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1transport_1_1Serial_1_1Impl.html#a00cf67d7809c4054f345fde3f5ee42c1" title=" " alt="" coords="195,37,328,77"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="362,60,328,60,328,55,362,55"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1transport_1_1Serial_1_1Impl.html#a86cd568a4a26c8745cc926354c54ac8f" title=" " alt="" coords="5,5,147,45"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="181,46,147,40,148,35,182,41"/>
-<area shape="rect" id="Node000004" href="$structunilink_1_1transport_1_1Serial_1_1Impl.html#aacd6cb2f5aebf77c7de5982a749d4f36" title=" " alt="" coords="5,69,147,109"/>
-<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="182,74,148,80,147,74,181,68"/>
-</map>

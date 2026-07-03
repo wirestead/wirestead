@@ -1,7 +1,0 @@
-<map id="unilink::memory::MemoryPool::acquire" name="unilink::memory::MemoryPool::acquire">
-<area shape="rect" id="Node000001" title=" " alt="" coords="272,37,491,77"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1memory_1_1PooledBuffer.html#a8a612c37b1d80ade5f92d38494ed19cf" title=" " alt="" coords="5,5,224,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="258,45,224,41,225,36,259,40"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1memory_1_1PooledBuffer.html#a38f5d58e8efdfb631d3cfe8133c8832f" title=" " alt="" coords="5,69,224,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="259,75,225,79,224,74,258,69"/>
-</map>

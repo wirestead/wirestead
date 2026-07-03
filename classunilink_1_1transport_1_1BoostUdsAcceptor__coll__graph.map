@@ -1,5 +1,0 @@
-<map id="unilink::transport::BoostUdsAcceptor" name="unilink::transport::BoostUdsAcceptor">
-<area shape="rect" id="Node000001" title="Boost.Asio implementation of UdsAcceptorInterface interface." alt="" coords="15,253,185,473"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1interface_1_1UdsAcceptorInterface.html" title="An interface abstracting Boost.Asio&#39;s local::stream_protocol::acceptor for testability...." alt="" coords="5,5,195,205"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="103,219,103,253,97,253,97,219"/>
-</map>

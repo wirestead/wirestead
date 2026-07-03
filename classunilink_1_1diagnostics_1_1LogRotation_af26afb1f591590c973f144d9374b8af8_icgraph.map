@@ -1,5 +1,0 @@
-<map id="unilink::diagnostics::LogRotation::file_size" name="unilink::diagnostics::LogRotation::file_size">
-<area shape="rect" id="Node000001" title="Get file size in bytes." alt="" coords="212,13,381,53"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1LogRotation.html#af7cb1643a2fc92fa1e7162d6a9d5f19a" title="Check if current log file needs rotation." alt="" coords="5,5,164,60"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="199,35,164,35,164,30,199,30"/>
-</map>

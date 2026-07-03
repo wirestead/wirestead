@@ -1,9 +1,0 @@
-<map id="unilink::diagnostics::Logger::Impl::teardown_async_logging" name="unilink::diagnostics::Logger::Impl::teardown_async_logging">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,41,185,96"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1diagnostics_1_1Logger_1_1Impl.html#a4c4e43d925f3ca77ee0d50e4a1a6bdbc" title=" " alt="" coords="267,5,421,60"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="185,53,253,43,253,48,186,58"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1diagnostics_1_1Logger_1_1Impl.html#a9be6d32b91caf51b6ed1e6c7ccaec4b8" title=" " alt="" coords="233,85,455,125"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="186,79,220,84,219,89,185,84"/>
-<area shape="rect" id="Node000004" href="$classunilink_1_1diagnostics_1_1Logger.html#a4a88b05c250af04b01f2a3d94473d0e3" title="Get current log level." alt="" coords="503,85,651,125"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="455,102,488,102,488,107,455,107"/>
-</map>

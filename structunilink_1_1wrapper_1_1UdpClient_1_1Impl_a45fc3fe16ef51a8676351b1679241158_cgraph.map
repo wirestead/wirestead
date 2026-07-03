@@ -1,9 +1,0 @@
-<map id="unilink::wrapper::UdpClient::Impl::start" name="unilink::wrapper::UdpClient::Impl::start">
-<area shape="rect" id="node1" title=" " alt="" coords="5,72,204,113"/>
-<area shape="rect" id="node2" href="$classunilink_1_1factory_1_1ChannelFactory.html#ab3a1a57092352b627809138adadb34a6" title=" " alt="" coords="273,39,453,80"/>
-<area shape="rect" id="node3" href="$structunilink_1_1wrapper_1_1UdpClient_1_1Impl.html#aa1a0c025a484dbf87dc9c0c69342870b" title=" " alt="" coords="252,104,475,145"/>
-<area shape="rect" id="node4" href="$classunilink_1_1memory_1_1SafeSpan.html#a203851d86025e579f73f04da0828e2bd" title=" " alt="" coords="523,5,721,47"/>
-<area shape="rect" id="node5" href="$structunilink_1_1wrapper_1_1UdpClient_1_1Impl.html#a49aac01b289fa881be0b80acc30b0023" title=" " alt="" coords="523,71,721,112"/>
-<area shape="rect" id="node6" href="$classunilink_1_1memory_1_1SafeSpan.html#a0e63f52083142fa895b98ea38f51dc73" title=" " alt="" coords="523,136,721,177"/>
-<area shape="rect" id="node7" href="$namespaceunilink_1_1base_1_1safe__convert.html#a3c41d9c6266428458c97891710ac2f0d" title="Safely convert uint8_t* to const char* for string operations." alt="" coords="531,201,713,243"/>
-</map>

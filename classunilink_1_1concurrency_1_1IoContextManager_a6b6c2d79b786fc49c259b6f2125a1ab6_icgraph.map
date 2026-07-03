@@ -1,9 +1,0 @@
-<map id="unilink::concurrency::IoContextManager::start" name="unilink::concurrency::IoContextManager::start">
-<area shape="rect" id="node1" title=" " alt="" coords="515,136,703,177"/>
-<area shape="rect" id="node2" href="$classunilink_1_1builder_1_1AutoInitializer.html#a4158d61c97d2450ea92796565b93b2bc" title="Automatically start IoContextManager if not running." alt="" coords="248,136,467,177"/>
-<area shape="rect" id="node3" href="$classunilink_1_1builder_1_1UdsClientBuilder.html#ac6e2823d1ebe3652e527146e26591fc7" title="Build and return the configured product." alt="" coords="7,5,198,47"/>
-<area shape="rect" id="node4" href="$classunilink_1_1builder_1_1UdsServerBuilder.html#af36fef7a80d6e66d12b0b5b25c268ce0" title="Build and return the configured product." alt="" coords="5,71,200,112"/>
-<area shape="rect" id="node5" href="$classunilink_1_1builder_1_1SerialBuilder.html#ad2fa923cd592bd38ad08c1a05cac7b32" title=" " alt="" coords="21,136,185,177"/>
-<area shape="rect" id="node6" href="$classunilink_1_1builder_1_1TcpClientBuilder.html#a542ac2286704230421072569a5b3eb1d" title=" " alt="" coords="9,201,196,243"/>
-<area shape="rect" id="node7" href="$classunilink_1_1builder_1_1TcpServerBuilder.html#a6b32df9046ce3f88bf450642edfa3707" title=" " alt="" coords="7,267,198,308"/>
-</map>

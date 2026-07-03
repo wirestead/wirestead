@@ -1,7 +1,0 @@
-<map id="unilink::wrapper::Serial::Impl::send_line_blocking" name="unilink::wrapper::Serial::Impl::send_line_blocking">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,196,45"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1wrapper_1_1Serial_1_1Impl.html#a4b2e9e6e54b4a876ff9b7dd2bcac87e5" title=" " alt="" coords="244,5,416,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="196,23,230,23,230,28,196,28"/>
-<area shape="rect" id="Node000003" href="$namespaceunilink_1_1base_1_1safe__convert.html#a575f6a399b270deff205277e7b9c3b6c" title="Safely obtain a view of std::string as byte array without allocation." alt="" coords="464,5,651,45"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="416,23,450,23,450,28,416,28"/>
-</map>

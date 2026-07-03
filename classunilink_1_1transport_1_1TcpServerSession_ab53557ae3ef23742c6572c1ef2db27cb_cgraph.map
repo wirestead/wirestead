@@ -1,5 +1,0 @@
-<map id="unilink::transport::TcpServerSession::reset_stats" name="unilink::transport::TcpServerSession::reset_stats">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,156,60"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1diagnostics_1_1RuntimeStatsCounters.html#a6085b62a367f16775e617c0e77e3fed5" title=" " alt="" coords="204,5,380,60"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="156,30,190,30,190,35,156,35"/>
-</map>

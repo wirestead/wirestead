@@ -1,9 +1,0 @@
-<map id="unilink/transport/tcp_client/tcp_client.hpp" name="unilink/transport/tcp_client/tcp_client.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="197,5,357,45"/>
-<area shape="rect" id="Node000002" href="$channel__factory_8cc.html" title=" " alt="" coords="5,93,176,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="225,53,133,96,130,91,223,49"/>
-<area shape="rect" id="Node000003" href="$transport_2tcp__client_2tcp__client_8cc.html" title=" " alt="" coords="201,93,354,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="280,59,280,93,275,93,275,59"/>
-<area shape="rect" id="Node000004" href="$wrapper_2tcp__client_2tcp__client_8cc.html" title=" " alt="" coords="378,93,529,133"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="329,49,416,91,414,96,327,54"/>
-</map>

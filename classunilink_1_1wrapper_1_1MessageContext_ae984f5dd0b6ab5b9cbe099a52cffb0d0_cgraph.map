@@ -1,7 +1,0 @@
-<map id="unilink::wrapper::MessageContext::data_as_vector" name="unilink::wrapper::MessageContext::data_as_vector">
-<area shape="rect" id="Node000001" title="Get the received data as a std::vector&lt;uint8_t&gt;" alt="" coords="5,37,199,77"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1memory_1_1SafeDataBuffer.html#aca37b8c40359695418d5c250606f8aa3" title=" " alt="" coords="247,5,443,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="199,42,233,37,234,43,199,47"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1memory_1_1SafeDataBuffer.html#ae60b500449b2627a7b050097d14e92e9" title=" " alt="" coords="247,69,443,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="199,67,234,72,233,77,199,73"/>
-</map>

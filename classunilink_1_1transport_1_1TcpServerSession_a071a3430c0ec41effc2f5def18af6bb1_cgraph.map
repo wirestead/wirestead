@@ -1,7 +1,0 @@
-<map id="unilink::transport::TcpServerSession::async_write_shared" name="unilink::transport::TcpServerSession::async_write_shared">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,45,156,100"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1diagnostics_1_1RuntimeStatsCounters.html#ab4f053a78d4b410cb2426d8f334b70b8" title=" " alt="" coords="204,5,380,60"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="156,56,190,49,191,54,157,61"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1diagnostics_1_1RuntimeStatsCounters.html#a1efdbf4c871d615e713348dfcd5e39ad" title=" " alt="" coords="204,84,380,139"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="157,84,191,90,190,95,156,89"/>
-</map>

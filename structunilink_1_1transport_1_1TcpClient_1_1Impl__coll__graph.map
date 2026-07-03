@@ -1,7 +1,0 @@
-<map id="unilink::transport::TcpClient::Impl" name="unilink::transport::TcpClient::Impl">
-<area shape="rect" id="Node000001" title=" " alt="" coords="106,523,290,1003"/>
-<area shape="rect" id="Node000002" href="$structunilink_1_1config_1_1TcpClientConfig.html" title=" " alt="" coords="5,23,191,443"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="140,442,152,506,147,507,135,443"/>
-<area shape="rect" id="Node000003" href="$structunilink_1_1diagnostics_1_1RuntimeStatsCounters.html" title=" " alt="" coords="215,5,383,460"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="258,461,250,507,244,506,253,460"/>
-</map>

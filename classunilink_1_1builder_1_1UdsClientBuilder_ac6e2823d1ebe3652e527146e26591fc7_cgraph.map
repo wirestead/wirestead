@@ -1,7 +1,0 @@
-<map id="unilink::builder::UdsClientBuilder::build" name="unilink::builder::UdsClientBuilder::build">
-<area shape="rect" id="Node000001" title="Build and return the configured product." alt="" coords="5,45,196,85"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1builder_1_1AutoInitializer.html#a4158d61c97d2450ea92796565b93b2bc" title="Automatically start IoContextManager if not running." alt="" coords="256,5,475,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="196,48,242,41,243,47,197,54"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1builder_1_1BuilderInterface.html#a41fb5b16a7db6690cc0a21a8be7b8362" title=" " alt="" coords="244,69,487,139"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="197,77,231,82,230,87,196,82"/>
-</map>

@@ -1,7 +1,0 @@
-<map id="unilink::transport::UdsClient" name="unilink::transport::UdsClient">
-<area shape="rect" id="Node000001" title="Thread&#45;safe UDS Client implementation." alt="" coords="109,393,300,733"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1interface_1_1Channel.html" title=" " alt="" coords="5,5,196,345"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="152,358,162,393,157,394,147,359"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="221,135,397,215"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="297,229,253,394,248,392,292,228"/>
-</map>

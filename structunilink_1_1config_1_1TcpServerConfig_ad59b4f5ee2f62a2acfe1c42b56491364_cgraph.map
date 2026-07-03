@@ -1,7 +1,0 @@
-<map id="unilink::config::TcpServerConfig::is_valid" name="unilink::config::TcpServerConfig::is_valid">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,37,189,77"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1util_1_1InputValidator.html#a9a174cc017bb418ea82a6c42ecdde04c" title=" " alt="" coords="237,5,432,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="189,42,223,38,224,43,190,48"/>
-<area shape="rect" id="Node000003" href="$classunilink_1_1util_1_1InputValidator.html#a7bbf5901f38eff733e30d233ac9ba431" title=" " alt="" coords="237,69,432,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="190,67,224,72,223,77,189,72"/>
-</map>

@@ -1,7 +1,0 @@
-<map id="unilink::diagnostics::ConnectionException" name="unilink::diagnostics::ConnectionException">
-<area shape="rect" id="Node000001" title="Exception thrown during connection operations." alt="" coords="5,327,192,467"/>
-<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1UnilinkException.html" title="Base exception class for all unilink exceptions." alt="" coords="19,119,179,279"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="101,292,101,326,96,326,96,292"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="33,5,164,71"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="101,85,101,118,96,118,96,85"/>
-</map>

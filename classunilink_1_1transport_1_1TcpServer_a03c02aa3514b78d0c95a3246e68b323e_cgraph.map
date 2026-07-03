@@ -1,5 +1,0 @@
-<map id="unilink::transport::TcpServer::send_to_client" name="unilink::transport::TcpServer::send_to_client">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,157,60"/>
-<area shape="rect" id="Node000002" href="$namespaceunilink_1_1base_1_1safe__convert.html#a575f6a399b270deff205277e7b9c3b6c" title="Safely obtain a view of std::string as byte array without allocation." alt="" coords="205,13,392,53"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="158,30,192,30,192,35,158,35"/>
-</map>
