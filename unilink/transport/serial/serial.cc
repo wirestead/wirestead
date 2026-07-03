@@ -32,7 +32,6 @@
 
 #include "unilink/base/common.hpp"
 #include "unilink/base/constants.hpp"
-#include "unilink/concurrency/io_context_manager.hpp"
 #include "unilink/concurrency/thread_safe_state.hpp"
 #include "unilink/diagnostics/error_handler.hpp"
 #include "unilink/diagnostics/logger.hpp"
@@ -54,17 +53,10 @@ using concurrency::ThreadSafeLinkState;
 using BufferVariant =
     std::variant<memory::PooledBuffer, std::vector<uint8_t>, std::shared_ptr<const std::vector<uint8_t>>>;
 
-namespace {
-net::io_context& acquire_shared_serial_context() {
-  auto& manager = concurrency::IoContextManager::instance();
-  manager.start();
-  return manager.get_context();
-}
-}  // namespace
-
 struct Serial::Impl {
   bool started_ = false;
   std::atomic<bool> stopping_{false};
+  std::unique_ptr<net::io_context> owned_ioc_;
   net::io_context& ioc_;
   bool owns_ioc_{false};
   net::strand<net::io_context::executor_type> strand_;
@@ -181,8 +173,9 @@ struct Serial::Impl {
   }
 
   explicit Impl(const config::SerialConfig& cfg)
-      : ioc_(acquire_shared_serial_context()),
-        owns_ioc_(false),
+      : owned_ioc_(std::make_unique<net::io_context>()),
+        ioc_(*owned_ioc_),
+        owns_ioc_(true),
         strand_(ioc_.get_executor()),
         cfg_(cfg),
         retry_timer_(ioc_),
@@ -562,11 +555,6 @@ void Serial::start() {
   if (impl->started_) return;
   impl->stopping_.store(false);
   UNILINK_LOG_INFO("serial", "start", fmt::format("Starting device: {}", impl->cfg_.device));
-  if (!impl->owns_ioc_) {
-    auto& manager = concurrency::IoContextManager::instance();
-    if (!manager.is_running()) manager.start();
-    if (impl->ioc_.stopped()) impl->ioc_.restart();
-  }
   impl->work_guard_ =
       std::make_unique<net::executor_work_guard<net::io_context::executor_type>>(impl->ioc_.get_executor());
   if (impl->owns_ioc_) {

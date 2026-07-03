@@ -28,7 +28,6 @@
 #include <thread>
 #include <unordered_map>
 
-#include "unilink/concurrency/io_context_manager.hpp"
 #include "unilink/concurrency/thread_safe_state.hpp"
 #include "unilink/diagnostics/exceptions.hpp"
 #include "unilink/diagnostics/logger.hpp"
@@ -50,8 +49,8 @@ struct TcpServer::Impl {
 
   std::unique_ptr<net::io_context> owned_ioc_;
   bool owns_ioc_;
-  bool uses_global_ioc_;
   net::io_context& ioc_;
+  std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> work_guard_;
   std::jthread ioc_thread_;
 
   std::unique_ptr<interface::TcpAcceptorInterface> acceptor_;
@@ -78,9 +77,9 @@ struct TcpServer::Impl {
   ErrorInfoHolder error_info_holder_{"tcp_server"};
 
   explicit Impl(const config::TcpServerConfig& cfg)
-      : owns_ioc_(false),
-        uses_global_ioc_(true),
-        ioc_(concurrency::IoContextManager::instance().get_context()),
+      : owned_ioc_(std::make_unique<net::io_context>()),
+        owns_ioc_(true),
+        ioc_(*owned_ioc_),
         cfg_(cfg),
         max_clients_(cfg.max_connections > 0 ? static_cast<size_t>(cfg.max_connections) : 0),
         client_limit_enabled_(cfg.max_connections > 0) {
@@ -97,7 +96,6 @@ struct TcpServer::Impl {
   Impl(const config::TcpServerConfig& cfg, std::unique_ptr<interface::TcpAcceptorInterface> acceptor,
        net::io_context& ioc)
       : owns_ioc_(false),
-        uses_global_ioc_(false),
         ioc_(ioc),
         acceptor_(std::move(acceptor)),
         cfg_(cfg),
@@ -441,7 +439,7 @@ struct TcpServer::Impl {
       return;
     }
 
-    bool has_active_ioc = owns_ioc_ || (uses_global_ioc_ && concurrency::IoContextManager::instance().is_running());
+    bool has_active_ioc = owns_ioc_;
 
     if (has_active_ioc && self) {
       auto cleanup_promise = std::make_shared<std::promise<void>>();
@@ -463,14 +461,17 @@ struct TcpServer::Impl {
       perform_cleanup();
     }
 
-    if (owns_ioc_ && ioc_thread_.joinable()) {
-      if (std::this_thread::get_id() == ioc_thread_.get_id()) {
-        ioc_thread_.detach();
-      } else {
-        ioc_thread_.request_stop();
-        ioc_thread_.join();
+    if (owns_ioc_) {
+      if (work_guard_) work_guard_->reset();
+      if (ioc_thread_.joinable()) {
+        if (std::this_thread::get_id() == ioc_thread_.get_id()) {
+          ioc_thread_.detach();
+        } else {
+          ioc_thread_.request_stop();
+          ioc_thread_.join();
+        }
+        ioc_.restart();
       }
-      ioc_.restart();
     }
   }
 };
@@ -510,13 +511,6 @@ void TcpServer::start() {
   }
   impl->stopping_.store(false);
 
-  if (impl->uses_global_ioc_) {
-    auto& manager = concurrency::IoContextManager::instance();
-    if (!manager.is_running()) {
-      manager.start();
-    }
-  }
-
   if (!impl->acceptor_) {
     impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::SYSTEM, "start",
                                           {}, "No acceptor available", false, 0);
@@ -525,7 +519,12 @@ void TcpServer::start() {
     return;
   }
 
-  if (impl->owns_ioc_) {
+  if (impl->owns_ioc_ && !impl->ioc_thread_.joinable()) {
+    if (impl->ioc_.stopped()) {
+      impl->ioc_.restart();
+    }
+    impl->work_guard_ =
+        std::make_unique<net::executor_work_guard<net::io_context::executor_type>>(impl->ioc_.get_executor());
     impl->ioc_thread_ = std::jthread([impl](std::stop_token st) {
       try {
         std::stop_callback cb(st, [impl] { impl->ioc_.stop(); });
