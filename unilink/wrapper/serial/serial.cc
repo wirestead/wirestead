@@ -217,11 +217,16 @@ struct Serial::Impl {
     }
 
     if (channel) {
+      lock.unlock();
+      channel->stop();
+      // Clear callbacks after stop() rather than before: the transport-level
+      // fix (#436) already synchronizes callback reads against these
+      // setters, but clearing after stop() means no in-flight handler can
+      // observe a null callback mid-shutdown in the first place - belt and
+      // braces once the underlying race is fixed at the source.
       channel->on_bytes(nullptr);
       channel->on_state(nullptr);
       channel->on_backpressure(nullptr);
-      lock.unlock();
-      channel->stop();
       lock.lock();
       if (factory_managed_channel_) {
         // Fully release the channel rather than reusing it: start()'s

@@ -79,7 +79,11 @@ struct TcpClient::Impl {
   std::chrono::milliseconds idle_timeout_{0};
   IdleTimeoutAction idle_timeout_action_{IdleTimeoutAction::Reconnect};
   size_t backpressure_threshold_{base::constants::DEFAULT_BACKPRESSURE_THRESHOLD};
-  base::constants::BackpressureStrategy backpressure_strategy_{base::constants::BackpressureStrategy::Reliable};
+  // Atomic rather than mutex-guarded: read from the send()/send_line() fast
+  // path on arbitrary caller threads while the setter can be called
+  // concurrently from any other thread (#436).
+  std::atomic<base::constants::BackpressureStrategy> backpressure_strategy_{
+      base::constants::BackpressureStrategy::Reliable};
   bool tcp_no_delay_ = true;
   bool keep_alive_ = false;
   size_t send_buffer_size_ = 0;

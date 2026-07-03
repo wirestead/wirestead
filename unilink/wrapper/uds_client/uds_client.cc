@@ -77,7 +77,11 @@ struct UdsClient::Impl {
   int max_retries_ = -1;
   std::chrono::milliseconds connection_timeout_{5000};
   size_t backpressure_threshold_ = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD;
-  base::constants::BackpressureStrategy backpressure_strategy_ = base::constants::BackpressureStrategy::Reliable;
+  // Atomic rather than mutex-guarded: read from the send()/send_line() fast
+  // path on arbitrary caller threads while the setter can be called
+  // concurrently from any other thread (#436).
+  std::atomic<base::constants::BackpressureStrategy> backpressure_strategy_{
+      base::constants::BackpressureStrategy::Reliable};
 
   explicit Impl(const std::string& socket_path) : socket_path_(socket_path), started_(false) {}
 

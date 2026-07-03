@@ -57,7 +57,13 @@ class UNILINK_API Channel {
   virtual bool async_try_write_move(std::vector<uint8_t>&& data) = 0;
   virtual bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) = 0;
 
-  // Callbacks
+  // Callbacks. Thread-safe: may be called at any time, including after
+  // start(), from any thread. Replacing a callback is synchronized against
+  // concurrent invocation on the io thread - the implementation either
+  // guards storage with a mutex (copy-under-lock, invoke outside the lock)
+  // or dispatches the assignment onto the same strand the io thread runs
+  // on. Re-registering a callback takes effect for subsequent events; it
+  // does not retroactively affect an invocation already in progress (#436).
   virtual void on_bytes(OnBytes cb) = 0;
   virtual void on_state(OnState cb) = 0;
   virtual void on_backpressure(OnBackpressure cb) = 0;

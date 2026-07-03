@@ -112,6 +112,11 @@ class UNILINK_API TcpClient : public ChannelInterface {
   TcpClient& idle_timeout_action(IdleTimeoutAction action);
   TcpClient& backpressure_threshold(size_t threshold);
   TcpClient& backpressure_strategy(base::constants::BackpressureStrategy strategy);
+  // Socket-option setters below have no live/runtime effect on an already-open
+  // socket: they stage a value that is only applied the next time start()
+  // builds a fresh connection (e.g. after stop() + start() again). Calling
+  // one of these while already connected is a deferred no-op until restart,
+  // not an immediate change (#436).
   TcpClient& tcp_no_delay(bool enable = true);
   TcpClient& keep_alive(bool enable = true);
   TcpClient& send_buffer_size(size_t bytes);

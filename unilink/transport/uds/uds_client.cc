@@ -62,6 +62,10 @@ struct UdsClient::Impl {
   std::jthread ioc_thread_;
   std::atomic<uint64_t> current_seq_{0};
   std::unique_ptr<interface::UdsSocketInterface> socket_;
+  // Guards the mutable subset of cfg_ (retry_interval_ms, etc.) and
+  // reconnect_policy_ below - see the identical rationale in
+  // transport/tcp_client/tcp_client.cc (#436).
+  mutable std::mutex cfg_mtx_;
   UdsClientConfig cfg_;
   net::steady_timer retry_timer_;
   net::steady_timer connect_timer_;
@@ -76,7 +80,9 @@ struct UdsClient::Impl {
   std::optional<BufferVariant> current_write_buffer_;
   bool writing_ = false;
   std::atomic<size_t> queue_bytes_{0};
-  base::constants::BackpressureStrategy bp_strategy_{base::constants::BackpressureStrategy::Reliable};
+  // Atomic rather than mutex-guarded: read both from the strand and from
+  // arbitrary caller threads (async_try_write_* fast-fail prechecks) (#436).
+  std::atomic<base::constants::BackpressureStrategy> bp_strategy_{base::constants::BackpressureStrategy::Reliable};
   size_t bp_high_;
   size_t bp_low_;
   size_t bp_limit_;
@@ -483,18 +489,27 @@ void UdsClient::on_backpressure(OnBackpressure cb) {
 }
 
 void UdsClient::set_backpressure_strategy(base::constants::BackpressureStrategy strategy) {
-  impl_->bp_strategy_ = strategy;
+  impl_->bp_strategy_.store(strategy, std::memory_order_relaxed);
 }
 
-void UdsClient::set_retry_interval(unsigned interval_ms) { impl_->cfg_.retry_interval_ms = interval_ms; }
+void UdsClient::set_retry_interval(unsigned interval_ms) {
+  std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
+  impl_->cfg_.retry_interval_ms = interval_ms;
+}
 
 void UdsClient::set_reconnect_policy(ReconnectPolicy policy) {
+  std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
   if (policy) {
     impl_->reconnect_policy_ = std::move(policy);
+  } else {
+    impl_->reconnect_policy_ = std::nullopt;
   }
 }
 
-std::optional<diagnostics::ErrorInfo> UdsClient::last_error_info() const { return impl_->last_error_info_; }
+std::optional<diagnostics::ErrorInfo> UdsClient::last_error_info() const {
+  std::lock_guard<std::mutex> lock(impl_->last_err_mtx_);
+  return impl_->last_error_info_;
+}
 
 void UdsClient::Impl::do_connect(std::shared_ptr<UdsClient> self, uint64_t seq) {
   if (stop_requested_.load() || stopping_.load() || seq != current_seq_.load()) {
@@ -521,7 +536,12 @@ void UdsClient::Impl::do_connect(std::shared_ptr<UdsClient> self, uint64_t seq) 
     return;
   }
 
-  connect_timer_.expires_after(std::chrono::milliseconds(cfg_.connection_timeout_ms));
+  unsigned connection_timeout_ms;
+  {
+    std::lock_guard<std::mutex> lock(cfg_mtx_);
+    connection_timeout_ms = cfg_.connection_timeout_ms;
+  }
+  connect_timer_.expires_after(std::chrono::milliseconds(connection_timeout_ms));
   connect_timer_.async_wait(net::bind_executor(strand_, [self, seq](const boost::system::error_code& ec) {
     if (ec == net::error::operation_aborted || seq != self->impl_->current_seq_.load()) return;
     if (!ec) {
@@ -561,9 +581,21 @@ void UdsClient::Impl::do_connect(std::shared_ptr<UdsClient> self, uint64_t seq) 
 void UdsClient::Impl::schedule_retry(std::shared_ptr<UdsClient> self, uint64_t seq) {
   transition_to(LinkState::Error);
 
+  // Snapshot once rather than locking repeatedly - cfg_/reconnect_policy_
+  // can change concurrently via set_retry_interval() etc. from any user
+  // thread while this runs on the strand (#436).
+  UdsClientConfig cfg_snapshot;
+  std::optional<ReconnectPolicy> reconnect_policy_snapshot;
+  {
+    std::lock_guard<std::mutex> lock(cfg_mtx_);
+    cfg_snapshot = cfg_;
+    reconnect_policy_snapshot = reconnect_policy_;
+  }
+
   diagnostics::ErrorInfo dummy_err(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "uds_client",
                                    "connect", "Retry pending", boost::system::error_code(), true);
-  auto decision = detail::decide_reconnect_uds(cfg_, dummy_err, reconnect_attempt_count_, reconnect_policy_);
+  auto decision =
+      detail::decide_reconnect_uds(cfg_snapshot, dummy_err, reconnect_attempt_count_, reconnect_policy_snapshot);
 
   if (!decision.should_retry || stop_requested_.load() || stopping_.load()) {
     transition_to(LinkState::Idle);
@@ -571,7 +603,7 @@ void UdsClient::Impl::schedule_retry(std::shared_ptr<UdsClient> self, uint64_t s
   }
 
   reconnect_attempt_count_++;
-  retry_timer_.expires_after(decision.delay.value_or(std::chrono::milliseconds(cfg_.retry_interval_ms)));
+  retry_timer_.expires_after(decision.delay.value_or(std::chrono::milliseconds(cfg_snapshot.retry_interval_ms)));
   retry_timer_.async_wait(net::bind_executor(strand_, [self, seq](const boost::system::error_code& ec) {
     if (ec == net::error::operation_aborted || seq != self->impl_->current_seq_.load()) return;
     self->impl_->do_connect(self, seq);
