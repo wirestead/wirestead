@@ -73,25 +73,39 @@ inline size_t variant_buffer_size(const T& buf) {
   }
 }
 
-// BestEffort queue-trimming shared by all stream transports (TCP client/server, UDS client/server).
+// Identity projection: the default for maybe_flush_for_keep_latest()'s `project`
+// parameter below, used as-is by transports whose tx_ deque holds the
+// BufferVariant directly. UDP's tx_ holds TxItem{BufferVariant, destination}
+// instead, and supplies a projection extracting `.buffer` so this same
+// trimming logic can still visit the variant inside.
+struct IdentityProjection {
+  template <typename T>
+  constexpr T& operator()(T& x) const {
+    return x;
+  }
+};
+
+// BestEffort queue-trimming shared by all stream transports (TCP client/server, UDS client/server)
+// and, via a projection, UDP.
 // Must be called on the strand immediately before enqueueing a new buffer of `added` bytes.
 //
 // No-op for Reliable strategy.
 // For BestEffort:
 //   added >= bp_high  →  drop entire tx_ (full keep-latest replacement).
 //   otherwise         →  pop oldest tx_ entries until queue_bytes + added <= bp_high.
-template <typename Deque>
+template <typename Deque, typename Project = IdentityProjection>
 inline DropAccounting maybe_flush_for_keep_latest(::unilink::base::constants::BackpressureStrategy bp_strategy,
                                                   size_t added, size_t bp_high, Deque& tx,
                                                   std::atomic<size_t>& queue_bytes,
-                                                  const std::atomic<bool>& backpressure_active) {
+                                                  const std::atomic<bool>& backpressure_active,
+                                                  Project project = Project{}) {
   DropAccounting dropped;
   if (bp_strategy != ::unilink::base::constants::BackpressureStrategy::BestEffort) return dropped;
 
   if (added >= bp_high) {
     size_t removed_bytes = 0;
-    for (const auto& buf : tx) {
-      removed_bytes += std::visit([](const auto& b) { return variant_buffer_size(b); }, buf);
+    for (auto& buf : tx) {
+      removed_bytes += std::visit([](const auto& b) { return variant_buffer_size(b); }, project(buf));
     }
     dropped.messages = tx.size();
     dropped.bytes = removed_bytes;
@@ -106,7 +120,7 @@ inline DropAccounting maybe_flush_for_keep_latest(::unilink::base::constants::Ba
     while (!tx.empty()) {
       const size_t qb = queue_bytes.load(std::memory_order_relaxed);
       if (qb + added <= bp_high) break;
-      const size_t oldest = std::visit([](const auto& b) { return variant_buffer_size(b); }, tx.front());
+      const size_t oldest = std::visit([](const auto& b) { return variant_buffer_size(b); }, project(tx.front()));
       queue_bytes.store(qb > oldest ? qb - oldest : 0, std::memory_order_relaxed);
       tx.pop_front();
       ++dropped.messages;
