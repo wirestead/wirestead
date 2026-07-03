@@ -124,6 +124,9 @@ TEST_F(TransportUdsServerTest, BindFailure) {
 
   EXPECT_FALSE(server->is_connected());
   EXPECT_TRUE(has_error);
+  // #445: last_error_info() should now report detail for this transport too.
+  ASSERT_TRUE(server->last_error_info().has_value());
+  EXPECT_EQ(server->last_error_info()->component, "uds_server");
 }
 
 // Regression test for jwsung91/unilink#453: a transient accept() failure

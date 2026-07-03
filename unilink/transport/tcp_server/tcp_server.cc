@@ -33,6 +33,7 @@
 #include "unilink/diagnostics/logger.hpp"
 #include "unilink/diagnostics/runtime_stats_counter.hpp"
 #include "unilink/interface/itcp_acceptor.hpp"
+#include "unilink/transport/base/error_info_holder.hpp"
 #include "unilink/transport/tcp_server/boost_tcp_acceptor.hpp"
 #include "unilink/transport/tcp_server/tcp_server_session.hpp"
 
@@ -72,6 +73,8 @@ struct TcpServer::Impl {
   bool paused_accept_ = false;
 
   std::shared_ptr<TcpServerSession> current_session_;
+
+  ErrorInfoHolder error_info_holder_{"tcp_server"};
 
   explicit Impl(const config::TcpServerConfig& cfg)
       : owns_ioc_(false),
@@ -182,8 +185,10 @@ struct TcpServer::Impl {
 
     auto address = net::ip::make_address(cfg_.bind_address, ec);
     if (ec) {
-      UNILINK_LOG_ERROR("tcp_server", "bind",
-                        fmt::format("Invalid bind address: {}, {}", cfg_.bind_address, ec.message()));
+      std::string msg = fmt::format("Invalid bind address: {}, {}", cfg_.bind_address, ec.message());
+      UNILINK_LOG_ERROR("tcp_server", "bind", msg);
+      error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONFIGURATION, "bind",
+                                      ec, msg, false, static_cast<uint32_t>(retry_count));
       state_.set_state(base::LinkState::Error);
       notify_state();
       return;
@@ -192,7 +197,10 @@ struct TcpServer::Impl {
     if (!acceptor_->is_open()) {
       acceptor_->open(address.is_v6() ? tcp::v6() : tcp::v4(), ec);
       if (ec) {
-        UNILINK_LOG_ERROR("tcp_server", "open", fmt::format("Failed to open acceptor: {}", ec.message()));
+        std::string msg = fmt::format("Failed to open acceptor: {}", ec.message());
+        UNILINK_LOG_ERROR("tcp_server", "open", msg);
+        error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::SYSTEM, "open", ec,
+                                        msg, false, static_cast<uint32_t>(retry_count));
         state_.set_state(base::LinkState::Error);
         notify_state();
         return;
@@ -214,7 +222,10 @@ struct TcpServer::Impl {
         });
         return;
       } else {
-        UNILINK_LOG_ERROR("tcp_server", "bind", fmt::format("Failed to bind to port {}: {}", cfg_.port, ec.message()));
+        std::string msg = fmt::format("Failed to bind to port {}: {}", cfg_.port, ec.message());
+        UNILINK_LOG_ERROR("tcp_server", "bind", msg);
+        error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "bind",
+                                        ec, msg, false, static_cast<uint32_t>(retry_count));
         state_.set_state(base::LinkState::Error);
         notify_state();
         return;
@@ -223,8 +234,10 @@ struct TcpServer::Impl {
 
     acceptor_->listen(boost::asio::socket_base::max_listen_connections, ec);
     if (ec) {
-      UNILINK_LOG_ERROR("tcp_server", "listen",
-                        fmt::format("Failed to listen on port {}: {}", cfg_.port, ec.message()));
+      std::string msg = fmt::format("Failed to listen on port {}: {}", cfg_.port, ec.message());
+      UNILINK_LOG_ERROR("tcp_server", "listen", msg);
+      error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "listen",
+                                      ec, msg, false, static_cast<uint32_t>(retry_count));
       state_.set_state(base::LinkState::Error);
       notify_state();
       return;
@@ -245,6 +258,9 @@ struct TcpServer::Impl {
       }
       if (ec) {
         if (ec != boost::asio::error::operation_aborted) {
+          accept_impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR,
+                                                       diagnostics::ErrorCategory::CONNECTION, "accept", ec,
+                                                       fmt::format("Accept failed: {}", ec.message()), true, 0);
           accept_impl->state_.set_state(base::LinkState::Error);
           accept_impl->notify_state();
         }
@@ -501,6 +517,8 @@ void TcpServer::start() {
   }
 
   if (!impl->acceptor_) {
+    impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::SYSTEM, "start",
+                                          {}, "No acceptor available", false, 0);
     impl->state_.set_state(base::LinkState::Error);
     impl->notify_state();
     return;
@@ -590,6 +608,10 @@ void TcpServer::reset_stats() {
   for (const auto& entry : impl->sessions_) {
     if (entry.second) entry.second->reset_stats();
   }
+}
+
+std::optional<diagnostics::ErrorInfo> TcpServer::last_error_info() const {
+  return get_impl()->error_info_holder_.last_error_info();
 }
 
 bool TcpServer::async_write_copy(memory::ConstByteSpan data) {

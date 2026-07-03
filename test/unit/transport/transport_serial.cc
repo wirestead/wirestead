@@ -238,6 +238,9 @@ TEST(TransportSerialTest, OpenAndConfigureFailuresMoveToError) {
     ioc.run_for(30ms);
 
     EXPECT_TRUE(error_seen.load());
+    // #445: last_error_info() should now report detail for this transport too.
+    ASSERT_TRUE(serial->last_error_info().has_value());
+    EXPECT_EQ(serial->last_error_info()->component, "serial");
     serial->stop();
     ioc.restart();
     ioc.run_for(5ms);
