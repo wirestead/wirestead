@@ -1,0 +1,5 @@
+<map id="unilink::wrapper::TcpServer::broadcast" name="unilink::wrapper::TcpServer::broadcast">
+<area shape="rect" id="Node000001" title="Send to all connected clients using non&#45;blocking fan&#45;out." alt="" coords="252,5,451,45"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1wrapper_1_1TcpServer.html#ae1575d3f34f582f2c0a40c260ead4c04" title="Send a line (data + &quot;\n&quot;) to all clients, honouring the backpressure strategy." alt="" coords="5,5,204,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="238,28,204,28,204,23,238,23"/>
+</map>

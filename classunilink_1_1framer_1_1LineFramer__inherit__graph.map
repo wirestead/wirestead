@@ -1,0 +1,5 @@
+<map id="unilink::framer::LineFramer" name="unilink::framer::LineFramer">
+<area shape="rect" id="Node000001" title="Framer for text&#45;based protocols (e.g., ASCII, NMEA)." alt="" coords="5,139,196,244"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1framer_1_1IFramer.html" title="Abstract base class for message framing strategies." alt="" coords="17,5,185,91"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="103,104,103,138,98,138,98,104"/>
+</map>

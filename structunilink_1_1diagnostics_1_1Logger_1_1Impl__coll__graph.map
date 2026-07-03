@@ -1,0 +1,7 @@
+<map id="unilink::diagnostics::Logger::Impl" name="unilink::diagnostics::Logger::Impl">
+<area shape="rect" id="Node000001" title=" " alt="" coords="89,148,229,228"/>
+<area shape="rect" id="Node000002" href="$structunilink_1_1diagnostics_1_1LogRotationConfig.html" title="Log rotation configuration." alt="" coords="5,5,147,85"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="82,85,94,123,102,134,97,137,90,125,77,87"/>
+<area shape="rect" id="Node000003" href="$structunilink_1_1diagnostics_1_1AsyncLogConfig.html" title="Async logging configuration." alt="" coords="171,5,311,85"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="232,87,214,125,207,136,203,134,210,123,227,85"/>
+</map>

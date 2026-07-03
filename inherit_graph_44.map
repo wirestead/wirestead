@@ -1,0 +1,26 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classunilink_1_1interface_1_1Channel.html" title=" " alt="" coords="12,149,144,189"/>
+<area shape="rect" id="Node000001" href="$classunilink_1_1transport_1_1Serial.html" title="Serial Transport implementation." alt="" coords="205,5,339,45"/>
+<area shape="poly" id="edge20_Node000000_Node000001" title=" " alt="" coords="105,137,146,95,197,55,218,43,221,48,200,60,150,99,109,140"/>
+<area shape="rect" id="Node000003" href="$classunilink_1_1transport_1_1TcpClient.html" title=" " alt="" coords="205,69,339,109"/>
+<area shape="poly" id="edge21_Node000000_Node000003" title=" " alt="" coords="139,141,221,107,223,112,141,146"/>
+<area shape="rect" id="Node000004" href="$classunilink_1_1transport_1_1TcpServer.html" title="Thread&#45;safe TCP Server implementation." alt="" coords="205,133,339,173"/>
+<area shape="poly" id="edge22_Node000000_Node000004" title=" " alt="" coords="158,160,205,156,206,161,158,165"/>
+<area shape="rect" id="Node000006" href="$classunilink_1_1transport_1_1UdpChannel.html" title="UDP Transport implementation with 1:N support." alt="" coords="205,197,339,237"/>
+<area shape="poly" id="edge23_Node000000_Node000006" title=" " alt="" coords="158,186,206,198,205,204,157,191"/>
+<area shape="rect" id="Node000007" href="$classunilink_1_1transport_1_1UdsClient.html" title="Thread&#45;safe UDS Client implementation." alt="" coords="205,261,339,301"/>
+<area shape="poly" id="edge24_Node000000_Node000007" title=" " alt="" coords="122,195,200,247,224,259,221,264,197,252,119,199"/>
+<area shape="rect" id="Node000008" href="$classunilink_1_1transport_1_1UdsServer.html" title="Thread&#45;safe UDS Server implementation." alt="" coords="205,325,339,365"/>
+<area shape="poly" id="edge25_Node000000_Node000008" title=" " alt="" coords="130,195,153,216,169,242,176,266,183,288,201,311,216,323,213,327,197,315,179,291,171,267,164,244,149,219,126,199"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,229,151,269"/>
+<area shape="poly" id="edge26_Node000002_Node000001" title=" " alt="" coords="128,219,149,200,160,181,166,163,170,128,175,93,183,74,197,56,211,43,215,47,201,59,188,77,180,94,176,128,172,164,165,183,153,203,132,223"/>
+<area shape="poly" id="edge27_Node000002_Node000003" title=" " alt="" coords="125,219,149,200,164,179,171,159,180,140,197,119,214,107,217,112,200,123,184,143,176,161,168,181,153,203,129,223"/>
+<area shape="poly" id="edge28_Node000002_Node000004" title=" " alt="" coords="126,220,197,183,223,171,225,176,200,188,128,225"/>
+<area shape="poly" id="edge30_Node000002_Node000006" title=" " alt="" coords="164,232,204,226,205,231,165,238"/>
+<area shape="poly" id="edge31_Node000002_Node000007" title=" " alt="" coords="165,261,205,268,204,273,164,266"/>
+<area shape="poly" id="edge32_Node000002_Node000008" title=" " alt="" coords="128,274,200,311,225,323,223,328,197,316,126,278"/>
+<area shape="rect" id="Node000005" href="$classunilink_1_1transport_1_1TcpServerSession.html" title=" " alt="" coords="201,389,343,429"/>
+<area shape="poly" id="edge29_Node000002_Node000005" title=" " alt="" coords="104,279,146,327,200,375,220,387,217,391,197,379,142,331,100,282"/>
+<area shape="rect" id="Node000009" href="$classunilink_1_1transport_1_1UdsServerSession.html" title=" " alt="" coords="199,453,345,493"/>
+<area shape="poly" id="edge33_Node000002_Node000009" title=" " alt="" coords="95,281,135,359,165,402,200,439,217,451,214,455,197,443,161,405,131,362,90,283"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="unilink::transport::BoostTcpSocket" name="unilink::transport::BoostTcpSocket">
+<area shape="rect" id="Node000001" title="Boost.Asio implementation of ITcpSocket interface. This is the real implementation used in production..." alt="" coords="15,133,140,213"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1interface_1_1TcpSocketInterface.html" title="An interface abstracting Boost.Asio&#39;s tcp::socket for testability. This is an internal interface used..." alt="" coords="5,5,149,85"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="80,99,80,133,75,133,75,99"/>
+</map>

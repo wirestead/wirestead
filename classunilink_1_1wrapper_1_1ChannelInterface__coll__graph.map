@@ -1,0 +1,3 @@
+<map id="unilink::wrapper::ChannelInterface" name="unilink::wrapper::ChannelInterface">
+<area shape="rect" id="Node000001" title="Common interface for 1:1 point&#45;to&#45;point communication (e.g., TcpClient, Serial, Udp)" alt="" coords="5,5,185,285"/>
+</map>

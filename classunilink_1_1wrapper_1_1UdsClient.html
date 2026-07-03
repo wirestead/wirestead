@@ -1,0 +1,822 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: unilink::wrapper::UdsClient Class Reference</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('classunilink_1_1wrapper_1_1UdsClient.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="header">
+  <div class="summary">
+<a href="#nested-classes">Classes</a> &#124;
+<a href="#pub-methods">Public Member Functions</a> &#124;
+<a href="classunilink_1_1wrapper_1_1UdsClient-members.html">List of all members</a>  </div>
+  <div class="headertitle"><div class="title">unilink::wrapper::UdsClient Class Reference</div></div>
+</div><!--header-->
+<div class="contents">
+
+<p>Modernized UDS Client Wrapper.  
+ <a href="classunilink_1_1wrapper_1_1UdsClient.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="wrapper_2uds__client_2uds__client_8hpp_source.html">unilink/wrapper/uds_client/uds_client.hpp</a>&gt;</code></p>
+<div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Inheritance diagram for unilink::wrapper::UdsClient:</div>
+<div id="dynsection-0-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-0-content" class="dyncontent" style="display:none;">
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="classunilink_1_1wrapper_1_1UdsClient__inherit__graph.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+</div>
+<div id="dynsection-1" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-1-trigger" src="closed.png" alt="+"/> Collaboration diagram for unilink::wrapper::UdsClient:</div>
+<div id="dynsection-1-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-1-content" class="dyncontent" style="display:none;">
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="classunilink_1_1wrapper_1_1UdsClient__coll__graph.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+</div>
+<table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Classes</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structunilink_1_1wrapper_1_1UdsClient_1_1Impl.html">Impl</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
+Public Member Functions</h2></td></tr>
+<tr class="memitem:ae95799bd17d533a9f5d613a40d3a19c9" id="r_ae95799bd17d533a9f5d613a40d3a19c9"><td class="memItemLeft" align="right" valign="top">std::future&lt; bool &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#ae95799bd17d533a9f5d613a40d3a19c9">start</a> () override</td></tr>
+<tr class="memdesc:ae95799bd17d533a9f5d613a40d3a19c9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Start the channel asynchronously.  <br /></td></tr>
+<tr class="separator:ae95799bd17d533a9f5d613a40d3a19c9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af158de7b71848d08c1655e43bc5c39eb" id="r_af158de7b71848d08c1655e43bc5c39eb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#af158de7b71848d08c1655e43bc5c39eb">stop</a> () override</td></tr>
+<tr class="memdesc:af158de7b71848d08c1655e43bc5c39eb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Stop the channel and block until all pending async operations are cancelled.  <br /></td></tr>
+<tr class="separator:af158de7b71848d08c1655e43bc5c39eb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a41955159bb466a19e19920e5e9ae2650" id="r_a41955159bb466a19e19920e5e9ae2650"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a41955159bb466a19e19920e5e9ae2650">send</a> (std::string_view data) override</td></tr>
+<tr class="memdesc:a41955159bb466a19e19920e5e9ae2650"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue data for transmission, honouring the backpressure strategy.  <br /></td></tr>
+<tr class="separator:a41955159bb466a19e19920e5e9ae2650"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2f4b0a463087c84d0600d3e1966edc5a" id="r_a2f4b0a463087c84d0600d3e1966edc5a"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a2f4b0a463087c84d0600d3e1966edc5a">send_line</a> (std::string_view line) override</td></tr>
+<tr class="memdesc:a2f4b0a463087c84d0600d3e1966edc5a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue a line (data + "\n") for transmission, honouring the backpressure strategy.  <br /></td></tr>
+<tr class="separator:a2f4b0a463087c84d0600d3e1966edc5a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a16051f191494afecb289d407df70b86c" id="r_a16051f191494afecb289d407df70b86c"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a16051f191494afecb289d407df70b86c">send_blocking</a> (std::string_view data) override</td></tr>
+<tr class="memdesc:a16051f191494afecb289d407df70b86c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Block the calling thread until queue pressure is relieved, then enqueue.  <br /></td></tr>
+<tr class="separator:a16051f191494afecb289d407df70b86c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2b232bfea432f1d987a580470a9dbdab" id="r_a2b232bfea432f1d987a580470a9dbdab"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a2b232bfea432f1d987a580470a9dbdab">send_line_blocking</a> (std::string_view line) override</td></tr>
+<tr class="memdesc:a2b232bfea432f1d987a580470a9dbdab"><td class="mdescLeft">&#160;</td><td class="mdescRight">Blocking variant of <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a2f4b0a463087c84d0600d3e1966edc5a" title="Enqueue a line (data + &quot;\n&quot;) for transmission, honouring the backpressure strategy.">send_line()</a>. Always blocks regardless of strategy.  <br /></td></tr>
+<tr class="separator:a2b232bfea432f1d987a580470a9dbdab"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad12bbabbdbd68695c040d337a8cc89a3" id="r_ad12bbabbdbd68695c040d337a8cc89a3"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#ad12bbabbdbd68695c040d337a8cc89a3">try_send</a> (std::string_view data) override</td></tr>
+<tr class="memdesc:ad12bbabbdbd68695c040d337a8cc89a3"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-blocking send that always drops on a full queue, ignoring strategy.  <br /></td></tr>
+<tr class="separator:ad12bbabbdbd68695c040d337a8cc89a3"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab8ce1f88f3b7a8613f82990568f4abb1" id="r_ab8ce1f88f3b7a8613f82990568f4abb1"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#ab8ce1f88f3b7a8613f82990568f4abb1">try_send_line</a> (std::string_view line) override</td></tr>
+<tr class="memdesc:ab8ce1f88f3b7a8613f82990568f4abb1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-blocking send_line that always drops on a full queue, ignoring strategy.  <br /></td></tr>
+<tr class="separator:ab8ce1f88f3b7a8613f82990568f4abb1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a854a69ab0263b80e6951775a48f4886e" id="r_a854a69ab0263b80e6951775a48f4886e"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a854a69ab0263b80e6951775a48f4886e">send_move</a> (std::vector&lt; uint8_t &gt; &amp;&amp;data) override</td></tr>
+<tr class="memdesc:a854a69ab0263b80e6951775a48f4886e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue a vector payload by transferring ownership, honouring the backpressure strategy.  <br /></td></tr>
+<tr class="separator:a854a69ab0263b80e6951775a48f4886e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6288fceb2b845c10779bd46b2539d7ee" id="r_a6288fceb2b845c10779bd46b2539d7ee"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a6288fceb2b845c10779bd46b2539d7ee">try_send_move</a> (std::vector&lt; uint8_t &gt; &amp;&amp;data) override</td></tr>
+<tr class="memdesc:a6288fceb2b845c10779bd46b2539d7ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-blocking ownership-transfer send.  <br /></td></tr>
+<tr class="separator:a6288fceb2b845c10779bd46b2539d7ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:afc9b8c53abfbcc77c9bf55f1bd6658e0" id="r_afc9b8c53abfbcc77c9bf55f1bd6658e0"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#afc9b8c53abfbcc77c9bf55f1bd6658e0">send_shared</a> (std::shared_ptr&lt; const std::vector&lt; uint8_t &gt; &gt; data) override</td></tr>
+<tr class="memdesc:afc9b8c53abfbcc77c9bf55f1bd6658e0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue an immutable shared vector payload, honouring the backpressure strategy.  <br /></td></tr>
+<tr class="separator:afc9b8c53abfbcc77c9bf55f1bd6658e0"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aeb2c32a0b09865e4986f0a8e2cd9347c" id="r_aeb2c32a0b09865e4986f0a8e2cd9347c"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#aeb2c32a0b09865e4986f0a8e2cd9347c">try_send_shared</a> (std::shared_ptr&lt; const std::vector&lt; uint8_t &gt; &gt; data) override</td></tr>
+<tr class="memdesc:aeb2c32a0b09865e4986f0a8e2cd9347c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-blocking shared-buffer send.  <br /></td></tr>
+<tr class="separator:aeb2c32a0b09865e4986f0a8e2cd9347c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a506d2b1137236f397948a79556977d7c" id="r_a506d2b1137236f397948a79556977d7c"><td class="memItemLeft" align="right" valign="top"><a id="a506d2b1137236f397948a79556977d7c" name="a506d2b1137236f397948a79556977d7c"></a>
+<a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html">UdsClient</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>on_data_batch</b> (BatchMessageHandler handler) override</td></tr>
+<tr class="memdesc:a506d2b1137236f397948a79556977d7c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a callback for batched data reception. <br /></td></tr>
+<tr class="separator:a506d2b1137236f397948a79556977d7c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ac2723395fb6d0652997da82bc76d4e6e" id="r_ac2723395fb6d0652997da82bc76d4e6e"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html">UdsClient</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#ac2723395fb6d0652997da82bc76d4e6e">on_backpressure</a> (std::function&lt; void(size_t)&gt; handler) override</td></tr>
+<tr class="memdesc:ac2723395fb6d0652997da82bc76d4e6e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a callback to be notified when send queue congestion changes.  <br /></td></tr>
+<tr class="separator:ac2723395fb6d0652997da82bc76d4e6e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab203983b9631f5aa4a77281727be629b" id="r_ab203983b9631f5aa4a77281727be629b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html">UdsClient</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#ab203983b9631f5aa4a77281727be629b">framer</a> (std::unique_ptr&lt; <a class="el" href="classunilink_1_1framer_1_1IFramer.html">framer::IFramer</a> &gt; framer) override</td></tr>
+<tr class="memdesc:ab203983b9631f5aa4a77281727be629b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set a message framer for this channel.  <br /></td></tr>
+<tr class="separator:ab203983b9631f5aa4a77281727be629b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a662d2ed1619581ab04540da40eaa4904" id="r_a662d2ed1619581ab04540da40eaa4904"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html">UdsClient</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a662d2ed1619581ab04540da40eaa4904">on_message</a> (MessageHandler handler) override</td></tr>
+<tr class="memdesc:a662d2ed1619581ab04540da40eaa4904"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set a handler for complete messages extracted by the framer.  <br /></td></tr>
+<tr class="separator:a662d2ed1619581ab04540da40eaa4904"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a8ef772760c8eb7c9f93b4a22e7a9b76d" id="r_a8ef772760c8eb7c9f93b4a22e7a9b76d"><td class="memItemLeft" align="right" valign="top"><a id="a8ef772760c8eb7c9f93b4a22e7a9b76d" name="a8ef772760c8eb7c9f93b4a22e7a9b76d"></a>
+<a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html">UdsClient</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>on_message_batch</b> (BatchMessageHandler handler) override</td></tr>
+<tr class="memdesc:a8ef772760c8eb7c9f93b4a22e7a9b76d"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a callback for batched framed message reception. <br /></td></tr>
+<tr class="separator:a8ef772760c8eb7c9f93b4a22e7a9b76d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="inherit_header pub_methods_classunilink_1_1wrapper_1_1ChannelInterface"><td colspan="2" onclick="javascript:toggleInherit('pub_methods_classunilink_1_1wrapper_1_1ChannelInterface')"><img src="closed.png" alt="-"/>&#160;Public Member Functions inherited from <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html">unilink::wrapper::ChannelInterface</a></td></tr>
+<tr class="memitem:ae98d24f5b572c9ae0aa13d428f01fcac inherit pub_methods_classunilink_1_1wrapper_1_1ChannelInterface" id="r_ae98d24f5b572c9ae0aa13d428f01fcac"><td class="memItemLeft" align="right" valign="top">virtual bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ae98d24f5b572c9ae0aa13d428f01fcac">start_sync</a> ()</td></tr>
+<tr class="memdesc:ae98d24f5b572c9ae0aa13d428f01fcac inherit pub_methods_classunilink_1_1wrapper_1_1ChannelInterface"><td class="mdescLeft">&#160;</td><td class="mdescRight">Synchronously start the channel and wait for the result.  <br /></td></tr>
+<tr class="separator:ae98d24f5b572c9ae0aa13d428f01fcac inherit pub_methods_classunilink_1_1wrapper_1_1ChannelInterface"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p>Modernized UDS Client Wrapper. </p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8hpp_source.html#l00048">48</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8hpp_source.html">uds_client.hpp</a>.</p>
+</div><h2 class="groupheader">Member Function Documentation</h2>
+<a id="ab203983b9631f5aa4a77281727be629b" name="ab203983b9631f5aa4a77281727be629b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab203983b9631f5aa4a77281727be629b">&#9670;&#160;</a></span>framer()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html">UdsClient</a> &amp; unilink::wrapper::UdsClient::framer </td>
+          <td>(</td>
+          <td class="paramtype">std::unique_ptr&lt; <a class="el" href="classunilink_1_1framer_1_1IFramer.html">framer::IFramer</a> &gt;&#160;</td>
+          <td class="paramname"><em>framer</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Set a message framer for this channel. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">framer</td><td>The framer instance to use. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ae4d31378b6d7df475b6dd89a53ed2ea7">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00584">584</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="ac2723395fb6d0652997da82bc76d4e6e" name="ac2723395fb6d0652997da82bc76d4e6e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ac2723395fb6d0652997da82bc76d4e6e">&#9670;&#160;</a></span>on_backpressure()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html">UdsClient</a> &amp; unilink::wrapper::UdsClient::on_backpressure </td>
+          <td>(</td>
+          <td class="paramtype">std::function&lt; void(size_t)&gt;&#160;</td>
+          <td class="paramname"><em>handler</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Register a callback to be notified when send queue congestion changes. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">handler</td><td>Callback receiving the current number of queued bytes.</td></tr>
+  </table>
+  </dd>
+</dl>
+<p>Default implementation is a no-op. Concrete implementations that support backpressure reporting must override this method; otherwise the handler is silently discarded. </p>
+
+<p>Reimplemented from <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aab51ca2988d45a77f9f611518c27374b">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00578">578</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="a662d2ed1619581ab04540da40eaa4904" name="a662d2ed1619581ab04540da40eaa4904"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a662d2ed1619581ab04540da40eaa4904">&#9670;&#160;</a></span>on_message()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html">UdsClient</a> &amp; unilink::wrapper::UdsClient::on_message </td>
+          <td>(</td>
+          <td class="paramtype">MessageHandler&#160;</td>
+          <td class="paramname"><em>handler</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Set a handler for complete messages extracted by the framer. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">handler</td><td>The callback for framed messages. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a18914bd90699c0925677760b42814993">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00589">589</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="a41955159bb466a19e19920e5e9ae2650" name="a41955159bb466a19e19920e5e9ae2650"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a41955159bb466a19e19920e5e9ae2650">&#9670;&#160;</a></span>send()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::UdsClient::send </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Enqueue data for transmission, honouring the backpressure strategy. </p>
+<p>BestEffort: non-blocking, drops if the send queue is full. Reliable: blocks until queue pressure is relieved, then enqueues.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted into the send queue. </dd>
+<dd>
+false Data was dropped (not connected, or BestEffort queue full). </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aea0f1a7ed2e31e0dad1680a996687b48">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00523">523</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="a16051f191494afecb289d407df70b86c" name="a16051f191494afecb289d407df70b86c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a16051f191494afecb289d407df70b86c">&#9670;&#160;</a></span>send_blocking()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::UdsClient::send_blocking </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Block the calling thread until queue pressure is relieved, then enqueue. </p>
+<p>Ignores the configured strategy — always blocks. Prefer <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a41955159bb466a19e19920e5e9ae2650" title="Enqueue data for transmission, honouring the backpressure strategy.">send()</a> unless you need to override BestEffort behaviour for a specific call. This call may block indefinitely while the channel remains active and backpressure does not clear. <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#af158de7b71848d08c1655e43bc5c39eb" title="Stop the channel and block until all pending async operations are cancelled.">stop()</a> from another thread is expected to unblock waiting senders.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Channel stopped while waiting. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a86c5b4222bc621a8dd0ec8e7a2ca9226">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00537">537</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="a2f4b0a463087c84d0600d3e1966edc5a" name="a2f4b0a463087c84d0600d3e1966edc5a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2f4b0a463087c84d0600d3e1966edc5a">&#9670;&#160;</a></span>send_line()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::UdsClient::send_line </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>line</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Enqueue a line (data + "\n") for transmission, honouring the backpressure strategy. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Data was dropped. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#af4d2c671707e6c3c4bc7080aaaa74590">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00534">534</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="a2b232bfea432f1d987a580470a9dbdab" name="a2b232bfea432f1d987a580470a9dbdab"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2b232bfea432f1d987a580470a9dbdab">&#9670;&#160;</a></span>send_line_blocking()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::UdsClient::send_line_blocking </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>line</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Blocking variant of <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a2f4b0a463087c84d0600d3e1966edc5a" title="Enqueue a line (data + &quot;\n&quot;) for transmission, honouring the backpressure strategy.">send_line()</a>. Always blocks regardless of strategy. </p>
+<p>This call may block indefinitely while the channel remains active and backpressure does not clear. <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#af158de7b71848d08c1655e43bc5c39eb" title="Stop the channel and block until all pending async operations are cancelled.">stop()</a> from another thread is expected to unblock waiting senders.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Channel stopped while waiting. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aa5851fe0dbc0eea11e5ee94d6f3e72d2">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00539">539</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="a854a69ab0263b80e6951775a48f4886e" name="a854a69ab0263b80e6951775a48f4886e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a854a69ab0263b80e6951775a48f4886e">&#9670;&#160;</a></span>send_move()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::UdsClient::send_move </td>
+          <td>(</td>
+          <td class="paramtype">std::vector&lt; uint8_t &gt; &amp;&amp;&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Enqueue a vector payload by transferring ownership, honouring the backpressure strategy. </p>
+<p>After this call, the caller must treat the moved-from vector as consumed regardless of the return value. Existing string_view send APIs remain available for borrowed data.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Data was dropped or rejected. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a9cdf237812f4b82d3dd2f935d0323fd9">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00525">525</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="afc9b8c53abfbcc77c9bf55f1bd6658e0" name="afc9b8c53abfbcc77c9bf55f1bd6658e0"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#afc9b8c53abfbcc77c9bf55f1bd6658e0">&#9670;&#160;</a></span>send_shared()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::UdsClient::send_shared </td>
+          <td>(</td>
+          <td class="paramtype">std::shared_ptr&lt; const std::vector&lt; uint8_t &gt; &gt;&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Enqueue an immutable shared vector payload, honouring the backpressure strategy. </p>
+<p>The shared buffer must be non-null and non-empty.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Data was dropped or rejected. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2b94c1a058878d67fd021108c5c8ec94">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00527">527</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="ae95799bd17d533a9f5d613a40d3a19c9" name="ae95799bd17d533a9f5d613a40d3a19c9"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ae95799bd17d533a9f5d613a40d3a19c9">&#9670;&#160;</a></span>start()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::future&lt; bool &gt; unilink::wrapper::UdsClient::start </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Start the channel asynchronously. </p>
+<dl class="section return"><dt>Returns</dt><dd>A future that resolves to true when the channel is connected/listening, or false if startup failed (e.g. connection refused, max retries exhausted). On false, the registered on_error() callback will have been invoked with the specific failure reason. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2060c51ac6a3120e7245cef5117dc021">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00519">519</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="af158de7b71848d08c1655e43bc5c39eb" name="af158de7b71848d08c1655e43bc5c39eb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af158de7b71848d08c1655e43bc5c39eb">&#9670;&#160;</a></span>stop()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void unilink::wrapper::UdsClient::stop </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Stop the channel and block until all pending async operations are cancelled. </p>
+<p>Safe to call from any thread. After <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#af158de7b71848d08c1655e43bc5c39eb" title="Stop the channel and block until all pending async operations are cancelled.">stop()</a> returns, no further callbacks will fire and it is safe to destroy the object. Calling <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#af158de7b71848d08c1655e43bc5c39eb" title="Stop the channel and block until all pending async operations are cancelled.">stop()</a> more than once is a no-op. </p>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad8b698aa572dffa18e0e9df5d465c6d0">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00521">521</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="ad12bbabbdbd68695c040d337a8cc89a3" name="ad12bbabbdbd68695c040d337a8cc89a3"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad12bbabbdbd68695c040d337a8cc89a3">&#9670;&#160;</a></span>try_send()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::UdsClient::try_send </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Non-blocking send that always drops on a full queue, ignoring strategy. </p>
+<p>Use as an escape hatch when you need drop-on-full behaviour on a Reliable channel. Rejects payloads that would exceed the current non-blocking queue threshold. A payload may be rejected even if it is below MAX_BUFFER_SIZE when it is larger than the current backpressure high-water budget. Use <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a41955159bb466a19e19920e5e9ae2650" title="Enqueue data for transmission, honouring the backpressure strategy.">send()</a> or <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a16051f191494afecb289d407df70b86c" title="Block the calling thread until queue pressure is relieved, then enqueue.">send_blocking()</a> when Reliable enqueue semantics are required for large payloads.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Dropped (not connected or queue full). </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a6b2212d41ed3f4ec66f7e783e607c22f">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00524">524</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="ab8ce1f88f3b7a8613f82990568f4abb1" name="ab8ce1f88f3b7a8613f82990568f4abb1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab8ce1f88f3b7a8613f82990568f4abb1">&#9670;&#160;</a></span>try_send_line()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::UdsClient::try_send_line </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>line</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Non-blocking send_line that always drops on a full queue, ignoring strategy. </p>
+<p>Uses the same non-blocking queue threshold policy as <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#ad12bbabbdbd68695c040d337a8cc89a3" title="Non-blocking send that always drops on a full queue, ignoring strategy.">try_send()</a>.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Dropped. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad85f6064ab3b5f575bbaa3c87dc1c102">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00535">535</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="a6288fceb2b845c10779bd46b2539d7ee" name="a6288fceb2b845c10779bd46b2539d7ee"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6288fceb2b845c10779bd46b2539d7ee">&#9670;&#160;</a></span>try_send_move()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::UdsClient::try_send_move </td>
+          <td>(</td>
+          <td class="paramtype">std::vector&lt; uint8_t &gt; &amp;&amp;&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Non-blocking ownership-transfer send. </p>
+<p>Always returns without waiting for backpressure. The moved-from vector is consumed regardless of the return value. Rejects payloads that would exceed the current non-blocking queue threshold, even below MAX_BUFFER_SIZE when they exceed the current high-water budget.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Data was dropped or rejected. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a33cad8d457df26cb1dbbe410ecf8b516">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00526">526</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<a id="aeb2c32a0b09865e4986f0a8e2cd9347c" name="aeb2c32a0b09865e4986f0a8e2cd9347c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aeb2c32a0b09865e4986f0a8e2cd9347c">&#9670;&#160;</a></span>try_send_shared()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::UdsClient::try_send_shared </td>
+          <td>(</td>
+          <td class="paramtype">std::shared_ptr&lt; const std::vector&lt; uint8_t &gt; &gt;&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Non-blocking shared-buffer send. </p>
+<p>The shared buffer must be non-null and non-empty. Rejects payloads that would exceed the current non-blocking queue threshold, even below MAX_BUFFER_SIZE when they exceed the current high-water budget.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Data was dropped or rejected. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a712e0ebe7d66f34f45cb12626f91f3a3">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html#l00530">530</a> of file <a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a>.</p>
+
+</div>
+</div>
+<hr/>The documentation for this class was generated from the following files:<ul>
+<li>unilink/wrapper/uds_client/<a class="el" href="wrapper_2uds__client_2uds__client_8hpp_source.html">uds_client.hpp</a></li>
+<li>unilink/wrapper/uds_client/<a class="el" href="wrapper_2uds__client_2uds__client_8cc_source.html">uds_client.cc</a></li>
+</ul>
+</div><!-- contents -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="navelem"><b>unilink</b></li><li class="navelem"><b>wrapper</b></li><li class="navelem"><a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html">UdsClient</a></li>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

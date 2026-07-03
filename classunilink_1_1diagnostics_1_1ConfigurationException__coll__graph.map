@@ -1,0 +1,7 @@
+<map id="unilink::diagnostics::ConfigurationException" name="unilink::diagnostics::ConfigurationException">
+<area shape="rect" id="Node000001" title="Exception thrown during configuration operations." alt="" coords="5,247,179,327"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1UnilinkException.html" title="Base exception class for all unilink exceptions." alt="" coords="22,119,162,199"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="95,212,95,246,89,246,89,212"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="27,5,157,71"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="95,85,95,118,89,118,89,85"/>
+</map>

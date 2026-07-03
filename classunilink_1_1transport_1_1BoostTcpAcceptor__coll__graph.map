@@ -1,0 +1,5 @@
+<map id="unilink::transport::BoostTcpAcceptor" name="unilink::transport::BoostTcpAcceptor">
+<area shape="rect" id="Node000001" title="Boost.Asio implementation of ITcpAcceptor interface. This is the real implementation used in producti..." alt="" coords="16,133,153,213"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1interface_1_1TcpAcceptorInterface.html" title="An interface abstracting Boost.Asio&#39;s tcp::acceptor for testability. This is an internal interface us..." alt="" coords="5,5,164,85"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="87,99,87,133,82,133,82,99"/>
+</map>

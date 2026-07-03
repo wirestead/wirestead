@@ -1,0 +1,340 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: unilink/wrapper/ichannel.hpp Source File</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('ichannel_8hpp_source.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="header">
+  <div class="headertitle"><div class="title">ichannel.hpp</div></div>
+</div><!--header-->
+<div class="contents">
+<div class="fragment"><div class="line"><a id="l00001" name="l00001"></a><span class="lineno">    1</span><span class="comment">/*</span></div>
+<div class="line"><a id="l00002" name="l00002"></a><span class="lineno">    2</span><span class="comment"> * Copyright 2025 Jinwoo Sung</span></div>
+<div class="line"><a id="l00003" name="l00003"></a><span class="lineno">    3</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00004" name="l00004"></a><span class="lineno">    4</span><span class="comment"> * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);</span></div>
+<div class="line"><a id="l00005" name="l00005"></a><span class="lineno">    5</span><span class="comment"> * you may not use this file except in compliance with the License.</span></div>
+<div class="line"><a id="l00006" name="l00006"></a><span class="lineno">    6</span><span class="comment"> * You may obtain a copy of the License at</span></div>
+<div class="line"><a id="l00007" name="l00007"></a><span class="lineno">    7</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00008" name="l00008"></a><span class="lineno">    8</span><span class="comment"> *     http://www.apache.org/licenses/LICENSE-2.0</span></div>
+<div class="line"><a id="l00009" name="l00009"></a><span class="lineno">    9</span><span class="comment"> *</span></div>
+<div class="line"><a id="l00010" name="l00010"></a><span class="lineno">   10</span><span class="comment"> * Unless required by applicable law or agreed to in writing, software</span></div>
+<div class="line"><a id="l00011" name="l00011"></a><span class="lineno">   11</span><span class="comment"> * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,</span></div>
+<div class="line"><a id="l00012" name="l00012"></a><span class="lineno">   12</span><span class="comment"> * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.</span></div>
+<div class="line"><a id="l00013" name="l00013"></a><span class="lineno">   13</span><span class="comment"> * See the License for the specific language governing permissions and</span></div>
+<div class="line"><a id="l00014" name="l00014"></a><span class="lineno">   14</span><span class="comment"> * limitations under the License.</span></div>
+<div class="line"><a id="l00015" name="l00015"></a><span class="lineno">   15</span><span class="comment"> */</span></div>
+<div class="line"><a id="l00016" name="l00016"></a><span class="lineno">   16</span> </div>
+<div class="line"><a id="l00017" name="l00017"></a><span class="lineno">   17</span><span class="preprocessor">#pragma once</span></div>
+<div class="line"><a id="l00018" name="l00018"></a><span class="lineno">   18</span> </div>
+<div class="line"><a id="l00019" name="l00019"></a><span class="lineno">   19</span><span class="preprocessor">#include &lt;functional&gt;</span></div>
+<div class="line"><a id="l00020" name="l00020"></a><span class="lineno">   20</span><span class="preprocessor">#include &lt;future&gt;</span></div>
+<div class="line"><a id="l00021" name="l00021"></a><span class="lineno">   21</span><span class="preprocessor">#include &lt;memory&gt;</span></div>
+<div class="line"><a id="l00022" name="l00022"></a><span class="lineno">   22</span><span class="preprocessor">#include &lt;string&gt;</span></div>
+<div class="line"><a id="l00023" name="l00023"></a><span class="lineno">   23</span><span class="preprocessor">#include &lt;string_view&gt;</span></div>
+<div class="line"><a id="l00024" name="l00024"></a><span class="lineno">   24</span><span class="preprocessor">#include &lt;vector&gt;</span></div>
+<div class="line"><a id="l00025" name="l00025"></a><span class="lineno">   25</span> </div>
+<div class="line"><a id="l00026" name="l00026"></a><span class="lineno">   26</span><span class="preprocessor">#include &quot;unilink/base/visibility.hpp&quot;</span></div>
+<div class="line"><a id="l00027" name="l00027"></a><span class="lineno">   27</span><span class="preprocessor">#include &quot;unilink/framer/iframer.hpp&quot;</span></div>
+<div class="line"><a id="l00028" name="l00028"></a><span class="lineno">   28</span><span class="preprocessor">#include &quot;unilink/wrapper/context.hpp&quot;</span></div>
+<div class="line"><a id="l00029" name="l00029"></a><span class="lineno">   29</span><span class="preprocessor">#include &quot;unilink/wrapper/runtime_stats.hpp&quot;</span></div>
+<div class="line"><a id="l00030" name="l00030"></a><span class="lineno">   30</span> </div>
+<div class="line"><a id="l00031" name="l00031"></a><span class="lineno">   31</span><span class="keyword">namespace </span>unilink {</div>
+<div class="line"><a id="l00032" name="l00032"></a><span class="lineno">   32</span><span class="keyword">namespace </span>wrapper {</div>
+<div class="line"><a id="l00033" name="l00033"></a><span class="lineno">   33</span> </div>
+<div class="foldopen" id="foldopen00037" data-start="{" data-end="};">
+<div class="line"><a id="l00037" name="l00037"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html">   37</a></span><span class="keyword">class </span>UNILINK_API <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">ChannelInterface</a> {</div>
+<div class="line"><a id="l00038" name="l00038"></a><span class="lineno">   38</span> <span class="keyword">public</span>:</div>
+<div class="line"><a id="l00039" name="l00039"></a><span class="lineno">   39</span>  <span class="keyword">using </span>MessageHandler = std::function&lt;void(<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1MessageContext.html">MessageContext</a>&amp;)&gt;;</div>
+<div class="line"><a id="l00040" name="l00040"></a><span class="lineno">   40</span>  <span class="keyword">using </span>BatchMessageHandler = std::function&lt;void(<span class="keyword">const</span> std::vector&lt;MessageContext&gt;&amp;)&gt;;</div>
+<div class="line"><a id="l00041" name="l00041"></a><span class="lineno">   41</span>  <span class="keyword">using </span>ConnectionHandler = std::function&lt;void(<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ConnectionContext.html">ConnectionContext</a>&amp;)&gt;;</div>
+<div class="line"><a id="l00042" name="l00042"></a><span class="lineno">   42</span>  <span class="keyword">using </span>ErrorHandler = std::function&lt;void(<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ErrorContext.html">ErrorContext</a>&amp;)&gt;;</div>
+<div class="line"><a id="l00043" name="l00043"></a><span class="lineno">   43</span> </div>
+<div class="line"><a id="l00044" name="l00044"></a><span class="lineno">   44</span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">~ChannelInterface</a>() = <span class="keywordflow">default</span>;</div>
+<div class="line"><a id="l00045" name="l00045"></a><span class="lineno">   45</span> </div>
+<div class="line"><a id="l00046" name="l00046"></a><span class="lineno">   46</span>  <span class="comment">// Lifecycle</span></div>
+<div class="line"><a id="l00047" name="l00047"></a><span class="lineno">   47</span> </div>
+<div class="line"><a id="l00056" name="l00056"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2060c51ac6a3120e7245cef5117dc021">   56</a></span>  [[nodiscard]] <span class="keyword">virtual</span> std::future&lt;bool&gt; <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2060c51ac6a3120e7245cef5117dc021">start</a>() = 0;</div>
+<div class="line"><a id="l00057" name="l00057"></a><span class="lineno">   57</span> </div>
+<div class="line"><a id="l00064" name="l00064"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ae98d24f5b572c9ae0aa13d428f01fcac">   64</a></span>  [[nodiscard]] <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ae98d24f5b572c9ae0aa13d428f01fcac">start_sync</a>() { <span class="keywordflow">return</span> start().get(); }</div>
+<div class="line"><a id="l00065" name="l00065"></a><span class="lineno">   65</span> </div>
+<div class="line"><a id="l00072" name="l00072"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad8b698aa572dffa18e0e9df5d465c6d0">   72</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad8b698aa572dffa18e0e9df5d465c6d0">stop</a>() = 0;</div>
+<div class="line"><a id="l00073" name="l00073"></a><span class="lineno">   73</span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> connected() <span class="keyword">const</span> = 0;</div>
+<div class="line"><a id="l00074" name="l00074"></a><span class="lineno">   74</span>  <span class="keyword">virtual</span> <a class="code hl_struct" href="structunilink_1_1wrapper_1_1RuntimeStats.html">RuntimeStats</a> stats() <span class="keyword">const</span> = 0;</div>
+<div class="line"><a id="l00075" name="l00075"></a><span class="lineno">   75</span>  <span class="keyword">virtual</span> <span class="keywordtype">void</span> reset_stats() = 0;</div>
+<div class="line"><a id="l00076" name="l00076"></a><span class="lineno">   76</span> </div>
+<div class="line"><a id="l00077" name="l00077"></a><span class="lineno">   77</span>  <span class="comment">// Transmission</span></div>
+<div class="line"><a id="l00078" name="l00078"></a><span class="lineno">   78</span>  <span class="comment">//</span></div>
+<div class="line"><a id="l00079" name="l00079"></a><span class="lineno">   79</span>  <span class="comment">// Strategy-aware API (recommended):</span></div>
+<div class="line"><a id="l00080" name="l00080"></a><span class="lineno">   80</span>  <span class="comment">//</span></div>
+<div class="line"><a id="l00081" name="l00081"></a><span class="lineno">   81</span>  <span class="comment">//   send() / send_line()</span></div>
+<div class="line"><a id="l00082" name="l00082"></a><span class="lineno">   82</span>  <span class="comment">//     Behaviour depends on the configured backpressure strategy:</span></div>
+<div class="line"><a id="l00083" name="l00083"></a><span class="lineno">   83</span>  <span class="comment">//       BestEffort — non-blocking; drops data when the send queue is full.</span></div>
+<div class="line"><a id="l00084" name="l00084"></a><span class="lineno">   84</span>  <span class="comment">//       Reliable   — blocks the calling thread until queue pressure is relieved,</span></div>
+<div class="line"><a id="l00085" name="l00085"></a><span class="lineno">   85</span>  <span class="comment">//                    then enqueues. Never drops due to backpressure alone.</span></div>
+<div class="line"><a id="l00086" name="l00086"></a><span class="lineno">   86</span>  <span class="comment">//</span></div>
+<div class="line"><a id="l00087" name="l00087"></a><span class="lineno">   87</span>  <span class="comment">// Explicit API (escape hatch):</span></div>
+<div class="line"><a id="l00088" name="l00088"></a><span class="lineno">   88</span>  <span class="comment">//</span></div>
+<div class="line"><a id="l00089" name="l00089"></a><span class="lineno">   89</span>  <span class="comment">//   try_send() / try_send_line()</span></div>
+<div class="line"><a id="l00090" name="l00090"></a><span class="lineno">   90</span>  <span class="comment">//     Always non-blocking and always rejects a full/backpressured queue,</span></div>
+<div class="line"><a id="l00091" name="l00091"></a><span class="lineno">   91</span>  <span class="comment">//     regardless of strategy. Reliable channels do not enqueue into pending_</span></div>
+<div class="line"><a id="l00092" name="l00092"></a><span class="lineno">   92</span>  <span class="comment">//     for try_send().</span></div>
+<div class="line"><a id="l00093" name="l00093"></a><span class="lineno">   93</span>  <span class="comment">//     Rejects payloads that would exceed the current non-blocking queue</span></div>
+<div class="line"><a id="l00094" name="l00094"></a><span class="lineno">   94</span>  <span class="comment">//     threshold; payloads below MAX_BUFFER_SIZE can still be rejected when</span></div>
+<div class="line"><a id="l00095" name="l00095"></a><span class="lineno">   95</span>  <span class="comment">//     they exceed the current backpressure high-water budget.</span></div>
+<div class="line"><a id="l00096" name="l00096"></a><span class="lineno">   96</span>  <span class="comment">//     Use when you need BestEffort behaviour on a Reliable channel for a specific</span></div>
+<div class="line"><a id="l00097" name="l00097"></a><span class="lineno">   97</span>  <span class="comment">//     call (e.g. fire-and-forget heartbeat).</span></div>
+<div class="line"><a id="l00098" name="l00098"></a><span class="lineno">   98</span>  <span class="comment">//</span></div>
+<div class="line"><a id="l00099" name="l00099"></a><span class="lineno">   99</span>  <span class="comment">//   send_blocking() / send_line_blocking()</span></div>
+<div class="line"><a id="l00100" name="l00100"></a><span class="lineno">  100</span>  <span class="comment">//     Always blocks until queue pressure is relieved, regardless of strategy.</span></div>
+<div class="line"><a id="l00101" name="l00101"></a><span class="lineno">  101</span>  <span class="comment">//     This call may block indefinitely while the channel remains active and</span></div>
+<div class="line"><a id="l00102" name="l00102"></a><span class="lineno">  102</span>  <span class="comment">//     backpressure does not clear. stop() from another thread is expected to</span></div>
+<div class="line"><a id="l00103" name="l00103"></a><span class="lineno">  103</span>  <span class="comment">//     unblock waiting senders.</span></div>
+<div class="line"><a id="l00104" name="l00104"></a><span class="lineno">  104</span> </div>
+<div class="line"><a id="l00114" name="l00114"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aea0f1a7ed2e31e0dad1680a996687b48">  114</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aea0f1a7ed2e31e0dad1680a996687b48">send</a>(std::string_view data) = 0;</div>
+<div class="line"><a id="l00115" name="l00115"></a><span class="lineno">  115</span> </div>
+<div class="line"><a id="l00120" name="l00120"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#af4d2c671707e6c3c4bc7080aaaa74590">  120</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#af4d2c671707e6c3c4bc7080aaaa74590">send_line</a>(std::string_view line) = 0;</div>
+<div class="line"><a id="l00121" name="l00121"></a><span class="lineno">  121</span> </div>
+<div class="line"><a id="l00133" name="l00133"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a86c5b4222bc621a8dd0ec8e7a2ca9226">  133</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a86c5b4222bc621a8dd0ec8e7a2ca9226">send_blocking</a>(std::string_view data) = 0;</div>
+<div class="line"><a id="l00134" name="l00134"></a><span class="lineno">  134</span> </div>
+<div class="line"><a id="l00144" name="l00144"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aa5851fe0dbc0eea11e5ee94d6f3e72d2">  144</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aa5851fe0dbc0eea11e5ee94d6f3e72d2">send_line_blocking</a>(std::string_view line) = 0;</div>
+<div class="line"><a id="l00145" name="l00145"></a><span class="lineno">  145</span> </div>
+<div class="line"><a id="l00157" name="l00157"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a6b2212d41ed3f4ec66f7e783e607c22f">  157</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a6b2212d41ed3f4ec66f7e783e607c22f">try_send</a>(std::string_view data) = 0;</div>
+<div class="line"><a id="l00158" name="l00158"></a><span class="lineno">  158</span> </div>
+<div class="line"><a id="l00166" name="l00166"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad85f6064ab3b5f575bbaa3c87dc1c102">  166</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad85f6064ab3b5f575bbaa3c87dc1c102">try_send_line</a>(std::string_view line) = 0;</div>
+<div class="line"><a id="l00167" name="l00167"></a><span class="lineno">  167</span> </div>
+<div class="line"><a id="l00176" name="l00176"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a9cdf237812f4b82d3dd2f935d0323fd9">  176</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a9cdf237812f4b82d3dd2f935d0323fd9">send_move</a>(std::vector&lt;uint8_t&gt;&amp;&amp; data) = 0;</div>
+<div class="line"><a id="l00177" name="l00177"></a><span class="lineno">  177</span> </div>
+<div class="line"><a id="l00188" name="l00188"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a33cad8d457df26cb1dbbe410ecf8b516">  188</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a33cad8d457df26cb1dbbe410ecf8b516">try_send_move</a>(std::vector&lt;uint8_t&gt;&amp;&amp; data) = 0;</div>
+<div class="line"><a id="l00189" name="l00189"></a><span class="lineno">  189</span> </div>
+<div class="line"><a id="l00197" name="l00197"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2b94c1a058878d67fd021108c5c8ec94">  197</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2b94c1a058878d67fd021108c5c8ec94">send_shared</a>(std::shared_ptr&lt;<span class="keyword">const</span> std::vector&lt;uint8_t&gt;&gt; data) = 0;</div>
+<div class="line"><a id="l00198" name="l00198"></a><span class="lineno">  198</span> </div>
+<div class="line"><a id="l00208" name="l00208"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a712e0ebe7d66f34f45cb12626f91f3a3">  208</a></span>  <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a712e0ebe7d66f34f45cb12626f91f3a3">try_send_shared</a>(std::shared_ptr&lt;<span class="keyword">const</span> std::vector&lt;uint8_t&gt;&gt; data) = 0;</div>
+<div class="line"><a id="l00209" name="l00209"></a><span class="lineno">  209</span> </div>
+<div class="line"><a id="l00210" name="l00210"></a><span class="lineno">  210</span>  <span class="comment">// Event handlers</span></div>
+<div class="line"><a id="l00211" name="l00211"></a><span class="lineno">  211</span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">ChannelInterface</a>&amp; on_data(MessageHandler handler) = 0;</div>
+<div class="line"><a id="l00212" name="l00212"></a><span class="lineno">  212</span> </div>
+<div class="line"><a id="l00214" name="l00214"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a203b730e7939654f6f5a13c3211dbd32">  214</a></span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">ChannelInterface</a>&amp; <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a203b730e7939654f6f5a13c3211dbd32">on_data_batch</a>(BatchMessageHandler handler) = 0;</div>
+<div class="line"><a id="l00215" name="l00215"></a><span class="lineno">  215</span> </div>
+<div class="line"><a id="l00216" name="l00216"></a><span class="lineno">  216</span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">ChannelInterface</a>&amp; on_connect(ConnectionHandler handler) = 0;</div>
+<div class="line"><a id="l00217" name="l00217"></a><span class="lineno">  217</span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">ChannelInterface</a>&amp; on_disconnect(ConnectionHandler handler) = 0;</div>
+<div class="line"><a id="l00218" name="l00218"></a><span class="lineno">  218</span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">ChannelInterface</a>&amp; on_error(ErrorHandler handler) = 0;</div>
+<div class="line"><a id="l00219" name="l00219"></a><span class="lineno">  219</span> </div>
+<div class="foldopen" id="foldopen00228" data-start="{" data-end="}">
+<div class="line"><a id="l00228" name="l00228"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aab51ca2988d45a77f9f611518c27374b">  228</a></span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">ChannelInterface</a>&amp; <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aab51ca2988d45a77f9f611518c27374b">on_backpressure</a>(std::function&lt;<span class="keywordtype">void</span>(<span class="keywordtype">size_t</span>)&gt; handler) {</div>
+<div class="line"><a id="l00229" name="l00229"></a><span class="lineno">  229</span>    (void)handler;</div>
+<div class="line"><a id="l00230" name="l00230"></a><span class="lineno">  230</span>    <span class="keywordflow">return</span> *<span class="keyword">this</span>;</div>
+<div class="line"><a id="l00231" name="l00231"></a><span class="lineno">  231</span>  }</div>
+</div>
+<div class="line"><a id="l00232" name="l00232"></a><span class="lineno">  232</span> </div>
+<div class="line"><a id="l00237" name="l00237"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ae4d31378b6d7df475b6dd89a53ed2ea7">  237</a></span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">ChannelInterface</a>&amp; <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ae4d31378b6d7df475b6dd89a53ed2ea7">framer</a>(std::unique_ptr&lt;framer::IFramer&gt; framer) = 0;</div>
+<div class="line"><a id="l00238" name="l00238"></a><span class="lineno">  238</span> </div>
+<div class="line"><a id="l00243" name="l00243"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a18914bd90699c0925677760b42814993">  243</a></span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">ChannelInterface</a>&amp; <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a18914bd90699c0925677760b42814993">on_message</a>(MessageHandler handler) = 0;</div>
+<div class="line"><a id="l00244" name="l00244"></a><span class="lineno">  244</span> </div>
+<div class="line"><a id="l00246" name="l00246"></a><span class="lineno"><a class="line" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aa00e90b812175cdfd977a9c52fae35fd">  246</a></span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">ChannelInterface</a>&amp; <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aa00e90b812175cdfd977a9c52fae35fd">on_message_batch</a>(BatchMessageHandler handler) = 0;</div>
+<div class="line"><a id="l00247" name="l00247"></a><span class="lineno">  247</span> </div>
+<div class="line"><a id="l00248" name="l00248"></a><span class="lineno">  248</span>  <span class="comment">// Management</span></div>
+<div class="line"><a id="l00249" name="l00249"></a><span class="lineno">  249</span>  <span class="keyword">virtual</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ChannelInterface.html">ChannelInterface</a>&amp; auto_start(<span class="keywordtype">bool</span> manage = <span class="keyword">true</span>) = 0;</div>
+<div class="line"><a id="l00250" name="l00250"></a><span class="lineno">  250</span>};</div>
+</div>
+<div class="line"><a id="l00251" name="l00251"></a><span class="lineno">  251</span> </div>
+<div class="line"><a id="l00252" name="l00252"></a><span class="lineno">  252</span>}  <span class="comment">// namespace wrapper</span></div>
+<div class="line"><a id="l00253" name="l00253"></a><span class="lineno">  253</span>}  <span class="comment">// namespace unilink</span></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html">unilink::wrapper::ChannelInterface</a></div><div class="ttdoc">Common interface for 1:1 point-to-point communication (e.g., TcpClient, Serial, Udp)</div><div class="ttdef"><b>Definition</b> <a href="ichannel_8hpp_source.html#l00037">ichannel.hpp:37</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_a18914bd90699c0925677760b42814993"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#a18914bd90699c0925677760b42814993">unilink::wrapper::ChannelInterface::on_message</a></div><div class="ttdeci">virtual ChannelInterface &amp; on_message(MessageHandler handler)=0</div><div class="ttdoc">Set a handler for complete messages extracted by the framer.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_a203b730e7939654f6f5a13c3211dbd32"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#a203b730e7939654f6f5a13c3211dbd32">unilink::wrapper::ChannelInterface::on_data_batch</a></div><div class="ttdeci">virtual ChannelInterface &amp; on_data_batch(BatchMessageHandler handler)=0</div><div class="ttdoc">Register a callback for batched data reception.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_a2060c51ac6a3120e7245cef5117dc021"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2060c51ac6a3120e7245cef5117dc021">unilink::wrapper::ChannelInterface::start</a></div><div class="ttdeci">virtual std::future&lt; bool &gt; start()=0</div><div class="ttdoc">Start the channel asynchronously.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_a2b94c1a058878d67fd021108c5c8ec94"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2b94c1a058878d67fd021108c5c8ec94">unilink::wrapper::ChannelInterface::send_shared</a></div><div class="ttdeci">virtual bool send_shared(std::shared_ptr&lt; const std::vector&lt; uint8_t &gt; &gt; data)=0</div><div class="ttdoc">Enqueue an immutable shared vector payload, honouring the backpressure strategy.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_a33cad8d457df26cb1dbbe410ecf8b516"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#a33cad8d457df26cb1dbbe410ecf8b516">unilink::wrapper::ChannelInterface::try_send_move</a></div><div class="ttdeci">virtual bool try_send_move(std::vector&lt; uint8_t &gt; &amp;&amp;data)=0</div><div class="ttdoc">Non-blocking ownership-transfer send.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_a6b2212d41ed3f4ec66f7e783e607c22f"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#a6b2212d41ed3f4ec66f7e783e607c22f">unilink::wrapper::ChannelInterface::try_send</a></div><div class="ttdeci">virtual bool try_send(std::string_view data)=0</div><div class="ttdoc">Non-blocking send that always drops on a full queue, ignoring strategy.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_a712e0ebe7d66f34f45cb12626f91f3a3"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#a712e0ebe7d66f34f45cb12626f91f3a3">unilink::wrapper::ChannelInterface::try_send_shared</a></div><div class="ttdeci">virtual bool try_send_shared(std::shared_ptr&lt; const std::vector&lt; uint8_t &gt; &gt; data)=0</div><div class="ttdoc">Non-blocking shared-buffer send.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_a86c5b4222bc621a8dd0ec8e7a2ca9226"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#a86c5b4222bc621a8dd0ec8e7a2ca9226">unilink::wrapper::ChannelInterface::send_blocking</a></div><div class="ttdeci">virtual bool send_blocking(std::string_view data)=0</div><div class="ttdoc">Block the calling thread until queue pressure is relieved, then enqueue.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_a9cdf237812f4b82d3dd2f935d0323fd9"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#a9cdf237812f4b82d3dd2f935d0323fd9">unilink::wrapper::ChannelInterface::send_move</a></div><div class="ttdeci">virtual bool send_move(std::vector&lt; uint8_t &gt; &amp;&amp;data)=0</div><div class="ttdoc">Enqueue a vector payload by transferring ownership, honouring the backpressure strategy.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_aa00e90b812175cdfd977a9c52fae35fd"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#aa00e90b812175cdfd977a9c52fae35fd">unilink::wrapper::ChannelInterface::on_message_batch</a></div><div class="ttdeci">virtual ChannelInterface &amp; on_message_batch(BatchMessageHandler handler)=0</div><div class="ttdoc">Register a callback for batched framed message reception.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_aa5851fe0dbc0eea11e5ee94d6f3e72d2"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#aa5851fe0dbc0eea11e5ee94d6f3e72d2">unilink::wrapper::ChannelInterface::send_line_blocking</a></div><div class="ttdeci">virtual bool send_line_blocking(std::string_view line)=0</div><div class="ttdoc">Blocking variant of send_line(). Always blocks regardless of strategy.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_aab51ca2988d45a77f9f611518c27374b"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#aab51ca2988d45a77f9f611518c27374b">unilink::wrapper::ChannelInterface::on_backpressure</a></div><div class="ttdeci">virtual ChannelInterface &amp; on_backpressure(std::function&lt; void(size_t)&gt; handler)</div><div class="ttdoc">Register a callback to be notified when send queue congestion changes.</div><div class="ttdef"><b>Definition</b> <a href="ichannel_8hpp_source.html#l00228">ichannel.hpp:228</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_ad85f6064ab3b5f575bbaa3c87dc1c102"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad85f6064ab3b5f575bbaa3c87dc1c102">unilink::wrapper::ChannelInterface::try_send_line</a></div><div class="ttdeci">virtual bool try_send_line(std::string_view line)=0</div><div class="ttdoc">Non-blocking send_line that always drops on a full queue, ignoring strategy.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_ad8b698aa572dffa18e0e9df5d465c6d0"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad8b698aa572dffa18e0e9df5d465c6d0">unilink::wrapper::ChannelInterface::stop</a></div><div class="ttdeci">virtual void stop()=0</div><div class="ttdoc">Stop the channel and block until all pending async operations are cancelled.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_ae4d31378b6d7df475b6dd89a53ed2ea7"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#ae4d31378b6d7df475b6dd89a53ed2ea7">unilink::wrapper::ChannelInterface::framer</a></div><div class="ttdeci">virtual ChannelInterface &amp; framer(std::unique_ptr&lt; framer::IFramer &gt; framer)=0</div><div class="ttdoc">Set a message framer for this channel.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_ae98d24f5b572c9ae0aa13d428f01fcac"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#ae98d24f5b572c9ae0aa13d428f01fcac">unilink::wrapper::ChannelInterface::start_sync</a></div><div class="ttdeci">virtual bool start_sync()</div><div class="ttdoc">Synchronously start the channel and wait for the result.</div><div class="ttdef"><b>Definition</b> <a href="ichannel_8hpp_source.html#l00064">ichannel.hpp:64</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_aea0f1a7ed2e31e0dad1680a996687b48"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#aea0f1a7ed2e31e0dad1680a996687b48">unilink::wrapper::ChannelInterface::send</a></div><div class="ttdeci">virtual bool send(std::string_view data)=0</div><div class="ttdoc">Enqueue data for transmission, honouring the backpressure strategy.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_af4d2c671707e6c3c4bc7080aaaa74590"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#af4d2c671707e6c3c4bc7080aaaa74590">unilink::wrapper::ChannelInterface::send_line</a></div><div class="ttdeci">virtual bool send_line(std::string_view line)=0</div><div class="ttdoc">Enqueue a line (data + &quot;\n&quot;) for transmission, honouring the backpressure strategy.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ConnectionContext_html"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ConnectionContext.html">unilink::wrapper::ConnectionContext</a></div><div class="ttdoc">Context for connection/disconnection events.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00075">context.hpp:75</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ErrorContext_html"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ErrorContext.html">unilink::wrapper::ErrorContext</a></div><div class="ttdoc">Context for error events.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00094">context.hpp:94</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1MessageContext_html"><div class="ttname"><a href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::wrapper::MessageContext</a></div><div class="ttdoc">Context for data/message related events.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00035">context.hpp:35</a></div></div>
+<div class="ttc" id="astructunilink_1_1wrapper_1_1RuntimeStats_html"><div class="ttname"><a href="structunilink_1_1wrapper_1_1RuntimeStats.html">unilink::wrapper::RuntimeStats</a></div><div class="ttdef"><b>Definition</b> <a href="runtime__stats_8hpp_source.html#l00025">runtime_stats.hpp:25</a></div></div>
+</div><!-- fragment --></div><!-- contents -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="navelem"><a class="el" href="dir_01bf74387278440e5975a3401ebbafc5.html">unilink</a></li><li class="navelem"><a class="el" href="dir_7a8cf5cf835e8854349c8ad201e930d7.html">wrapper</a></li><li class="navelem"><b>ichannel.hpp</b></li>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

@@ -1,0 +1,358 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: Performance Guide</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('user_performance.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div><div class="header">
+  <div class="headertitle"><div class="title">Performance Guide</div></div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><p>This guide covers performance optimization strategies for <code>unilink</code>.</p>
+<hr  />
+<h1><a class="anchor" id="autotoc_md644"></a>
+Table of Contents</h1>
+<ol type="1">
+<li>Runtime Optimization</li>
+<li>Memory Optimization</li>
+<li>Network Optimization</li>
+</ol>
+<hr  />
+<h1><a class="anchor" id="autotoc_md646"></a>
+Runtime Optimization</h1>
+<h2><a class="anchor" id="autotoc_md647"></a>
+1. Threading Model &amp; IO Context</h2>
+<p><b>Use Shared IO Context (Default)</b> Unilink defaults to a shared IO context model, which is highly efficient for most use cases.</p>
+<div class="fragment"><div class="line"><span class="comment">// ✅ GOOD: Shared context (efficient)</span></div>
+<div class="line"><span class="keyword">auto</span> client1 = unilink::tcp_client(<span class="stringliteral">&quot;server1.com&quot;</span>, 8080).<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+<div class="line"><span class="keyword">auto</span> client2 = unilink::tcp_client(<span class="stringliteral">&quot;server2.com&quot;</span>, 8080).<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+<div class="line"><span class="comment">// All share ONE I/O thread - efficient!</span></div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// ❌ BAD: Independent contexts (wasteful)</span></div>
+<div class="line"><span class="keyword">auto</span> client1 = unilink::tcp_client(<span class="stringliteral">&quot;server1.com&quot;</span>, 8080)</div>
+<div class="line">    .independent_context(<span class="keyword">true</span>)  <span class="comment">// Creates dedicated thread</span></div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1TcpClientBuilder_html_a3209a5f18973c46d60299428afcc4e62"><div class="ttname"><a href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">unilink::builder::TcpClientBuilder::build</a></div><div class="ttdeci">std::unique_ptr&lt; wrapper::TcpClient &gt; build() override</div><div class="ttdoc">Build and return the configured product.</div><div class="ttdef"><b>Definition</b> <a href="tcp__client__builder_8cc_source.html#l00051">tcp_client_builder.cc:51</a></div></div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md648"></a>
+2. Async Logging</h2>
+<p>Logging can be a major bottleneck. Enable async logging for high-performance applications.</p>
+<div class="fragment"><div class="line"><span class="comment">// ✅ GOOD: Async logging (non-blocking)</span></div>
+<div class="line"><a class="code hl_struct" href="structunilink_1_1diagnostics_1_1AsyncLogConfig.html">unilink::diagnostics::AsyncLogConfig</a> config;</div>
+<div class="line">config.batch_size = 1000;</div>
+<div class="line">config.flush_interval = std::chrono::milliseconds(1000);</div>
+<div class="line"> </div>
+<div class="line"><a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a2e114f7695d5aac3b9a993be97c501c9">unilink::diagnostics::Logger::instance</a>().<a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a59e33a20b37773a2299729876d8552e4">set_async_logging</a>(<span class="keyword">true</span>, config);</div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1Logger_html_a2e114f7695d5aac3b9a993be97c501c9"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1Logger.html#a2e114f7695d5aac3b9a993be97c501c9">unilink::diagnostics::Logger::instance</a></div><div class="ttdeci">static Logger &amp; instance()</div><div class="ttdoc">Get singleton instance.</div><div class="ttdef"><b>Definition</b> <a href="logger_8cc_source.html#l00437">logger.cc:437</a></div></div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1Logger_html_a59e33a20b37773a2299729876d8552e4"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1Logger.html#a59e33a20b37773a2299729876d8552e4">unilink::diagnostics::Logger::set_async_logging</a></div><div class="ttdeci">void set_async_logging(bool enable, const AsyncLogConfig &amp;config=AsyncLogConfig{})</div><div class="ttdoc">Enable/disable async logging.</div><div class="ttdef"><b>Definition</b> <a href="logger_8cc_source.html#l00527">logger.cc:527</a></div></div>
+<div class="ttc" id="astructunilink_1_1diagnostics_1_1AsyncLogConfig_html"><div class="ttname"><a href="structunilink_1_1diagnostics_1_1AsyncLogConfig.html">unilink::diagnostics::AsyncLogConfig</a></div><div class="ttdoc">Async logging configuration.</div><div class="ttdef"><b>Definition</b> <a href="logger_8hpp_source.html#l00079">logger.hpp:79</a></div></div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md649"></a>
+3. Non-Blocking Callbacks</h2>
+<p>Never perform heavy computation or blocking operations (like <code>sleep</code>) inside callbacks.</p>
+<div class="fragment"><div class="line"><span class="comment">// ❌ BAD: Blocking I/O thread</span></div>
+<div class="line">.on_data([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::MessageContext</a>&amp; ctx) {</div>
+<div class="line">    std::this_thread::sleep_for(std::chrono::milliseconds(100));</div>
+<div class="line">    process_data(ctx.<a class="code hl_function" href="classunilink_1_1wrapper_1_1MessageContext.html#a49d3f7b0aeac37cb41885b5fc2fa6423">data</a>());</div>
+<div class="line">})</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// ✅ GOOD: Offload to worker thread/pool</span></div>
+<div class="line">.on_data([&amp;thread_pool](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::MessageContext</a>&amp; ctx) {</div>
+<div class="line">    std::string payload(ctx.<a class="code hl_function" href="classunilink_1_1wrapper_1_1MessageContext.html#a49d3f7b0aeac37cb41885b5fc2fa6423">data</a>());</div>
+<div class="line">    thread_pool.submit([payload = std::move(payload)]() {</div>
+<div class="line">        process_data(payload);</div>
+<div class="line">    });</div>
+<div class="line">})</div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1MessageContext_html"><div class="ttname"><a href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::wrapper::MessageContext</a></div><div class="ttdoc">Context for data/message related events.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00035">context.hpp:35</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1MessageContext_html_a49d3f7b0aeac37cb41885b5fc2fa6423"><div class="ttname"><a href="classunilink_1_1wrapper_1_1MessageContext.html#a49d3f7b0aeac37cb41885b5fc2fa6423">unilink::wrapper::MessageContext::data</a></div><div class="ttdeci">std::string_view data() const</div><div class="ttdoc">Get the received data as a view.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00049">context.hpp:49</a></div></div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md651"></a>
+Memory Optimization</h1>
+<h2><a class="anchor" id="autotoc_md652"></a>
+1. Avoid Data Copies</h2>
+<p>Use move semantics and avoid unnecessary string copies.</p>
+<div class="fragment"><div class="line"><span class="comment">// GOOD: transfer a large binary buffer into the send path</span></div>
+<div class="line">std::vector&lt;uint8_t&gt; large_data = generate_frame(1024 * 1024);</div>
+<div class="line">client-&gt;send_move(std::move(large_data));</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// GOOD: Use string_view for parsing (if supported)</span></div>
+<div class="line"><span class="keywordtype">void</span> parse(std::string_view msg) { ... }</div>
+</div><!-- fragment --><p>For large binary payloads, prefer move/shared send APIs when available:</p>
+<ul>
+<li><code>send_move(...)</code> transfers vector ownership into the send path.</li>
+<li><code>send_shared(...)</code> shares immutable payload ownership with unilink.</li>
+<li><code>try_send_move(...)</code> and <code>try_send_shared(...)</code> provide non-blocking variants.</li>
+</ul>
+<p>After calling <code>send_move(...)</code> or <code>try_send_move(...)</code>, treat the moved vector as consumed regardless of the return value.</p>
+<h2><a class="anchor" id="autotoc_md653"></a>
+2. Reserve Vector Capacity</h2>
+<p>When building vectors of data, always <code>reserve</code> capacity to avoid reallocations.</p>
+<div class="fragment"><div class="line">std::vector&lt;std::string&gt; messages;</div>
+<div class="line">messages.reserve(1000);  <span class="comment">// Pre-allocate</span></div>
+<div class="line"><span class="keywordflow">for</span> (<span class="keywordtype">int</span> i = 0; i &lt; 1000; ++i) messages.push_back(msg);</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md655"></a>
+Network Optimization</h1>
+<h2><a class="anchor" id="autotoc_md656"></a>
+1. Batch Small Messages</h2>
+<p>Sending many small packets incurs high system call overhead.</p>
+<div class="fragment"><div class="line"><span class="comment">// ❌ BAD: 1000 system calls</span></div>
+<div class="line"><span class="keywordflow">for</span> (<span class="keywordtype">int</span> i = 0; i &lt; 1000; ++i) client-&gt;send(<span class="stringliteral">&quot;msg&quot;</span>);</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// ✅ GOOD: Batch into single send</span></div>
+<div class="line">std::string batch;</div>
+<div class="line">batch.reserve(4000);</div>
+<div class="line"><span class="keywordflow">for</span> (<span class="keywordtype">int</span> i = 0; i &lt; 1000; ++i) batch += <span class="stringliteral">&quot;msg&quot;</span>;</div>
+<div class="line">client-&gt;send(batch);</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md657"></a>
+2. Connection Reuse</h2>
+<p>Reusing connections avoids repeated TCP handshake and connection setup overhead. For workloads with many short requests to the same peer, create the client once and reuse it across calls.</p>
+<h2><a class="anchor" id="autotoc_md658"></a>
+3. Socket Tuning</h2>
+<p>Use builder-level socket tuning first. Socket tuning is workload-dependent and does not guarantee higher throughput or lower latency for every application.</p>
+<div class="fragment"><div class="line"><span class="keyword">auto</span> client = unilink::tcp_client(<span class="stringliteral">&quot;127.0.0.1&quot;</span>, 8080)</div>
+<div class="line">    .tcp_no_delay(<span class="keyword">true</span>)</div>
+<div class="line">    .send_buffer_size(4 * 1024 * 1024)</div>
+<div class="line">    .receive_buffer_size(4 * 1024 * 1024)</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+</div><!-- fragment --><p>UDP builders also support <code>.send_buffer_size(bytes)</code> and <code>.receive_buffer_size(bytes)</code>. TCP servers apply these options to accepted client session sockets.</p>
+<p>OS-level limits may still cap the effective value:</p>
+<div class="fragment"><div class="line">sudo sysctl -w net.core.rmem_max=16777216  # 16 MB (OS limit)</div>
+<div class="line">sudo sysctl -w net.core.wmem_max=16777216  # 16 MB (OS limit)</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="backpressure-management"></a>
+Backpressure Management</h1>
+<p>When the data generation rate exceeds the network's transmission capacity, Unilink's internal send queues grow. Managing this "backpressure" is critical for stability and latency.</p>
+<h2><a class="anchor" id="autotoc_md660"></a>
+1. Choosing a Strategy</h2>
+<p>Unilink provides two strategies for handling full queues:</p>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadLeft">Strategy   </th><th class="markdownTableHeadLeft">Behavior   </th><th class="markdownTableHeadLeft">Best For    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyLeft"><code>Reliable</code> (Default)   </td><td class="markdownTableBodyLeft">Preserves queued outgoing data until the configured threshold is reached (default: 1 MiB), bounded by internal queue limits.   </td><td class="markdownTableBodyLeft">Reliable data (files, logs, commands).    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyLeft"><code>BestEffort</code>   </td><td class="markdownTableBodyLeft">Drops oldest data when a threshold is reached.   </td><td class="markdownTableBodyLeft">Real-time sensors (LiDAR, Video, Telemetry).   </td></tr>
+</table>
+<h2><a class="anchor" id="autotoc_md661"></a>
+Interpreting Strategy Results</h2>
+<p>For throughput or pressure tests, distinguish between:</p>
+<ul>
+<li><b>accepted throughput</b>: data accepted into the local send path</li>
+<li><b>received throughput</b>: data observed by the receiver</li>
+<li><b>delivery rate</b>: received data relative to accepted data</li>
+<li><b>failed sends</b>: send calls that were rejected before being accepted</li>
+<li><b>dropped data</b>: queued data discarded by a freshness-oriented policy such as <code>BestEffort</code></li>
+</ul>
+<p>In <code>BestEffort</code> mode, accepted throughput can be much higher than received throughput because older queued payloads may be dropped to keep newer data fresh. This is expected for unbounded producer pressure, but it must be monitored in real applications.</p>
+<p>In <code>Reliable</code> mode, throughput is usually limited by queue pressure and receiver progress, but accepted data is preserved unless the queue cannot accept more data.</p>
+<p>Use <code>stats()</code> to monitor queue pressure and drops:</p>
+<ul>
+<li><code>queued_bytes</code></li>
+<li><code>pending_bytes</code></li>
+<li><code>max_queued_bytes</code></li>
+<li><code>dropped_messages</code></li>
+<li><code>dropped_bytes</code></li>
+<li><code>failed_sends</code></li>
+<li><code>backpressure_events</code></li>
+</ul>
+<p>When using <code>BestEffort</code>, monitor <code>dropped_messages</code> and <code>dropped_bytes</code>. A high accepted rate does not imply that every queued payload was preserved.</p>
+<h2><a class="anchor" id="autotoc_md662"></a>
+2. High-Throughput Sensors (LiDAR/Camera)</h2>
+<p>For robotics perception, processing stale data is often worse than skipping frames. Use <code>BestEffort</code> with a low threshold to prevent <b>Bufferbloat</b>.</p>
+<div class="fragment"><div class="line"><span class="comment">// 🤖 Best configuration for robotics sensors</span></div>
+<div class="line"><span class="keyword">auto</span> lidar = unilink::tcp_client(<span class="stringliteral">&quot;192.168.1.10&quot;</span>, 2368)</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1BuilderInterface.html#a488d998ee718a02a3b4c4f8a144131bb">backpressure_strategy</a>(unilink::base::constants::BackpressureStrategy::BestEffort)</div>
+<div class="line">    .backpressure_threshold(1024 * 512)  <span class="comment">// 0.5 MB threshold</span></div>
+<div class="line">    .build();</div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1BuilderInterface_html_a488d998ee718a02a3b4c4f8a144131bb"><div class="ttname"><a href="classunilink_1_1builder_1_1BuilderInterface.html#a488d998ee718a02a3b4c4f8a144131bb">unilink::builder::BuilderInterface::backpressure_strategy</a></div><div class="ttdeci">Derived &amp; backpressure_strategy(base::constants::BackpressureStrategy strategy)</div><div class="ttdoc">Set the backpressure strategy.</div><div class="ttdef"><b>Definition</b> <a href="ibuilder_8hpp_source.html#l00231">ibuilder.hpp:231</a></div></div>
+</div><!-- fragment --><p>Python-specific performance notes are maintained in <a href="https://github.com/unilink-lab/unilink-python">unilink-lab/unilink-python</a>.</p>
+<p>Aggressive flushing during network disconnects ensures that once reconnection occurs, the receiver instantly gets the most recent frame instead of waiting for a large backlog to drain.</p>
+<p>For freshness-oriented streams, monitor dropped data and received rate. A high accepted rate alone does not mean the receiver is processing every payload.</p>
+<h2><a class="anchor" id="autotoc_md663"></a>
+3. Critical Reliable Data</h2>
+<p>For data where local queue drops are unacceptable, use <code>Reliable</code> combined with application-level send throttling.</p>
+<p>For producer loops that must never block, use <code>try_send()</code> and handle <code>false</code> explicitly. <code>send()</code> in <code>Reliable</code> mode may block while waiting for backpressure to clear.</p>
+<div class="fragment"><div class="line"><span class="keywordtype">bool</span> paused = <span class="keyword">false</span>;</div>
+<div class="line">client-&gt;on_backpressure([&amp;paused](<span class="keywordtype">size_t</span> queued) {</div>
+<div class="line">    <span class="comment">// Pause/resume based on your application&#39;s queued-byte budget.</span></div>
+<div class="line">    <span class="keywordflow">if</span> (queued &gt; 12 * 1024 * 1024) paused = <span class="keyword">true</span>;</div>
+<div class="line">    <span class="keywordflow">else</span> <span class="keywordflow">if</span> (queued &lt; 4 * 1024 * 1024) paused = <span class="keyword">false</span>;</div>
+<div class="line">});</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// In your sender loop</span></div>
+<div class="line"><span class="keywordflow">if</span> (!paused) client-&gt;send(critical_data);</div>
+</div><!-- fragment --> </div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

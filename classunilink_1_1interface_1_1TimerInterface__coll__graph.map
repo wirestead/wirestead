@@ -1,0 +1,3 @@
+<map id="unilink::interface::TimerInterface" name="unilink::interface::TimerInterface">
+<area shape="rect" id="Node000001" title="An interface abstracting Boost.Asio&#39;s steady_timer for testability. This is an internal interface use..." alt="" coords="5,5,129,85"/>
+</map>

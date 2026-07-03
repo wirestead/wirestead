@@ -1,0 +1,3 @@
+<map id="unilink::interface::SerialPortInterface" name="unilink::interface::SerialPortInterface">
+<area shape="rect" id="Node000001" title="An interface abstracting Boost.Asio&#39;s serial_port for testability. This is an internal interface used..." alt="" coords="5,5,148,85"/>
+</map>

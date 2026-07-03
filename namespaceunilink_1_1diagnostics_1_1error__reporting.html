@@ -1,0 +1,660 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: unilink::diagnostics::error_reporting Namespace Reference</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('namespaceunilink_1_1diagnostics_1_1error__reporting.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="header">
+  <div class="summary">
+<a href="#func-members">Functions</a>  </div>
+  <div class="headertitle"><div class="title">unilink::diagnostics::error_reporting Namespace Reference</div></div>
+</div><!--header-->
+<div class="contents">
+
+<p>Convenience functions for common error reporting scenarios.  
+<a href="namespaceunilink_1_1diagnostics_1_1error__reporting.html#details">More...</a></p>
+<table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="func-members" name="func-members"></a>
+Functions</h2></td></tr>
+<tr class="memitem:a7f2b308de562edc3c4c1d821b9a65f5e" id="r_a7f2b308de562edc3c4c1d821b9a65f5e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceunilink_1_1diagnostics_1_1error__reporting.html#a7f2b308de562edc3c4c1d821b9a65f5e">report_connection_error</a> (std::string_view component, std::string_view operation, const boost::system::error_code &amp;ec, bool retryable=true)</td></tr>
+<tr class="memdesc:a7f2b308de562edc3c4c1d821b9a65f5e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Report connection-related error.  <br /></td></tr>
+<tr class="separator:a7f2b308de562edc3c4c1d821b9a65f5e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5b7a4963a80bfaa872fd54ff9744c05a" id="r_a5b7a4963a80bfaa872fd54ff9744c05a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceunilink_1_1diagnostics_1_1error__reporting.html#a5b7a4963a80bfaa872fd54ff9744c05a">report_communication_error</a> (std::string_view component, std::string_view operation, std::string_view message, bool retryable=false)</td></tr>
+<tr class="memdesc:a5b7a4963a80bfaa872fd54ff9744c05a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Report communication-related error.  <br /></td></tr>
+<tr class="separator:a5b7a4963a80bfaa872fd54ff9744c05a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3c203bfeff57e2f08d7a29383e05d367" id="r_a3c203bfeff57e2f08d7a29383e05d367"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceunilink_1_1diagnostics_1_1error__reporting.html#a3c203bfeff57e2f08d7a29383e05d367">report_configuration_error</a> (std::string_view component, std::string_view operation, std::string_view message)</td></tr>
+<tr class="memdesc:a3c203bfeff57e2f08d7a29383e05d367"><td class="mdescLeft">&#160;</td><td class="mdescRight">Report configuration error.  <br /></td></tr>
+<tr class="separator:a3c203bfeff57e2f08d7a29383e05d367"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3afe71d736336fb74d5882a148c87fd2" id="r_a3afe71d736336fb74d5882a148c87fd2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceunilink_1_1diagnostics_1_1error__reporting.html#a3afe71d736336fb74d5882a148c87fd2">report_memory_error</a> (std::string_view component, std::string_view operation, std::string_view message)</td></tr>
+<tr class="memdesc:a3afe71d736336fb74d5882a148c87fd2"><td class="mdescLeft">&#160;</td><td class="mdescRight">Report memory-related error.  <br /></td></tr>
+<tr class="separator:a3afe71d736336fb74d5882a148c87fd2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a95bf341a9495f4cc97de408b5b02fd3f" id="r_a95bf341a9495f4cc97de408b5b02fd3f"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceunilink_1_1diagnostics_1_1error__reporting.html#a95bf341a9495f4cc97de408b5b02fd3f">report_system_error</a> (std::string_view component, std::string_view operation, std::string_view message, const boost::system::error_code &amp;ec=boost::system::error_code{})</td></tr>
+<tr class="memdesc:a95bf341a9495f4cc97de408b5b02fd3f"><td class="mdescLeft">&#160;</td><td class="mdescRight">Report system-level error.  <br /></td></tr>
+<tr class="separator:a95bf341a9495f4cc97de408b5b02fd3f"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a09062defd8d7c3c8b916320c34338040" id="r_a09062defd8d7c3c8b916320c34338040"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceunilink_1_1diagnostics_1_1error__reporting.html#a09062defd8d7c3c8b916320c34338040">report_warning</a> (std::string_view component, std::string_view operation, std::string_view message)</td></tr>
+<tr class="memdesc:a09062defd8d7c3c8b916320c34338040"><td class="mdescLeft">&#160;</td><td class="mdescRight">Report warning (non-critical issue)  <br /></td></tr>
+<tr class="separator:a09062defd8d7c3c8b916320c34338040"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aec3a25238bc1d00b9f7f509b9f6c0616" id="r_aec3a25238bc1d00b9f7f509b9f6c0616"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="namespaceunilink_1_1diagnostics_1_1error__reporting.html#aec3a25238bc1d00b9f7f509b9f6c0616">report_info</a> (std::string_view component, std::string_view operation, std::string_view message)</td></tr>
+<tr class="memdesc:aec3a25238bc1d00b9f7f509b9f6c0616"><td class="mdescLeft">&#160;</td><td class="mdescRight">Report informational message.  <br /></td></tr>
+<tr class="separator:aec3a25238bc1d00b9f7f509b9f6c0616"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p>Convenience functions for common error reporting scenarios. </p>
+</div><h2 class="groupheader">Function Documentation</h2>
+<a id="a5b7a4963a80bfaa872fd54ff9744c05a" name="a5b7a4963a80bfaa872fd54ff9744c05a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a5b7a4963a80bfaa872fd54ff9744c05a">&#9670;&#160;</a></span>report_communication_error()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">UNILINK_API void unilink::diagnostics::error_reporting::report_communication_error </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>component</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>operation</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>message</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>retryable</em> = <code>false</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Report communication-related error. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">component</td><td>Component name </td></tr>
+    <tr><td class="paramname">operation</td><td>Operation that failed (e.g., "read", "write") </td></tr>
+    <tr><td class="paramname">message</td><td>Error message </td></tr>
+    <tr><td class="paramname">retryable</td><td>Whether this error is retryable </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="error__handler_8cc_source.html#l00189">189</a> of file <a class="el" href="error__handler_8cc_source.html">error_handler.cc</a>.</p>
+<div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Here is the call graph for this function:</div>
+<div id="dynsection-0-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-0-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a5b7a4963a80bfaa872fd54ff9744c05a_cgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+<div id="dynsection-1" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-1-trigger" src="closed.png" alt="+"/> Here is the caller graph for this function:</div>
+<div id="dynsection-1-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-1-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a5b7a4963a80bfaa872fd54ff9744c05a_icgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+
+</div>
+</div>
+<a id="a3c203bfeff57e2f08d7a29383e05d367" name="a3c203bfeff57e2f08d7a29383e05d367"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3c203bfeff57e2f08d7a29383e05d367">&#9670;&#160;</a></span>report_configuration_error()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">UNILINK_API void unilink::diagnostics::error_reporting::report_configuration_error </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>component</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>operation</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>message</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Report configuration error. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">component</td><td>Component name </td></tr>
+    <tr><td class="paramname">operation</td><td>Operation that failed (e.g., "validate", "apply") </td></tr>
+    <tr><td class="paramname">message</td><td>Error message </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="error__handler_8cc_source.html#l00196">196</a> of file <a class="el" href="error__handler_8cc_source.html">error_handler.cc</a>.</p>
+<div id="dynsection-2" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-2-trigger" src="closed.png" alt="+"/> Here is the call graph for this function:</div>
+<div id="dynsection-2-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-2-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a3c203bfeff57e2f08d7a29383e05d367_cgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+<div id="dynsection-3" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-3-trigger" src="closed.png" alt="+"/> Here is the caller graph for this function:</div>
+<div id="dynsection-3-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-3-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a3c203bfeff57e2f08d7a29383e05d367_icgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+
+</div>
+</div>
+<a id="a7f2b308de562edc3c4c1d821b9a65f5e" name="a7f2b308de562edc3c4c1d821b9a65f5e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7f2b308de562edc3c4c1d821b9a65f5e">&#9670;&#160;</a></span>report_connection_error()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">UNILINK_API void unilink::diagnostics::error_reporting::report_connection_error </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>component</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>operation</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const boost::system::error_code &amp;&#160;</td>
+          <td class="paramname"><em>ec</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>retryable</em> = <code>true</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Report connection-related error. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">component</td><td>Component name (e.g., "serial", "tcp_server") </td></tr>
+    <tr><td class="paramname">operation</td><td>Operation that failed (e.g., "connect", "bind") </td></tr>
+    <tr><td class="paramname">ec</td><td>Boost error code </td></tr>
+    <tr><td class="paramname">retryable</td><td>Whether this error is retryable </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="error__handler_8cc_source.html#l00183">183</a> of file <a class="el" href="error__handler_8cc_source.html">error_handler.cc</a>.</p>
+<div id="dynsection-4" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-4-trigger" src="closed.png" alt="+"/> Here is the call graph for this function:</div>
+<div id="dynsection-4-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-4-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a7f2b308de562edc3c4c1d821b9a65f5e_cgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+<div id="dynsection-5" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-5-trigger" src="closed.png" alt="+"/> Here is the caller graph for this function:</div>
+<div id="dynsection-5-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-5-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a7f2b308de562edc3c4c1d821b9a65f5e_icgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+
+</div>
+</div>
+<a id="aec3a25238bc1d00b9f7f509b9f6c0616" name="aec3a25238bc1d00b9f7f509b9f6c0616"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aec3a25238bc1d00b9f7f509b9f6c0616">&#9670;&#160;</a></span>report_info()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">UNILINK_API void unilink::diagnostics::error_reporting::report_info </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>component</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>operation</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>message</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Report informational message. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">component</td><td>Component name </td></tr>
+    <tr><td class="paramname">operation</td><td>Operation </td></tr>
+    <tr><td class="paramname">message</td><td>Information message </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="error__handler_8cc_source.html#l00217">217</a> of file <a class="el" href="error__handler_8cc_source.html">error_handler.cc</a>.</p>
+<div id="dynsection-6" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-6-trigger" src="closed.png" alt="+"/> Here is the call graph for this function:</div>
+<div id="dynsection-6-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-6-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_aec3a25238bc1d00b9f7f509b9f6c0616_cgraph.svg" width="218" height="75"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+<div id="dynsection-7" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-7-trigger" src="closed.png" alt="+"/> Here is the caller graph for this function:</div>
+<div id="dynsection-7-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-7-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_aec3a25238bc1d00b9f7f509b9f6c0616_icgraph.svg" width="218" height="75"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+
+</div>
+</div>
+<a id="a3afe71d736336fb74d5882a148c87fd2" name="a3afe71d736336fb74d5882a148c87fd2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3afe71d736336fb74d5882a148c87fd2">&#9670;&#160;</a></span>report_memory_error()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">UNILINK_API void unilink::diagnostics::error_reporting::report_memory_error </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>component</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>operation</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>message</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Report memory-related error. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">component</td><td>Component name </td></tr>
+    <tr><td class="paramname">operation</td><td>Operation that failed (e.g., "allocate", "deallocate") </td></tr>
+    <tr><td class="paramname">message</td><td>Error message </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="error__handler_8cc_source.html#l00201">201</a> of file <a class="el" href="error__handler_8cc_source.html">error_handler.cc</a>.</p>
+<div id="dynsection-8" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-8-trigger" src="closed.png" alt="+"/> Here is the call graph for this function:</div>
+<div id="dynsection-8-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-8-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a3afe71d736336fb74d5882a148c87fd2_cgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+<div id="dynsection-9" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-9-trigger" src="closed.png" alt="+"/> Here is the caller graph for this function:</div>
+<div id="dynsection-9-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-9-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a3afe71d736336fb74d5882a148c87fd2_icgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+
+</div>
+</div>
+<a id="a95bf341a9495f4cc97de408b5b02fd3f" name="a95bf341a9495f4cc97de408b5b02fd3f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a95bf341a9495f4cc97de408b5b02fd3f">&#9670;&#160;</a></span>report_system_error()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">UNILINK_API void unilink::diagnostics::error_reporting::report_system_error </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>component</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>operation</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>message</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const boost::system::error_code &amp;&#160;</td>
+          <td class="paramname"><em>ec</em> = <code>boost::system::error_code{}</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Report system-level error. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">component</td><td>Component name </td></tr>
+    <tr><td class="paramname">operation</td><td>Operation that failed </td></tr>
+    <tr><td class="paramname">message</td><td>Error message </td></tr>
+    <tr><td class="paramname">ec</td><td>Optional Boost error code </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="error__handler_8cc_source.html#l00206">206</a> of file <a class="el" href="error__handler_8cc_source.html">error_handler.cc</a>.</p>
+<div id="dynsection-10" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-10-trigger" src="closed.png" alt="+"/> Here is the call graph for this function:</div>
+<div id="dynsection-10-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-10-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a95bf341a9495f4cc97de408b5b02fd3f_cgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+<div id="dynsection-11" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-11-trigger" src="closed.png" alt="+"/> Here is the caller graph for this function:</div>
+<div id="dynsection-11-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-11-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a95bf341a9495f4cc97de408b5b02fd3f_icgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+
+</div>
+</div>
+<a id="a09062defd8d7c3c8b916320c34338040" name="a09062defd8d7c3c8b916320c34338040"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a09062defd8d7c3c8b916320c34338040">&#9670;&#160;</a></span>report_warning()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">UNILINK_API void unilink::diagnostics::error_reporting::report_warning </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>component</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>operation</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>message</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Report warning (non-critical issue) </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">component</td><td>Component name </td></tr>
+    <tr><td class="paramname">operation</td><td>Operation </td></tr>
+    <tr><td class="paramname">message</td><td>Warning message </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p class="definition">Definition at line <a class="el" href="error__handler_8cc_source.html#l00212">212</a> of file <a class="el" href="error__handler_8cc_source.html">error_handler.cc</a>.</p>
+<div id="dynsection-12" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-12-trigger" src="closed.png" alt="+"/> Here is the call graph for this function:</div>
+<div id="dynsection-12-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-12-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a09062defd8d7c3c8b916320c34338040_cgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+<div id="dynsection-13" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-13-trigger" src="closed.png" alt="+"/> Here is the caller graph for this function:</div>
+<div id="dynsection-13-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-13-content" class="dyncontent" style="display:none;">
+<div class="center"><iframe scrolling="no" frameborder="0" src="namespaceunilink_1_1diagnostics_1_1error__reporting_a09062defd8d7c3c8b916320c34338040_icgraph.svg" width="186" height="90"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
+</div>
+
+</div>
+</div>
+</div><!-- contents -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="navelem"><b>unilink</b></li><li class="navelem"><b>diagnostics</b></li><li class="navelem"><a class="el" href="namespaceunilink_1_1diagnostics_1_1error__reporting.html">error_reporting</a></li>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

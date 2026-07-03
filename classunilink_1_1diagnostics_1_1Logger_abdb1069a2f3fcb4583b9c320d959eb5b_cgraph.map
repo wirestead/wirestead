@@ -1,0 +1,5 @@
+<map id="unilink::diagnostics::Logger::try_set_file_output" name="unilink::diagnostics::Logger::try_set_file_output">
+<area shape="rect" id="Node000001" title="Set file output and report whether it succeeded." alt="" coords="5,5,160,60"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1Logger.html#a6a8fc5f76ee807d6f247ae4629aca096" title="Set file output with rotation and report whether it succeeded." alt="" coords="208,5,372,60"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="160,30,195,30,195,35,160,35"/>
+</map>

@@ -1,0 +1,65 @@
+/* 
+ * unilink doxygen theme fixes 
+ * Ensures Doxygen Awesome variables take precedence in all modes
+ */
+
+:root {
+    /* 기본 라이트 모드 변수 강제 지정 */
+    --page-background-color: #ffffff !important;
+    --page-foreground-color: #2f4153 !important;
+    --header-background: #ffffff !important;
+    --header-foreground: #2f4153 !important;
+    --side-nav-background: #fbfbfb !important;
+    --side-nav-foreground: #2f4153 !important;
+    --toc-background: #fbfbfb !important;
+    --separator-color: #dedede !important;
+}
+
+html.dark-mode {
+    --page-background-color: #1C1D1F !important;
+    --page-foreground-color: #d2dbde !important;
+    --header-background: #1C1D1F !important;
+    --header-foreground: #d2dbde !important;
+    --side-nav-background: #252628 !important;
+    --side-nav-foreground: #d2dbde !important;
+    --toc-background: #252628 !important;
+    --separator-color: #38393b !important;
+}
+
+/* Doxygen 1.9.8의 기본 파란색 헤더 등이 남지 않도록 보정 */
+#titlearea {
+    background-color: var(--header-background) !important;
+    color: var(--header-foreground) !important;
+    border-bottom: 1px solid var(--separator-color) !important;
+}
+
+#nav-tree {
+    background-color: var(--side-nav-background) !important;
+}
+
+.ui-resizable-handle {
+    background-color: var(--separator-color) !important;
+}
+
+/* Mermaid 배경 투명화 및 여백 */
+.mermaid {
+    background-color: transparent !important;
+    margin: 1.5em 0;
+    display: flex;
+    justify-content: center;
+}
+
+/* Copy Button UX Improvement */
+.p-copy-button {
+    background-color: var(--fragment-background) !important;
+    border: 1px solid var(--separator-color) !important;
+    border-radius: var(--border-radius-small) !important;
+    opacity: 0.6;
+}
+
+.p-copy-button:hover {
+    opacity: 1;
+    background-color: var(--primary-light-color) !important;
+    color: var(--on-primary-color) !important;
+}
+

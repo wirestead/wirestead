@@ -1,0 +1,337 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: File List</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('files.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="header">
+  <div class="headertitle"><div class="title">File List</div></div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock">Here is a list of all documented files with brief descriptions:</div><div class="directory">
+<div class="levels">[detail level <span onclick="javascript:toggleLevel(1);">1</span><span onclick="javascript:toggleLevel(2);">2</span><span onclick="javascript:toggleLevel(3);">3</span><span onclick="javascript:toggleLevel(4);">4</span><span onclick="javascript:toggleLevel(5);">5</span>]</div><table class="directory">
+<tr id="row_0_" class="even"><td class="entry"><span style="width:0px;display:inline-block;">&#160;</span><span id="arr_0_" class="arrow" onclick="toggleFolder('0_')">&#9660;</span><span id="img_0_" class="iconfopen" onclick="toggleFolder('0_')">&#160;</span><a class="el" href="dir_01bf74387278440e5975a3401ebbafc5.html" target="_self">unilink</a></td><td class="desc"></td></tr>
+<tr id="row_0_0_" class="odd"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_0_" class="arrow" onclick="toggleFolder('0_0_')">&#9658;</span><span id="img_0_0_" class="iconfclosed" onclick="toggleFolder('0_0_')">&#160;</span><a class="el" href="dir_4f6960b89797d3be5e3e1ec45a762a93.html" target="_self">base</a></td><td class="desc"></td></tr>
+<tr id="row_0_0_0_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="common_8hpp_source.html"><span class="icondoc"></span></a><b>common.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_0_1_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="constants_8hpp_source.html"><span class="icondoc"></span></a><b>constants.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_0_2_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="deprecated_8hpp_source.html"><span class="icondoc"></span></a><b>deprecated.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_0_3_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="error__codes_8hpp_source.html"><span class="icondoc"></span></a><b>error_codes.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_0_4_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="platform_8hpp_source.html"><span class="icondoc"></span></a><b>platform.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_0_5_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="visibility_8hpp_source.html"><span class="icondoc"></span></a><b>visibility.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_" class="even"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_1_" class="arrow" onclick="toggleFolder('0_1_')">&#9658;</span><span id="img_0_1_" class="iconfclosed" onclick="toggleFolder('0_1_')">&#160;</span><a class="el" href="dir_f53dcf8adc370d843555119b5ebb6ae7.html" target="_self">builder</a></td><td class="desc"></td></tr>
+<tr id="row_0_1_0_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="auto__initializer_8cc_source.html"><span class="icondoc"></span></a><b>auto_initializer.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_1_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="auto__initializer_8hpp_source.html"><span class="icondoc"></span></a><b>auto_initializer.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_2_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="ibuilder_8hpp_source.html"><span class="icondoc"></span></a><b>ibuilder.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_3_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="serial__builder_8cc_source.html"><span class="icondoc"></span></a><b>serial_builder.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_4_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="serial__builder_8hpp_source.html"><span class="icondoc"></span></a><b>serial_builder.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_5_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="tcp__client__builder_8cc_source.html"><span class="icondoc"></span></a><b>tcp_client_builder.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_6_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="tcp__client__builder_8hpp_source.html"><span class="icondoc"></span></a><b>tcp_client_builder.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_7_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="tcp__server__builder_8cc_source.html"><span class="icondoc"></span></a><b>tcp_server_builder.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_8_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="tcp__server__builder_8hpp_source.html"><span class="icondoc"></span></a><b>tcp_server_builder.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_9_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="udp__builder_8cc_source.html"><span class="icondoc"></span></a><b>udp_builder.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_10_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="udp__builder_8hpp_source.html"><span class="icondoc"></span></a><b>udp_builder.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_11_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="uds__builder_8cc_source.html"><span class="icondoc"></span></a><b>uds_builder.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_12_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="uds__builder_8hpp_source.html"><span class="icondoc"></span></a><b>uds_builder.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_13_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="unified__builder_8cc_source.html"><span class="icondoc"></span></a><b>unified_builder.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_1_14_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="unified__builder_8hpp_source.html"><span class="icondoc"></span></a><b>unified_builder.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_2_" class="odd"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_2_" class="arrow" onclick="toggleFolder('0_2_')">&#9658;</span><span id="img_0_2_" class="iconfclosed" onclick="toggleFolder('0_2_')">&#160;</span><a class="el" href="dir_0dc590bae3e90b4b9a9bbdb3d8260e7b.html" target="_self">concurrency</a></td><td class="desc"></td></tr>
+<tr id="row_0_2_0_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="io__context__manager_8cc_source.html"><span class="icondoc"></span></a><b>io_context_manager.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_2_1_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="io__context__manager_8hpp_source.html"><span class="icondoc"></span></a><b>io_context_manager.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_2_2_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="thread__safe__state_8hpp_source.html"><span class="icondoc"></span></a><b>thread_safe_state.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_3_" class="even"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_3_" class="arrow" onclick="toggleFolder('0_3_')">&#9658;</span><span id="img_0_3_" class="iconfclosed" onclick="toggleFolder('0_3_')">&#160;</span><a class="el" href="dir_0652326d877a0b6d537b9180f6b2b36f.html" target="_self">config</a></td><td class="desc"></td></tr>
+<tr id="row_0_3_0_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="config__factory_8cc_source.html"><span class="icondoc"></span></a><b>config_factory.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_3_1_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="config__factory_8hpp_source.html"><span class="icondoc"></span></a><b>config_factory.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_3_2_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="config__manager_8cc_source.html"><span class="icondoc"></span></a><b>config_manager.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_3_3_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="config__manager_8hpp_source.html"><span class="icondoc"></span></a><b>config_manager.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_3_4_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="iconfig__manager_8hpp_source.html"><span class="icondoc"></span></a><b>iconfig_manager.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_3_5_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="serial__config_8hpp_source.html"><span class="icondoc"></span></a><b>serial_config.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_3_6_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="tcp__client__config_8hpp_source.html"><span class="icondoc"></span></a><b>tcp_client_config.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_3_7_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="tcp__server__config_8hpp_source.html"><span class="icondoc"></span></a><b>tcp_server_config.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_3_8_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="udp__config_8hpp_source.html"><span class="icondoc"></span></a><b>udp_config.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_3_9_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="uds__config_8hpp_source.html"><span class="icondoc"></span></a><b>uds_config.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_4_" class="odd"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_4_" class="arrow" onclick="toggleFolder('0_4_')">&#9658;</span><span id="img_0_4_" class="iconfclosed" onclick="toggleFolder('0_4_')">&#160;</span><a class="el" href="dir_a077f8d8610305bff3b5dc8351cf86ac.html" target="_self">diagnostics</a></td><td class="desc"></td></tr>
+<tr id="row_0_4_0_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="error__handler_8cc_source.html"><span class="icondoc"></span></a><b>error_handler.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_4_1_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="error__handler_8hpp_source.html"><span class="icondoc"></span></a><b>error_handler.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_4_2_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="error__mapping_8hpp_source.html"><span class="icondoc"></span></a><b>error_mapping.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_4_3_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="error__types_8hpp_source.html"><span class="icondoc"></span></a><b>error_types.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_4_4_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="exceptions_8cc_source.html"><span class="icondoc"></span></a><b>exceptions.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_4_5_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="exceptions_8hpp_source.html"><span class="icondoc"></span></a><b>exceptions.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_4_6_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="logger_8cc_source.html"><span class="icondoc"></span></a><b>logger.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_4_7_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="logger_8hpp_source.html"><span class="icondoc"></span></a><b>logger.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_4_8_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="runtime__stats__counter_8hpp_source.html"><span class="icondoc"></span></a><b>runtime_stats_counter.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_5_" class="even"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_5_" class="arrow" onclick="toggleFolder('0_5_')">&#9658;</span><span id="img_0_5_" class="iconfclosed" onclick="toggleFolder('0_5_')">&#160;</span><a class="el" href="dir_1a776f6389e8b308be689a643d61b344.html" target="_self">factory</a></td><td class="desc"></td></tr>
+<tr id="row_0_5_0_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="channel__factory_8cc_source.html"><span class="icondoc"></span></a><b>channel_factory.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_5_1_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="channel__factory_8hpp_source.html"><span class="icondoc"></span></a><b>channel_factory.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_6_" class="odd"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_6_" class="arrow" onclick="toggleFolder('0_6_')">&#9658;</span><span id="img_0_6_" class="iconfclosed" onclick="toggleFolder('0_6_')">&#160;</span><a class="el" href="dir_6752adbaf507346452dbda1e68676361.html" target="_self">framer</a></td><td class="desc"></td></tr>
+<tr id="row_0_6_0_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="iframer_8hpp_source.html"><span class="icondoc"></span></a><b>iframer.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_6_1_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="line__framer_8cc_source.html"><span class="icondoc"></span></a><b>line_framer.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_6_2_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="line__framer_8hpp_source.html"><span class="icondoc"></span></a><b>line_framer.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_6_3_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="packet__framer_8cc_source.html"><span class="icondoc"></span></a><b>packet_framer.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_6_4_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="packet__framer_8hpp_source.html"><span class="icondoc"></span></a><b>packet_framer.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_7_" class="even"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_7_" class="arrow" onclick="toggleFolder('0_7_')">&#9658;</span><span id="img_0_7_" class="iconfclosed" onclick="toggleFolder('0_7_')">&#160;</span><a class="el" href="dir_dd7c4a114ea21f716c1c2a74faf9fd37.html" target="_self">interface</a></td><td class="desc"></td></tr>
+<tr id="row_0_7_0_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="channel_8cc_source.html"><span class="icondoc"></span></a><b>channel.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_7_1_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="channel_8hpp_source.html"><span class="icondoc"></span></a><b>channel.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_7_2_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="iserial__port_8hpp_source.html"><span class="icondoc"></span></a><b>iserial_port.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_7_3_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="itcp__acceptor_8cc_source.html"><span class="icondoc"></span></a><b>itcp_acceptor.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_7_4_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="itcp__acceptor_8hpp_source.html"><span class="icondoc"></span></a><b>itcp_acceptor.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_7_5_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="itcp__resolver_8hpp_source.html"><span class="icondoc"></span></a><b>itcp_resolver.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_7_6_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="itcp__socket_8cc_source.html"><span class="icondoc"></span></a><b>itcp_socket.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_7_7_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="itcp__socket_8hpp_source.html"><span class="icondoc"></span></a><b>itcp_socket.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_7_8_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="itimer_8hpp_source.html"><span class="icondoc"></span></a><b>itimer.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_7_9_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="iuds__acceptor_8hpp_source.html"><span class="icondoc"></span></a><b>iuds_acceptor.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_7_10_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="iuds__socket_8hpp_source.html"><span class="icondoc"></span></a><b>iuds_socket.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_8_" class="odd"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_8_" class="arrow" onclick="toggleFolder('0_8_')">&#9658;</span><span id="img_0_8_" class="iconfclosed" onclick="toggleFolder('0_8_')">&#160;</span><a class="el" href="dir_a33c6153a95cf5dd79494f78975fa22e.html" target="_self">memory</a></td><td class="desc"></td></tr>
+<tr id="row_0_8_0_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="memory__pool_8cc_source.html"><span class="icondoc"></span></a><b>memory_pool.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_8_1_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="memory__pool_8hpp_source.html"><span class="icondoc"></span></a><b>memory_pool.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_8_2_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="memory__tracker_8cc_source.html"><span class="icondoc"></span></a><b>memory_tracker.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_8_3_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="memory__tracker_8hpp_source.html"><span class="icondoc"></span></a><b>memory_tracker.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_8_4_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="memory__validator_8hpp_source.html"><span class="icondoc"></span></a><b>memory_validator.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_8_5_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="safe__data__buffer_8cc_source.html"><span class="icondoc"></span></a><b>safe_data_buffer.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_8_6_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="safe__data__buffer_8hpp_source.html"><span class="icondoc"></span></a><b>safe_data_buffer.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_8_7_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="safe__span_8hpp_source.html"><span class="icondoc"></span></a><b>safe_span.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_" class="even"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_9_" class="arrow" onclick="toggleFolder('0_9_')">&#9658;</span><span id="img_0_9_" class="iconfclosed" onclick="toggleFolder('0_9_')">&#160;</span><a class="el" href="dir_6805bbe5203d162cccfebf519c6277b3.html" target="_self">transport</a></td><td class="desc"></td></tr>
+<tr id="row_0_9_0_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_9_0_" class="arrow" onclick="toggleFolder('0_9_0_')">&#9658;</span><span id="img_0_9_0_" class="iconfclosed" onclick="toggleFolder('0_9_0_')">&#160;</span><a class="el" href="dir_3680fe53f95a060c8b5288c2d75cc259.html" target="_self">base</a></td><td class="desc"></td></tr>
+<tr id="row_0_9_0_0_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="bp__state__machine_8hpp_source.html"><span class="icondoc"></span></a><b>bp_state_machine.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_0_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="bp__utils_8hpp_source.html"><span class="icondoc"></span></a><b>bp_utils.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_0_2_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="base_2reconnect__decider_8hpp_source.html"><span class="icondoc"></span></a><b>reconnect_decider.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_0_3_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="reconnect__policy_8hpp_source.html"><span class="icondoc"></span></a><b>reconnect_policy.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_1_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_9_1_" class="arrow" onclick="toggleFolder('0_9_1_')">&#9658;</span><span id="img_0_9_1_" class="iconfclosed" onclick="toggleFolder('0_9_1_')">&#160;</span><a class="el" href="dir_7e27faa736fcb952df78a4af4270f7f7.html" target="_self">serial</a></td><td class="desc"></td></tr>
+<tr id="row_0_9_1_0_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="boost__serial__port_8hpp_source.html"><span class="icondoc"></span></a><b>boost_serial_port.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_1_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2serial_2serial_8cc_source.html"><span class="icondoc"></span></a><b>serial.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_1_2_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2serial_2serial_8hpp_source.html"><span class="icondoc"></span></a><b>serial.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_2_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_9_2_" class="arrow" onclick="toggleFolder('0_9_2_')">&#9658;</span><span id="img_0_9_2_" class="iconfclosed" onclick="toggleFolder('0_9_2_')">&#160;</span><a class="el" href="dir_dc3c3f3456ea5bb4d799cb32b8415404.html" target="_self">tcp_client</a></td><td class="desc"></td></tr>
+<tr id="row_0_9_2_0_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><span id="arr_0_9_2_0_" class="arrow" onclick="toggleFolder('0_9_2_0_')">&#9658;</span><span id="img_0_9_2_0_" class="iconfclosed" onclick="toggleFolder('0_9_2_0_')">&#160;</span><a class="el" href="dir_cd57a4b91b5076a43454cc0d27ef2561.html" target="_self">detail</a></td><td class="desc"></td></tr>
+<tr id="row_0_9_2_0_0_" class="odd" style="display:none;"><td class="entry"><span style="width:80px;display:inline-block;">&#160;</span><a href="tcp__client_2detail_2reconnect__decider_8hpp_source.html"><span class="icondoc"></span></a><b>reconnect_decider.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_2_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2tcp__client_2tcp__client_8cc_source.html"><span class="icondoc"></span></a><b>tcp_client.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_2_2_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2tcp__client_2tcp__client_8hpp_source.html"><span class="icondoc"></span></a><b>tcp_client.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_3_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_9_3_" class="arrow" onclick="toggleFolder('0_9_3_')">&#9658;</span><span id="img_0_9_3_" class="iconfclosed" onclick="toggleFolder('0_9_3_')">&#160;</span><a class="el" href="dir_76cdf79349c4dfba6dfb8c83b46a558c.html" target="_self">tcp_server</a></td><td class="desc"></td></tr>
+<tr id="row_0_9_3_0_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="boost__tcp__acceptor_8cc_source.html"><span class="icondoc"></span></a><b>boost_tcp_acceptor.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_3_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="boost__tcp__acceptor_8hpp_source.html"><span class="icondoc"></span></a><b>boost_tcp_acceptor.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_3_2_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="boost__tcp__socket_8cc_source.html"><span class="icondoc"></span></a><b>boost_tcp_socket.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_3_3_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="boost__tcp__socket_8hpp_source.html"><span class="icondoc"></span></a><b>boost_tcp_socket.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_3_4_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2tcp__server_2tcp__server_8cc_source.html"><span class="icondoc"></span></a><b>tcp_server.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_3_5_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2tcp__server_2tcp__server_8hpp_source.html"><span class="icondoc"></span></a><b>tcp_server.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_3_6_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="tcp__server__session_8cc_source.html"><span class="icondoc"></span></a><b>tcp_server_session.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_3_7_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="tcp__server__session_8hpp_source.html"><span class="icondoc"></span></a><b>tcp_server_session.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_4_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_9_4_" class="arrow" onclick="toggleFolder('0_9_4_')">&#9658;</span><span id="img_0_9_4_" class="iconfclosed" onclick="toggleFolder('0_9_4_')">&#160;</span><a class="el" href="dir_676d4dda5f39dd7641cb335c7b655474.html" target="_self">udp</a></td><td class="desc"></td></tr>
+<tr id="row_0_9_4_0_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2udp_2udp_8cc_source.html"><span class="icondoc"></span></a><b>udp.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_4_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2udp_2udp_8hpp_source.html"><span class="icondoc"></span></a><b>udp.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_9_5_" class="arrow" onclick="toggleFolder('0_9_5_')">&#9658;</span><span id="img_0_9_5_" class="iconfclosed" onclick="toggleFolder('0_9_5_')">&#160;</span><a class="el" href="dir_72d0d79c8f89e6dd9fe36b02081d221e.html" target="_self">uds</a></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_0_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><span id="arr_0_9_5_0_" class="arrow" onclick="toggleFolder('0_9_5_0_')">&#9658;</span><span id="img_0_9_5_0_" class="iconfclosed" onclick="toggleFolder('0_9_5_0_')">&#160;</span><a class="el" href="dir_00818e75c5367890ec6c21ea0cd2a884.html" target="_self">detail</a></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_0_0_" class="odd" style="display:none;"><td class="entry"><span style="width:80px;display:inline-block;">&#160;</span><a href="uds_2detail_2reconnect__decider_8hpp_source.html"><span class="icondoc"></span></a><b>reconnect_decider.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="boost__uds__acceptor_8cc_source.html"><span class="icondoc"></span></a><b>boost_uds_acceptor.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_2_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="boost__uds__acceptor_8hpp_source.html"><span class="icondoc"></span></a><b>boost_uds_acceptor.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_3_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="boost__uds__socket_8cc_source.html"><span class="icondoc"></span></a><b>boost_uds_socket.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_4_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="boost__uds__socket_8hpp_source.html"><span class="icondoc"></span></a><b>boost_uds_socket.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_5_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2uds_2uds__client_8cc_source.html"><span class="icondoc"></span></a><b>uds_client.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_6_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2uds_2uds__client_8hpp_source.html"><span class="icondoc"></span></a><b>uds_client.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_7_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2uds_2uds__server_8cc_source.html"><span class="icondoc"></span></a><b>uds_server.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_8_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="transport_2uds_2uds__server_8hpp_source.html"><span class="icondoc"></span></a><b>uds_server.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_9_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="uds__server__session_8cc_source.html"><span class="icondoc"></span></a><b>uds_server_session.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_9_5_10_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="uds__server__session_8hpp_source.html"><span class="icondoc"></span></a><b>uds_server_session.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_10_" class="odd"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_10_" class="arrow" onclick="toggleFolder('0_10_')">&#9658;</span><span id="img_0_10_" class="iconfclosed" onclick="toggleFolder('0_10_')">&#160;</span><a class="el" href="dir_76a229b029543701d4d59126a993c412.html" target="_self">util</a></td><td class="desc"></td></tr>
+<tr id="row_0_10_0_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="input__validator_8cc_source.html"><span class="icondoc"></span></a><b>input_validator.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_10_1_" class="even" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="input__validator_8hpp_source.html"><span class="icondoc"></span></a><b>input_validator.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_" class="even"><td class="entry"><span style="width:16px;display:inline-block;">&#160;</span><span id="arr_0_11_" class="arrow" onclick="toggleFolder('0_11_')">&#9658;</span><span id="img_0_11_" class="iconfclosed" onclick="toggleFolder('0_11_')">&#160;</span><a class="el" href="dir_7a8cf5cf835e8854349c8ad201e930d7.html" target="_self">wrapper</a></td><td class="desc"></td></tr>
+<tr id="row_0_11_0_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_11_0_" class="arrow" onclick="toggleFolder('0_11_0_')">&#9658;</span><span id="img_0_11_0_" class="iconfclosed" onclick="toggleFolder('0_11_0_')">&#160;</span><a class="el" href="dir_b2bcac7aa3dc0c85fb6156a94abf9ccb.html" target="_self">serial</a></td><td class="desc"></td></tr>
+<tr id="row_0_11_0_0_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2serial_2serial_8cc_source.html"><span class="icondoc"></span></a><b>serial.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_0_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2serial_2serial_8hpp_source.html"><span class="icondoc"></span></a><b>serial.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_1_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_11_1_" class="arrow" onclick="toggleFolder('0_11_1_')">&#9658;</span><span id="img_0_11_1_" class="iconfclosed" onclick="toggleFolder('0_11_1_')">&#160;</span><a class="el" href="dir_b794a5507bcb2c9d2998d61fc19c5986.html" target="_self">tcp_client</a></td><td class="desc"></td></tr>
+<tr id="row_0_11_1_0_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2tcp__client_2tcp__client_8cc_source.html"><span class="icondoc"></span></a><b>tcp_client.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_1_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2tcp__client_2tcp__client_8hpp_source.html"><span class="icondoc"></span></a><b>tcp_client.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_2_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_11_2_" class="arrow" onclick="toggleFolder('0_11_2_')">&#9658;</span><span id="img_0_11_2_" class="iconfclosed" onclick="toggleFolder('0_11_2_')">&#160;</span><a class="el" href="dir_63f61675140a05db217311777e187de0.html" target="_self">tcp_server</a></td><td class="desc"></td></tr>
+<tr id="row_0_11_2_0_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2tcp__server_2tcp__server_8cc_source.html"><span class="icondoc"></span></a><b>tcp_server.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_2_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2tcp__server_2tcp__server_8hpp_source.html"><span class="icondoc"></span></a><b>tcp_server.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_3_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_11_3_" class="arrow" onclick="toggleFolder('0_11_3_')">&#9658;</span><span id="img_0_11_3_" class="iconfclosed" onclick="toggleFolder('0_11_3_')">&#160;</span><a class="el" href="dir_3c80422dd8c964ddddf79d13ddf7a555.html" target="_self">udp</a></td><td class="desc"></td></tr>
+<tr id="row_0_11_3_0_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2udp_2udp_8cc_source.html"><span class="icondoc"></span></a><b>udp.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_3_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2udp_2udp_8hpp_source.html"><span class="icondoc"></span></a><b>udp.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_3_2_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="udp__server_8cc_source.html"><span class="icondoc"></span></a><b>udp_server.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_3_3_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="udp__server_8hpp_source.html"><span class="icondoc"></span></a><b>udp_server.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_4_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_11_4_" class="arrow" onclick="toggleFolder('0_11_4_')">&#9658;</span><span id="img_0_11_4_" class="iconfclosed" onclick="toggleFolder('0_11_4_')">&#160;</span><a class="el" href="dir_618085fad995a5ab91bea7ea8ad358cc.html" target="_self">uds_client</a></td><td class="desc"></td></tr>
+<tr id="row_0_11_4_0_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2uds__client_2uds__client_8cc_source.html"><span class="icondoc"></span></a><b>uds_client.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_4_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2uds__client_2uds__client_8hpp_source.html"><span class="icondoc"></span></a><b>uds_client.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_5_" class="odd" style="display:none;"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><span id="arr_0_11_5_" class="arrow" onclick="toggleFolder('0_11_5_')">&#9658;</span><span id="img_0_11_5_" class="iconfclosed" onclick="toggleFolder('0_11_5_')">&#160;</span><a class="el" href="dir_868dfe405fce5ac0821a005fa5c4acce.html" target="_self">uds_server</a></td><td class="desc"></td></tr>
+<tr id="row_0_11_5_0_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2uds__server_2uds__server_8cc_source.html"><span class="icondoc"></span></a><b>uds_server.cc</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_5_1_" class="odd" style="display:none;"><td class="entry"><span style="width:64px;display:inline-block;">&#160;</span><a href="wrapper_2uds__server_2uds__server_8hpp_source.html"><span class="icondoc"></span></a><b>uds_server.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_6_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="context_8hpp_source.html"><span class="icondoc"></span></a><b>context.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_7_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="ichannel_8hpp_source.html"><span class="icondoc"></span></a><b>ichannel.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_8_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="iserver_8hpp_source.html"><span class="icondoc"></span></a><b>iserver.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_11_9_" class="odd" style="display:none;"><td class="entry"><span style="width:48px;display:inline-block;">&#160;</span><a href="runtime__stats_8hpp_source.html"><span class="icondoc"></span></a><b>runtime_stats.hpp</b></td><td class="desc"></td></tr>
+<tr id="row_0_12_" class="odd"><td class="entry"><span style="width:32px;display:inline-block;">&#160;</span><a href="unilink_8hpp_source.html"><span class="icondoc"></span></a><b>unilink.hpp</b></td><td class="desc"></td></tr>
+</table>
+</div><!-- directory -->
+</div><!-- contents -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

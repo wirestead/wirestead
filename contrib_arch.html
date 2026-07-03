@@ -1,0 +1,799 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: Unilink System Architecture</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('contrib_arch.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div><div class="header">
+  <div class="headertitle"><div class="title">Unilink System Architecture</div></div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><p>Comprehensive overview of unilink's architecture and design principles.</p>
+<p><b>Scope note:</b> This section mixes public high-level concepts with internal implementation details. For exact application-facing APIs, prefer <code>docs/user/api_guide.md</code>. For transport-internal contracts, prefer <code>docs/contributor/architecture/channel_contract.md</code>. For wrapper-layer behavioral guarantees, prefer <code>docs/contributor/architecture/wrapper_contract.md</code>.</p>
+<hr  />
+<h1><a class="anchor" id="autotoc_md98"></a>
+Table of Contents</h1>
+<ol type="1">
+<li>Overview</li>
+<li>Layered Architecture</li>
+<li>Core Components</li>
+<li>Design Patterns</li>
+<li>Threading Model</li>
+<li>Memory Management</li>
+<li>Error Handling</li>
+<li>Development &amp; Tooling</li>
+</ol>
+<hr  />
+<h1><a class="anchor" id="autotoc_md100"></a>
+Overview</h1>
+<p>Unilink is designed as a layered, modular communication library with clear separation of concerns. The architecture follows SOLID principles and employs modern C++ design patterns.</p>
+<h2><a class="anchor" id="autotoc_md101"></a>
+Design Goals</h2>
+<ul>
+<li><b>Simplicity</b>: Easy-to-use Builder API</li>
+<li><b>Safety</b>: Memory-safe, thread-safe operations</li>
+<li><b>Performance</b>: Asynchronous I/O, efficient resource management</li>
+<li><b>Flexibility</b>: Modular design, optional features</li>
+<li><b>Reliability</b>: Comprehensive error handling and recovery</li>
+</ul>
+<hr  />
+<h1><a class="anchor" id="autotoc_md103"></a>
+Layered Architecture</h1>
+<p><br  />
+<br  />
+ </p><div class="mermaid"><br  />
+ <pre class="fragment">graph TD
+    User[User Application Layer]
+    Builder[Builder API Layer&lt;br/&gt;TcpClientBuilder, TcpServerBuilder, etc.]
+    Wrapper[Wrapper API Layer&lt;br/&gt;TcpClient, TcpServer, Serial]
+    Transport[Transport Layer&lt;br/&gt;TcpTransport, SerialTransport]
+    Common[Common Utilities Layer&lt;br/&gt;Thread Safety, Memory Management, Logging]
+    Platform[Platform Layer&lt;br/&gt;Boost.Asio]
+
+    User --&gt; Builder
+    Builder --&gt; Wrapper
+    Wrapper --&gt; Transport
+    Transport --&gt; Common
+    Common --&gt; Platform </pre> <br  />
+ </div><p> <br  />
+<br  />
+</p>
+<h2><a class="anchor" id="autotoc_md104"></a>
+Layer Responsibilities</h2>
+<h3><a class="anchor" id="autotoc_md105"></a>
+1. Builder API Layer</h3>
+<ul>
+<li><b>Purpose</b>: Provide fluent, chainable interface</li>
+<li><b>Components</b>: <code>TcpClientBuilder</code>, <code>TcpServerBuilder</code>, <code>SerialBuilder</code>, <code>UdpClientBuilder</code>, <code>UdpServerBuilder</code>, <code>UdsClientBuilder</code>, <code>UdsServerBuilder</code></li>
+<li><b>Responsibilities</b>:<ul>
+<li>Configuration validation</li>
+<li>Object construction</li>
+<li>Callback registration</li>
+</ul>
+</li>
+</ul>
+<h3><a class="anchor" id="autotoc_md106"></a>
+2. Wrapper API Layer</h3>
+<ul>
+<li><b>Purpose</b>: High-level, easy-to-use interfaces</li>
+<li><b>Components</b>: <code>TcpClient</code>, <code>TcpServer</code>, <code>Serial</code>, <code>UdpClient</code>, <code>UdpServer</code>, <code>UdsClient</code>, <code>UdsServer</code></li>
+<li><b>Responsibilities</b>:<ul>
+<li>Connection management</li>
+<li>Data transmission</li>
+<li>Lifecycle management</li>
+<li>Event callbacks</li>
+</ul>
+</li>
+</ul>
+<h3><a class="anchor" id="autotoc_md107"></a>
+3. Transport Layer</h3>
+<ul>
+<li><b>Purpose</b>: Low-level communication implementation</li>
+<li><b>Components</b>: Protocol-specific transports</li>
+<li><b>Responsibilities</b>:<ul>
+<li>Actual I/O operations</li>
+<li>Protocol handling</li>
+<li>Connection state management</li>
+</ul>
+</li>
+</ul>
+<h3><a class="anchor" id="autotoc_md108"></a>
+4. Common Utilities Layer</h3>
+<ul>
+<li><b>Purpose</b>: Shared functionality</li>
+<li><b>Components</b>: Thread safety, memory management, logging</li>
+<li><b>Responsibilities</b>:<ul>
+<li>Thread-safe operations</li>
+<li>Memory tracking</li>
+<li>Error handling</li>
+<li>Logging system</li>
+</ul>
+</li>
+</ul>
+<hr  />
+<h1><a class="anchor" id="autotoc_md110"></a>
+Core Components</h1>
+<h2><a class="anchor" id="autotoc_md111"></a>
+1. Builder System</h2>
+<div class="fragment"><div class="line"><span class="keyword">namespace </span>unilink::builder {</div>
+<div class="line">    <span class="comment">// Base interface (CRTP: T = product type, Derived = builder type)</span></div>
+<div class="line">    <span class="keyword">template</span>&lt;<span class="keyword">typename</span> T, <span class="keyword">typename</span> Derived&gt;</div>
+<div class="line">    <span class="keyword">class </span>BuilderInterface { ... };</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Concrete builders</span></div>
+<div class="line">    <span class="keyword">class </span>TcpClientBuilder : <span class="keyword">public</span> BuilderInterface&lt;wrapper::TcpClient, TcpClientBuilder&gt;;</div>
+<div class="line">    class TcpServerBuilder : <span class="keyword">public</span> BuilderInterface&lt;wrapper::TcpServer, TcpServerBuilder&gt;;</div>
+<div class="line">    class SerialBuilder     : <span class="keyword">public</span> BuilderInterface&lt;wrapper::Serial,    SerialBuilder&gt;;</div>
+<div class="line">    class UdpClientBuilder  : <span class="keyword">public</span> BuilderInterface&lt;wrapper::UdpClient, UdpClientBuilder&gt;;</div>
+<div class="line">    class UdpServerBuilder  : <span class="keyword">public</span> BuilderInterface&lt;wrapper::UdpServer, UdpServerBuilder&gt;;</div>
+<div class="line">    class UdsClientBuilder  : <span class="keyword">public</span> BuilderInterface&lt;wrapper::UdsClient, UdsClientBuilder&gt;;</div>
+<div class="line">    class UdsServerBuilder  : <span class="keyword">public</span> BuilderInterface&lt;wrapper::UdsServer, UdsServerBuilder&gt;;</div>
+<div class="line">}</div>
+</div><!-- fragment --><p><b>Key Features:</b></p>
+<ul>
+<li>Method chaining</li>
+<li>Type-safe configuration</li>
+<li>Compile-time validation</li>
+<li>Auto-initialization support</li>
+</ul>
+<h2><a class="anchor" id="autotoc_md112"></a>
+2. Wrapper System</h2>
+<div class="fragment"><div class="line"><span class="keyword">namespace </span>unilink::wrapper {</div>
+<div class="line">    <span class="keyword">class </span>ChannelInterface {</div>
+<div class="line">        <span class="keyword">virtual</span> std::future&lt;bool&gt; <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2060c51ac6a3120e7245cef5117dc021">start</a>() = 0;</div>
+<div class="line">        <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad8b698aa572dffa18e0e9df5d465c6d0">stop</a>() = 0;</div>
+<div class="line">        <span class="keyword">virtual</span> <span class="keywordtype">bool</span> connected() <span class="keyword">const</span> = 0;</div>
+<div class="line">        <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aea0f1a7ed2e31e0dad1680a996687b48">send</a>(std::string_view data) = 0;</div>
+<div class="line">        <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ChannelInterface.html#af4d2c671707e6c3c4bc7080aaaa74590">send_line</a>(std::string_view line) = 0;</div>
+<div class="line">    };</div>
+<div class="line"> </div>
+<div class="line">    <span class="keyword">class </span>ServerInterface {</div>
+<div class="line">        <span class="keyword">virtual</span> std::future&lt;bool&gt; start() = 0;</div>
+<div class="line">        <span class="keyword">virtual</span> <span class="keywordtype">void</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ServerInterface.html#a988cc589cc3d3d23176f77dc44bb41a0">stop</a>() = 0;</div>
+<div class="line">        <span class="keyword">virtual</span> <span class="keywordtype">bool</span> listening() <span class="keyword">const</span> = 0;</div>
+<div class="line">        <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ServerInterface.html#a2264498ef97a2d7b609557afc46754f9">broadcast</a>(std::string_view data) = 0;</div>
+<div class="line">        <span class="keyword">virtual</span> <span class="keywordtype">bool</span> <a class="code hl_function" href="classunilink_1_1wrapper_1_1ServerInterface.html#a20b16e1e57ab82297d6d443a24adf0e1">send_to</a>(ClientId client_id, std::string_view data) = 0;</div>
+<div class="line">    };</div>
+<div class="line"> </div>
+<div class="line">    <span class="keyword">class </span>TcpClient : <span class="keyword">public</span> ChannelInterface;</div>
+<div class="line">    class Serial : <span class="keyword">public</span> ChannelInterface;</div>
+<div class="line">    class UdpClient : <span class="keyword">public</span> ChannelInterface;</div>
+<div class="line">    class UdsClient : <span class="keyword">public</span> ChannelInterface;</div>
+<div class="line">    class TcpServer : <span class="keyword">public</span> ServerInterface;</div>
+<div class="line">    class UdsServer : <span class="keyword">public</span> ServerInterface;</div>
+<div class="line">}</div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_a2060c51ac6a3120e7245cef5117dc021"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2060c51ac6a3120e7245cef5117dc021">unilink::wrapper::ChannelInterface::start</a></div><div class="ttdeci">virtual std::future&lt; bool &gt; start()=0</div><div class="ttdoc">Start the channel asynchronously.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_ad8b698aa572dffa18e0e9df5d465c6d0"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad8b698aa572dffa18e0e9df5d465c6d0">unilink::wrapper::ChannelInterface::stop</a></div><div class="ttdeci">virtual void stop()=0</div><div class="ttdoc">Stop the channel and block until all pending async operations are cancelled.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_aea0f1a7ed2e31e0dad1680a996687b48"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#aea0f1a7ed2e31e0dad1680a996687b48">unilink::wrapper::ChannelInterface::send</a></div><div class="ttdeci">virtual bool send(std::string_view data)=0</div><div class="ttdoc">Enqueue data for transmission, honouring the backpressure strategy.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ChannelInterface_html_af4d2c671707e6c3c4bc7080aaaa74590"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ChannelInterface.html#af4d2c671707e6c3c4bc7080aaaa74590">unilink::wrapper::ChannelInterface::send_line</a></div><div class="ttdeci">virtual bool send_line(std::string_view line)=0</div><div class="ttdoc">Enqueue a line (data + &quot;\n&quot;) for transmission, honouring the backpressure strategy.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ServerInterface_html_a20b16e1e57ab82297d6d443a24adf0e1"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ServerInterface.html#a20b16e1e57ab82297d6d443a24adf0e1">unilink::wrapper::ServerInterface::send_to</a></div><div class="ttdeci">virtual bool send_to(ClientId client_id, std::string_view data)=0</div><div class="ttdoc">Send to a specific client, honouring the backpressure strategy.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ServerInterface_html_a2264498ef97a2d7b609557afc46754f9"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ServerInterface.html#a2264498ef97a2d7b609557afc46754f9">unilink::wrapper::ServerInterface::broadcast</a></div><div class="ttdeci">virtual bool broadcast(std::string_view data)=0</div><div class="ttdoc">Send to all connected clients using non-blocking fan-out.</div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ServerInterface_html_a988cc589cc3d3d23176f77dc44bb41a0"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ServerInterface.html#a988cc589cc3d3d23176f77dc44bb41a0">unilink::wrapper::ServerInterface::stop</a></div><div class="ttdeci">virtual void stop()=0</div><div class="ttdoc">Stop the server and block until all active sessions are closed.</div></div>
+</div><!-- fragment --><p><b>Key Features:</b></p>
+<ul>
+<li>Unified interface</li>
+<li>Automatic resource management</li>
+<li>Callback-based events</li>
+<li>Thread-safe operations</li>
+</ul>
+<h2><a class="anchor" id="autotoc_md113"></a>
+3. Transport System</h2>
+<div class="fragment"><div class="line"><span class="keyword">namespace </span>unilink::transport {</div>
+<div class="line">    <span class="comment">// TCP transport</span></div>
+<div class="line">    <span class="keyword">class </span>TcpClient { ... };</div>
+<div class="line">    <span class="keyword">class </span>TcpServer { ... };</div>
+<div class="line">    <span class="keyword">class </span>TcpServerSession { ... };</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Serial transport</span></div>
+<div class="line">    <span class="keyword">class </span>Serial { ... };</div>
+<div class="line">}</div>
+</div><!-- fragment --><p><b>Key Features:</b></p>
+<ul>
+<li>Boost.Asio based</li>
+<li>Asynchronous I/O</li>
+<li>Retry logic (1s default interval, first retry at 100ms)</li>
+<li>Backpressure guard: callback at high watermark (default 1 MiB), hard cap triggers socket close + Error state</li>
+</ul>
+<h2><a class="anchor" id="autotoc_md114"></a>
+4. Common Utilities</h2>
+<div class="fragment"><div class="line"><span class="keyword">namespace </span>unilink {</div>
+<div class="line"><span class="keyword">namespace </span>concurrency {</div>
+<div class="line">    <span class="keyword">template</span>&lt;<span class="keyword">typename</span> T&gt; <span class="keyword">class </span>ThreadSafeState;</div>
+<div class="line">    <span class="keyword">template</span>&lt;<span class="keyword">typename</span> T&gt; <span class="keyword">class </span>AtomicState;</div>
+<div class="line">}</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">namespace </span>memory {</div>
+<div class="line">    <span class="keyword">class </span>MemoryPool;</div>
+<div class="line">    <span class="keyword">class </span>MemoryTracker;</div>
+<div class="line">    <span class="keyword">class </span>SafeDataBuffer;</div>
+<div class="line">}</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">namespace </span>diagnostics {</div>
+<div class="line">    <span class="keyword">class </span>Logger;</div>
+<div class="line">    <span class="keyword">class </span>LogRotation;</div>
+<div class="line">    <span class="keyword">class </span>ErrorHandler;</div>
+<div class="line">}</div>
+<div class="line">}</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md116"></a>
+Design Patterns</h1>
+<h2><a class="anchor" id="autotoc_md117"></a>
+1. Builder Pattern</h2>
+<p><b>Purpose</b>: Simplify object creation with many parameters</p>
+<div class="fragment"><div class="line"><span class="comment">// Instead of this:</span></div>
+<div class="line">TcpClient(host, port, retry_interval, callbacks...);</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// We use this:</span></div>
+<div class="line"><span class="keyword">auto</span> client = tcp_client(host, port)</div>
+<div class="line">    .retry_interval(3000ms)  <span class="comment">// Optional; default is 1000ms</span></div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1BuilderInterface.html#aa76600ac60f66b354b35e174ab444841">on_data</a>(callback)</div>
+<div class="line">    .build();</div>
+<div class="line"> </div>
+<div class="line">client-&gt;start();  <span class="comment">// Explicit lifecycle control</span></div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1BuilderInterface_html_aa76600ac60f66b354b35e174ab444841"><div class="ttname"><a href="classunilink_1_1builder_1_1BuilderInterface.html#aa76600ac60f66b354b35e174ab444841">unilink::builder::BuilderInterface::on_data</a></div><div class="ttdeci">auto on_data(F &amp;&amp;handler)</div><div class="ttdoc">Set data handler callback.</div><div class="ttdef"><b>Definition</b> <a href="ibuilder_8hpp_source.html#l00088">ibuilder.hpp:88</a></div></div>
+</div><!-- fragment --><p><b>Benefits:</b></p>
+<ul>
+<li>Readable configuration</li>
+<li>Optional parameters</li>
+<li>Compile-time validation</li>
+<li>Method chaining</li>
+</ul>
+<h2><a class="anchor" id="autotoc_md118"></a>
+2. Dependency Injection</h2>
+<p><b>Purpose</b>: Enable testability and flexibility</p>
+<div class="fragment"><div class="line"><span class="comment">// Interface-based design</span></div>
+<div class="line"><span class="keyword">class </span>ISerialPort {</div>
+<div class="line">    <span class="keyword">virtual</span> <span class="keywordtype">void</span> open() = 0;</div>
+<div class="line">    <span class="keyword">virtual</span> <span class="keywordtype">void</span> close() = 0;</div>
+<div class="line">    <span class="keyword">virtual</span> <span class="keywordtype">void</span> async_read(...) = 0;</div>
+<div class="line">};</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Production implementation</span></div>
+<div class="line"><span class="keyword">class </span>RealSerialPort : <span class="keyword">public</span> ISerialPort { ... };</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Test implementation</span></div>
+<div class="line"><span class="keyword">class </span>MockSerialPort : <span class="keyword">public</span> ISerialPort { ... };</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Injection in constructor</span></div>
+<div class="line">Serial::Serial(std::shared_ptr&lt;ISerialPort&gt; port) : port_(port) { }</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md119"></a>
+3. Observer Pattern</h2>
+<p><b>Purpose</b>: Event notification system</p>
+<div class="fragment"><div class="line"><span class="keyword">class </span>TcpClient {</div>
+<div class="line">    std::function&lt;void(<span class="keyword">const</span> ConnectionContext&amp;)&gt; on_connect_;</div>
+<div class="line">    std::function&lt;void(<span class="keyword">const</span> MessageContext&amp;)&gt;    on_data_;</div>
+<div class="line">    std::function&lt;void(<span class="keyword">const</span> ConnectionContext&amp;)&gt; on_disconnect_;</div>
+<div class="line">    std::function&lt;void(<span class="keyword">const</span> ErrorContext&amp;)&gt;      on_error_;</div>
+<div class="line"> </div>
+<div class="line">    <span class="keywordtype">void</span> notify_connect(<span class="keyword">const</span> ConnectionContext&amp; ctx) {</div>
+<div class="line">        <span class="keywordflow">if</span> (on_connect_) on_connect_(ctx);</div>
+<div class="line">    }</div>
+<div class="line"> </div>
+<div class="line">    <span class="keywordtype">void</span> notify_data(<span class="keyword">const</span> MessageContext&amp; ctx) {</div>
+<div class="line">        <span class="keywordflow">if</span> (on_data_) on_data_(ctx);</div>
+<div class="line">    }</div>
+<div class="line">};</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md120"></a>
+4. Singleton Pattern</h2>
+<p><b>Purpose</b>: Global access to shared resources</p>
+<div class="fragment"><div class="line"><span class="keyword">class </span>Logger {</div>
+<div class="line"><span class="keyword">public</span>:</div>
+<div class="line">    <span class="keyword">static</span> Logger&amp; instance() {</div>
+<div class="line">        <span class="keyword">static</span> Logger instance;</div>
+<div class="line">        <span class="keywordflow">return</span> instance;</div>
+<div class="line">    }</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">private</span>:</div>
+<div class="line">    Logger() = <span class="keywordflow">default</span>;</div>
+<div class="line">    Logger(<span class="keyword">const</span> Logger&amp;) = <span class="keyword">delete</span>;</div>
+<div class="line">    Logger&amp; operator=(<span class="keyword">const</span> Logger&amp;) = <span class="keyword">delete</span>;</div>
+<div class="line">};</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md121"></a>
+5. RAII (Resource Acquisition Is Initialization)</h2>
+<p><b>Purpose</b>: Automatic resource management</p>
+<div class="fragment"><div class="line"><span class="keyword">class </span>TcpClient {</div>
+<div class="line">    ~TcpClient() {</div>
+<div class="line">        <span class="comment">// Automatically stop and clean up</span></div>
+<div class="line">        stop();</div>
+<div class="line">    }</div>
+<div class="line"> </div>
+<div class="line">    std::unique_ptr&lt;IoContext&gt; io_context_;  <span class="comment">// Auto-deleted</span></div>
+<div class="line">    std::shared_ptr&lt;Connection&gt; connection_; <span class="comment">// Ref-counted</span></div>
+<div class="line">};</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md122"></a>
+6. Template Method Pattern</h2>
+<p><b>Purpose</b>: Define algorithm structure with customizable steps</p>
+<div class="fragment"><div class="line"><span class="keyword">class </span>ChannelInterface {</div>
+<div class="line">    <span class="keywordtype">void</span> start() {</div>
+<div class="line">        before_start();</div>
+<div class="line">        do_start();      <span class="comment">// Virtual - customizable</span></div>
+<div class="line">        after_start();</div>
+<div class="line">    }</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">protected</span>:</div>
+<div class="line">    <span class="keyword">virtual</span> <span class="keywordtype">void</span> do_start() = 0;</div>
+<div class="line">    <span class="keyword">virtual</span> <span class="keywordtype">void</span> before_start() {}</div>
+<div class="line">    <span class="keyword">virtual</span> <span class="keywordtype">void</span> after_start() {}</div>
+<div class="line">};</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md124"></a>
+Threading Model</h1>
+<p><b>Note:</b> For a detailed execution model, see Runtime Behavior.</p>
+<h2><a class="anchor" id="autotoc_md125"></a>
+Overview</h2>
+<p><br  />
+<br  />
+ </p><div class="mermaid"><br  />
+ <pre class="fragment">graph TD
+    User[User Thread Application&lt;br/&gt;- Calls API methods&lt;br/&gt;- Receives callbacks]
+    Queue[Thread-Safe Queue]
+    IO[I/O Thread Boost.Asio&lt;br/&gt;- Handles network I/O&lt;br/&gt;- Manages connections&lt;br/&gt;- Executes async operations]
+
+    User --&gt; Queue
+    Queue --&gt; IO </pre> <br  />
+ </div><p> <br  />
+<br  />
+</p>
+<h2><a class="anchor" id="autotoc_md126"></a>
+Thread Safety Model</h2>
+<h3><a class="anchor" id="autotoc_md127"></a>
+1. Runtime Methods</h3>
+<p>Runtime operations such as sending, stopping, and state inspection are designed for concurrent application use. Callback registration and configuration setters should normally be completed before startup.</p>
+<div class="fragment"><div class="line"><span class="comment">// Safe to call from multiple application threads</span></div>
+<div class="line">client-&gt;send(<span class="stringliteral">&quot;data1&quot;</span>);  <span class="comment">// Thread 1</span></div>
+<div class="line">client-&gt;send(<span class="stringliteral">&quot;data2&quot;</span>);  <span class="comment">// Thread 2</span></div>
+<div class="line">client-&gt;stop();         <span class="comment">// Thread 3</span></div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md128"></a>
+2. Callbacks</h3>
+<p>Callbacks are executed in the I/O thread context:</p>
+<div class="fragment"><div class="line">.on_data([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::MessageContext</a>&amp; ctx) {</div>
+<div class="line">    <span class="comment">// This runs in the I/O thread.</span></div>
+<div class="line">    <span class="comment">// Don&#39;t block here!</span></div>
+<div class="line">});</div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1MessageContext_html"><div class="ttname"><a href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::wrapper::MessageContext</a></div><div class="ttdoc">Context for data/message related events.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00035">context.hpp:35</a></div></div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md129"></a>
+3. Shared State</h3>
+<p>All shared state is protected:</p>
+<div class="fragment"><div class="line"><span class="keyword">class </span>TcpClient {</div>
+<div class="line">    ThreadSafeState&lt;State&gt; state_;  <span class="comment">// Thread-safe</span></div>
+<div class="line">    std::atomic&lt;bool&gt; connected_;   <span class="comment">// Atomic</span></div>
+<div class="line">    std::mutex write_mutex_;        <span class="comment">// Explicit lock</span></div>
+<div class="line">};</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md130"></a>
+IO Context Management</h2>
+<h3><a class="anchor" id="autotoc_md131"></a>
+Shared Context (Default)</h3>
+<div class="fragment"><div class="line"><span class="comment">// Multiple channels share one I/O thread</span></div>
+<div class="line"><span class="keyword">auto</span> client1 = tcp_client(<span class="stringliteral">&quot;server1.com&quot;</span>, 8080).<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+<div class="line"><span class="keyword">auto</span> client2 = tcp_client(<span class="stringliteral">&quot;server2.com&quot;</span>, 8080).<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+<div class="line"><span class="comment">// Both use shared IoContextManager</span></div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1TcpClientBuilder_html_a3209a5f18973c46d60299428afcc4e62"><div class="ttname"><a href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">unilink::builder::TcpClientBuilder::build</a></div><div class="ttdeci">std::unique_ptr&lt; wrapper::TcpClient &gt; build() override</div><div class="ttdoc">Build and return the configured product.</div><div class="ttdef"><b>Definition</b> <a href="tcp__client__builder_8cc_source.html#l00051">tcp_client_builder.cc:51</a></div></div>
+</div><!-- fragment --><p><b>Pros:</b></p>
+<ul>
+<li>Efficient resource usage</li>
+<li>Single I/O thread handles all connections</li>
+</ul>
+<p><b>Cons:</b></p>
+<ul>
+<li>All connections share same thread</li>
+</ul>
+<h3><a class="anchor" id="autotoc_md132"></a>
+Independent Context</h3>
+<div class="fragment"><div class="line"><span class="comment">// Each channel has its own I/O thread</span></div>
+<div class="line"><span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;server.com&quot;</span>, 8080)</div>
+<div class="line">    .independent_context(<span class="keyword">true</span>)</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+</div><!-- fragment --><p><b>Pros:</b></p>
+<ul>
+<li>Isolation between connections</li>
+<li>Useful for testing</li>
+</ul>
+<p><b>Cons:</b></p>
+<ul>
+<li>More resource usage</li>
+<li>More threads</li>
+</ul>
+<hr  />
+<h1><a class="anchor" id="autotoc_md134"></a>
+Memory Management</h1>
+<h2><a class="anchor" id="autotoc_md135"></a>
+1. Smart Pointers</h2>
+<div class="fragment"><div class="line"><span class="comment">// Ownership</span></div>
+<div class="line">std::unique_ptr&lt;TcpClient&gt; client_;  <span class="comment">// Exclusive ownership</span></div>
+<div class="line">std::shared_ptr&lt;Session&gt; session_;   <span class="comment">// Shared ownership</span></div>
+<div class="line">std::weak_ptr&lt;Connection&gt; conn_;     <span class="comment">// Non-owning reference</span></div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md136"></a>
+2. Memory Pool</h2>
+<p>For high-performance scenarios, transports use a bucketed pool and an RAII buffer wrapper.</p>
+<div class="fragment"><div class="line"><span class="comment">// Acquire/release with size buckets (1KB/4KB/16KB/64KB)</span></div>
+<div class="line"><span class="keyword">auto</span> buf = GlobalMemoryPool::instance().acquire(4096);</div>
+<div class="line"><span class="comment">// ... use buf.get() ...</span></div>
+<div class="line">GlobalMemoryPool::instance().release(std::move(buf), 4096);</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Preferred: RAII wrapper used by transports</span></div>
+<div class="line">common::PooledBuffer pooled(common::MemoryPool::BufferSize::MEDIUM);</div>
+<div class="line"><span class="keywordflow">if</span> (pooled.valid()) {</div>
+<div class="line">    common::safe_memory::safe_memcpy(pooled.data(), src, pooled.size());</div>
+<div class="line">}</div>
+</div><!-- fragment --><p><b>Notes:</b></p>
+<ul>
+<li>Pool applies to moderate sizes (&lt;=64KB); larger buffers fall back to regular allocations.</li>
+<li>PooledBuffer enforces bounds in debug paths; <code>.data()</code> is validated before writes.</li>
+</ul>
+<h2><a class="anchor" id="autotoc_md137"></a>
+3. Memory Tracking</h2>
+<p>Debug memory leaks:</p>
+<div class="fragment"><div class="line"><span class="preprocessor">#ifdef UNILINK_ENABLE_MEMORY_TRACKING</span></div>
+<div class="line"><span class="keyword">class </span>MemoryTracker {</div>
+<div class="line">    <span class="keywordtype">void</span> track_allocation(<span class="keywordtype">void</span>* ptr, <span class="keywordtype">size_t</span> size);</div>
+<div class="line">    <span class="keywordtype">void</span> track_deallocation(<span class="keywordtype">void</span>* ptr);</div>
+<div class="line">    <span class="keywordtype">void</span> report_leaks();</div>
+<div class="line">};</div>
+<div class="line"><span class="preprocessor">#endif</span></div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md138"></a>
+4. Safe Data Buffer</h2>
+<p>Bounds-checked buffer:</p>
+<div class="fragment"><div class="line"><span class="keyword">class </span>SafeDataBuffer {</div>
+<div class="line">    std::vector&lt;uint8_t&gt; data_;</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">public</span>:</div>
+<div class="line">    <span class="keywordtype">void</span> append(<span class="keyword">const</span> std::string&amp; str);  <span class="comment">// Bounds checked</span></div>
+<div class="line">    <span class="keywordtype">void</span> append_bytes(<span class="keyword">const</span> std::vector&lt;uint8_t&gt;&amp; bytes);</div>
+<div class="line"> </div>
+<div class="line">    std::string to_string() <span class="keyword">const</span>;  <span class="comment">// Safe conversion</span></div>
+<div class="line">};</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md140"></a>
+Error Handling</h1>
+<h2><a class="anchor" id="autotoc_md141"></a>
+Error Propagation Flow</h2>
+<p><br  />
+<br  />
+ </p><div class="mermaid"><br  />
+ <pre class="fragment">graph TD
+    Transport[Transport Layer Error&lt;br/&gt;Boost.Asio error_code]
+    Handler[Error Handler&lt;br/&gt;- Categorize&lt;br/&gt;- Log&lt;br/&gt;- Notify callbacks]
+    Callback[User Callback&lt;br/&gt;on_error]
+    Retry[Retry Logic&lt;br/&gt;if applicable]
+
+    Transport --&gt; Handler
+    Handler --&gt; Callback
+    Handler --&gt; Retry </pre> <br  />
+ </div><p> <br  />
+<br  />
+</p>
+<h2><a class="anchor" id="autotoc_md142"></a>
+Error Categories</h2>
+<div class="fragment"><div class="line"><span class="keyword">enum class</span> ErrorCategory {</div>
+<div class="line">    CONNECTION,    <span class="comment">// connect/disconnect/bind failures</span></div>
+<div class="line">    COMMUNICATION, <span class="comment">// read/write failures</span></div>
+<div class="line">    CONFIGURATION, <span class="comment">// invalid config values</span></div>
+<div class="line">    MEMORY,        <span class="comment">// allocation errors</span></div>
+<div class="line">    SYSTEM,        <span class="comment">// OS-level errors</span></div>
+<div class="line">    UNKNOWN        <span class="comment">// unclassified</span></div>
+<div class="line">};</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">enum class</span> ErrorLevel {</div>
+<div class="line">    INFO,           <span class="comment">// Informational</span></div>
+<div class="line">    WARNING,        <span class="comment">// Non-critical</span></div>
+<div class="line">    ERROR,          <span class="comment">// Serious error</span></div>
+<div class="line">    CRITICAL        <span class="comment">// Fatal error</span></div>
+<div class="line">};</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md143"></a>
+Error Recovery Strategies</h2>
+<h3><a class="anchor" id="autotoc_md144"></a>
+Automatic Retry</h3>
+<p>Reconnect behavior is controlled by a <code>ReconnectPolicy</code> — a <code>std::function</code> that receives the last <code>ErrorInfo</code> and the current attempt count, and returns a <code>ReconnectDecision</code> (retry + delay).</p>
+<p>Two built-in factory functions are provided:</p>
+<div class="fragment"><div class="line"><span class="comment">// Fixed interval (default behavior via builder .retry_interval())</span></div>
+<div class="line">unilink::FixedInterval(std::chrono::milliseconds delay);</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Exponential backoff with optional jitter (transport layer only)</span></div>
+<div class="line">unilink::ExponentialBackoff(min_delay, max_delay, factor, jitter);</div>
+</div><!-- fragment --><p>The wrapper-layer default is a fixed 1-second interval. Exponential backoff requires dropping to the transport layer directly (see api_guide.md – Custom Reconnect Policy).</p>
+<hr  />
+<h1><a class="anchor" id="autotoc_md146"></a>
+Configuration System</h1>
+<h2><a class="anchor" id="autotoc_md147"></a>
+Compile-Time Configuration</h2>
+<div class="fragment"><div class="line"><span class="comment">// CMake option: UNILINK_ENABLE_CONFIG</span></div>
+<div class="line"><span class="preprocessor">#ifdef UNILINK_ENABLE_CONFIG</span></div>
+<div class="line"><span class="keyword">namespace </span>config {</div>
+<div class="line">    <span class="keyword">class </span>ConfigManager { ... };</div>
+<div class="line">}</div>
+<div class="line"><span class="preprocessor">#endif</span></div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// CMake option: UNILINK_ENABLE_MEMORY_TRACKING</span></div>
+<div class="line"><span class="preprocessor">#ifdef UNILINK_ENABLE_MEMORY_TRACKING</span></div>
+<div class="line"><span class="keyword">class </span>MemoryTracker { ... };</div>
+<div class="line"><span class="preprocessor">#endif</span></div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md148"></a>
+Runtime Configuration</h2>
+<div class="fragment"><div class="line"><span class="preprocessor">#include &quot;unilink/config/config_factory.hpp&quot;</span></div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">auto</span> config = <a class="code hl_function" href="classunilink_1_1config_1_1ConfigFactory.html#a4edec9716691c78976092f69d6810ae5">unilink::config::ConfigFactory::create_with_defaults</a>();</div>
+<div class="line">config-&gt;load_from_file(<span class="stringliteral">&quot;unilink.conf&quot;</span>);</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">auto</span> host = std::any_cast&lt;std::string&gt;(config-&gt;get(<span class="stringliteral">&quot;tcp.client.host&quot;</span>));</div>
+<div class="line"><span class="keyword">auto</span> port = <span class="keyword">static_cast&lt;</span>uint16_t<span class="keyword">&gt;</span>(std::any_cast&lt;int&gt;(config-&gt;get(<span class="stringliteral">&quot;tcp.client.port&quot;</span>)));</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">auto</span> client = unilink::tcp_client(host, port)</div>
+<div class="line">    .retry_interval(<span class="keyword">static_cast&lt;</span><span class="keywordtype">unsigned</span><span class="keyword">&gt;</span>(</div>
+<div class="line">        std::any_cast&lt;int&gt;(config-&gt;get(<span class="stringliteral">&quot;tcp.client.retry_interval_ms&quot;</span>))</div>
+<div class="line">    ))</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+<div class="ttc" id="aclassunilink_1_1config_1_1ConfigFactory_html_a4edec9716691c78976092f69d6810ae5"><div class="ttname"><a href="classunilink_1_1config_1_1ConfigFactory.html#a4edec9716691c78976092f69d6810ae5">unilink::config::ConfigFactory::create_with_defaults</a></div><div class="ttdeci">static std::shared_ptr&lt; ConfigManagerInterface &gt; create_with_defaults()</div><div class="ttdef"><b>Definition</b> <a href="config__factory_8cc_source.html#l00031">config_factory.cc:31</a></div></div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md150"></a>
+Performance Considerations</h1>
+<h2><a class="anchor" id="autotoc_md151"></a>
+1. Asynchronous I/O</h2>
+<ul>
+<li>Non-blocking operations</li>
+<li>Efficient event loop (Boost.Asio)</li>
+<li>Minimal context switching</li>
+</ul>
+<h2><a class="anchor" id="autotoc_md152"></a>
+2. Zero-Copy Operations</h2>
+<div class="fragment"><div class="line"><span class="comment">// Avoid unnecessary copies</span></div>
+<div class="line"><span class="keywordtype">void</span> send(std::string&amp;&amp; data);  <span class="comment">// Move semantics</span></div>
+<div class="line"><span class="keywordtype">void</span> send(std::string_view data);  <span class="comment">// View (no copy)</span></div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md153"></a>
+3. Memory Pooling</h2>
+<div class="fragment"><div class="line"><span class="comment">// Avoid repeated allocations</span></div>
+<div class="line"><a class="code hl_class" href="classunilink_1_1memory_1_1MemoryPool.html">unilink::memory::MemoryPool</a> buffer_pool_;</div>
+<div class="line"><span class="keyword">auto</span> buffer = buffer_pool_.acquire(1024);  <span class="comment">// Fast!</span></div>
+<div class="ttc" id="aclassunilink_1_1memory_1_1MemoryPool_html"><div class="ttname"><a href="classunilink_1_1memory_1_1MemoryPool.html">unilink::memory::MemoryPool</a></div><div class="ttdoc">Selective simplified memory pool with optimized performance.</div><div class="ttdef"><b>Definition</b> <a href="memory__pool_8hpp_source.html#l00043">memory_pool.hpp:43</a></div></div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md155"></a>
+Extension Points</h1>
+<h2><a class="anchor" id="autotoc_md156"></a>
+1. Custom Transports</h2>
+<div class="fragment"><div class="line"><span class="keyword">class </span>MyCustomTransport : <span class="keyword">public</span> transport::TransportInterface {</div>
+<div class="line">    <span class="keywordtype">void</span> connect()<span class="keyword"> override </span>{ <span class="comment">/* ... */</span> }</div>
+<div class="line">    <span class="keywordtype">void</span> send(<span class="keyword">const</span> std::string&amp; data)<span class="keyword"> override </span>{ <span class="comment">/* ... */</span> }</div>
+<div class="line">    <span class="comment">// ... implement interface</span></div>
+<div class="line">};</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md157"></a>
+2. Custom Builders</h2>
+<div class="fragment"><div class="line"><span class="keyword">class </span>MyCustomBuilder : <span class="keyword">public</span> BuilderInterface&lt;MyWrapper&gt; {</div>
+<div class="line">    std::unique_ptr&lt;MyWrapper&gt; build()<span class="keyword"> override </span>{</div>
+<div class="line">        <span class="keywordflow">return</span> std::make_unique&lt;MyWrapper&gt;(<span class="comment">/* ... */</span>);</div>
+<div class="line">    }</div>
+<div class="line">};</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md158"></a>
+3. Custom Error Handlers</h2>
+<div class="fragment"><div class="line">ErrorHandler::instance().register_callback([](<span class="keyword">const</span> ErrorInfo&amp; error) {</div>
+<div class="line">    <span class="comment">// Custom error handling logic</span></div>
+<div class="line">    send_to_monitoring_system(error);</div>
+<div class="line">    <span class="keywordflow">if</span> (error.level == ErrorLevel::CRITICAL) {</div>
+<div class="line">        trigger_alert();</div>
+<div class="line">    }</div>
+<div class="line">});</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md160"></a>
+Development &amp; Tooling</h1>
+<h2><a class="anchor" id="autotoc_md161"></a>
+Documentation Generation</h2>
+<p>Generate API documentation from the <code>unilink-docs</code> repository. The docs workflow checks out the core repository under <code>external/unilink</code> and runs Doxygen from this repository.</p>
+<div class="fragment"><div class="line">doxygen doxygen/Doxyfile</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md163"></a>
+Testing Architecture</h1>
+<h2><a class="anchor" id="autotoc_md164"></a>
+1. Dependency Injection</h2>
+<div class="fragment"><div class="line"><span class="comment">// Easy to mock</span></div>
+<div class="line"><span class="keyword">class </span>Serial {</div>
+<div class="line">    Serial(std::shared_ptr&lt;ISerialPort&gt; port) : port_(port) {}</div>
+<div class="line"><span class="keyword">private</span>:</div>
+<div class="line">    std::shared_ptr&lt;ISerialPort&gt; port_;</div>
+<div class="line">};</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// In tests</span></div>
+<div class="line"><span class="keyword">auto</span> mock_port = std::make_shared&lt;MockSerialPort&gt;();</div>
+<div class="line">Serial serial(mock_port);</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md165"></a>
+2. Independent Contexts</h2>
+<div class="fragment"><div class="line"><span class="comment">// Isolated testing</span></div>
+<div class="line"><span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;127.0.0.1&quot;</span>, 8080)</div>
+<div class="line">    .independent_context(<span class="keyword">true</span>)  <span class="comment">// Own IO thread</span></div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md166"></a>
+3. State Verification</h2>
+<div class="fragment"><div class="line"><span class="comment">// Check internal state</span></div>
+<div class="line">ASSERT_EQ(client-&gt;get_state(), State::CONNECTED);</div>
+<div class="line">ASSERT_TRUE(server-&gt;listening());</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md168"></a>
+Summary</h1>
+<p>Unilink's architecture emphasizes:</p>
+<p>✅ <b>Modularity</b> - Clear separation of concerns <br  />
+ ✅ <b>Safety</b> - Memory-safe, thread-safe operations <br  />
+ ✅ <b>Performance</b> - Asynchronous I/O, efficient resource management <br  />
+ ✅ <b>Testability</b> - Dependency injection, mockable interfaces <br  />
+ ✅ <b>Extensibility</b> - Easy to add new transports and features <br  />
+ ✅ <b>Maintainability</b> - Clean code, well-documented</p>
+<hr  />
+<p><b>See Also:</b></p>
+<ul>
+<li>Runtime Behavior</li>
+<li>Memory Safety</li>
+<li>Performance Guide</li>
+</ul>
+<p><a class="el" href="contrib_arch_runtime.html">Runtime Behavior Model</a> <a class="el" href="contrib_arch_memory.html">Memory Safety Architecture</a> <a class="el" href="contrib_arch_channel.html">Transport Channel Contract</a> <a class="el" href="contrib_arch_wrapper.html">Wrapper Contract</a> </p>
+</div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

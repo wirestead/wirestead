@@ -1,0 +1,5 @@
+<map id="unilink::wrapper::UdpServer" name="unilink::wrapper::UdpServer">
+<area shape="rect" id="Node000001" title="UDP implementation of ServerInterface using virtual sessions." alt="" coords="5,333,200,599"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1wrapper_1_1ServerInterface.html" title="Interface for 1:N server communication (e.g., TcpServer)" alt="" coords="18,5,187,285"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="105,299,105,333,100,333,100,299"/>
+</map>

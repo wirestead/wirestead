@@ -1,0 +1,217 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: Class Members - Functions</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('functions_func_s.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="contents">
+<div class="textblock">Here is a list of all documented functions with links to the class documentation for each member:</div>
+
+<h3><a id="index_s" name="index_s"></a>- s -</h3><ul>
+<li>safe_data()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1MessageContext.html#a654dd8a36489e0462aa914c8ccfafbd0">unilink::wrapper::MessageContext</a></li>
+<li>send()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aea0f1a7ed2e31e0dad1680a996687b48">unilink::wrapper::ChannelInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a6b120ec3e9e98e9c57c789607f1649bb">unilink::wrapper::Serial</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpClient.html#abfd2fff029f6c241cd0b39b75ce92e43">unilink::wrapper::TcpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpClient.html#ac7cb513ae60cf2683582feb75c64e5b3">unilink::wrapper::UdpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a41955159bb466a19e19920e5e9ae2650">unilink::wrapper::UdsClient</a></li>
+<li>send_blocking()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a86c5b4222bc621a8dd0ec8e7a2ca9226">unilink::wrapper::ChannelInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a470a799440850ff5a9cf5b2c09747783">unilink::wrapper::Serial</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpClient.html#aa49c266eddd7e04b73d2900a5e4e3190">unilink::wrapper::TcpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpClient.html#a36d93116993af6f41498adb999298c55">unilink::wrapper::UdpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a16051f191494afecb289d407df70b86c">unilink::wrapper::UdsClient</a></li>
+<li>send_line()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#af4d2c671707e6c3c4bc7080aaaa74590">unilink::wrapper::ChannelInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a492c829f734bbff5baf617b4a32806a1">unilink::wrapper::Serial</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpClient.html#a5ad98b80dd4370157ade6a2dd4c39a79">unilink::wrapper::TcpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpClient.html#a926ac38e4174653fda3d00a504cac4c1">unilink::wrapper::UdpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a2f4b0a463087c84d0600d3e1966edc5a">unilink::wrapper::UdsClient</a></li>
+<li>send_line_blocking()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aa5851fe0dbc0eea11e5ee94d6f3e72d2">unilink::wrapper::ChannelInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a9c82bd5db4d04c95eb730705237a8cf6">unilink::wrapper::Serial</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpClient.html#a1f42c394f70ff1792aa090186c11f1aa">unilink::wrapper::TcpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpClient.html#abe7052cb9b8ab3834b82aacc817542e7">unilink::wrapper::UdpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a2b232bfea432f1d987a580470a9dbdab">unilink::wrapper::UdsClient</a></li>
+<li>send_move()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a9cdf237812f4b82d3dd2f935d0323fd9">unilink::wrapper::ChannelInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a1f61ad7c584a55ece3b05bd703f3a5cf">unilink::wrapper::Serial</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpClient.html#a85c2795390adf6717c7ef63e8048a76e">unilink::wrapper::TcpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpClient.html#a8b9f3021878016dfc5d7a791f96bd140">unilink::wrapper::UdpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#a854a69ab0263b80e6951775a48f4886e">unilink::wrapper::UdsClient</a></li>
+<li>send_shared()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2b94c1a058878d67fd021108c5c8ec94">unilink::wrapper::ChannelInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#ad6321b84e24a6f1a9a8e96b569b65789">unilink::wrapper::Serial</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpClient.html#aa3bec2c5fedcac6aea653412de945754">unilink::wrapper::TcpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpClient.html#aec444b7354ea0a7f8600d108c02d2af9">unilink::wrapper::UdpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#afc9b8c53abfbcc77c9bf55f1bd6658e0">unilink::wrapper::UdsClient</a></li>
+<li>send_to()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ServerInterface.html#a20b16e1e57ab82297d6d443a24adf0e1">unilink::wrapper::ServerInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpServer.html#ab84c5a94e1beed98db9d1f4302b313cf">unilink::wrapper::TcpServer</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpServer.html#a97ddb6517358a2e82a5c44a205fbba57">unilink::wrapper::UdpServer</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsServer.html#ab85d87986b379c902088c7e1e2211c58">unilink::wrapper::UdsServer</a></li>
+<li>send_to_blocking()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ServerInterface.html#afd1d972d7e2c7801e4d314850ec2f6d0">unilink::wrapper::ServerInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpServer.html#a9b87210894d1fec902db8011484b415d">unilink::wrapper::TcpServer</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpServer.html#a7ea1520219607dd99422e81cd6249939">unilink::wrapper::UdpServer</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsServer.html#aa3a999cf7c6d326a504527e2cc1374df">unilink::wrapper::UdsServer</a></li>
+<li>send_to_line()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ServerInterface.html#a63d23e82bd31bc7d25a7f37efa1468b1">unilink::wrapper::ServerInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpServer.html#a697538f177178a5e96ae074a4b90df08">unilink::wrapper::TcpServer</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpServer.html#a45590081e50cd4c3fb71fa512500b0b4">unilink::wrapper::UdpServer</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsServer.html#a846ea585651b1b99ed978356d164a899">unilink::wrapper::UdsServer</a></li>
+<li>serial()&#160;:&#160;<a class="el" href="classunilink_1_1builder_1_1UnifiedBuilder.html#a1b00ea76aca6d912665cf8ccd4a69d7b">unilink::builder::UnifiedBuilder</a></li>
+<li>set_async_logging()&#160;:&#160;<a class="el" href="classunilink_1_1diagnostics_1_1Logger.html#a59e33a20b37773a2299729876d8552e4">unilink::diagnostics::Logger</a></li>
+<li>set_callback()&#160;:&#160;<a class="el" href="classunilink_1_1diagnostics_1_1Logger.html#af2ba283a30ba91bc5cb75959e2f61eb0">unilink::diagnostics::Logger</a></li>
+<li>set_console_output()&#160;:&#160;<a class="el" href="classunilink_1_1diagnostics_1_1Logger.html#a2f634f2d64d5be96bd683f3c527a6416">unilink::diagnostics::Logger</a></li>
+<li>set_enabled()&#160;:&#160;<a class="el" href="classunilink_1_1diagnostics_1_1ErrorHandler.html#af696e04975515b132b1b0be92cbf177b">unilink::diagnostics::ErrorHandler</a>, <a class="el" href="classunilink_1_1diagnostics_1_1Logger.html#af51329390a3c9fd12a6b53b28b6e508c">unilink::diagnostics::Logger</a></li>
+<li>set_file_output()&#160;:&#160;<a class="el" href="classunilink_1_1diagnostics_1_1Logger.html#ae27d90acc4c3646587ab4aa620bef18f">unilink::diagnostics::Logger</a></li>
+<li>set_file_output_with_rotation()&#160;:&#160;<a class="el" href="classunilink_1_1diagnostics_1_1Logger.html#ada26b971ae75266aff644f17ecb670e8">unilink::diagnostics::Logger</a></li>
+<li>set_format()&#160;:&#160;<a class="el" href="classunilink_1_1diagnostics_1_1Logger.html#a0943018bf72c79971e7233be8438714c">unilink::diagnostics::Logger</a></li>
+<li>set_level()&#160;:&#160;<a class="el" href="classunilink_1_1diagnostics_1_1Logger.html#a7e8ec37c982ad0a16b56ad33ae62932b">unilink::diagnostics::Logger</a></li>
+<li>set_min_error_level()&#160;:&#160;<a class="el" href="classunilink_1_1diagnostics_1_1ErrorHandler.html#afccd40762ed2ebd05c3e4bc6d71ea122">unilink::diagnostics::ErrorHandler</a></li>
+<li>set_outputs()&#160;:&#160;<a class="el" href="classunilink_1_1diagnostics_1_1Logger.html#aeed67807bc170affe354d4110c4439a2">unilink::diagnostics::Logger</a></li>
+<li>setup_all_defaults()&#160;:&#160;<a class="el" href="classunilink_1_1config_1_1ConfigPresets.html#ad14ccdce0fa26dc04fb713da77e5612e">unilink::config::ConfigPresets</a></li>
+<li>setup_logging_defaults()&#160;:&#160;<a class="el" href="classunilink_1_1config_1_1ConfigPresets.html#ac5fa0f6beb3c0cad1b83986ef7c8a78a">unilink::config::ConfigPresets</a></li>
+<li>setup_serial_defaults()&#160;:&#160;<a class="el" href="classunilink_1_1config_1_1ConfigPresets.html#a0a962caed9068755a89dac24122b30ee">unilink::config::ConfigPresets</a></li>
+<li>setup_tcp_client_defaults()&#160;:&#160;<a class="el" href="classunilink_1_1config_1_1ConfigPresets.html#af3eb072f8546754247214bbf73feeed4">unilink::config::ConfigPresets</a></li>
+<li>setup_tcp_server_defaults()&#160;:&#160;<a class="el" href="classunilink_1_1config_1_1ConfigPresets.html#a5becfb6839f288a6b50be2e276fb8c6e">unilink::config::ConfigPresets</a></li>
+<li>should_log()&#160;:&#160;<a class="el" href="classunilink_1_1diagnostics_1_1Logger.html#a433d2b9b2e5e0ddea0e154b1c1c11381">unilink::diagnostics::Logger</a></li>
+<li>start()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2060c51ac6a3120e7245cef5117dc021">unilink::wrapper::ChannelInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a1d0c46c79487050268065fedda5fec4a">unilink::wrapper::Serial</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpClient.html#af28e9e16877808ff5b8b6765a6a70227">unilink::wrapper::TcpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpClient.html#aad3d1eca8457045707edc7dd37e169c0">unilink::wrapper::UdpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#ae95799bd17d533a9f5d613a40d3a19c9">unilink::wrapper::UdsClient</a></li>
+<li>start_sync()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ae98d24f5b572c9ae0aa13d428f01fcac">unilink::wrapper::ChannelInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1ServerInterface.html#a52ac712bb695a3dbb52c063cbb4b153a">unilink::wrapper::ServerInterface</a></li>
+<li>stop()&#160;:&#160;<a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad8b698aa572dffa18e0e9df5d465c6d0">unilink::wrapper::ChannelInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#ad65a699425f67b86cfc2e55ca3c455ca">unilink::wrapper::Serial</a>, <a class="el" href="classunilink_1_1wrapper_1_1ServerInterface.html#a988cc589cc3d3d23176f77dc44bb41a0">unilink::wrapper::ServerInterface</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpClient.html#a4dee749ef29e143d91bed46b827e8c70">unilink::wrapper::TcpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1TcpServer.html#a41196195d706a2409f1bc3273e31d5be">unilink::wrapper::TcpServer</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpClient.html#ac4c0ff48cb0f623322204fff6a31ee3e">unilink::wrapper::UdpClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdpServer.html#a17da8a56e5c01be6ac9d68abbbfaef18">unilink::wrapper::UdpServer</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsClient.html#af158de7b71848d08c1655e43bc5c39eb">unilink::wrapper::UdsClient</a>, <a class="el" href="classunilink_1_1wrapper_1_1UdsServer.html#a1fcc0e0aae5f7084accba6516967087e">unilink::wrapper::UdsServer</a></li>
+<li>summary()&#160;:&#160;<a class="el" href="structunilink_1_1diagnostics_1_1ErrorInfo.html#a4d85e558731498aec9200046191a3c99">unilink::diagnostics::ErrorInfo</a></li>
+</ul>
+</div><!-- contents -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

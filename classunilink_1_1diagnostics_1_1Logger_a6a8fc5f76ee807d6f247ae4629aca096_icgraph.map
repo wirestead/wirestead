@@ -1,0 +1,9 @@
+<map id="unilink::diagnostics::Logger::try_set_file_output_with_rotation" name="unilink::diagnostics::Logger::try_set_file_output_with_rotation">
+<area shape="rect" id="Node000001" title="Set file output with rotation and report whether it succeeded." alt="" coords="232,70,396,125"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1Logger.html#ae27d90acc4c3646587ab4aa620bef18f" title="Set file output." alt="" coords="5,5,184,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="218,69,156,48,157,43,220,64"/>
+<area shape="rect" id="Node000003" href="$classunilink_1_1diagnostics_1_1Logger.html#ada26b971ae75266aff644f17ecb670e8" title="Set file output with rotation." alt="" coords="5,70,184,125"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="219,100,184,100,184,95,219,95"/>
+<area shape="rect" id="Node000004" href="$classunilink_1_1diagnostics_1_1Logger.html#abdb1069a2f3fcb4583b9c320d959eb5b" title="Set file output and report whether it succeeded." alt="" coords="17,149,172,203"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="225,132,172,151,170,146,223,127"/>
+</map>

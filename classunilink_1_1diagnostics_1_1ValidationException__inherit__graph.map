@@ -1,0 +1,7 @@
+<map id="unilink::diagnostics::ValidationException" name="unilink::diagnostics::ValidationException">
+<area shape="rect" id="Node000001" title="Exception thrown during input validation." alt="" coords="5,247,156,327"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1diagnostics_1_1UnilinkException.html" title="Base exception class for all unilink exceptions." alt="" coords="11,119,151,199"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="83,212,83,246,78,246,78,212"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="15,5,146,71"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="83,85,83,118,78,118,78,85"/>
+</map>

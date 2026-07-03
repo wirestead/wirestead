@@ -1,0 +1,15 @@
+<map id="unilink::diagnostics::UnilinkException" name="unilink::diagnostics::UnilinkException">
+<area shape="rect" id="Node000001" title="Base exception class for all unilink exceptions." alt="" coords="377,119,517,199"/>
+<area shape="rect" id="Node000003" href="$classunilink_1_1diagnostics_1_1BuilderException.html" title="Exception thrown during builder operations." alt="" coords="5,247,145,327"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="365,184,265,213,159,249,146,254,144,249,157,244,264,208,363,179"/>
+<area shape="rect" id="Node000004" href="$classunilink_1_1diagnostics_1_1ConfigurationException.html" title="Exception thrown during configuration operations." alt="" coords="170,247,343,327"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="378,209,317,249,314,244,375,204"/>
+<area shape="rect" id="Node000005" href="$classunilink_1_1diagnostics_1_1ConnectionException.html" title="Exception thrown during connection operations." alt="" coords="368,247,527,327"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="450,212,450,246,445,246,445,212"/>
+<area shape="rect" id="Node000006" href="$classunilink_1_1diagnostics_1_1MemoryException.html" title="Exception thrown during memory operations." alt="" coords="551,247,691,327"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="514,205,568,244,565,249,511,209"/>
+<area shape="rect" id="Node000007" href="$classunilink_1_1diagnostics_1_1ValidationException.html" title="Exception thrown during input validation." alt="" coords="715,247,865,327"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="532,184,704,244,716,249,714,254,702,249,530,189"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="382,5,513,71"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="450,85,450,118,445,118,445,85"/>
+</map>

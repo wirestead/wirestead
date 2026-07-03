@@ -1,0 +1,259 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: Test Structure</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('contrib_test_structure.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div><div class="header">
+  <div class="headertitle"><div class="title">Test Structure</div></div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><p>This document describes how the test tree is organized and how to work with it, without embedding release-specific counts or dated snapshots.</p>
+<h1><a class="anchor" id="autotoc_md399"></a>
+Layout</h1>
+<div class="fragment"><div class="line">test/</div>
+<div class="line">├── unit/          # Unit and transport-focused tests</div>
+<div class="line">├── integration/   # Cross-component and real I/O integration tests</div>
+<div class="line">├── e2e/           # End-to-end scenarios and stress tests</div>
+<div class="line">├── mocks/         # Additional mock types used by tests</div>
+<div class="line">├── utils/         # Shared test helpers and constants</div>
+<div class="line">└── CMakeLists.txt # Main test registration</div>
+</div><!-- fragment --><h1><a class="anchor" id="autotoc_md400"></a>
+What Each Area Covers</h1>
+<ul>
+<li><code>unit/</code>: isolated component behavior, transport edge cases, wrapper behavior, framing, config, and utility coverage</li>
+<li><code>integration/</code>: interaction between components and real I/O paths</li>
+<li><code>e2e/</code>: scenario-level behavior, recovery cases, and stress-oriented coverage</li>
+</ul>
+<p>Prefer adding new tests to the smallest scope that matches their behavior. If a test opens localhost sockets, binds ports, creates UDS socket paths, or relies on real OS I/O, place it in <code>integration/</code> unless it is intentionally tied to a narrow unit fixture.</p>
+<h1><a class="anchor" id="autotoc_md401"></a>
+Build-Time Controls</h1>
+<p>The test tree is controlled by CMake options rather than hardcoded assumptions in this document.</p>
+<ul>
+<li><code>UNILINK_BUILD_TESTS</code>: enables test targets</li>
+</ul>
+<p>Treat <code>test/CMakeLists.txt</code> and the active build directory as the source of truth for what is currently registered.</p>
+<h1><a class="anchor" id="autotoc_md402"></a>
+Running Tests</h1>
+<h2><a class="anchor" id="autotoc_md403"></a>
+Run All Registered Tests</h2>
+<div class="fragment"><div class="line">cd build</div>
+<div class="line">ctest --output-on-failure</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md404"></a>
+Run By Broad Category</h2>
+<div class="fragment"><div class="line"># Run all unit tests (matches unit_* labels)</div>
+<div class="line">ctest -L &quot;unit_.*&quot;</div>
+<div class="line"># Run legacy integration tests</div>
+<div class="line">ctest -L &quot;legacy_integration&quot;</div>
+<div class="line"># Run all e2e tests (matches e2e_* labels)</div>
+<div class="line">ctest -L &quot;e2e_.*&quot;</div>
+</div><!-- fragment --><p>Standalone benchmarks are maintained separately: <a href="https://github.com/unilink-lab/unilink-benchmarks">unilink-lab/unilink-benchmarks</a>.</p>
+<h2><a class="anchor" id="autotoc_md405"></a>
+Useful Focused Runs</h2>
+<div class="fragment"><div class="line"># TCP-heavy tests</div>
+<div class="line">ctest -L tcp</div>
+<div class="line"> </div>
+<div class="line"># Builder-related tests</div>
+<div class="line">ctest -L builder</div>
+<div class="line"> </div>
+<div class="line"># Security and contract checks</div>
+<div class="line">ctest -L security</div>
+<div class="line">ctest -L contract</div>
+<div class="line"> </div>
+<div class="line"># Structured scope/component filters</div>
+<div class="line">ctest -L &quot;integration.*transport.*tcp&quot;</div>
+<div class="line">ctest -L &quot;integration.*serial&quot;</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md406"></a>
+Inspect What Is Currently Registered</h2>
+<div class="fragment"><div class="line">ctest -N</div>
+<div class="line">ctest -N -L &quot;unit_.*&quot;</div>
+<div class="line">ctest -N -L &quot;legacy_integration&quot;</div>
+<div class="line">ctest -N -L &quot;e2e_.*&quot;</div>
+</div><!-- fragment --><p>Use these commands instead of storing counts in documentation. The exact number of tests changes as coverage grows.</p>
+<h1><a class="anchor" id="autotoc_md407"></a>
+Notes</h1>
+<ul>
+<li>Labels use structured tokens such as <code>integration_transport_tcp_medium</code> so broad filters (<code>unit</code>, <code>tcp</code>) and composed regex filters (<code>integration.*transport.*tcp</code>) both work.</li>
+<li>Label names should follow <code>&lt;scope&gt;_&lt;component&gt;[_subcomponent]_&lt;kind&gt;[_io]</code>. Examples include <code>unit_common_fast</code>, <code>unit_transport_uds_fast</code>, <code>integration_transport_tcp_medium</code>, <code>integration_transport_uds_medium</code>, <code>integration_wrapper_udp_medium</code>, <code>integration_tcp_medium</code>, <code>e2e_scenario_slow</code>, and <code>docs_snippets</code>.</li>
+<li>Tests that allocate ports, open localhost sockets, or create UDS socket paths belong under <code>integration/</code>, even if they exercise a focused transport or wrapper behavior.</li>
+<li>When test organization changes, update the commands and directory descriptions here, not the output of a particular local run.</li>
+</ul>
+<h1><a class="anchor" id="autotoc_md408"></a>
+CI/CD Integration</h1>
+<p>Repository workflows live under <code>.github/workflows/</code>. If labels or test grouping changes, keep CI filters in sync with the commands documented here. </p>
+</div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

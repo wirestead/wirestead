@@ -1,0 +1,410 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: SendResult API Design</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('contrib_design_send_result.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div><div class="header">
+  <div class="headertitle"><div class="title">SendResult API Design</div></div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><h1><a class="anchor" id="autotoc_md336"></a>
+Problem Statement</h1>
+<p>The current <code>bool send(...)</code> and <code>bool try_send(...)</code> APIs are simple and convenient, but they cannot explain why a send operation succeeded or failed.</p>
+<p>This is especially important for backpressure-aware transports:</p>
+<ul>
+<li><code>BestEffort</code> may accept a new payload while dropping older queued payloads.</li>
+<li><code>Reliable</code> may reject or block when the local queue cannot accept more data.</li>
+<li>UDP may reject sends when no remote endpoint is configured.</li>
+<li>A successful local send acceptance does not guarantee remote delivery.</li>
+</ul>
+<p>A richer result type would let applications distinguish local acceptance, queue drops, rejection, and transport state failures without replacing the existing bool APIs.</p>
+<h1><a class="anchor" id="autotoc_md337"></a>
+Current bool API</h1>
+<p>Current APIs:</p>
+<div class="fragment"><div class="line"><span class="keywordtype">bool</span> send(std::string_view data);</div>
+<div class="line"><span class="keywordtype">bool</span> try_send(std::string_view data);</div>
+</div><!-- fragment --><p>Current behavior:</p>
+<ul>
+<li><code>true</code> means the payload was accepted into the local send path.</li>
+<li><code>false</code> means the payload was not accepted.</li>
+<li><code>true</code> does not guarantee remote delivery.</li>
+<li><code>true</code> may still coincide with older queued payloads being dropped under <code>BestEffort</code>.</li>
+</ul>
+<h1><a class="anchor" id="autotoc_md338"></a>
+Goals</h1>
+<ul>
+<li>Preserve existing <code>bool send(...)</code> APIs.</li>
+<li>Provide an advanced API that explains send outcomes.</li>
+<li>Distinguish rejected sends from dropped queued payloads.</li>
+<li>Make BestEffort behavior observable per send call.</li>
+<li>Keep Reliable and BestEffort semantics consistent with <code>RuntimeStats</code>.</li>
+<li>Avoid requiring users to parse logs or compare stats snapshots for every send.</li>
+</ul>
+<h1><a class="anchor" id="autotoc_md339"></a>
+Non-Goals</h1>
+<ul>
+<li>Do not replace existing <code>send(...)</code> / <code>try_send(...)</code>.</li>
+<li>Do not guarantee remote delivery.</li>
+<li>Do not add application-level acknowledgements.</li>
+<li>Do not make UDP reliable.</li>
+<li>Do not expose transport-internal queue implementation details.</li>
+<li>Do not change default Reliable / BestEffort behavior.</li>
+</ul>
+<h1><a class="anchor" id="autotoc_md340"></a>
+Proposed API</h1>
+<h2><a class="anchor" id="autotoc_md341"></a>
+Type Definitions</h2>
+<div class="fragment"><div class="line"><span class="keyword">namespace </span>unilink {</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">enum class</span> SendStatus {</div>
+<div class="line">  Queued,</div>
+<div class="line">  QueuedAfterDroppingOldData,</div>
+<div class="line">  RejectedBackpressure,</div>
+<div class="line">  Disconnected,</div>
+<div class="line">  Closed,</div>
+<div class="line">  Stopping,</div>
+<div class="line">  InvalidPayload,</div>
+<div class="line">  PayloadTooLarge,</div>
+<div class="line">  NoRemoteEndpoint,</div>
+<div class="line">  TransportError,</div>
+<div class="line">};</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">struct </span>SendResult {</div>
+<div class="line">  SendStatus status = SendStatus::TransportError;</div>
+<div class="line"> </div>
+<div class="line">  <span class="keywordtype">size_t</span> accepted_bytes = 0;</div>
+<div class="line">  <span class="keywordtype">size_t</span> dropped_bytes = 0;</div>
+<div class="line">  <span class="keywordtype">size_t</span> queued_bytes = 0;</div>
+<div class="line"> </div>
+<div class="line">  uint64_t dropped_messages = 0;</div>
+<div class="line"> </div>
+<div class="line">  <span class="keywordtype">bool</span> accepted() const noexcept {</div>
+<div class="line">    <span class="keywordflow">return</span> status == SendStatus::Queued ||</div>
+<div class="line">           status == SendStatus::QueuedAfterDroppingOldData;</div>
+<div class="line">  }</div>
+<div class="line"> </div>
+<div class="line">  <span class="keywordtype">bool</span> failed() const noexcept {</div>
+<div class="line">    <span class="keywordflow">return</span> !accepted();</div>
+<div class="line">  }</div>
+<div class="line">};</div>
+<div class="line"> </div>
+<div class="line">}  <span class="comment">// namespace unilink</span></div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md342"></a>
+API Names</h2>
+<p>Proposed channel-style APIs:</p>
+<div class="fragment"><div class="line">SendResult try_send_ex(std::string_view data);</div>
+<div class="line">SendResult send_ex(std::string_view data);</div>
+</div><!-- fragment --><p>If move/shared buffer send APIs are part of the active public surface, extended variants should use the same ownership rules:</p>
+<div class="fragment"><div class="line">SendResult try_send_move_ex(std::vector&lt;uint8_t&gt;&amp;&amp; data);</div>
+<div class="line">SendResult send_move_ex(std::vector&lt;uint8_t&gt;&amp;&amp; data);</div>
+<div class="line"> </div>
+<div class="line">SendResult try_send_shared_ex(std::shared_ptr&lt;<span class="keyword">const</span> std::vector&lt;uint8_t&gt;&gt; data);</div>
+<div class="line">SendResult send_shared_ex(std::shared_ptr&lt;<span class="keyword">const</span> std::vector&lt;uint8_t&gt;&gt; data);</div>
+</div><!-- fragment --><p>The <code>_ex</code> suffix is provisional. Alternatives include <code>send_result(...)</code>, <code>try_send_result(...)</code>, or returning <code>SendResult</code> from new advanced APIs under a diagnostics namespace.</p>
+<h1><a class="anchor" id="autotoc_md343"></a>
+SendStatus Semantics</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Status   </th><th class="markdownTableHeadNone">Meaning   </th><th class="markdownTableHeadRight"><code>accepted()</code>   </th><th class="markdownTableHeadNone">RuntimeStats effect    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>Queued</code>   </td><td class="markdownTableBodyNone">New payload accepted without dropping older queued data   </td><td class="markdownTableBodyRight">true   </td><td class="markdownTableBodyNone">accepted counters increase    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>QueuedAfterDroppingOldData</code>   </td><td class="markdownTableBodyNone">New payload accepted and older queued payloads were dropped by BestEffort   </td><td class="markdownTableBodyRight">true   </td><td class="markdownTableBodyNone">accepted + dropped counters increase    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>RejectedBackpressure</code>   </td><td class="markdownTableBodyNone">New payload rejected because queue limits would be exceeded   </td><td class="markdownTableBodyRight">false   </td><td class="markdownTableBodyNone"><code>failed_sends</code> increases    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>Disconnected</code>   </td><td class="markdownTableBodyNone">Channel is not connected   </td><td class="markdownTableBodyRight">false   </td><td class="markdownTableBodyNone"><code>failed_sends</code> increases    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>Closed</code>   </td><td class="markdownTableBodyNone">Channel is closed   </td><td class="markdownTableBodyRight">false   </td><td class="markdownTableBodyNone"><code>failed_sends</code> increases    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>Stopping</code>   </td><td class="markdownTableBodyNone">Channel is stopping or stop was requested   </td><td class="markdownTableBodyRight">false   </td><td class="markdownTableBodyNone"><code>failed_sends</code> increases    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>InvalidPayload</code>   </td><td class="markdownTableBodyNone">Empty or otherwise invalid payload   </td><td class="markdownTableBodyRight">false   </td><td class="markdownTableBodyNone"><code>failed_sends</code> increases    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>PayloadTooLarge</code>   </td><td class="markdownTableBodyNone">Payload exceeds maximum allowed size   </td><td class="markdownTableBodyRight">false   </td><td class="markdownTableBodyNone"><code>failed_sends</code> increases    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>NoRemoteEndpoint</code>   </td><td class="markdownTableBodyNone">UDP send requested without a known remote endpoint   </td><td class="markdownTableBodyRight">false   </td><td class="markdownTableBodyNone"><code>failed_sends</code> increases    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>TransportError</code>   </td><td class="markdownTableBodyNone">Other transport-level failure   </td><td class="markdownTableBodyRight">false   </td><td class="markdownTableBodyNone"><code>failed_sends</code> increases   </td></tr>
+</table>
+<h1><a class="anchor" id="autotoc_md344"></a>
+Reliable Semantics</h1>
+<p>In <code>Reliable</code> mode:</p>
+<ul>
+<li><code>try_send_ex(...)</code> should not block.</li>
+<li><code>send_ex(...)</code> may wait for backpressure to clear, matching existing <code>send(...)</code> behavior.</li>
+<li>If the queue cannot accept the new payload, the result should be <code>RejectedBackpressure</code>.</li>
+<li>Reliable should not report <code>QueuedAfterDroppingOldData</code> because it does not intentionally drop older queued payloads to preserve freshness.</li>
+</ul>
+<h1><a class="anchor" id="autotoc_md345"></a>
+BestEffort Semantics</h1>
+<p>In <code>BestEffort</code> mode:</p>
+<ul>
+<li>New payloads may be accepted while older queued payloads are discarded.</li>
+<li>If no older queued payloads were dropped, the result should be <code>Queued</code>.</li>
+<li>If older queued payloads were dropped, the result should be <code>QueuedAfterDroppingOldData</code>.</li>
+<li><code>dropped_messages</code> and <code>dropped_bytes</code> in <code>SendResult</code> should reflect only the drop caused by this send call.</li>
+<li><code>RuntimeStats</code> cumulative drop counters should also increase.</li>
+</ul>
+<h1><a class="anchor" id="autotoc_md346"></a>
+Relationship To RuntimeStats</h1>
+<p><code>SendResult</code> is a per-call result.</p>
+<p><code>RuntimeStats</code> is a cumulative diagnostic snapshot.</p>
+<p>They should use the same semantic categories:</p>
+<ul>
+<li>accepted</li>
+<li>sent</li>
+<li>received</li>
+<li><code>failed_sends</code></li>
+<li><code>dropped_messages</code></li>
+<li><code>dropped_bytes</code></li>
+<li><code>queued_bytes</code></li>
+<li><code>backpressure_events</code></li>
+</ul>
+<p><code>SendResult::dropped_bytes</code> describes drops caused by the specific send call. <code>RuntimeStats::dropped_bytes</code> is cumulative.</p>
+<p><code>SendResult::accepted_bytes</code> describes bytes accepted by the specific send call. It does not imply that the remote peer received those bytes.</p>
+<h1><a class="anchor" id="autotoc_md347"></a>
+API Compatibility</h1>
+<p>The existing bool APIs remain source-compatible:</p>
+<div class="fragment"><div class="line"><span class="keywordtype">bool</span> send(std::string_view data);</div>
+<div class="line"><span class="keywordtype">bool</span> try_send(std::string_view data);</div>
+</div><!-- fragment --><p>The proposed extended APIs are additive.</p>
+<p>Existing bool APIs can be implemented in terms of extended APIs later:</p>
+<div class="fragment"><div class="line"><span class="keywordtype">bool</span> try_send(std::string_view data) {</div>
+<div class="line">  <span class="keywordflow">return</span> try_send_ex(data).accepted();</div>
+<div class="line">}</div>
+</div><!-- fragment --><p>However, this should only be done if behavior remains source-compatible and performance overhead is acceptable.</p>
+<h1><a class="anchor" id="autotoc_md348"></a>
+Server Send Results</h1>
+<p>Single-target sends can use the same <code>SendResult</code>:</p>
+<div class="fragment"><div class="line">SendResult send_to_ex(uint64_t client_id, std::string_view data);</div>
+<div class="line">SendResult try_send_to_ex(uint64_t client_id, std::string_view data);</div>
+</div><!-- fragment --><p>Broadcast is more complex because different clients may produce different outcomes.</p>
+<p>Possible aggregate result:</p>
+<div class="fragment"><div class="line"><span class="keyword">struct </span>BroadcastSendResult {</div>
+<div class="line">  <span class="keywordtype">size_t</span> attempted_clients = 0;</div>
+<div class="line">  <span class="keywordtype">size_t</span> accepted_clients = 0;</div>
+<div class="line">  <span class="keywordtype">size_t</span> failed_clients = 0;</div>
+<div class="line"> </div>
+<div class="line">  <span class="keywordtype">size_t</span> accepted_bytes = 0;</div>
+<div class="line">  <span class="keywordtype">size_t</span> dropped_bytes = 0;</div>
+<div class="line">  uint64_t dropped_messages = 0;</div>
+<div class="line">};</div>
+</div><!-- fragment --><p>Open question: whether broadcast should return one aggregate result or a map of client id to <code>SendResult</code>.</p>
+<p>Move/shared buffer server APIs need the same distinction:</p>
+<ul>
+<li>single-target move sends can return one <code>SendResult</code></li>
+<li>single-target shared sends can return one <code>SendResult</code></li>
+<li>shared broadcast sends may need aggregate or per-client results</li>
+<li>move broadcast should remain out of scope because one moved buffer cannot be transferred to multiple clients</li>
+</ul>
+<h1><a class="anchor" id="autotoc_md349"></a>
+Migration Plan</h1>
+<h2><a class="anchor" id="autotoc_md350"></a>
+Phase 1: Design</h2>
+<p>Document the semantics and collect feedback.</p>
+<h2><a class="anchor" id="autotoc_md351"></a>
+Phase 2: Experimental API</h2>
+<p>Add extended APIs with an experimental name or namespace.</p>
+<p>Possible names:</p>
+<ul>
+<li><code>try_send_ex</code></li>
+<li><code>try_send_result</code></li>
+<li><code>diagnostic_try_send</code></li>
+</ul>
+<h2><a class="anchor" id="autotoc_md352"></a>
+Phase 3: Official 0.8 API</h2>
+<p>Promote the selected API to user-facing documentation for the 0.8 release line.</p>
+<h2><a class="anchor" id="autotoc_md353"></a>
+Phase 4: Long-Term</h2>
+<p>Keep bool APIs as convenience wrappers. Do not remove them.</p>
+<h1><a class="anchor" id="autotoc_md354"></a>
+Open Questions</h1>
+<ol type="1">
+<li>Should empty payload be <code>InvalidPayload</code> and increment <code>failed_sends</code>, or should it be ignored without counting as a failed send?</li>
+<li>Should <code>send_ex(...)</code> be allowed to block in Reliable mode, or should all extended APIs be non-blocking?</li>
+<li>Should the API use <code>_ex</code>, <code>_result</code>, or a diagnostics namespace?</li>
+<li>Should <code>SendResult</code> include an <code>ErrorCode</code>?</li>
+<li>Should <code>SendResult</code> include <code>pending_bytes</code>?</li>
+<li>Should server <code>broadcast_*</code> APIs return one aggregate result or per-client results?</li>
+<li>Should UDP <code>NoRemoteEndpoint</code> be a distinct status or a transport error?</li>
+<li>Should <code>queued_bytes</code> report only the primary outgoing queue, or should it include pending Reliable bytes?</li>
+<li>Should <code>SendResult</code> expose a human-readable diagnostic string, or keep that responsibility in logs and <code>ErrorContext</code>? </li>
+</ol>
+</div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

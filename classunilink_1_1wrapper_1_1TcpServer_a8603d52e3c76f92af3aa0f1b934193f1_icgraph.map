@@ -1,0 +1,5 @@
+<map id="unilink::wrapper::TcpServer::try_broadcast" name="unilink::wrapper::TcpServer::try_broadcast">
+<area shape="rect" id="Node000001" title="Non&#45;blocking broadcast that always drops on full queues, ignoring strategy." alt="" coords="252,5,451,45"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1wrapper_1_1TcpServer.html#a5a9b543eb1c1e2d18ffd742f81842982" title="Non&#45;blocking broadcast_line that always drops on a full queue, ignoring strategy." alt="" coords="5,5,204,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="238,28,204,28,204,23,238,23"/>
+</map>

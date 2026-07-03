@@ -1,0 +1,346 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: Unilink Quick Start Guide</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('user_quickstart.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div><div class="header">
+  <div class="headertitle"><div class="title">Unilink Quick Start Guide</div></div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><p>Get started with unilink in 5 minutes!</p>
+<h1><a class="anchor" id="autotoc_md664"></a>
+Installation</h1>
+<p>For most users, install the packaged library through vcpkg:</p>
+<div class="fragment"><div class="line">vcpkg install jwsung91-unilink</div>
+</div><!-- fragment --><p>Then consume the CMake package from your application:</p>
+<div class="fragment"><div class="line">find_package(unilink CONFIG REQUIRED)</div>
+<div class="line">target_link_libraries(my_client PRIVATE unilink::unilink)</div>
+</div><!-- fragment --><p>For source builds and dependency setup, see Installation.</p>
+<hr  />
+<h1><a class="anchor" id="autotoc_md666"></a>
+Your First TCP Client</h1>
+<div class="fragment"><div class="line"><span class="preprocessor">#include &lt;chrono&gt;</span></div>
+<div class="line"><span class="preprocessor">#include &lt;iostream&gt;</span></div>
+<div class="line"><span class="preprocessor">#include &lt;thread&gt;</span></div>
+<div class="line"><span class="preprocessor">#include &lt;unilink/unilink.hpp&gt;</span></div>
+<div class="line"> </div>
+<div class="line"><span class="keywordtype">int</span> main() {</div>
+<div class="line">    <span class="comment">// Create a TCP client - it&#39;s that simple!</span></div>
+<div class="line">    <span class="keyword">auto</span> client = unilink::tcp_client(<span class="stringliteral">&quot;127.0.0.1&quot;</span>, 8080)</div>
+<div class="line">        .<a class="code hl_function" href="classunilink_1_1builder_1_1BuilderInterface.html#ad8d6c30285a36b3a466a37d06f7460dd">on_connect</a>([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ConnectionContext.html">unilink::ConnectionContext</a>&amp; ctx) {</div>
+<div class="line">            std::cout &lt;&lt; <span class="stringliteral">&quot;Connected!&quot;</span> &lt;&lt; std::endl;</div>
+<div class="line">        })</div>
+<div class="line">        .on_data([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::MessageContext</a>&amp; ctx) {</div>
+<div class="line">            std::cout &lt;&lt; <span class="stringliteral">&quot;Received: &quot;</span> &lt;&lt; ctx.<a class="code hl_function" href="classunilink_1_1wrapper_1_1MessageContext.html#a49d3f7b0aeac37cb41885b5fc2fa6423">data</a>() &lt;&lt; std::endl;</div>
+<div class="line">        })</div>
+<div class="line">        .on_error([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ErrorContext.html">unilink::ErrorContext</a>&amp; ctx) {</div>
+<div class="line">            std::cerr &lt;&lt; <span class="stringliteral">&quot;Error: &quot;</span> &lt;&lt; ctx.<a class="code hl_function" href="classunilink_1_1wrapper_1_1ErrorContext.html#a9f7fc6c812b11ff1d77aa71233a3221c">message</a>() &lt;&lt; std::endl;</div>
+<div class="line">        })</div>
+<div class="line">        .build();</div>
+<div class="line"> </div>
+<div class="line">    <span class="keywordtype">bool</span> started = client-&gt;start_sync();</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Send a message</span></div>
+<div class="line">    std::this_thread::sleep_for(std::chrono::seconds(1));</div>
+<div class="line">    <span class="keywordflow">if</span> (started &amp;&amp; client-&gt;connected()) {</div>
+<div class="line">        client-&gt;send(<span class="stringliteral">&quot;Hello, Server!&quot;</span>);</div>
+<div class="line">    }</div>
+<div class="line"> </div>
+<div class="line">    <span class="comment">// Keep running</span></div>
+<div class="line">    std::this_thread::sleep_for(std::chrono::seconds(5));</div>
+<div class="line">    client-&gt;stop();</div>
+<div class="line">    <span class="keywordflow">return</span> 0;</div>
+<div class="line">}</div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1BuilderInterface_html_ad8d6c30285a36b3a466a37d06f7460dd"><div class="ttname"><a href="classunilink_1_1builder_1_1BuilderInterface.html#ad8d6c30285a36b3a466a37d06f7460dd">unilink::builder::BuilderInterface::on_connect</a></div><div class="ttdeci">Derived &amp; on_connect(F &amp;&amp;handler)</div><div class="ttdoc">Set connection handler callback.</div><div class="ttdef"><b>Definition</b> <a href="ibuilder_8hpp_source.html#l00114">ibuilder.hpp:114</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ConnectionContext_html"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ConnectionContext.html">unilink::wrapper::ConnectionContext</a></div><div class="ttdoc">Context for connection/disconnection events.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00075">context.hpp:75</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ErrorContext_html"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ErrorContext.html">unilink::wrapper::ErrorContext</a></div><div class="ttdoc">Context for error events.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00094">context.hpp:94</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ErrorContext_html_a9f7fc6c812b11ff1d77aa71233a3221c"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ErrorContext.html#a9f7fc6c812b11ff1d77aa71233a3221c">unilink::wrapper::ErrorContext::message</a></div><div class="ttdeci">std::string_view message() const</div><div class="ttdoc">Get the error message.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00103">context.hpp:103</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1MessageContext_html"><div class="ttname"><a href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::wrapper::MessageContext</a></div><div class="ttdoc">Context for data/message related events.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00035">context.hpp:35</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1MessageContext_html_a49d3f7b0aeac37cb41885b5fc2fa6423"><div class="ttname"><a href="classunilink_1_1wrapper_1_1MessageContext.html#a49d3f7b0aeac37cb41885b5fc2fa6423">unilink::wrapper::MessageContext::data</a></div><div class="ttdeci">std::string_view data() const</div><div class="ttdoc">Get the received data as a view.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00049">context.hpp:49</a></div></div>
+</div><!-- fragment --><p><b>Compile with CMake (recommended):</b></p>
+<p>Create <code>CMakeLists.txt</code> next to <code>my_client.cc</code>:</p>
+<div class="fragment"><div class="line">cmake_minimum_required(VERSION 3.12)</div>
+<div class="line">project(my_client_app LANGUAGES CXX)</div>
+<div class="line"> </div>
+<div class="line">find_package(unilink CONFIG REQUIRED)</div>
+<div class="line"> </div>
+<div class="line">add_executable(my_client my_client.cc)</div>
+<div class="line">target_link_libraries(my_client PRIVATE unilink::unilink)</div>
+<div class="line">target_compile_features(my_client PRIVATE cxx_std_20)</div>
+</div><!-- fragment --><p>Then build and run:</p>
+<div class="fragment"><div class="line">cmake -S . -B build</div>
+<div class="line">cmake --build build</div>
+<div class="line">./build/my_client</div>
+</div><!-- fragment --><p><b>Direct compiler invocation:</b></p>
+<p>Direct compiler invocation is shown only for minimal manual experiments. For normal projects, prefer CMake so transitive include paths, library paths, and platform-specific flags are handled correctly.</p>
+<div class="fragment"><div class="line">g++ -std=c++20 my_client.cc -lunilink -lboost_system -pthread -o my_client</div>
+<div class="line">./my_client</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md668"></a>
+Your First TCP Server</h1>
+<p>The TCP client above expects a server to be listening on <code>127.0.0.1:8080</code>. For a runnable server companion, see TCP Server.</p>
+<hr  />
+<h1><a class="anchor" id="autotoc_md670"></a>
+Transport Tutorials</h1>
+<p>After the first TCP client, use the transport-specific tutorials for complete examples:</p>
+<ul>
+<li>TCP Server</li>
+<li>UDS Communication</li>
+<li>Serial Communication</li>
+<li>UDP Communication</li>
+</ul>
+<hr  />
+<h1><a class="anchor" id="autotoc_md672"></a>
+Common Patterns</h1>
+<p>Callbacks are optional for construction. In production code, register <code>.on_error(...)</code> so failures are visible, and register a data or message callback for receive-oriented workflows.</p>
+<h2><a class="anchor" id="autotoc_md673"></a>
+Pattern 1: Auto-Reconnection</h2>
+<div class="fragment"><div class="line"><span class="preprocessor">#include &lt;chrono&gt;</span></div>
+<div class="line"><span class="preprocessor">#include &lt;iostream&gt;</span></div>
+<div class="line"><span class="keyword">using namespace </span>std::chrono_literals;</div>
+<div class="line"> </div>
+<div class="line"><span class="keyword">auto</span> client = unilink::tcp_client(<span class="stringliteral">&quot;server.com&quot;</span>, 8080)</div>
+<div class="line">    .retry_interval(3000ms)  <span class="comment">// Retry every 3 seconds (override; default is 1000ms)</span></div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1BuilderInterface.html#aa3078b3010a37b52fb7068bb8cdaa62b">on_error</a>([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ErrorContext.html">unilink::ErrorContext</a>&amp; ctx) {</div>
+<div class="line">        std::cerr &lt;&lt; <span class="stringliteral">&quot;Error: &quot;</span> &lt;&lt; ctx.<a class="code hl_function" href="classunilink_1_1wrapper_1_1ErrorContext.html#a9f7fc6c812b11ff1d77aa71233a3221c">message</a>() &lt;&lt; std::endl;</div>
+<div class="line">    })</div>
+<div class="line">    .build();</div>
+<div class="line"> </div>
+<div class="line">client-&gt;start();  <span class="comment">// Will automatically reconnect on disconnect</span></div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1BuilderInterface_html_aa3078b3010a37b52fb7068bb8cdaa62b"><div class="ttname"><a href="classunilink_1_1builder_1_1BuilderInterface.html#aa3078b3010a37b52fb7068bb8cdaa62b">unilink::builder::BuilderInterface::on_error</a></div><div class="ttdeci">auto on_error(F &amp;&amp;handler)</div><div class="ttdoc">Set error handler callback.</div><div class="ttdef"><b>Definition</b> <a href="ibuilder_8hpp_source.html#l00148">ibuilder.hpp:148</a></div></div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md674"></a>
+Pattern 2: Error Handling</h2>
+<div class="fragment"><div class="line"><span class="keyword">auto</span> server = unilink::tcp_server(8080)</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1BuilderInterface.html#aa3078b3010a37b52fb7068bb8cdaa62b">on_error</a>([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ErrorContext.html">unilink::ErrorContext</a>&amp; ctx) {</div>
+<div class="line">        std::cerr &lt;&lt; <span class="stringliteral">&quot;Error: &quot;</span> &lt;&lt; ctx.<a class="code hl_function" href="classunilink_1_1wrapper_1_1ErrorContext.html#a9f7fc6c812b11ff1d77aa71233a3221c">message</a>() &lt;&lt; std::endl;</div>
+<div class="line">    })</div>
+<div class="line">    .port_retry(<span class="keyword">true</span>, 5, 1000)  <span class="comment">// 5 retries, 1 sec interval</span></div>
+<div class="line">    .build();</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md675"></a>
+Pattern 3: Connection Limits (optional)</h2>
+<div class="fragment"><div class="line"><span class="comment">// Set an explicit client limit</span></div>
+<div class="line"><span class="keyword">auto</span> server = unilink::tcp_server(8080)</div>
+<div class="line">    .max_clients(8)  <span class="comment">// allow up to 8 clients</span></div>
+<div class="line">    .build();</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Default unlimited client limit</span></div>
+<div class="line"><span class="keyword">auto</span> server = unilink::tcp_server(8080)</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpServerBuilder.html#a0c0029f7ca4b8ae9bf08f467a1b2348c">build</a>();</div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1TcpServerBuilder_html_a0c0029f7ca4b8ae9bf08f467a1b2348c"><div class="ttname"><a href="classunilink_1_1builder_1_1TcpServerBuilder.html#a0c0029f7ca4b8ae9bf08f467a1b2348c">unilink::builder::TcpServerBuilder::build</a></div><div class="ttdeci">std::unique_ptr&lt; wrapper::TcpServer &gt; build() override</div><div class="ttdoc">Build and return the configured product.</div><div class="ttdef"><b>Definition</b> <a href="tcp__server__builder_8cc_source.html#l00051">tcp_server_builder.cc:51</a></div></div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md677"></a>
+Next Steps</h1>
+<ol type="1">
+<li><b>Read the API Guide</b>: API Guide</li>
+<li><b>Check Examples</b>: <a href="https://github.com/unilink-lab/unilink-examples">https://github.com/unilink-lab/unilink-examples</a></li>
+<li><b>View API Reference Locally</b>: run <code>./scripts/generate_docs.sh</code> in <code>unilink-docs</code>, then open <code>build/doxygen/html/index.html</code></li>
+</ol>
+<hr  />
+<h1><a class="anchor" id="autotoc_md679"></a>
+Troubleshooting</h1>
+<h2><a class="anchor" id="autotoc_md680"></a>
+Can't connect to server?</h2>
+<div class="fragment"><div class="line"><span class="comment">// Enable logging to see what&#39;s happening</span></div>
+<div class="line"><a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a2e114f7695d5aac3b9a993be97c501c9">unilink::diagnostics::Logger::instance</a>().<a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a7e8ec37c982ad0a16b56ad33ae62932b">set_level</a>(unilink::diagnostics::LogLevel::DEBUG);</div>
+<div class="line"><a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a2e114f7695d5aac3b9a993be97c501c9">unilink::diagnostics::Logger::instance</a>().<a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a2f634f2d64d5be96bd683f3c527a6416">set_console_output</a>(<span class="keyword">true</span>);</div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1Logger_html_a2e114f7695d5aac3b9a993be97c501c9"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1Logger.html#a2e114f7695d5aac3b9a993be97c501c9">unilink::diagnostics::Logger::instance</a></div><div class="ttdeci">static Logger &amp; instance()</div><div class="ttdoc">Get singleton instance.</div><div class="ttdef"><b>Definition</b> <a href="logger_8cc_source.html#l00437">logger.cc:437</a></div></div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1Logger_html_a2f634f2d64d5be96bd683f3c527a6416"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1Logger.html#a2f634f2d64d5be96bd683f3c527a6416">unilink::diagnostics::Logger::set_console_output</a></div><div class="ttdeci">void set_console_output(bool enable)</div><div class="ttdoc">Enable/disable console output.</div><div class="ttdef"><b>Definition</b> <a href="logger_8cc_source.html#l00459">logger.cc:459</a></div></div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1Logger_html_a7e8ec37c982ad0a16b56ad33ae62932b"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1Logger.html#a7e8ec37c982ad0a16b56ad33ae62932b">unilink::diagnostics::Logger::set_level</a></div><div class="ttdeci">void set_level(LogLevel level)</div><div class="ttdoc">Set minimum log level.</div><div class="ttdef"><b>Definition</b> <a href="logger_8cc_source.html#l00444">logger.cc:444</a></div></div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md681"></a>
+Port already in use?</h2>
+<div class="fragment"><div class="line"><span class="keyword">auto</span> server = unilink::tcp_server(8080)</div>
+<div class="line">    .port_retry(<span class="keyword">true</span>, 5, 1000)  <span class="comment">// Try 5 times</span></div>
+<div class="line">    .build();</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md682"></a>
+Need independent IO thread?</h2>
+<div class="fragment"><div class="line"><span class="comment">// For testing or isolation</span></div>
+<div class="line"><span class="keyword">auto</span> client = unilink::tcp_client(<span class="stringliteral">&quot;127.0.0.1&quot;</span>, 8080)</div>
+<div class="line">    .independent_context(<span class="keyword">true</span>)</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1TcpClientBuilder_html_a3209a5f18973c46d60299428afcc4e62"><div class="ttname"><a href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">unilink::builder::TcpClientBuilder::build</a></div><div class="ttdeci">std::unique_ptr&lt; wrapper::TcpClient &gt; build() override</div><div class="ttdoc">Build and return the configured product.</div><div class="ttdef"><b>Definition</b> <a href="tcp__client__builder_8cc_source.html#l00051">tcp_client_builder.cc:51</a></div></div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md684"></a>
+Support</h1>
+<ul>
+<li><b>GitHub Issues</b>: <a href="https://github.com/jwsung91/unilink/issues">https://github.com/jwsung91/unilink/issues</a></li>
+<li><b>Documentation</b>: <code>docs/</code> directory</li>
+<li><b>Examples</b>: <a href="https://github.com/unilink-lab/unilink-examples">https://github.com/unilink-lab/unilink-examples</a></li>
+</ul>
+<p>Happy coding! 🚀 </p>
+</div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

@@ -1,0 +1,9 @@
+<map id="unilink::wrapper::ServerInterface" name="unilink::wrapper::ServerInterface">
+<area shape="rect" id="Node000001" title="Interface for 1:N server communication (e.g., TcpServer)" alt="" coords="233,5,403,285"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1wrapper_1_1TcpServer.html" title="Modernized TCP Server Wrapper." alt="" coords="5,373,196,639"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="229,298,183,374,178,371,224,296"/>
+<area shape="rect" id="Node000003" href="$classunilink_1_1wrapper_1_1UdpServer.html" title="UDP implementation of ServerInterface using virtual sessions." alt="" coords="221,373,415,639"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="321,299,321,373,315,373,315,299"/>
+<area shape="rect" id="Node000004" href="$classunilink_1_1wrapper_1_1UdsServer.html" title="Modernized UDS Server Wrapper." alt="" coords="439,333,634,679"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="412,296,441,344,437,346,408,298"/>
+</map>

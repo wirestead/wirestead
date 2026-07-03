@@ -1,0 +1,3 @@
+<map id="unilink::wrapper::ServerInterface" name="unilink::wrapper::ServerInterface">
+<area shape="rect" id="Node000001" title="Interface for 1:N server communication (e.g., TcpServer)" alt="" coords="5,5,175,285"/>
+</map>

@@ -1,0 +1,481 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: Transport Feature Matrix</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('user_transport_matrix.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div><div class="header">
+  <div class="headertitle"><div class="title">Transport Feature Matrix</div></div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><p>This document summarizes which user-facing features are available across unilink transport wrappers.</p>
+<p>The matrix focuses on public wrapper and builder behavior. Internal transport implementation details may differ.</p>
+<p>Legend:</p>
+<ul>
+<li>✅ supported</li>
+<li>⚠️ supported with transport-specific caveats</li>
+<li>— not applicable or not supported</li>
+<li>🧪 design-only or future candidate</li>
+</ul>
+<h1><a class="anchor" id="autotoc_md720"></a>
+Overview</h1>
+<p><code>unilink</code> provides a unified builder/wrapper surface across TCP, UDP, Serial, and UDS. The goal is consistent control flow, not identical protocol behavior.</p>
+<p>Some differences are expected:</p>
+<ul>
+<li>TCP and UDS are stream transports.</li>
+<li>UDP is datagram-based and connectionless.</li>
+<li>Serial is device-oriented.</li>
+<li>Server wrappers expose multi-client APIs such as <code>send_to(...)</code> and <code>broadcast(...)</code>.</li>
+<li>Client wrappers expose peer-oriented APIs such as <code>send(...)</code> and <code>connected()</code>.</li>
+</ul>
+<p><code>send(...)</code> and <code>try_send(...)</code> report local send-path acceptance. They do not guarantee remote delivery or remote application processing.</p>
+<h1><a class="anchor" id="autotoc_md721"></a>
+Transport Families</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Wrapper   </th><th class="markdownTableHeadNone">Transport type   </th><th class="markdownTableHeadNone">Role   </th><th class="markdownTableHeadNone">Notes    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>TcpClient</code>   </td><td class="markdownTableBodyNone">TCP stream   </td><td class="markdownTableBodyNone">Client   </td><td class="markdownTableBodyNone">Connects to one remote endpoint    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>TcpServer</code>   </td><td class="markdownTableBodyNone">TCP stream   </td><td class="markdownTableBodyNone">Server   </td><td class="markdownTableBodyNone">Accepts multiple sessions    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>UdpClient</code>   </td><td class="markdownTableBodyNone">UDP datagram   </td><td class="markdownTableBodyNone">Client-like   </td><td class="markdownTableBodyNone">Sends to a configured remote endpoint    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>UdpServer</code>   </td><td class="markdownTableBodyNone">UDP datagram   </td><td class="markdownTableBodyNone">Server-like   </td><td class="markdownTableBodyNone">Binds a local port and tracks remote endpoints as virtual clients    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>Serial</code>   </td><td class="markdownTableBodyNone">Serial device   </td><td class="markdownTableBodyNone">Client-like   </td><td class="markdownTableBodyNone">Opens a serial device path    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>UdsClient</code>   </td><td class="markdownTableBodyNone">UDS stream   </td><td class="markdownTableBodyNone">Client   </td><td class="markdownTableBodyNone">Local IPC client    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>UdsServer</code>   </td><td class="markdownTableBodyNone">UDS stream   </td><td class="markdownTableBodyNone">Server   </td><td class="markdownTableBodyNone">Local IPC server   </td></tr>
+</table>
+<p>For <code>TcpServer</code> and <code>UdsServer</code>, <code>client_id</code> identifies a stream session. For <code>UdpServer</code>, <code>client_id</code> identifies an observed remote endpoint, not a persistent connection.</p>
+<h1><a class="anchor" id="autotoc_md722"></a>
+Lifecycle Support</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Feature   </th><th class="markdownTableHeadRight">TcpClient   </th><th class="markdownTableHeadRight">TcpServer   </th><th class="markdownTableHeadRight">UdpClient   </th><th class="markdownTableHeadRight">UdpServer   </th><th class="markdownTableHeadRight">Serial   </th><th class="markdownTableHeadRight">UdsClient   </th><th class="markdownTableHeadRight">UdsServer    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">Builder facade   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>.build()</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>start()</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>start_sync()</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>stop()</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>auto_start(true)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>independent_context(true)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>connected()</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>listening()</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td></tr>
+</table>
+<p><code>UdpClient::connected()</code> means the wrapper has an active UDP channel with a configured remote endpoint. UDP itself remains connectionless.</p>
+<h1><a class="anchor" id="autotoc_md723"></a>
+Send API Support</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Feature   </th><th class="markdownTableHeadRight">TcpClient   </th><th class="markdownTableHeadRight">TcpServer   </th><th class="markdownTableHeadRight">UdpClient   </th><th class="markdownTableHeadRight">UdpServer   </th><th class="markdownTableHeadRight">Serial   </th><th class="markdownTableHeadRight">UdsClient   </th><th class="markdownTableHeadRight">UdsServer    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>send(data)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>try_send(data)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>send_blocking(data)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>send_line(text)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>try_send_line(text)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>send_move(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>try_send_move(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>send_shared(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>try_send_shared(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>send_to(client_id, data)</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>try_send_to(client_id, data)</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>send_to_blocking(client_id, data)</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>broadcast(data)</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>try_broadcast(data)</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>send_to_line(client_id, text)</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>broadcast_line(text)</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>send_to_move(...)</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>send_to_shared(...)</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>broadcast_shared(...)</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td></tr>
+</table>
+<p>UDP line helpers append <code>"\n"</code> to a datagram payload. They do not add stream-style message recovery because UDP already preserves datagram boundaries.</p>
+<p>In <code>Reliable</code> mode, <code>send(...)</code> may block under backpressure. Use <code>try_send(...)</code> for non-blocking producer loops.</p>
+<p>In <code>BestEffort</code> mode, a successful send may still coincide with older queued payloads being dropped.</p>
+<h1><a class="anchor" id="autotoc_md724"></a>
+Server API Support</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Feature   </th><th class="markdownTableHeadRight">TcpServer   </th><th class="markdownTableHeadRight">UdpServer   </th><th class="markdownTableHeadRight">UdsServer    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>send_to(client_id, data)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>try_send_to(client_id, data)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>send_to_blocking(client_id, data)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>broadcast(data)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>try_broadcast(data)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>client_count()</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>connected_clients()</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>listening()</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>max_clients(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>idle_timeout(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">✅   </td></tr>
+</table>
+<p>For <code>UdpServer</code>, client identifiers represent remote endpoints observed by the server rather than persistent stream connections. Endpoint entries may be affected by datagram traffic and timeout policy.</p>
+<h1><a class="anchor" id="autotoc_md725"></a>
+Backpressure Support</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Feature   </th><th class="markdownTableHeadRight">TcpClient   </th><th class="markdownTableHeadRight">TcpServer   </th><th class="markdownTableHeadRight">UdpClient   </th><th class="markdownTableHeadRight">UdpServer   </th><th class="markdownTableHeadRight">Serial   </th><th class="markdownTableHeadRight">UdsClient   </th><th class="markdownTableHeadRight">UdsServer    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>backpressure_strategy(Reliable)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>backpressure_strategy(BestEffort)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>backpressure_threshold(bytes)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>on_backpressure(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">Sender-side queue pressure   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">Receiver-side flow control   </td><td class="markdownTableBodyRight">TCP-level   </td><td class="markdownTableBodyRight">TCP-level   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">device/driver-dependent   </td><td class="markdownTableBodyRight">UDS stream-level   </td><td class="markdownTableBodyRight">UDS stream-level    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">BestEffort drop accounting   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td></tr>
+</table>
+<p>Backpressure is a local sender-side queue management mechanism. It does not guarantee that the remote peer has processed the payload.</p>
+<p>For UDP, backpressure applies only to the local sender-side queue. UDP has no receiver-side flow control.</p>
+<h1><a class="anchor" id="autotoc_md726"></a>
+Runtime Statistics Support</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Statistic   </th><th class="markdownTableHeadNone">Meaning    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>messages_accepted</code>   </td><td class="markdownTableBodyNone">Payloads accepted into the local send path    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>bytes_accepted</code>   </td><td class="markdownTableBodyNone">Bytes accepted into the local send path    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>messages_sent</code>   </td><td class="markdownTableBodyNone">Payloads completed by transport write success    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>bytes_sent</code>   </td><td class="markdownTableBodyNone">Bytes completed by transport write success    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>messages_received</code>   </td><td class="markdownTableBodyNone">Incoming payloads observed by wrapper/transport    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>bytes_received</code>   </td><td class="markdownTableBodyNone">Incoming bytes observed by wrapper/transport    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>failed_sends</code>   </td><td class="markdownTableBodyNone">Send attempts rejected before local acceptance    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>dropped_messages</code>   </td><td class="markdownTableBodyNone">Previously accepted queued payloads dropped by BestEffort    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>dropped_bytes</code>   </td><td class="markdownTableBodyNone">Bytes dropped from previously accepted queued payloads    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>queued_bytes</code>   </td><td class="markdownTableBodyNone">Current outgoing queue size    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>pending_bytes</code>   </td><td class="markdownTableBodyNone">Current pending queue size, where applicable    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>max_queued_bytes</code>   </td><td class="markdownTableBodyNone">Highest queued byte count since reset    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>backpressure_events</code>   </td><td class="markdownTableBodyNone">Backpressure high/low watermark transitions   </td></tr>
+</table>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Feature   </th><th class="markdownTableHeadRight">TcpClient   </th><th class="markdownTableHeadRight">TcpServer   </th><th class="markdownTableHeadRight">UdpClient   </th><th class="markdownTableHeadRight">UdpServer   </th><th class="markdownTableHeadRight">Serial   </th><th class="markdownTableHeadRight">UdsClient   </th><th class="markdownTableHeadRight">UdsServer    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>stats()</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>reset_stats()</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">Accepted counters   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">Sent counters   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">Received counters   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">Failed send counters   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">BestEffort drop counters   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">Queue gauges   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td></tr>
+</table>
+<p><code>failed_sends</code> and dropped counters describe different events. <code>failed_sends</code> means the new payload was rejected before local acceptance. <code>dropped_messages</code> and <code>dropped_bytes</code> mean previously accepted queued payloads were discarded by BestEffort.</p>
+<h1><a class="anchor" id="autotoc_md727"></a>
+Framing Support</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Feature   </th><th class="markdownTableHeadRight">TcpClient   </th><th class="markdownTableHeadRight">TcpServer   </th><th class="markdownTableHeadRight">UdpClient   </th><th class="markdownTableHeadRight">UdpServer   </th><th class="markdownTableHeadRight">Serial   </th><th class="markdownTableHeadRight">UdsClient   </th><th class="markdownTableHeadRight">UdsServer    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>use_line_framer(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>use_packet_framer(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>on_message(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>on_message_batch(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">⚠️   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td></tr>
+</table>
+<p>UDP already preserves datagram boundaries. Framers may still be useful when the datagram payload itself contains multiple logical messages, but they are not needed to recover stream boundaries.</p>
+<h1><a class="anchor" id="autotoc_md728"></a>
+Reconnect / Retry Support</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Feature   </th><th class="markdownTableHeadRight">TcpClient   </th><th class="markdownTableHeadRight">TcpServer   </th><th class="markdownTableHeadRight">UdpClient   </th><th class="markdownTableHeadRight">UdpServer   </th><th class="markdownTableHeadRight">Serial   </th><th class="markdownTableHeadRight">UdsClient   </th><th class="markdownTableHeadRight">UdsServer    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>retry_interval(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>max_retries(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>connection_timeout(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">Port retry   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>reopen_on_error(...)</code>   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>idle_timeout(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">✅    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>idle_timeout_action(...)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td></tr>
+</table>
+<p>TCP and UDS client retry settings apply to connect/reconnect behavior. TCP server port retry applies to bind/listen startup. Serial <code>reopen_on_error(...)</code> is a builder option for device reopen behavior.</p>
+<h1><a class="anchor" id="autotoc_md729"></a>
+Socket Tuning Support</h1>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">Feature   </th><th class="markdownTableHeadRight">TcpClient   </th><th class="markdownTableHeadRight">TcpServer   </th><th class="markdownTableHeadRight">UdpClient   </th><th class="markdownTableHeadRight">UdpServer   </th><th class="markdownTableHeadRight">Serial   </th><th class="markdownTableHeadRight">UdsClient   </th><th class="markdownTableHeadRight">UdsServer    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>tcp_no_delay(true)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>keep_alive(true)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>send_buffer_size(bytes)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>receive_buffer_size(bytes)</code>   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">✅   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td><td class="markdownTableBodyRight">—   </td></tr>
+</table>
+<p>Socket tuning options request OS socket settings. The operating system may clamp or ignore requested values depending on platform limits.</p>
+<p>Configure socket tuning options before <code>build()</code> / <code>start()</code>. TCP server tuning is applied to accepted client session sockets.</p>
+<h1><a class="anchor" id="autotoc_md730"></a>
+Platform Notes</h1>
+<ul>
+<li>UDS is intended for local IPC. Platform support and path length limits vary by operating system.</li>
+<li>Serial support depends on OS device naming, permissions, and driver behavior.</li>
+<li>UDP server clients are endpoint abstractions, not persistent stream connections.</li>
+<li>TCP and UDS stream flow control is provided by the OS/protocol stack. It is not an application-level delivery acknowledgement.</li>
+</ul>
+<h1><a class="anchor" id="autotoc_md731"></a>
+Planned / Design-Only APIs</h1>
+<p>The following APIs are design-stage or future candidates and are not part of the current public wrapper API:</p>
+<table class="markdownTable">
+<tr class="markdownTableHead">
+<th class="markdownTableHeadNone">API   </th><th class="markdownTableHeadNone">Status   </th><th class="markdownTableHeadNone">Notes    </th></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>SendResult</code>   </td><td class="markdownTableBodyNone">🧪 design-only   </td><td class="markdownTableBodyNone">See SendResult API Design    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>send_ex(...)</code> / <code>try_send_ex(...)</code>   </td><td class="markdownTableBodyNone">🧪 design-only   </td><td class="markdownTableBodyNone">Intended to explain per-call send outcomes    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone"><code>send_to_move(...)</code> / <code>send_to_shared(...)</code>   </td><td class="markdownTableBodyNone">🧪 future candidate   </td><td class="markdownTableBodyNone">Server single-target move/shared result and ownership semantics need separate design    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone"><code>broadcast_shared(...)</code>   </td><td class="markdownTableBodyNone">🧪 future candidate   </td><td class="markdownTableBodyNone">Broadcast result aggregation semantics are still open    </td></tr>
+<tr class="markdownTableRowOdd">
+<td class="markdownTableBodyNone">Zero-copy receive callback   </td><td class="markdownTableBodyNone">🧪 future candidate   </td><td class="markdownTableBodyNone">Advanced receive-side ownership API    </td></tr>
+<tr class="markdownTableRowEven">
+<td class="markdownTableBodyNone">Multi-thread runtime manager   </td><td class="markdownTableBodyNone">🧪 future candidate   </td><td class="markdownTableBodyNone">Future scaling API candidate   </td></tr>
+</table>
+</div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

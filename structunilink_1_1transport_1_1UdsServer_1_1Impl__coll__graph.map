@@ -1,0 +1,11 @@
+<map id="unilink::transport::UdsServer::Impl" name="unilink::transport::UdsServer::Impl">
+<area shape="rect" id="Node000001" title=" " alt="" coords="235,305,361,385"/>
+<area shape="rect" id="Node000002" href="$structunilink_1_1config_1_1UdsServerConfig.html" title="Configuration for UDS Server." alt="" coords="5,155,185,235"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="150,233,233,293,230,298,147,238"/>
+<area shape="rect" id="Node000003" href="$classunilink_1_1concurrency_1_1ThreadSafeState.html" title=" " alt="" coords="210,148,386,243"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="301,243,301,289,295,289,295,243"/>
+<area shape="rect" id="Node000004" href="$classunilink_1_1concurrency_1_1ThreadSafeState.html" title="Thread&#45;safe state management class." alt="" coords="186,5,410,85"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="301,99,301,148,295,148,295,99"/>
+<area shape="rect" id="Node000005" href="$structunilink_1_1diagnostics_1_1RuntimeStatsCounters.html" title=" " alt="" coords="410,155,578,235"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="444,238,364,298,361,294,441,233"/>
+</map>

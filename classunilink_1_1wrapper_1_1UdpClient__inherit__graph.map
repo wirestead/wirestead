@@ -1,0 +1,5 @@
+<map id="unilink::wrapper::UdpClient" name="unilink::wrapper::UdpClient">
+<area shape="rect" id="Node000001" title="Modernized UDP Wrapper." alt="" coords="5,333,196,599"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1wrapper_1_1ChannelInterface.html" title="Common interface for 1:1 point&#45;to&#45;point communication (e.g., TcpClient, Serial, Udp)" alt="" coords="11,5,191,285"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="103,299,103,333,98,333,98,299"/>
+</map>

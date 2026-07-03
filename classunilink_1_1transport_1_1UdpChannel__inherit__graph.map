@@ -1,0 +1,7 @@
+<map id="unilink::transport::UdpChannel" name="unilink::transport::UdpChannel">
+<area shape="rect" id="Node000001" title="UDP Transport implementation with 1:N support." alt="" coords="91,133,225,233"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1interface_1_1Channel.html" title=" " alt="" coords="5,5,129,85"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="103,95,127,132,123,135,99,98"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="154,5,346,85"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="218,98,193,135,189,132,214,95"/>
+</map>

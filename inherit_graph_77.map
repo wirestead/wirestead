@@ -1,0 +1,11 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classunilink_1_1wrapper_1_1ChannelInterface.html" title="Common interface for 1:1 point&#45;to&#45;point communication (e.g., TcpClient, Serial, Udp)" alt="" coords="5,73,193,113"/>
+<area shape="rect" id="Node000001" href="$classunilink_1_1wrapper_1_1Serial.html" title="Modernized Serial Wrapper." alt="" coords="255,5,427,31"/>
+<area shape="poly" id="edge39_Node000000_Node000001" title=" " alt="" coords="164,65,241,39,282,28,284,33,242,45,166,70"/>
+<area shape="rect" id="Node000002" href="$classunilink_1_1wrapper_1_1TcpClient.html" title="Modernized TCP Client Wrapper." alt="" coords="243,55,438,80"/>
+<area shape="poly" id="edge40_Node000000_Node000002" title=" " alt="" coords="207,79,243,75,243,80,207,84"/>
+<area shape="rect" id="Node000003" href="$classunilink_1_1wrapper_1_1UdpClient.html" title="Modernized UDP Wrapper." alt="" coords="241,104,440,129"/>
+<area shape="poly" id="edge41_Node000000_Node000003" title=" " alt="" coords="208,101,241,104,241,109,207,106"/>
+<area shape="rect" id="Node000004" href="$classunilink_1_1wrapper_1_1UdsClient.html" title="Modernized UDS Client Wrapper." alt="" coords="241,153,440,179"/>
+<area shape="poly" id="edge42_Node000000_Node000004" title=" " alt="" coords="170,115,242,138,288,151,287,156,241,143,168,120"/>
+</map>

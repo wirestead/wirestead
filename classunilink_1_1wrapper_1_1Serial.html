@@ -1,0 +1,822 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: unilink::wrapper::Serial Class Reference</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('classunilink_1_1wrapper_1_1Serial.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="header">
+  <div class="summary">
+<a href="#nested-classes">Classes</a> &#124;
+<a href="#pub-methods">Public Member Functions</a> &#124;
+<a href="classunilink_1_1wrapper_1_1Serial-members.html">List of all members</a>  </div>
+  <div class="headertitle"><div class="title">unilink::wrapper::Serial Class Reference</div></div>
+</div><!--header-->
+<div class="contents">
+
+<p>Modernized <a class="el" href="classunilink_1_1wrapper_1_1Serial.html" title="Modernized Serial Wrapper.">Serial</a> Wrapper.  
+ <a href="classunilink_1_1wrapper_1_1Serial.html#details">More...</a></p>
+
+<p><code>#include &lt;<a class="el" href="wrapper_2serial_2serial_8hpp_source.html">unilink/wrapper/serial/serial.hpp</a>&gt;</code></p>
+<div id="dynsection-0" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-0-trigger" src="closed.png" alt="+"/> Inheritance diagram for unilink::wrapper::Serial:</div>
+<div id="dynsection-0-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-0-content" class="dyncontent" style="display:none;">
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="classunilink_1_1wrapper_1_1Serial__inherit__graph.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+</div>
+<div id="dynsection-1" onclick="return toggleVisibility(this)" class="dynheader closed" style="cursor:pointer;">
+  <img id="dynsection-1-trigger" src="closed.png" alt="+"/> Collaboration diagram for unilink::wrapper::Serial:</div>
+<div id="dynsection-1-summary" class="dynsummary" style="display:block;">
+</div>
+<div id="dynsection-1-content" class="dyncontent" style="display:none;">
+<div class="center"><div class="zoom"><iframe scrolling="no" frameborder="0" src="classunilink_1_1wrapper_1_1Serial__coll__graph.svg" width="100%" height="600"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div></div>
+</div>
+<table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="nested-classes" name="nested-classes"></a>
+Classes</h2></td></tr>
+<tr class="memitem:"><td class="memItemLeft" align="right" valign="top">struct &#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structunilink_1_1wrapper_1_1Serial_1_1Impl.html">Impl</a></td></tr>
+<tr class="separator:"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table><table class="memberdecls">
+<tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
+Public Member Functions</h2></td></tr>
+<tr class="memitem:a1d0c46c79487050268065fedda5fec4a" id="r_a1d0c46c79487050268065fedda5fec4a"><td class="memItemLeft" align="right" valign="top">std::future&lt; bool &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a1d0c46c79487050268065fedda5fec4a">start</a> () override</td></tr>
+<tr class="memdesc:a1d0c46c79487050268065fedda5fec4a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Start the channel asynchronously.  <br /></td></tr>
+<tr class="separator:a1d0c46c79487050268065fedda5fec4a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad65a699425f67b86cfc2e55ca3c455ca" id="r_ad65a699425f67b86cfc2e55ca3c455ca"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#ad65a699425f67b86cfc2e55ca3c455ca">stop</a> () override</td></tr>
+<tr class="memdesc:ad65a699425f67b86cfc2e55ca3c455ca"><td class="mdescLeft">&#160;</td><td class="mdescRight">Stop the channel and block until all pending async operations are cancelled.  <br /></td></tr>
+<tr class="separator:ad65a699425f67b86cfc2e55ca3c455ca"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6b120ec3e9e98e9c57c789607f1649bb" id="r_a6b120ec3e9e98e9c57c789607f1649bb"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a6b120ec3e9e98e9c57c789607f1649bb">send</a> (std::string_view data) override</td></tr>
+<tr class="memdesc:a6b120ec3e9e98e9c57c789607f1649bb"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue data for transmission, honouring the backpressure strategy.  <br /></td></tr>
+<tr class="separator:a6b120ec3e9e98e9c57c789607f1649bb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a492c829f734bbff5baf617b4a32806a1" id="r_a492c829f734bbff5baf617b4a32806a1"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a492c829f734bbff5baf617b4a32806a1">send_line</a> (std::string_view line) override</td></tr>
+<tr class="memdesc:a492c829f734bbff5baf617b4a32806a1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue a line (data + "\n") for transmission, honouring the backpressure strategy.  <br /></td></tr>
+<tr class="separator:a492c829f734bbff5baf617b4a32806a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a470a799440850ff5a9cf5b2c09747783" id="r_a470a799440850ff5a9cf5b2c09747783"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a470a799440850ff5a9cf5b2c09747783">send_blocking</a> (std::string_view data) override</td></tr>
+<tr class="memdesc:a470a799440850ff5a9cf5b2c09747783"><td class="mdescLeft">&#160;</td><td class="mdescRight">Block the calling thread until queue pressure is relieved, then enqueue.  <br /></td></tr>
+<tr class="separator:a470a799440850ff5a9cf5b2c09747783"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9c82bd5db4d04c95eb730705237a8cf6" id="r_a9c82bd5db4d04c95eb730705237a8cf6"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a9c82bd5db4d04c95eb730705237a8cf6">send_line_blocking</a> (std::string_view line) override</td></tr>
+<tr class="memdesc:a9c82bd5db4d04c95eb730705237a8cf6"><td class="mdescLeft">&#160;</td><td class="mdescRight">Blocking variant of <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a492c829f734bbff5baf617b4a32806a1" title="Enqueue a line (data + &quot;\n&quot;) for transmission, honouring the backpressure strategy.">send_line()</a>. Always blocks regardless of strategy.  <br /></td></tr>
+<tr class="separator:a9c82bd5db4d04c95eb730705237a8cf6"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2faf8cbc432c98939b50580fb5c970bf" id="r_a2faf8cbc432c98939b50580fb5c970bf"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a2faf8cbc432c98939b50580fb5c970bf">try_send</a> (std::string_view data) override</td></tr>
+<tr class="memdesc:a2faf8cbc432c98939b50580fb5c970bf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-blocking send that always drops on a full queue, ignoring strategy.  <br /></td></tr>
+<tr class="separator:a2faf8cbc432c98939b50580fb5c970bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af0f88a7d2ad73cb9d761b33052644200" id="r_af0f88a7d2ad73cb9d761b33052644200"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#af0f88a7d2ad73cb9d761b33052644200">try_send_line</a> (std::string_view line) override</td></tr>
+<tr class="memdesc:af0f88a7d2ad73cb9d761b33052644200"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-blocking send_line that always drops on a full queue, ignoring strategy.  <br /></td></tr>
+<tr class="separator:af0f88a7d2ad73cb9d761b33052644200"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a1f61ad7c584a55ece3b05bd703f3a5cf" id="r_a1f61ad7c584a55ece3b05bd703f3a5cf"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a1f61ad7c584a55ece3b05bd703f3a5cf">send_move</a> (std::vector&lt; uint8_t &gt; &amp;&amp;data) override</td></tr>
+<tr class="memdesc:a1f61ad7c584a55ece3b05bd703f3a5cf"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue a vector payload by transferring ownership, honouring the backpressure strategy.  <br /></td></tr>
+<tr class="separator:a1f61ad7c584a55ece3b05bd703f3a5cf"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a09fa75d3ffb4fd6764b4c48679300fda" id="r_a09fa75d3ffb4fd6764b4c48679300fda"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a09fa75d3ffb4fd6764b4c48679300fda">try_send_move</a> (std::vector&lt; uint8_t &gt; &amp;&amp;data) override</td></tr>
+<tr class="memdesc:a09fa75d3ffb4fd6764b4c48679300fda"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-blocking ownership-transfer send.  <br /></td></tr>
+<tr class="separator:a09fa75d3ffb4fd6764b4c48679300fda"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad6321b84e24a6f1a9a8e96b569b65789" id="r_ad6321b84e24a6f1a9a8e96b569b65789"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#ad6321b84e24a6f1a9a8e96b569b65789">send_shared</a> (std::shared_ptr&lt; const std::vector&lt; uint8_t &gt; &gt; data) override</td></tr>
+<tr class="memdesc:ad6321b84e24a6f1a9a8e96b569b65789"><td class="mdescLeft">&#160;</td><td class="mdescRight">Enqueue an immutable shared vector payload, honouring the backpressure strategy.  <br /></td></tr>
+<tr class="separator:ad6321b84e24a6f1a9a8e96b569b65789"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad5a7c664eeeb5ce407f6389dcd3857d4" id="r_ad5a7c664eeeb5ce407f6389dcd3857d4"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#ad5a7c664eeeb5ce407f6389dcd3857d4">try_send_shared</a> (std::shared_ptr&lt; const std::vector&lt; uint8_t &gt; &gt; data) override</td></tr>
+<tr class="memdesc:ad5a7c664eeeb5ce407f6389dcd3857d4"><td class="mdescLeft">&#160;</td><td class="mdescRight">Non-blocking shared-buffer send.  <br /></td></tr>
+<tr class="separator:ad5a7c664eeeb5ce407f6389dcd3857d4"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af81a3421d6b99fba440340a51ef580b9" id="r_af81a3421d6b99fba440340a51ef580b9"><td class="memItemLeft" align="right" valign="top"><a id="af81a3421d6b99fba440340a51ef580b9" name="af81a3421d6b99fba440340a51ef580b9"></a>
+<a class="el" href="classunilink_1_1wrapper_1_1Serial.html">Serial</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>on_data_batch</b> (BatchMessageHandler handler) override</td></tr>
+<tr class="memdesc:af81a3421d6b99fba440340a51ef580b9"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a callback for batched data reception. <br /></td></tr>
+<tr class="separator:af81a3421d6b99fba440340a51ef580b9"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a691435de162ec7a5cc4da3621f3d9260" id="r_a691435de162ec7a5cc4da3621f3d9260"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html">Serial</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a691435de162ec7a5cc4da3621f3d9260">on_backpressure</a> (std::function&lt; void(size_t)&gt; handler) override</td></tr>
+<tr class="memdesc:a691435de162ec7a5cc4da3621f3d9260"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a callback to be notified when send queue congestion changes.  <br /></td></tr>
+<tr class="separator:a691435de162ec7a5cc4da3621f3d9260"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a3b59dd30d29b6c079c13a71e4ca96826" id="r_a3b59dd30d29b6c079c13a71e4ca96826"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html">Serial</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a3b59dd30d29b6c079c13a71e4ca96826">framer</a> (std::unique_ptr&lt; <a class="el" href="classunilink_1_1framer_1_1IFramer.html">framer::IFramer</a> &gt; framer) override</td></tr>
+<tr class="memdesc:a3b59dd30d29b6c079c13a71e4ca96826"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set a message framer for this channel.  <br /></td></tr>
+<tr class="separator:a3b59dd30d29b6c079c13a71e4ca96826"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a806ba4c2c223add0616f284b256b691b" id="r_a806ba4c2c223add0616f284b256b691b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html">Serial</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a806ba4c2c223add0616f284b256b691b">on_message</a> (MessageHandler handler) override</td></tr>
+<tr class="memdesc:a806ba4c2c223add0616f284b256b691b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Set a handler for complete messages extracted by the framer.  <br /></td></tr>
+<tr class="separator:a806ba4c2c223add0616f284b256b691b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aa81d7be9551ac4a63911d8b7fa95dc8c" id="r_aa81d7be9551ac4a63911d8b7fa95dc8c"><td class="memItemLeft" align="right" valign="top"><a id="aa81d7be9551ac4a63911d8b7fa95dc8c" name="aa81d7be9551ac4a63911d8b7fa95dc8c"></a>
+<a class="el" href="classunilink_1_1wrapper_1_1Serial.html">Serial</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><b>on_message_batch</b> (BatchMessageHandler handler) override</td></tr>
+<tr class="memdesc:aa81d7be9551ac4a63911d8b7fa95dc8c"><td class="mdescLeft">&#160;</td><td class="mdescRight">Register a callback for batched framed message reception. <br /></td></tr>
+<tr class="separator:aa81d7be9551ac4a63911d8b7fa95dc8c"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="inherit_header pub_methods_classunilink_1_1wrapper_1_1ChannelInterface"><td colspan="2" onclick="javascript:toggleInherit('pub_methods_classunilink_1_1wrapper_1_1ChannelInterface')"><img src="closed.png" alt="-"/>&#160;Public Member Functions inherited from <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html">unilink::wrapper::ChannelInterface</a></td></tr>
+<tr class="memitem:ae98d24f5b572c9ae0aa13d428f01fcac inherit pub_methods_classunilink_1_1wrapper_1_1ChannelInterface" id="r_ae98d24f5b572c9ae0aa13d428f01fcac"><td class="memItemLeft" align="right" valign="top">virtual bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ae98d24f5b572c9ae0aa13d428f01fcac">start_sync</a> ()</td></tr>
+<tr class="memdesc:ae98d24f5b572c9ae0aa13d428f01fcac inherit pub_methods_classunilink_1_1wrapper_1_1ChannelInterface"><td class="mdescLeft">&#160;</td><td class="mdescRight">Synchronously start the channel and wait for the result.  <br /></td></tr>
+<tr class="separator:ae98d24f5b572c9ae0aa13d428f01fcac inherit pub_methods_classunilink_1_1wrapper_1_1ChannelInterface"><td class="memSeparator" colspan="2">&#160;</td></tr>
+</table>
+<a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
+<div class="textblock"><p>Modernized <a class="el" href="classunilink_1_1wrapper_1_1Serial.html" title="Modernized Serial Wrapper.">Serial</a> Wrapper. </p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8hpp_source.html#l00052">52</a> of file <a class="el" href="wrapper_2serial_2serial_8hpp_source.html">serial.hpp</a>.</p>
+</div><h2 class="groupheader">Member Function Documentation</h2>
+<a id="a3b59dd30d29b6c079c13a71e4ca96826" name="a3b59dd30d29b6c079c13a71e4ca96826"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a3b59dd30d29b6c079c13a71e4ca96826">&#9670;&#160;</a></span>framer()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html">Serial</a> &amp; unilink::wrapper::Serial::framer </td>
+          <td>(</td>
+          <td class="paramtype">std::unique_ptr&lt; <a class="el" href="classunilink_1_1framer_1_1IFramer.html">framer::IFramer</a> &gt;&#160;</td>
+          <td class="paramname"><em>framer</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Set a message framer for this channel. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">framer</td><td>The framer instance to use. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ae4d31378b6d7df475b6dd89a53ed2ea7">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00599">599</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="a691435de162ec7a5cc4da3621f3d9260" name="a691435de162ec7a5cc4da3621f3d9260"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a691435de162ec7a5cc4da3621f3d9260">&#9670;&#160;</a></span>on_backpressure()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html">Serial</a> &amp; unilink::wrapper::Serial::on_backpressure </td>
+          <td>(</td>
+          <td class="paramtype">std::function&lt; void(size_t)&gt;&#160;</td>
+          <td class="paramname"><em>handler</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Register a callback to be notified when send queue congestion changes. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">handler</td><td>Callback receiving the current number of queued bytes.</td></tr>
+  </table>
+  </dd>
+</dl>
+<p>Default implementation is a no-op. Concrete implementations that support backpressure reporting must override this method; otherwise the handler is silently discarded. </p>
+
+<p>Reimplemented from <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aab51ca2988d45a77f9f611518c27374b">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00593">593</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="a806ba4c2c223add0616f284b256b691b" name="a806ba4c2c223add0616f284b256b691b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a806ba4c2c223add0616f284b256b691b">&#9670;&#160;</a></span>on_message()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html">Serial</a> &amp; unilink::wrapper::Serial::on_message </td>
+          <td>(</td>
+          <td class="paramtype">MessageHandler&#160;</td>
+          <td class="paramname"><em>handler</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Set a handler for complete messages extracted by the framer. </p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">handler</td><td>The callback for framed messages. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a18914bd90699c0925677760b42814993">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00603">603</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="a6b120ec3e9e98e9c57c789607f1649bb" name="a6b120ec3e9e98e9c57c789607f1649bb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6b120ec3e9e98e9c57c789607f1649bb">&#9670;&#160;</a></span>send()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::Serial::send </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Enqueue data for transmission, honouring the backpressure strategy. </p>
+<p>BestEffort: non-blocking, drops if the send queue is full. Reliable: blocks until queue pressure is relieved, then enqueues.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted into the send queue. </dd>
+<dd>
+false Data was dropped (not connected, or BestEffort queue full). </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aea0f1a7ed2e31e0dad1680a996687b48">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00546">546</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="a470a799440850ff5a9cf5b2c09747783" name="a470a799440850ff5a9cf5b2c09747783"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a470a799440850ff5a9cf5b2c09747783">&#9670;&#160;</a></span>send_blocking()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::Serial::send_blocking </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Block the calling thread until queue pressure is relieved, then enqueue. </p>
+<p>Ignores the configured strategy — always blocks. Prefer <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a6b120ec3e9e98e9c57c789607f1649bb" title="Enqueue data for transmission, honouring the backpressure strategy.">send()</a> unless you need to override BestEffort behaviour for a specific call. This call may block indefinitely while the channel remains active and backpressure does not clear. <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#ad65a699425f67b86cfc2e55ca3c455ca" title="Stop the channel and block until all pending async operations are cancelled.">stop()</a> from another thread is expected to unblock waiting senders.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Channel stopped while waiting. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a86c5b4222bc621a8dd0ec8e7a2ca9226">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00558">558</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="a492c829f734bbff5baf617b4a32806a1" name="a492c829f734bbff5baf617b4a32806a1"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a492c829f734bbff5baf617b4a32806a1">&#9670;&#160;</a></span>send_line()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::Serial::send_line </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>line</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Enqueue a line (data + "\n") for transmission, honouring the backpressure strategy. </p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Data was dropped. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#af4d2c671707e6c3c4bc7080aaaa74590">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00548">548</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="a9c82bd5db4d04c95eb730705237a8cf6" name="a9c82bd5db4d04c95eb730705237a8cf6"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a9c82bd5db4d04c95eb730705237a8cf6">&#9670;&#160;</a></span>send_line_blocking()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::Serial::send_line_blocking </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>line</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Blocking variant of <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a492c829f734bbff5baf617b4a32806a1" title="Enqueue a line (data + &quot;\n&quot;) for transmission, honouring the backpressure strategy.">send_line()</a>. Always blocks regardless of strategy. </p>
+<p>This call may block indefinitely while the channel remains active and backpressure does not clear. <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#ad65a699425f67b86cfc2e55ca3c455ca" title="Stop the channel and block until all pending async operations are cancelled.">stop()</a> from another thread is expected to unblock waiting senders.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Channel stopped while waiting. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#aa5851fe0dbc0eea11e5ee94d6f3e72d2">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00559">559</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="a1f61ad7c584a55ece3b05bd703f3a5cf" name="a1f61ad7c584a55ece3b05bd703f3a5cf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1f61ad7c584a55ece3b05bd703f3a5cf">&#9670;&#160;</a></span>send_move()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::Serial::send_move </td>
+          <td>(</td>
+          <td class="paramtype">std::vector&lt; uint8_t &gt; &amp;&amp;&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Enqueue a vector payload by transferring ownership, honouring the backpressure strategy. </p>
+<p>After this call, the caller must treat the moved-from vector as consumed regardless of the return value. Existing string_view send APIs remain available for borrowed data.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Data was dropped or rejected. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a9cdf237812f4b82d3dd2f935d0323fd9">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00550">550</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="ad6321b84e24a6f1a9a8e96b569b65789" name="ad6321b84e24a6f1a9a8e96b569b65789"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad6321b84e24a6f1a9a8e96b569b65789">&#9670;&#160;</a></span>send_shared()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::Serial::send_shared </td>
+          <td>(</td>
+          <td class="paramtype">std::shared_ptr&lt; const std::vector&lt; uint8_t &gt; &gt;&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Enqueue an immutable shared vector payload, honouring the backpressure strategy. </p>
+<p>The shared buffer must be non-null and non-empty.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Data was dropped or rejected. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2b94c1a058878d67fd021108c5c8ec94">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00552">552</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="a1d0c46c79487050268065fedda5fec4a" name="a1d0c46c79487050268065fedda5fec4a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a1d0c46c79487050268065fedda5fec4a">&#9670;&#160;</a></span>start()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::future&lt; bool &gt; unilink::wrapper::Serial::start </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Start the channel asynchronously. </p>
+<dl class="section return"><dt>Returns</dt><dd>A future that resolves to true when the channel is connected/listening, or false if startup failed (e.g. connection refused, max retries exhausted). On false, the registered on_error() callback will have been invoked with the specific failure reason. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a2060c51ac6a3120e7245cef5117dc021">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00544">544</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="ad65a699425f67b86cfc2e55ca3c455ca" name="ad65a699425f67b86cfc2e55ca3c455ca"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad65a699425f67b86cfc2e55ca3c455ca">&#9670;&#160;</a></span>stop()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">void unilink::wrapper::Serial::stop </td>
+          <td>(</td>
+          <td class="paramname"></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Stop the channel and block until all pending async operations are cancelled. </p>
+<p>Safe to call from any thread. After <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#ad65a699425f67b86cfc2e55ca3c455ca" title="Stop the channel and block until all pending async operations are cancelled.">stop()</a> returns, no further callbacks will fire and it is safe to destroy the object. Calling <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#ad65a699425f67b86cfc2e55ca3c455ca" title="Stop the channel and block until all pending async operations are cancelled.">stop()</a> more than once is a no-op. </p>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad8b698aa572dffa18e0e9df5d465c6d0">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00545">545</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="a2faf8cbc432c98939b50580fb5c970bf" name="a2faf8cbc432c98939b50580fb5c970bf"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a2faf8cbc432c98939b50580fb5c970bf">&#9670;&#160;</a></span>try_send()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::Serial::try_send </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Non-blocking send that always drops on a full queue, ignoring strategy. </p>
+<p>Use as an escape hatch when you need drop-on-full behaviour on a Reliable channel. Rejects payloads that would exceed the current non-blocking queue threshold. A payload may be rejected even if it is below MAX_BUFFER_SIZE when it is larger than the current backpressure high-water budget. Use <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a6b120ec3e9e98e9c57c789607f1649bb" title="Enqueue data for transmission, honouring the backpressure strategy.">send()</a> or <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a470a799440850ff5a9cf5b2c09747783" title="Block the calling thread until queue pressure is relieved, then enqueue.">send_blocking()</a> when Reliable enqueue semantics are required for large payloads.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Dropped (not connected or queue full). </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a6b2212d41ed3f4ec66f7e783e607c22f">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00547">547</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="af0f88a7d2ad73cb9d761b33052644200" name="af0f88a7d2ad73cb9d761b33052644200"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af0f88a7d2ad73cb9d761b33052644200">&#9670;&#160;</a></span>try_send_line()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::Serial::try_send_line </td>
+          <td>(</td>
+          <td class="paramtype">std::string_view&#160;</td>
+          <td class="paramname"><em>line</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Non-blocking send_line that always drops on a full queue, ignoring strategy. </p>
+<p>Uses the same non-blocking queue threshold policy as <a class="el" href="classunilink_1_1wrapper_1_1Serial.html#a2faf8cbc432c98939b50580fb5c970bf" title="Non-blocking send that always drops on a full queue, ignoring strategy.">try_send()</a>.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Dropped. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#ad85f6064ab3b5f575bbaa3c87dc1c102">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00549">549</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="a09fa75d3ffb4fd6764b4c48679300fda" name="a09fa75d3ffb4fd6764b4c48679300fda"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a09fa75d3ffb4fd6764b4c48679300fda">&#9670;&#160;</a></span>try_send_move()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::Serial::try_send_move </td>
+          <td>(</td>
+          <td class="paramtype">std::vector&lt; uint8_t &gt; &amp;&amp;&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Non-blocking ownership-transfer send. </p>
+<p>Always returns without waiting for backpressure. The moved-from vector is consumed regardless of the return value. Rejects payloads that would exceed the current non-blocking queue threshold, even below MAX_BUFFER_SIZE when they exceed the current high-water budget.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Data was dropped or rejected. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a33cad8d457df26cb1dbbe410ecf8b516">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00551">551</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<a id="ad5a7c664eeeb5ce407f6389dcd3857d4" name="ad5a7c664eeeb5ce407f6389dcd3857d4"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad5a7c664eeeb5ce407f6389dcd3857d4">&#9670;&#160;</a></span>try_send_shared()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool unilink::wrapper::Serial::try_send_shared </td>
+          <td>(</td>
+          <td class="paramtype">std::shared_ptr&lt; const std::vector&lt; uint8_t &gt; &gt;&#160;</td>
+          <td class="paramname"><em>data</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">override</span><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Non-blocking shared-buffer send. </p>
+<p>The shared buffer must be non-null and non-empty. Rejects payloads that would exceed the current non-blocking queue threshold, even below MAX_BUFFER_SIZE when they exceed the current high-water budget.</p>
+<dl class="section return"><dt>Returns</dt><dd>true Data was accepted. </dd>
+<dd>
+false Data was dropped or rejected. </dd></dl>
+
+<p>Implements <a class="el" href="classunilink_1_1wrapper_1_1ChannelInterface.html#a712e0ebe7d66f34f45cb12626f91f3a3">unilink::wrapper::ChannelInterface</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="wrapper_2serial_2serial_8cc_source.html#l00555">555</a> of file <a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a>.</p>
+
+</div>
+</div>
+<hr/>The documentation for this class was generated from the following files:<ul>
+<li>unilink/wrapper/serial/<a class="el" href="wrapper_2serial_2serial_8hpp_source.html">serial.hpp</a></li>
+<li>unilink/wrapper/serial/<a class="el" href="wrapper_2serial_2serial_8cc_source.html">serial.cc</a></li>
+</ul>
+</div><!-- contents -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="navelem"><b>unilink</b></li><li class="navelem"><b>wrapper</b></li><li class="navelem"><a class="el" href="classunilink_1_1wrapper_1_1Serial.html">Serial</a></li>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>

@@ -1,0 +1,762 @@
+<!-- HTML header for doxygen 1.9.8-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "https://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<meta http-equiv="Content-Type" content="text/xhtml;charset=UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=11"/>
+<meta name="generator" content="Doxygen 1.9.8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>unilink: Troubleshooting Guide</title>
+<link href="tabs.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="jquery.js"></script>
+<script type="text/javascript" src="dynsections.js"></script>
+<link href="navtree.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="resize.js"></script>
+<script type="text/javascript" src="navtreedata.js"></script>
+<script type="text/javascript" src="navtree.js"></script>
+<link href="search/search.css" rel="stylesheet" type="text/css"/>
+<script type="text/javascript" src="search/searchdata.js"></script>
+<script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+  $(document).ready(function() { init_search(); });
+/* @license-end */
+</script>
+<link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
+<link href="custom-awesome.css" rel="stylesheet" type="text/css"/>
+<!-- Mermaid.js support -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script>
+    $(document).ready(function() {
+        $(".mermaid").each(function() {
+            var pre = $(this).find('pre');
+            var text = "";
+            if (pre.length > 0) {
+                text = pre.text();
+            } else {
+                var html = $(this).html();
+                text = html.replace(/<br\s*\/?>/gi, "\n").replace(/&nbsp;/g, " ");
+                var doc = new DOMParser().parseFromString(text, 'text/html');
+                text = doc.documentElement.textContent;
+            }
+            var fixedText = text
+                .replace(/–/g, "--")
+                .replace(/—/g, "---")
+                .replace(/&ndash;/g, "--")
+                .replace(/&mdash;/g, "---");
+            console.log("Mermaid input text:", fixedText);
+            $(this).empty().text(fixedText.trim());
+            $(this).removeAttr("data-processed");
+        });
+        const isDarkMode = () => document.documentElement.classList.contains("dark-mode");
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: isDarkMode() ? 'dark' : 'default'
+        });
+        mermaid.run();
+        // Listen for dark mode toggle
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributes && mutation.attributeName === "class") {
+                    mermaid.initialize({
+                        theme: isDarkMode() ? 'dark' : 'default'
+                    });
+                    mermaid.run();
+                }
+            });
+        });
+        observer.observe(document.documentElement, { attributes: true });
+    });
+</script>
+<!-- Doxygen Awesome Extensions -->
+<script type="text/javascript" src="doxygen-awesome-darkmode-toggle.js"></script>
+<script type="text/javascript" src="doxygen-awesome-fragment-copy-button.js"></script>
+<script type="text/javascript" src="doxygen-awesome-paragraph-link.js"></script>
+<script type="text/javascript" src="doxygen-awesome-interactive-toc.js"></script>
+<script type="text/javascript">
+    $(document).ready(function() {
+        DoxygenAwesomeDarkModeToggle.init()
+        DoxygenAwesomeFragmentCopyButton.init()
+        DoxygenAwesomeParagraphLink.init()
+        DoxygenAwesomeInteractiveToc.init()
+        const updateProjectLogo = () => {
+            const logo = document.querySelector("#projectlogo img[data-dark-src]");
+            if (!logo) {
+                return;
+            }
+            const darkMode = document.documentElement.classList.contains("dark-mode");
+            logo.src = darkMode ? logo.dataset.darkSrc : logo.dataset.lightSrc;
+        };
+        updateProjectLogo();
+        new MutationObserver(updateProjectLogo).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ["class"]
+        });
+    });
+</script>
+</head>
+<body>
+<div id="top"><!-- do not remove this div, it is closed by doxygen! -->
+<div id="titlearea">
+<table cellspacing="0" cellpadding="0">
+ <tbody>
+ <tr id="projectrow">
+  <td id="projectlogo"><img alt="Logo" src="unilink-logo-horizontal-readme-light.png" data-light-src="unilink-logo-horizontal-readme-light.png" data-dark-src="unilink-logo-horizontal-readme-dark.png"/></td>
+  <td id="projectalign">
+   <div id="projectname">unilink<span id="projectnumber">&#160;0.8.3</span>
+   </div>
+   <div id="projectbrief">A simple C++ library for unified async communication</div>
+  </td>
+    <td>        <div id="MSearchBox" class="MSearchBoxInactive">
+        <span class="left">
+          <span id="MSearchSelect"                onmouseover="return searchBox.OnSearchSelectShow()"                onmouseout="return searchBox.OnSearchSelectHide()">&#160;</span>
+          <input type="text" id="MSearchField" value="" placeholder="Search" accesskey="S"
+               onfocus="searchBox.OnSearchFieldFocus(true)" 
+               onblur="searchBox.OnSearchFieldFocus(false)" 
+               onkeyup="searchBox.OnSearchFieldChange(event)"/>
+          </span><span class="right">
+            <a id="MSearchClose" href="javascript:searchBox.CloseResultsWindow()"><img id="MSearchCloseImg" border="0" src="search/close.svg" alt=""/></a>
+          </span>
+        </div>
+</td>
+ </tr>
+ </tbody>
+</table>
+</div>
+<!-- end header part -->
+<!-- Generated by Doxygen 1.9.8 -->
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+var searchBox = new SearchBox("searchBox", "search/",'.html');
+/* @license-end */
+</script>
+</div><!-- top -->
+<div id="side-nav" class="ui-resizable side-nav-resizable">
+  <div id="nav-tree">
+    <div id="nav-tree-contents">
+      <div id="nav-sync" class="sync"></div>
+    </div>
+  </div>
+  <div id="splitbar" style="-moz-user-select:none;" 
+       class="ui-resizable-handle">
+  </div>
+</div>
+<script type="text/javascript">
+/* @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&amp;dn=expat.txt MIT */
+$(document).ready(function(){initNavTree('user_troubleshooting.html',''); initResizable(); });
+/* @license-end */
+</script>
+<div id="doc-content">
+<!-- window showing the filter options -->
+<div id="MSearchSelectWindow"
+     onmouseover="return searchBox.OnSearchSelectShow()"
+     onmouseout="return searchBox.OnSearchSelectHide()"
+     onkeydown="return searchBox.OnSearchSelectKey(event)">
+</div>
+
+<!-- iframe showing the search results (closed by default) -->
+<div id="MSearchResultsWindow">
+<div id="MSearchResults">
+<div class="SRPage">
+<div id="SRIndex">
+<div id="SRResults"></div>
+<div class="SRStatus" id="Loading">Loading...</div>
+<div class="SRStatus" id="Searching">Searching...</div>
+<div class="SRStatus" id="NoMatches">No Matches</div>
+</div>
+</div>
+</div>
+</div>
+
+<div><div class="header">
+  <div class="headertitle"><div class="title">Troubleshooting Guide</div></div>
+</div><!--header-->
+<div class="contents">
+<div class="textblock"><p>Common issues and solutions when using unilink.</p>
+<hr  />
+<h1><a class="anchor" id="autotoc_md733"></a>
+Table of Contents</h1>
+<ol type="1">
+<li>Connection Issues</li>
+<li>Compilation Errors</li>
+<li>Runtime Errors</li>
+<li>Performance Issues</li>
+<li>Memory Issues</li>
+<li>Thread Safety Issues</li>
+<li>Debugging Tips</li>
+</ol>
+<hr  />
+<h1><a class="anchor" id="autotoc_md735"></a>
+Connection Issues</h1>
+<h2><a class="anchor" id="autotoc_md736"></a>
+Problem: Connection Refused</h2>
+<p><b>Symptoms:</b></p>
+<div class="fragment"><div class="line">✗ Error: Connection refused</div>
+</div><!-- fragment --><p><b>Possible Causes &amp; Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md737"></a>
+1. Server Not Running</h3>
+<div class="fragment"><div class="line"># Check if server is running</div>
+<div class="line">netstat -an | grep 8080</div>
+<div class="line"># or</div>
+<div class="line">lsof -i :8080</div>
+</div><!-- fragment --><p><b>Solution:</b> Start the server before connecting client.</p>
+<h3><a class="anchor" id="autotoc_md738"></a>
+2. Wrong Host/Port</h3>
+<div class="fragment"><div class="line"><span class="comment">// Check your configuration</span></div>
+<div class="line"><span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;127.0.0.1&quot;</span>, 8080)  <span class="comment">// Correct port?</span></div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1TcpClientBuilder_html_a3209a5f18973c46d60299428afcc4e62"><div class="ttname"><a href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">unilink::builder::TcpClientBuilder::build</a></div><div class="ttdeci">std::unique_ptr&lt; wrapper::TcpClient &gt; build() override</div><div class="ttdoc">Build and return the configured product.</div><div class="ttdef"><b>Definition</b> <a href="tcp__client__builder_8cc_source.html#l00051">tcp_client_builder.cc:51</a></div></div>
+</div><!-- fragment --><p><b>Solution:</b> Verify server address and port number.</p>
+<h3><a class="anchor" id="autotoc_md739"></a>
+3. Firewall Blocking</h3>
+<div class="fragment"><div class="line"># Check firewall rules (Linux)</div>
+<div class="line">sudo iptables -L | grep 8080</div>
+<div class="line"> </div>
+<div class="line"># Allow port (Ubuntu)</div>
+<div class="line">sudo ufw allow 8080</div>
+</div><!-- fragment --><hr  />
+<h2><a class="anchor" id="autotoc_md741"></a>
+Problem: Connection Timeout</h2>
+<p><b>Symptoms:</b></p>
+<div class="fragment"><div class="line">✗ Error: Connection timeout</div>
+</div><!-- fragment --><p><b>Possible Causes &amp; Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md742"></a>
+1. Network Unreachable</h3>
+<div class="fragment"><div class="line"># Test connectivity</div>
+<div class="line">ping server.com</div>
+<div class="line">telnet server.com 8080</div>
+</div><!-- fragment --><p><b>Solution:</b> Check network connectivity, DNS resolution.</p>
+<h3><a class="anchor" id="autotoc_md743"></a>
+2. Server Overloaded</h3>
+<p><b>Solution:</b> Increase retry interval:</p>
+<div class="fragment"><div class="line"><span class="keyword">using namespace </span>std::chrono_literals;</div>
+<div class="line"><span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;server.com&quot;</span>, 8080)</div>
+<div class="line">    .retry_interval(10000ms)  <span class="comment">// Wait 10 seconds</span></div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+</div><!-- fragment --><hr  />
+<h2><a class="anchor" id="autotoc_md745"></a>
+Problem: Connection Drops Randomly</h2>
+<p><b>Symptoms:</b></p>
+<ul>
+<li>Client disconnects unexpectedly</li>
+<li><code>on_disconnect()</code> called without <code>stop()</code></li>
+</ul>
+<p><b>Possible Causes &amp; Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md746"></a>
+1. Network Instability</h3>
+<div class="fragment"><div class="line"><span class="comment">// Enable auto-reconnection</span></div>
+<div class="line"><span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;server.com&quot;</span>, 8080)</div>
+<div class="line">    .retry_interval(3000ms)  <span class="comment">// Retry every 3 seconds</span></div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1BuilderInterface.html#a7ec960dcbb3d454e6ec0897a1e19de5a">on_disconnect</a>([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ConnectionContext.html">unilink::ConnectionContext</a>&amp;) {</div>
+<div class="line">        log_info(<span class="stringliteral">&quot;Disconnected, will auto-retry&quot;</span>);</div>
+<div class="line">    })</div>
+<div class="line">    .build();</div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1BuilderInterface_html_a7ec960dcbb3d454e6ec0897a1e19de5a"><div class="ttname"><a href="classunilink_1_1builder_1_1BuilderInterface.html#a7ec960dcbb3d454e6ec0897a1e19de5a">unilink::builder::BuilderInterface::on_disconnect</a></div><div class="ttdeci">Derived &amp; on_disconnect(F &amp;&amp;handler)</div><div class="ttdoc">Set disconnection handler callback.</div><div class="ttdef"><b>Definition</b> <a href="ibuilder_8hpp_source.html#l00131">ibuilder.hpp:131</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1ConnectionContext_html"><div class="ttname"><a href="classunilink_1_1wrapper_1_1ConnectionContext.html">unilink::wrapper::ConnectionContext</a></div><div class="ttdoc">Context for connection/disconnection events.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00075">context.hpp:75</a></div></div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md747"></a>
+2. Server Closing Connection</h3>
+<div class="fragment"><div class="line"><span class="comment">// Log disconnect reason</span></div>
+<div class="line">.on_disconnect([<span class="keyword">this</span>](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ConnectionContext.html">unilink::ConnectionContext</a>&amp;) {</div>
+<div class="line">    <span class="comment">// Check if stop() was called</span></div>
+<div class="line">    <span class="keywordflow">if</span> (!intentional_disconnect_) {</div>
+<div class="line">        log_warning(<span class="stringliteral">&quot;Unexpected disconnect from server&quot;</span>);</div>
+<div class="line">    }</div>
+<div class="line">})</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md748"></a>
+3. Keep-Alive Not Set</h3>
+<div class="fragment"><div class="line"><span class="comment">// Implement heartbeat</span></div>
+<div class="line">std::thread heartbeat_thread([<span class="keyword">this</span>]() {</div>
+<div class="line">    <span class="keywordflow">while</span> (running_) {</div>
+<div class="line">        <span class="keywordflow">if</span> (client_-&gt;connected()) {</div>
+<div class="line">            client_-&gt;send(<span class="stringliteral">&quot;PING\n&quot;</span>);</div>
+<div class="line">        }</div>
+<div class="line">        std::this_thread::sleep_for(std::chrono::seconds(30));</div>
+<div class="line">    }</div>
+<div class="line">});</div>
+</div><!-- fragment --><hr  />
+<h2><a class="anchor" id="autotoc_md750"></a>
+Problem: Port Already in Use</h2>
+<p><b>Symptoms:</b></p>
+<div class="fragment"><div class="line">✗ Error: Address already in use</div>
+</div><!-- fragment --><p><b>Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md751"></a>
+1. Kill Existing Process</h3>
+<div class="fragment"><div class="line"># Find process using port</div>
+<div class="line">lsof -i :8080</div>
+<div class="line"># or</div>
+<div class="line">netstat -tulpn | grep 8080</div>
+<div class="line"> </div>
+<div class="line"># Kill process</div>
+<div class="line">kill -9 &lt;PID&gt;</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md752"></a>
+2. Use Different Port</h3>
+<div class="fragment"><div class="line"><span class="keyword">auto</span> server = tcp_server(8081)  <span class="comment">// Try different port</span></div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpServerBuilder.html#a0c0029f7ca4b8ae9bf08f467a1b2348c">build</a>();</div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1TcpServerBuilder_html_a0c0029f7ca4b8ae9bf08f467a1b2348c"><div class="ttname"><a href="classunilink_1_1builder_1_1TcpServerBuilder.html#a0c0029f7ca4b8ae9bf08f467a1b2348c">unilink::builder::TcpServerBuilder::build</a></div><div class="ttdeci">std::unique_ptr&lt; wrapper::TcpServer &gt; build() override</div><div class="ttdoc">Build and return the configured product.</div><div class="ttdef"><b>Definition</b> <a href="tcp__server__builder_8cc_source.html#l00051">tcp_server_builder.cc:51</a></div></div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md753"></a>
+3. Enable Port Retry</h3>
+<div class="fragment"><div class="line"><span class="keyword">auto</span> server = tcp_server(8080)</div>
+<div class="line">    .port_retry(<span class="keyword">true</span>, 5, 1000)  <span class="comment">// Retry 5 times</span></div>
+<div class="line">    .build();</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md755"></a>
+Compilation Errors</h1>
+<h2><a class="anchor" id="autotoc_md756"></a>
+Problem: unilink/unilink.hpp Not Found</h2>
+<p><b>Symptoms:</b></p>
+<div class="fragment"><div class="line">fatal error: unilink/unilink.hpp: No such file or directory</div>
+</div><!-- fragment --><p><b>Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md757"></a>
+1. Install unilink</h3>
+<div class="fragment"><div class="line">cd unilink</div>
+<div class="line">cmake -S . -B build</div>
+<div class="line">sudo cmake --install build</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md758"></a>
+2. Add Include Path</h3>
+<div class="fragment"><div class="line"># CMake</div>
+<div class="line">target_include_directories(your_app PRIVATE /path/to/unilink/include)</div>
+<div class="line"> </div>
+<div class="line"># g++</div>
+<div class="line">g++ -I/path/to/unilink/include ...</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md759"></a>
+3. Use as Subdirectory</h3>
+<div class="fragment"><div class="line"># CMakeLists.txt</div>
+<div class="line">add_subdirectory(unilink)</div>
+<div class="line">target_link_libraries(your_app PRIVATE unilink::unilink)</div>
+</div><!-- fragment --><hr  />
+<h2><a class="anchor" id="autotoc_md761"></a>
+Problem: Undefined Reference to unilink Symbols</h2>
+<p><b>Symptoms:</b></p>
+<div class="fragment"><div class="line">undefined reference to `unilink::tcp_client(std::string const&amp;, unsigned short)&#39;</div>
+</div><!-- fragment --><p><b>Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md762"></a>
+1. Link unilink Library</h3>
+<div class="fragment"><div class="line"># g++</div>
+<div class="line">g++ main.cpp -o app -lunilink -lboost_system -pthread</div>
+<div class="line"> </div>
+<div class="line"># CMake</div>
+<div class="line">target_link_libraries(your_app PRIVATE unilink Boost::system pthread)</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md763"></a>
+2. Check Library Path</h3>
+<div class="fragment"><div class="line"># Add to LD_LIBRARY_PATH</div>
+<div class="line">export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH</div>
+<div class="line"> </div>
+<div class="line"># Or add to ldconfig</div>
+<div class="line">sudo sh -c &#39;echo &quot;/usr/local/lib&quot; &gt; /etc/ld.so.conf.d/unilink.conf&#39;</div>
+<div class="line">sudo ldconfig</div>
+</div><!-- fragment --><hr  />
+<h2><a class="anchor" id="autotoc_md765"></a>
+Problem: Boost Not Found</h2>
+<p><b>Symptoms:</b></p>
+<div class="fragment"><div class="line">CMake Error: Could not find Boost</div>
+</div><!-- fragment --><p><b>Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md766"></a>
+Source-build vcpkg setup</h3>
+<div class="fragment"><div class="line">vcpkg install \</div>
+<div class="line">  boost-asio \</div>
+<div class="line">  boost-system \</div>
+<div class="line">  spdlog</div>
+<div class="line">cmake -S . -B build \</div>
+<div class="line">  -DCMAKE_TOOLCHAIN_FILE=&quot;$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake&quot;</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md767"></a>
+System Boost setup</h3>
+<div class="fragment"><div class="line">cmake -S . -B build -DBOOST_ROOT=/path/to/boost-1.83-or-newer</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md768"></a>
+Windows source builds with vcpkg</h3>
+<div class="fragment"><div class="line">vcpkg install \</div>
+<div class="line">  boost-asio \</div>
+<div class="line">  boost-system \</div>
+<div class="line">  spdlog</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md769"></a>
+Manual Boost Path</h3>
+<div class="fragment"><div class="line">set(BOOST_ROOT /path/to/boost)</div>
+<div class="line">find_package(Boost REQUIRED COMPONENTS system)</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md771"></a>
+Runtime Errors</h1>
+<h2><a class="anchor" id="autotoc_md772"></a>
+Problem: Segmentation Fault</h2>
+<p><b>Symptoms:</b></p>
+<div class="fragment"><div class="line">Segmentation fault (core dumped)</div>
+</div><!-- fragment --><p><b>Debugging Steps:</b></p>
+<h3><a class="anchor" id="autotoc_md773"></a>
+1. Enable Core Dumps</h3>
+<div class="fragment"><div class="line">ulimit -c unlimited</div>
+<div class="line">./your_app</div>
+<div class="line"># If crash occurs, core dump is created</div>
+<div class="line"> </div>
+<div class="line"># Analyze with gdb</div>
+<div class="line">gdb ./your_app core</div>
+<div class="line">(gdb) bt  # backtrace</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md774"></a>
+2. Common Causes</h3>
+<p><b>Dangling Pointer:</b></p>
+<div class="fragment"><div class="line"><span class="comment">// BAD</span></div>
+<div class="line"><span class="keyword">auto</span>* client = client_ptr.get();</div>
+<div class="line">client_ptr.reset();  <span class="comment">// Deletes object</span></div>
+<div class="line">client-&gt;send(<span class="stringliteral">&quot;data&quot;</span>);  <span class="comment">// CRASH - dangling pointer</span></div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// GOOD</span></div>
+<div class="line"><span class="keyword">auto</span> client = client_ptr;  <span class="comment">// Keep shared_ptr alive</span></div>
+<div class="line">client-&gt;send(<span class="stringliteral">&quot;data&quot;</span>);</div>
+</div><!-- fragment --><p><b>Use After Stop:</b></p>
+<div class="fragment"><div class="line"><span class="comment">// BAD</span></div>
+<div class="line">client-&gt;stop();</div>
+<div class="line">client-&gt;send(<span class="stringliteral">&quot;data&quot;</span>);  <span class="comment">// CRASH - client stopped</span></div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// GOOD</span></div>
+<div class="line"><span class="keywordflow">if</span> (client-&gt;connected()) {</div>
+<div class="line">    client-&gt;send(<span class="stringliteral">&quot;data&quot;</span>);</div>
+<div class="line">}</div>
+</div><!-- fragment --><hr  />
+<h2><a class="anchor" id="autotoc_md776"></a>
+Problem: Callbacks Not Being Called</h2>
+<p><b>Symptoms:</b></p>
+<ul>
+<li><code>on_connect()</code> never called</li>
+<li><code>on_data()</code> not receiving data</li>
+</ul>
+<p><b>Possible Causes &amp; Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md777"></a>
+1. Receive Callback Not Registered</h3>
+<div class="fragment"><div class="line"><span class="comment">// OK for construction, but nothing will handle incoming data</span></div>
+<div class="line"><span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;server.com&quot;</span>, 8080)</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();  <span class="comment">// No on_data callback!</span></div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// Register a receive callback when data should be observed</span></div>
+<div class="line"><span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;server.com&quot;</span>, 8080)</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1BuilderInterface.html#aa76600ac60f66b354b35e174ab444841">on_data</a>([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::MessageContext</a>&amp; ctx) {</div>
+<div class="line">        std::cout &lt;&lt; ctx.<a class="code hl_function" href="classunilink_1_1wrapper_1_1MessageContext.html#a49d3f7b0aeac37cb41885b5fc2fa6423">data</a>() &lt;&lt; std::endl;</div>
+<div class="line">    })</div>
+<div class="line">    .build();</div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1BuilderInterface_html_aa76600ac60f66b354b35e174ab444841"><div class="ttname"><a href="classunilink_1_1builder_1_1BuilderInterface.html#aa76600ac60f66b354b35e174ab444841">unilink::builder::BuilderInterface::on_data</a></div><div class="ttdeci">auto on_data(F &amp;&amp;handler)</div><div class="ttdoc">Set data handler callback.</div><div class="ttdef"><b>Definition</b> <a href="ibuilder_8hpp_source.html#l00088">ibuilder.hpp:88</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1MessageContext_html"><div class="ttname"><a href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::wrapper::MessageContext</a></div><div class="ttdoc">Context for data/message related events.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00035">context.hpp:35</a></div></div>
+<div class="ttc" id="aclassunilink_1_1wrapper_1_1MessageContext_html_a49d3f7b0aeac37cb41885b5fc2fa6423"><div class="ttname"><a href="classunilink_1_1wrapper_1_1MessageContext.html#a49d3f7b0aeac37cb41885b5fc2fa6423">unilink::wrapper::MessageContext::data</a></div><div class="ttdeci">std::string_view data() const</div><div class="ttdoc">Get the received data as a view.</div><div class="ttdef"><b>Definition</b> <a href="context_8hpp_source.html#l00049">context.hpp:49</a></div></div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md778"></a>
+2. Client Not Started</h3>
+<div class="fragment"><div class="line"><span class="comment">// BAD - Forgot to start</span></div>
+<div class="line"><span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;server.com&quot;</span>, 8080)</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+<div class="line"><span class="comment">// ... client never starts!</span></div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// GOOD - Always call start explicitly</span></div>
+<div class="line"><span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;server.com&quot;</span>, 8080)</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+<div class="line">client-&gt;start();  <span class="comment">// Start the connection</span></div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md779"></a>
+3. Application Exits Too Quickly</h3>
+<div class="fragment"><div class="line"><span class="comment">// BAD</span></div>
+<div class="line"><span class="keywordtype">int</span> main() {</div>
+<div class="line">    <span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;server.com&quot;</span>, 8080)</div>
+<div class="line">        .<a class="code hl_function" href="classunilink_1_1builder_1_1BuilderInterface.html#ad8d6c30285a36b3a466a37d06f7460dd">on_connect</a>([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ConnectionContext.html">unilink::ConnectionContext</a>&amp;) { std::cout &lt;&lt; <span class="stringliteral">&quot;Connected!\n&quot;</span>; })</div>
+<div class="line">        .build();</div>
+<div class="line">    client-&gt;start();</div>
+<div class="line">    </div>
+<div class="line">    <span class="keywordflow">return</span> 0;  <span class="comment">// Exits immediately before connection!</span></div>
+<div class="line">}</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// GOOD</span></div>
+<div class="line"><span class="keywordtype">int</span> main() {</div>
+<div class="line">    <span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;server.com&quot;</span>, 8080)</div>
+<div class="line">        .<a class="code hl_function" href="classunilink_1_1builder_1_1BuilderInterface.html#ad8d6c30285a36b3a466a37d06f7460dd">on_connect</a>([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1ConnectionContext.html">unilink::ConnectionContext</a>&amp;) { std::cout &lt;&lt; <span class="stringliteral">&quot;Connected!\n&quot;</span>; })</div>
+<div class="line">        .build();</div>
+<div class="line">    client-&gt;start();</div>
+<div class="line">    </div>
+<div class="line">    std::this_thread::sleep_for(std::chrono::seconds(10));  <span class="comment">// Wait</span></div>
+<div class="line">    <span class="keywordflow">return</span> 0;</div>
+<div class="line">}</div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1BuilderInterface_html_ad8d6c30285a36b3a466a37d06f7460dd"><div class="ttname"><a href="classunilink_1_1builder_1_1BuilderInterface.html#ad8d6c30285a36b3a466a37d06f7460dd">unilink::builder::BuilderInterface::on_connect</a></div><div class="ttdeci">Derived &amp; on_connect(F &amp;&amp;handler)</div><div class="ttdoc">Set connection handler callback.</div><div class="ttdef"><b>Definition</b> <a href="ibuilder_8hpp_source.html#l00114">ibuilder.hpp:114</a></div></div>
+</div><!-- fragment --><hr  />
+<h2><a class="anchor" id="autotoc_md781"></a>
+Problem: UDP with Reliable Strategy Still Drops Packets</h2>
+<p><b>Symptoms:</b></p>
+<ul>
+<li>UDP channel uses <code>BackpressureStrategy::Reliable</code> but the receiver still loses packets.</li>
+</ul>
+<p><b>Explanation:</b></p>
+<p><code>Reliable</code> only controls the <em>sender-side</em> tx queue: it blocks the calling thread instead of dropping data when the queue is full. Because UDP is connectionless, there is no receiver-side flow control — the OS network stack or the remote receiver can still discard datagrams independently of the sender queue strategy. If you need guaranteed delivery over UDP, implement an application-level acknowledgment protocol.</p>
+<div class="fragment"><div class="line"><span class="comment">// Reliable prevents sender-side queue drops, but cannot prevent</span></div>
+<div class="line"><span class="comment">// network-level or receiver-side packet loss.</span></div>
+<div class="line"><span class="keyword">auto</span> udp = unilink::udp_client(<span class="stringliteral">&quot;192.168.1.100&quot;</span>, 9000)</div>
+<div class="line">    .<a class="code hl_function" href="classunilink_1_1builder_1_1BuilderInterface.html#a488d998ee718a02a3b4c4f8a144131bb">backpressure_strategy</a>(unilink::BackpressureStrategy::Reliable)</div>
+<div class="line">    .build();</div>
+<div class="ttc" id="aclassunilink_1_1builder_1_1BuilderInterface_html_a488d998ee718a02a3b4c4f8a144131bb"><div class="ttname"><a href="classunilink_1_1builder_1_1BuilderInterface.html#a488d998ee718a02a3b4c4f8a144131bb">unilink::builder::BuilderInterface::backpressure_strategy</a></div><div class="ttdeci">Derived &amp; backpressure_strategy(base::constants::BackpressureStrategy strategy)</div><div class="ttdoc">Set the backpressure strategy.</div><div class="ttdef"><b>Definition</b> <a href="ibuilder_8hpp_source.html#l00231">ibuilder.hpp:231</a></div></div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md783"></a>
+Performance Issues</h1>
+<h2><a class="anchor" id="autotoc_md784"></a>
+Problem: High CPU Usage</h2>
+<p><b>Symptoms:</b></p>
+<ul>
+<li>Process using 100% CPU</li>
+<li>System becomes slow</li>
+</ul>
+<p><b>Possible Causes &amp; Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md785"></a>
+1. Busy Loop in Callback</h3>
+<div class="fragment"><div class="line"><span class="comment">// BAD - Blocks I/O thread</span></div>
+<div class="line">.on_data([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::MessageContext</a>&amp; ctx) {</div>
+<div class="line">    <span class="keywordflow">while</span> (processing) {  <span class="comment">// Busy loop!</span></div>
+<div class="line">        process();</div>
+<div class="line">    }</div>
+<div class="line">})</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// GOOD - Process asynchronously</span></div>
+<div class="line">.on_data([<span class="keyword">this</span>](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::MessageContext</a>&amp; ctx) {</div>
+<div class="line">    message_queue_.push(std::string(ctx.<a class="code hl_function" href="classunilink_1_1wrapper_1_1MessageContext.html#a49d3f7b0aeac37cb41885b5fc2fa6423">data</a>()));  <span class="comment">// Queue for processing</span></div>
+<div class="line">})</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md786"></a>
+2. Too Many Retries</h3>
+<div class="fragment"><div class="line"><span class="comment">// BAD - Retries too often</span></div>
+<div class="line">.retry_interval(10)  <span class="comment">// Retry every 10ms!</span></div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// GOOD</span></div>
+<div class="line">.retry_interval(3000ms)  <span class="comment">// Retry every 3 seconds</span></div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md787"></a>
+3. Excessive Logging</h3>
+<div class="fragment"><div class="line"><span class="comment">// BAD - Log every byte</span></div>
+<div class="line">.on_data([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::MessageContext</a>&amp; ctx) {</div>
+<div class="line">    <span class="keywordflow">for</span> (<span class="keyword">auto</span> <span class="keywordtype">byte</span> : ctx.data()) {</div>
+<div class="line">        logger.debug(<span class="stringliteral">&quot;byte&quot;</span>, <span class="stringliteral">&quot;received&quot;</span>, std::to_string(<span class="keywordtype">byte</span>));</div>
+<div class="line">    }</div>
+<div class="line">})</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// GOOD - Log summary</span></div>
+<div class="line">.on_data([](<span class="keyword">const</span> <a class="code hl_class" href="classunilink_1_1wrapper_1_1MessageContext.html">unilink::MessageContext</a>&amp; ctx) {</div>
+<div class="line">    logger.debug(<span class="stringliteral">&quot;data&quot;</span>, <span class="stringliteral">&quot;received&quot;</span>, <span class="stringliteral">&quot;Received &quot;</span> + std::to_string(ctx.<a class="code hl_function" href="classunilink_1_1wrapper_1_1MessageContext.html#a49d3f7b0aeac37cb41885b5fc2fa6423">data</a>().size()) + <span class="stringliteral">&quot; bytes&quot;</span>);</div>
+<div class="line">})</div>
+</div><!-- fragment --><hr  />
+<h2><a class="anchor" id="autotoc_md789"></a>
+Problem: High Memory Usage</h2>
+<p><b>Symptoms:</b></p>
+<ul>
+<li>Memory usage keeps growing</li>
+<li>Out of memory errors</li>
+</ul>
+<p><b>Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md790"></a>
+1. Fix Memory Leaks</h3>
+<div class="fragment"><div class="line"><span class="comment">// BAD - Circular reference</span></div>
+<div class="line"><span class="keyword">class </span>Client {</div>
+<div class="line">    std::shared_ptr&lt;Handler&gt; handler_;</div>
+<div class="line">};</div>
+<div class="line"><span class="keyword">class </span>Handler {</div>
+<div class="line">    std::shared_ptr&lt;Client&gt; client_;  <span class="comment">// Circular!</span></div>
+<div class="line">};</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// GOOD - Break cycle with weak_ptr</span></div>
+<div class="line"><span class="keyword">class </span>Handler {</div>
+<div class="line">    std::weak_ptr&lt;Client&gt; client_;  <span class="comment">// Weak reference</span></div>
+<div class="line">};</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md791"></a>
+3. Limit Buffer Sizes</h3>
+<div class="fragment"><div class="line"><span class="comment">// Limit message queue size</span></div>
+<div class="line">std::deque&lt;std::string&gt; message_queue_;</div>
+<div class="line"><span class="keyword">const</span> <span class="keywordtype">size_t</span> MAX_QUEUE_SIZE = 1000;</div>
+<div class="line"> </div>
+<div class="line"><span class="keywordtype">void</span> add_message(<span class="keyword">const</span> std::string&amp; msg) {</div>
+<div class="line">    <span class="keywordflow">if</span> (message_queue_.size() &gt;= MAX_QUEUE_SIZE) {</div>
+<div class="line">        message_queue_.pop_front();  <span class="comment">// Drop oldest</span></div>
+<div class="line">    }</div>
+<div class="line">    message_queue_.push_back(msg);</div>
+<div class="line">}</div>
+</div><!-- fragment --><hr  />
+<h2><a class="anchor" id="autotoc_md793"></a>
+Problem: Slow Data Transfer</h2>
+<p><b>Symptoms:</b></p>
+<ul>
+<li>Low throughput</li>
+<li>Messages take long to arrive</li>
+</ul>
+<p><b>Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md794"></a>
+1. Batch Small Messages</h3>
+<div class="fragment"><div class="line"><span class="comment">// BAD - Send each character</span></div>
+<div class="line"><span class="keywordflow">for</span> (<span class="keywordtype">char</span> c : message) {</div>
+<div class="line">    client-&gt;send(std::string(1, c));  <span class="comment">// Slow!</span></div>
+<div class="line">}</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// GOOD - Send whole message</span></div>
+<div class="line">client-&gt;send(message);</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md795"></a>
+2. Use Binary Protocol</h3>
+<div class="fragment"><div class="line"><span class="comment">// Instead of text: &quot;LENGTH:1024\nDATA:...&quot;</span></div>
+<div class="line"><span class="comment">// Use binary: [4 bytes length][data]</span></div>
+<div class="line"> </div>
+<div class="line">std::vector&lt;uint8_t&gt; create_binary_message(<span class="keyword">const</span> std::string&amp; data) {</div>
+<div class="line">    std::vector&lt;uint8_t&gt; msg;</div>
+<div class="line">    uint32_t len = data.size();</div>
+<div class="line">    msg.insert(msg.end(), (uint8_t*)&amp;len, (uint8_t*)&amp;len + 4);</div>
+<div class="line">    msg.insert(msg.end(), data.begin(), data.end());</div>
+<div class="line">    <span class="keywordflow">return</span> msg;</div>
+<div class="line">}</div>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md796"></a>
+3. Enable Async Logging</h3>
+<div class="fragment"><div class="line"><span class="comment">// Don&#39;t let logging slow down I/O</span></div>
+<div class="line"><a class="code hl_struct" href="structunilink_1_1diagnostics_1_1AsyncLogConfig.html">unilink::diagnostics::AsyncLogConfig</a> config;</div>
+<div class="line">config.batch_size = 100;</div>
+<div class="line"><a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a2e114f7695d5aac3b9a993be97c501c9">unilink::diagnostics::Logger::instance</a>().<a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a59e33a20b37773a2299729876d8552e4">set_async_logging</a>(<span class="keyword">true</span>, config);</div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1Logger_html_a2e114f7695d5aac3b9a993be97c501c9"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1Logger.html#a2e114f7695d5aac3b9a993be97c501c9">unilink::diagnostics::Logger::instance</a></div><div class="ttdeci">static Logger &amp; instance()</div><div class="ttdoc">Get singleton instance.</div><div class="ttdef"><b>Definition</b> <a href="logger_8cc_source.html#l00437">logger.cc:437</a></div></div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1Logger_html_a59e33a20b37773a2299729876d8552e4"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1Logger.html#a59e33a20b37773a2299729876d8552e4">unilink::diagnostics::Logger::set_async_logging</a></div><div class="ttdeci">void set_async_logging(bool enable, const AsyncLogConfig &amp;config=AsyncLogConfig{})</div><div class="ttdoc">Enable/disable async logging.</div><div class="ttdef"><b>Definition</b> <a href="logger_8cc_source.html#l00527">logger.cc:527</a></div></div>
+<div class="ttc" id="astructunilink_1_1diagnostics_1_1AsyncLogConfig_html"><div class="ttname"><a href="structunilink_1_1diagnostics_1_1AsyncLogConfig.html">unilink::diagnostics::AsyncLogConfig</a></div><div class="ttdoc">Async logging configuration.</div><div class="ttdef"><b>Definition</b> <a href="logger_8hpp_source.html#l00079">logger.hpp:79</a></div></div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md798"></a>
+Memory Issues</h1>
+<h2><a class="anchor" id="autotoc_md799"></a>
+Problem: Memory Leak Detected</h2>
+<p><b>Symptoms:</b></p>
+<div class="fragment"><div class="line">Memory leak detected: 1024 bytes at 0x...</div>
+</div><!-- fragment --><p><b>Debugging:</b></p>
+<div class="fragment"><div class="line"># Build with AddressSanitizer</div>
+<div class="line">cmake -DUNILINK_ENABLE_SANITIZERS=ON ..</div>
+<div class="line">cmake --build .</div>
+<div class="line"> </div>
+<div class="line"># Run</div>
+<div class="line">ASAN_OPTIONS=detect_leaks=1 ./your_app</div>
+<div class="line"> </div>
+<div class="line"># Or use valgrind</div>
+<div class="line">valgrind --leak-check=full ./your_app</div>
+</div><!-- fragment --><p><b>Common Causes:</b></p>
+<div class="fragment"><div class="line"><span class="comment">// 1. Not calling stop()</span></div>
+<div class="line">{</div>
+<div class="line">    <span class="keyword">auto</span> client = tcp_client(<span class="stringliteral">&quot;server.com&quot;</span>, 8080).<a class="code hl_function" href="classunilink_1_1builder_1_1TcpClientBuilder.html#a3209a5f18973c46d60299428afcc4e62">build</a>();</div>
+<div class="line">    client-&gt;start();</div>
+<div class="line">    <span class="comment">// Forgot to call client-&gt;stop()</span></div>
+<div class="line">}</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// 2. Circular shared_ptr</span></div>
+<div class="line"><span class="comment">// See &quot;High Memory Usage&quot; section above</span></div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// 3. Keeping wrappers alive longer than intended</span></div>
+<div class="line">server-&gt;stop();</div>
+<div class="line">server.reset();</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md801"></a>
+Thread Safety Issues</h1>
+<h2><a class="anchor" id="autotoc_md802"></a>
+Problem: Race Condition / Data Corruption</h2>
+<p><b>Symptoms:</b></p>
+<ul>
+<li>Occasional crashes</li>
+<li>Corrupted data</li>
+<li>Inconsistent state</li>
+</ul>
+<p><b>Solutions:</b></p>
+<h3><a class="anchor" id="autotoc_md803"></a>
+1. Protect Shared State</h3>
+<div class="fragment"><div class="line"><span class="comment">// BAD - No protection</span></div>
+<div class="line">std::map&lt;size_t, ClientInfo&gt; clients_;</div>
+<div class="line"> </div>
+<div class="line"><span class="keywordtype">void</span> add_client(<span class="keywordtype">size_t</span> <span class="keywordtype">id</span>) {</div>
+<div class="line">    clients_[id] = ClientInfo{};  <span class="comment">// UNSAFE!</span></div>
+<div class="line">}</div>
+<div class="line"> </div>
+<div class="line"><span class="comment">// GOOD - Use mutex</span></div>
+<div class="line">std::mutex clients_mutex_;</div>
+<div class="line">std::map&lt;size_t, ClientInfo&gt; clients_;</div>
+<div class="line"> </div>
+<div class="line"><span class="keywordtype">void</span> add_client(<span class="keywordtype">size_t</span> <span class="keywordtype">id</span>) {</div>
+<div class="line">    std::lock_guard&lt;std::mutex&gt; lock(clients_mutex_);</div>
+<div class="line">    clients_[id] = ClientInfo{};  <span class="comment">// Safe</span></div>
+<div class="line">}</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md805"></a>
+Debugging Tips</h1>
+<h2><a class="anchor" id="autotoc_md806"></a>
+Enable Debug Logging</h2>
+<div class="fragment"><div class="line"><span class="comment">// In main() or initialization</span></div>
+<div class="line"><span class="keywordtype">void</span> setup_debugging() {</div>
+<div class="line">    <span class="comment">// Set debug log level</span></div>
+<div class="line">    <a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a2e114f7695d5aac3b9a993be97c501c9">unilink::diagnostics::Logger::instance</a>().<a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a7e8ec37c982ad0a16b56ad33ae62932b">set_level</a>(unilink::diagnostics::LogLevel::DEBUG);</div>
+<div class="line">    <a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a2e114f7695d5aac3b9a993be97c501c9">unilink::diagnostics::Logger::instance</a>().<a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a2f634f2d64d5be96bd683f3c527a6416">set_console_output</a>(<span class="keyword">true</span>);</div>
+<div class="line">    <a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#a2e114f7695d5aac3b9a993be97c501c9">unilink::diagnostics::Logger::instance</a>().<a class="code hl_function" href="classunilink_1_1diagnostics_1_1Logger.html#ae27d90acc4c3646587ab4aa620bef18f">set_file_output</a>(<span class="stringliteral">&quot;debug.log&quot;</span>);</div>
+<div class="line">    </div>
+<div class="line">    <span class="comment">// Enable error handler</span></div>
+<div class="line">    <a class="code hl_function" href="classunilink_1_1diagnostics_1_1ErrorHandler.html#aadba4fe9b3095f294930ba66c2f26a01">unilink::diagnostics::ErrorHandler::instance</a>().<a class="code hl_function" href="classunilink_1_1diagnostics_1_1ErrorHandler.html#afccd40762ed2ebd05c3e4bc6d71ea122">set_min_error_level</a>(</div>
+<div class="line">        unilink::diagnostics::ErrorLevel::INFO</div>
+<div class="line">    );</div>
+<div class="line">    <a class="code hl_function" href="classunilink_1_1diagnostics_1_1ErrorHandler.html#aadba4fe9b3095f294930ba66c2f26a01">unilink::diagnostics::ErrorHandler::instance</a>().<a class="code hl_function" href="classunilink_1_1diagnostics_1_1ErrorHandler.html#af0b34d289b01281f75ce494b6ca44587">register_callback</a>(</div>
+<div class="line">        [](<span class="keyword">const</span> <a class="code hl_struct" href="structunilink_1_1diagnostics_1_1ErrorInfo.html">unilink::diagnostics::ErrorInfo</a>&amp; error) {</div>
+<div class="line">            std::cerr &lt;&lt; <span class="stringliteral">&quot;[ERROR] &quot;</span> &lt;&lt; error.<a class="code hl_function" href="structunilink_1_1diagnostics_1_1ErrorInfo.html#a4d85e558731498aec9200046191a3c99">summary</a>() &lt;&lt; std::endl;</div>
+<div class="line">        }</div>
+<div class="line">    );</div>
+<div class="line">}</div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1ErrorHandler_html_aadba4fe9b3095f294930ba66c2f26a01"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1ErrorHandler.html#aadba4fe9b3095f294930ba66c2f26a01">unilink::diagnostics::ErrorHandler::instance</a></div><div class="ttdeci">static ErrorHandler &amp; instance()</div><div class="ttdoc">Get singleton instance.</div><div class="ttdef"><b>Definition</b> <a href="error__handler_8cc_source.html#l00033">error_handler.cc:33</a></div></div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1ErrorHandler_html_af0b34d289b01281f75ce494b6ca44587"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1ErrorHandler.html#af0b34d289b01281f75ce494b6ca44587">unilink::diagnostics::ErrorHandler::register_callback</a></div><div class="ttdeci">void register_callback(ErrorCallback callback)</div><div class="ttdoc">Register error callback.</div><div class="ttdef"><b>Definition</b> <a href="error__handler_8cc_source.html#l00060">error_handler.cc:60</a></div></div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1ErrorHandler_html_afccd40762ed2ebd05c3e4bc6d71ea122"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1ErrorHandler.html#afccd40762ed2ebd05c3e4bc6d71ea122">unilink::diagnostics::ErrorHandler::set_min_error_level</a></div><div class="ttdeci">void set_min_error_level(ErrorLevel level)</div><div class="ttdoc">Set minimum error level to report.</div><div class="ttdef"><b>Definition</b> <a href="error__handler_8cc_source.html#l00070">error_handler.cc:70</a></div></div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1Logger_html_a2f634f2d64d5be96bd683f3c527a6416"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1Logger.html#a2f634f2d64d5be96bd683f3c527a6416">unilink::diagnostics::Logger::set_console_output</a></div><div class="ttdeci">void set_console_output(bool enable)</div><div class="ttdoc">Enable/disable console output.</div><div class="ttdef"><b>Definition</b> <a href="logger_8cc_source.html#l00459">logger.cc:459</a></div></div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1Logger_html_a7e8ec37c982ad0a16b56ad33ae62932b"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1Logger.html#a7e8ec37c982ad0a16b56ad33ae62932b">unilink::diagnostics::Logger::set_level</a></div><div class="ttdeci">void set_level(LogLevel level)</div><div class="ttdoc">Set minimum log level.</div><div class="ttdef"><b>Definition</b> <a href="logger_8cc_source.html#l00444">logger.cc:444</a></div></div>
+<div class="ttc" id="aclassunilink_1_1diagnostics_1_1Logger_html_ae27d90acc4c3646587ab4aa620bef18f"><div class="ttname"><a href="classunilink_1_1diagnostics_1_1Logger.html#ae27d90acc4c3646587ab4aa620bef18f">unilink::diagnostics::Logger::set_file_output</a></div><div class="ttdeci">void set_file_output(const std::string &amp;filename)</div><div class="ttdoc">Set file output.</div><div class="ttdef"><b>Definition</b> <a href="logger_8cc_source.html#l00471">logger.cc:471</a></div></div>
+<div class="ttc" id="astructunilink_1_1diagnostics_1_1ErrorInfo_html"><div class="ttname"><a href="structunilink_1_1diagnostics_1_1ErrorInfo.html">unilink::diagnostics::ErrorInfo</a></div><div class="ttdoc">Comprehensive error information structure.</div><div class="ttdef"><b>Definition</b> <a href="error__types_8hpp_source.html#l00064">error_types.hpp:64</a></div></div>
+<div class="ttc" id="astructunilink_1_1diagnostics_1_1ErrorInfo_html_a4d85e558731498aec9200046191a3c99"><div class="ttname"><a href="structunilink_1_1diagnostics_1_1ErrorInfo.html#a4d85e558731498aec9200046191a3c99">unilink::diagnostics::ErrorInfo::summary</a></div><div class="ttdeci">std::string summary() const</div><div class="ttdoc">Get formatted error summary.</div><div class="ttdef"><b>Definition</b> <a href="error__types_8hpp_source.html#l00165">error_types.hpp:165</a></div></div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md807"></a>
+Use GDB for Debugging</h2>
+<div class="fragment"><div class="line"># Compile with debug symbols</div>
+<div class="line">cmake -DCMAKE_BUILD_TYPE=Debug ..</div>
+<div class="line">cmake --build .</div>
+<div class="line"> </div>
+<div class="line"># Run with gdb</div>
+<div class="line">gdb ./your_app</div>
+<div class="line"> </div>
+<div class="line"># Useful gdb commands</div>
+<div class="line">(gdb) break main</div>
+<div class="line">(gdb) run</div>
+<div class="line">(gdb) next</div>
+<div class="line">(gdb) step</div>
+<div class="line">(gdb) print variable_name</div>
+<div class="line">(gdb) bt  # backtrace</div>
+<div class="line">(gdb) info threads</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md808"></a>
+Network Debugging with tcpdump</h2>
+<div class="fragment"><div class="line"># Capture traffic on port 8080</div>
+<div class="line">sudo tcpdump -i any -nn port 8080 -A</div>
+<div class="line"> </div>
+<div class="line"># Save to file</div>
+<div class="line">sudo tcpdump -i any port 8080 -w capture.pcap</div>
+<div class="line"> </div>
+<div class="line"># View with Wireshark</div>
+<div class="line">wireshark capture.pcap</div>
+</div><!-- fragment --><h2><a class="anchor" id="autotoc_md809"></a>
+Test with netcat</h2>
+<div class="fragment"><div class="line"># Server mode - listen on port 8080</div>
+<div class="line">nc -l 8080</div>
+<div class="line"> </div>
+<div class="line"># Client mode - connect to server</div>
+<div class="line">nc localhost 8080</div>
+<div class="line"> </div>
+<div class="line"># Send file</div>
+<div class="line">nc localhost 8080 &lt; test_data.txt</div>
+</div><!-- fragment --><hr  />
+<h1><a class="anchor" id="autotoc_md811"></a>
+Getting Help</h1>
+<p>If you're still experiencing issues:</p>
+<ol type="1">
+<li><b>Check Examples</b>: Look at <a href="https://github.com/unilink-lab/unilink-examples">https://github.com/unilink-lab/unilink-examples</a></li>
+<li><b>Read API Guide</b>: See <code>docs/user/api_guide.md</code></li>
+<li><b>Search Issues</b>: <a href="https://github.com/jwsung91/unilink/issues">https://github.com/jwsung91/unilink/issues</a></li>
+<li><b>Ask Community</b>: Create a new issue with:<ul>
+<li>Minimal reproducible example</li>
+<li>Error messages / logs</li>
+<li>Environment details (OS, compiler, versions)</li>
+<li>What you've tried so far</li>
+</ul>
+</li>
+</ol>
+<hr  />
+<p><b>See Also:</b></p>
+<ul>
+<li>Performance Guide</li>
+<li>API Reference </li>
+</ul>
+</div></div><!-- contents -->
+</div><!-- PageDoc -->
+</div><!-- doc-content -->
+<!-- start footer part -->
+<div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
+  <ul>
+    <li class="footer">Generated on Fri Jul 3 2026 02:00:45 for unilink by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8 </li>
+  </ul>
+</div>
+</body>
+</html>
