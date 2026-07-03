@@ -187,6 +187,26 @@ TEST_F(TcpClientWrapperLifecycleTest, ExternalContextManagedRunsAndStops) {
   EXPECT_TRUE(TestUtils::waitForCondition([&]() { return ioc->stopped() || ioc->poll() == 0; }, 1000));
 }
 
+// #454: the TCP client wrapper used to be the only one of six wrappers
+// polling an externally-managed io_context with run_one_for(50ms) instead of
+// blocking on run() woken by a stop_callback. Confirms stop() still returns
+// promptly (well under the old 50ms poll interval) with the new pattern.
+TEST_F(TcpClientWrapperLifecycleTest, ManagedExternalContextStopReturnsPromptly) {
+  auto ioc = std::make_shared<boost::asio::io_context>();
+  client_ = std::make_shared<wrapper::TcpClient>("127.0.0.1", test_port_, ioc);
+  client_->manage_external_context(true);
+  client_->start();
+
+  EXPECT_TRUE(TestUtils::waitForCondition([&]() { return client_->connected(); }, 5000));
+
+  auto begin = std::chrono::steady_clock::now();
+  client_->stop();
+  auto elapsed = std::chrono::steady_clock::now() - begin;
+
+  EXPECT_LT(elapsed, std::chrono::milliseconds(50));
+  EXPECT_TRUE(TestUtils::waitForCondition([&]() { return ioc->stopped() || ioc->poll() == 0; }, 1000));
+}
+
 TEST_F(TcpClientWrapperLifecycleTest, ManagedExternalContextRestartsStoppedIoContext) {
   auto ioc = std::make_shared<boost::asio::io_context>();
   ioc->stop();
