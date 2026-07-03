@@ -190,6 +190,13 @@ unilink_add_unit_gtest(
   "unit_transport_reconnect_stable" 30
 )
 
+# Shared backpressure state machine (#434) - isolated, no sockets/io_context
+unilink_add_unit_gtest(
+  run_unit_test_bp_state_machine
+  ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_bp_state_machine.cc
+  "unit_transport_backpressure_fast" 30
+)
+
 # New error handling tests
 unilink_add_unit_gtest(
   run_unit_test_tcp_abort
