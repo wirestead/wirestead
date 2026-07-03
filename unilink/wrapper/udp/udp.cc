@@ -36,6 +36,7 @@
 #include "unilink/base/common.hpp"
 #include "unilink/factory/channel_factory.hpp"
 #include "unilink/transport/udp/udp.hpp"
+#include "unilink/wrapper/error_context_builder.hpp"
 
 namespace unilink {
 namespace wrapper {
@@ -432,7 +433,7 @@ struct UdpClient::Impl {
             disconnect_handler_snapshot(ConnectionContext(0));
           }
           if (error_handler_snapshot) {
-            error_handler_snapshot(ErrorContext(ErrorCode::IoError, "Connection error"));
+            error_handler_snapshot(detail::build_error_context(*channel, "Connection error"));
           }
           break;
         }
