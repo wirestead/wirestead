@@ -182,6 +182,72 @@ TEST_F(TcpServerWrapperLifecycleTest, ManagedExternalContextRestartsStoppedIoCon
   EXPECT_TRUE(ioc->stopped());
 }
 
+// #444-remainder: full end-to-end restart correctness - stop() then start()
+// again must behave like a clean, fresh server. No leaked client count or
+// session state from the stopped instance's transport_cache_/framers_
+// carries over into the second instance's client_count()/connected_clients().
+TEST_F(TcpServerWrapperLifecycleTest, StopClearsTransportCacheAndFramersBeforeRestart) {
+  server_ = unilink::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto f1 = server_->start();
+  ASSERT_TRUE(f1.get());
+
+  auto client1 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  ASSERT_TRUE(client1->start().get());
+  ASSERT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() >= 1; }, 5000));
+
+  client1->stop();
+  server_->stop();
+
+  // transport_cache_ must be reset by now - client_count() must not report
+  // stale state from the now-stopped transport.
+  EXPECT_EQ(server_->client_count(), 0u);
+  EXPECT_TRUE(server_->connected_clients().empty());
+
+  auto f2 = server_->start();
+  ASSERT_TRUE(f2.get());
+  EXPECT_TRUE(server_->listening());
+
+  auto client2 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  ASSERT_TRUE(client2->start().get());
+  EXPECT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() >= 1; }, 5000));
+  // Exactly one live client after the restart - no leaked session/framer
+  // state from before the stop() carried over.
+  EXPECT_EQ(server_->client_count(), 1u);
+
+  client2->stop();
+}
+
+// #444-remainder: max_clients() reaches transport_cache_ directly
+// (`if (impl_->transport_cache_) impl_->transport_cache_->set_client_limit(max)`)
+// - calling it while stopped must not crash on a stale cached pointer, and
+// the new limit must still take effect via the wrapper's retained config on
+// the next start() regardless of whether transport_cache_ was live to
+// receive the call.
+TEST_F(TcpServerWrapperLifecycleTest, MaxClientsWhileStoppedAppliesOnNextStart) {
+  server_ = unilink::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  ASSERT_TRUE(server_->start().get());
+  server_->stop();
+
+  // Must not crash even if transport_cache_ is stale/reset at this point.
+  server_->max_clients(1);
+
+  ASSERT_TRUE(server_->start().get());
+
+  auto client1 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client2 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  ASSERT_TRUE(client1->start().get());
+  EXPECT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() >= 1; }, 5000));
+
+  client2->start();
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  // The max_clients(1) set while stopped must be honored: the second
+  // connection is rejected, so client_count() stays at 1.
+  EXPECT_EQ(server_->client_count(), 1u);
+
+  client1->stop();
+  client2->stop();
+}
+
 TEST_F(TcpServerWrapperLifecycleTest, SendAndCountReflectLiveClientsAndReturnStatus) {
   std::vector<size_t> ids;
   std::mutex ids_mutex;

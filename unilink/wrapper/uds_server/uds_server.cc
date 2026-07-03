@@ -238,6 +238,7 @@ struct UdsServer::Impl {
       if (server_) {
         server_->on_bytes(nullptr);
         server_->on_state(nullptr);
+        server_->on_backpressure(nullptr);
         lock.unlock();
         server_->stop();
         lock.lock();

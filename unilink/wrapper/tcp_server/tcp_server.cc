@@ -274,6 +274,7 @@ struct TcpServer::Impl {
       if (channel_) {
         channel_->on_bytes(nullptr);
         channel_->on_state(nullptr);
+        channel_->on_backpressure(nullptr);
         auto transport_server = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
         if (transport_server) transport_server->request_stop();
         lock.unlock();
@@ -285,6 +286,14 @@ struct TcpServer::Impl {
         if (external_ioc_) external_ioc_->stop();
         should_join = true;
       }
+      // #444: transport_cache_ is a separate cached shared_ptr to the same
+      // transport object channel_ points at - without this, send_to()/
+      // broadcast()/max_clients() could still reach the stopped transport
+      // via transport_cache_ even after channel_.reset() below. framers_
+      // must also be cleared so a restart doesn't resume per-client framing
+      // state from stale ClientIds (mirrors UdsServer's existing behavior).
+      transport_cache_.reset();
+      framers_.clear();
       fulfill_all_locked(false);
       is_listening_.store(false);
     }

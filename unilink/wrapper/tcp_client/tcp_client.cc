@@ -240,6 +240,7 @@ struct TcpClient::Impl {
         if (channel_ == ch) {
           channel_->on_bytes(nullptr);
           channel_->on_state(nullptr);
+          channel_->on_backpressure(nullptr);
         }
       }
       if (use_external_context_.load() && manage_external_context_.load()) {
