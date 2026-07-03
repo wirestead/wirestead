@@ -37,6 +37,7 @@
 #include "unilink/interface/iuds_socket.hpp"
 #include "unilink/memory/memory_pool.hpp"
 #include "unilink/memory/safe_span.hpp"
+#include "unilink/transport/base/bp_state_machine.hpp"
 
 namespace unilink {
 namespace transport {
@@ -85,8 +86,10 @@ class UNILINK_API UdsServerSession : public std::enable_shared_from_this<UdsServ
   void start_read();
   void do_write();
   void do_close();
-  void maybe_flush_for_keep_latest(size_t added);
   void report_backpressure(size_t queued_bytes);
+  // Shared decide_enqueue()/route dispatch used by both async_write_* variants (#434).
+  void route_enqueued_buffer(BufferVariant&& buf, size_t added);
+  queue_util::BackpressureFields bp_fields();
   void reset_idle_timer();
   void observe_queue();
 
