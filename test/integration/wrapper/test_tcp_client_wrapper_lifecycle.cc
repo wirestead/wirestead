@@ -19,6 +19,7 @@
 #include <atomic>
 #include <boost/asio.hpp>
 #include <chrono>
+#include <condition_variable>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -470,6 +471,59 @@ TEST(TcpClientWrapperContractTest, InjectedChannelBatchesRawDataAndFramedMessage
   ASSERT_EQ(framed_payloads.size(), 2U);
   EXPECT_EQ(framed_payloads[0], "msg1");
   EXPECT_EQ(framed_payloads[1], "msg2");
+
+  client.stop();
+}
+
+// #441: on_bytes only ever needs a shared_lock to snapshot the handler
+// pointer (try_send takes the same shared_lock on the same mutex) - the
+// user callback itself already runs outside any lock. Proves a slow/blocked
+// on_data callback does not stall a concurrent try_send call.
+TEST(TcpClientWrapperContractTest, TrySendDoesNotBlockOnConcurrentSlowDataCallback) {
+  auto channel = std::make_shared<ControlledChannel>();
+  wrapper::TcpClient client(std::static_pointer_cast<interface::Channel>(channel));
+
+  std::mutex cb_mutex;
+  std::condition_variable cb_started_cv;
+  std::condition_variable cb_release_cv;
+  bool cb_started = false;
+  bool release_cb = false;
+
+  client.on_data([&](const wrapper::MessageContext&) {
+    {
+      std::lock_guard<std::mutex> lock(cb_mutex);
+      cb_started = true;
+    }
+    cb_started_cv.notify_all();
+    std::unique_lock<std::mutex> lock(cb_mutex);
+    cb_release_cv.wait(lock, [&] { return release_cb; });
+  });
+
+  auto started = client.start();
+  channel->emit_state(base::LinkState::Connected);
+  ASSERT_TRUE(started.get());
+
+  std::thread receiver([&] { channel->emit_bytes("payload"); });
+
+  {
+    std::unique_lock<std::mutex> lock(cb_mutex);
+    ASSERT_TRUE(cb_started_cv.wait_for(lock, 2s, [&] { return cb_started; }));
+  }
+
+  // The on_data callback above is still blocked. try_send must still
+  // complete promptly - it only needs a shared_lock snapshot of the
+  // channel pointer, which on_bytes no longer holds exclusively.
+  auto begin = std::chrono::steady_clock::now();
+  EXPECT_TRUE(client.try_send("concurrent"));
+  auto elapsed = std::chrono::steady_clock::now() - begin;
+  EXPECT_LT(elapsed, 200ms) << "try_send blocked on a concurrent, still-running on_data callback";
+
+  {
+    std::lock_guard<std::mutex> lock(cb_mutex);
+    release_cb = true;
+  }
+  cb_release_cv.notify_all();
+  receiver.join();
 
   client.stop();
 }
