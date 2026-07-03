@@ -27,6 +27,7 @@
 #include "test_constants.hpp"
 #include "test_utils.hpp"
 #include "unilink/config/tcp_server_config.hpp"
+#include "unilink/diagnostics/exceptions.hpp"
 #include "unilink/interface/itcp_acceptor.hpp"
 #include "unilink/memory/safe_span.hpp"
 #include "unilink/transport/tcp_server/tcp_server.hpp"
@@ -400,7 +401,9 @@ TEST_F(TransportTcpServerTest, InjectedNullAcceptorThrows) {
   config::TcpServerConfig cfg;
   cfg.port = TestUtils::getAvailableTestPort();
 
-  EXPECT_THROW((void)TcpServer::create(cfg, nullptr, ioc), std::runtime_error);
+  // #445: construction-time configuration errors use diagnostics::BuilderException
+  // uniformly, matching every other transport's builder-validation exception type.
+  EXPECT_THROW((void)TcpServer::create(cfg, nullptr, ioc), diagnostics::BuilderException);
 }
 
 TEST_F(TransportTcpServerTest, InvalidBindAddressMovesToErrorAndSwallowsStateException) {

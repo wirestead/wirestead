@@ -52,6 +52,15 @@ TEST(UdpBuilderOptionsTest, UdpClientBuilderSetters) {
   ASSERT_NE(udp, nullptr);
 }
 
+// #445: remote-address format is a pure-input error, detectable synchronously
+// with no I/O and always the caller's fault - it should throw as soon as
+// remote_endpoint()/remote() is called, not be deferred until build() time
+// constructs the underlying transport.
+TEST(UdpBuilderOptionsTest, InvalidRemoteAddressThrowsImmediately) {
+  builder::UdpClientBuilder builder(0);
+  EXPECT_THROW(builder.remote_endpoint("not-an-address", 1234), diagnostics::BuilderException);
+}
+
 TEST(UdpBuilderOptionsTest, UdpServerBuilderSetters) {
   auto server = builder::UdpServerBuilder(0)
                     .auto_start(false)

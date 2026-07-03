@@ -30,6 +30,7 @@
 
 #include "unilink/concurrency/io_context_manager.hpp"
 #include "unilink/concurrency/thread_safe_state.hpp"
+#include "unilink/diagnostics/exceptions.hpp"
 #include "unilink/diagnostics/logger.hpp"
 #include "unilink/diagnostics/runtime_stats_counter.hpp"
 #include "unilink/interface/itcp_acceptor.hpp"
@@ -86,7 +87,7 @@ struct TcpServer::Impl {
     try {
       acceptor_ = std::make_unique<BoostTcpAcceptor>(ioc_);
     } catch (const std::exception& e) {
-      throw std::runtime_error("Failed to create TCP acceptor: " + std::string(e.what()));
+      throw diagnostics::BuilderException("Failed to create TCP acceptor: " + std::string(e.what()), "tcp_server");
     }
     cfg_.validate_and_clamp();
     max_clients_ = cfg_.max_connections > 0 ? static_cast<size_t>(cfg_.max_connections) : 0;
@@ -103,7 +104,7 @@ struct TcpServer::Impl {
         max_clients_(cfg.max_connections > 0 ? static_cast<size_t>(cfg.max_connections) : 0),
         client_limit_enabled_(cfg.max_connections > 0) {
     if (!acceptor_) {
-      throw std::runtime_error("Failed to create TCP acceptor");
+      throw diagnostics::BuilderException("Failed to create TCP acceptor", "tcp_server");
     }
     cfg_.validate_and_clamp();
     max_clients_ = cfg_.max_connections > 0 ? static_cast<size_t>(cfg_.max_connections) : 0;
