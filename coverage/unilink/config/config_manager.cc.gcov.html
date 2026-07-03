@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 23:22:02</td>
+            <td class="headerValue">2026-07-03 00:28:11</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">93.1&nbsp;%</td>
@@ -215,10 +215,10 @@
 <span id="L130"><span class="lineNum">     130</span>                 :<span class="tlaGNC">         231 : std::any ConfigManager::get(const std::string&amp; key, const std::any&amp; default_value) const {</span></span>
 <span id="L131"><span class="lineNum">     131</span>         [<span class="tlaGBC" title="Branch 0 was taken 231 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         231 :   std::lock_guard&lt;std::mutex&gt; lock(get_impl()-&gt;mutex_);</span></span>
 <span id="L132"><span class="lineNum">     132</span>         [<span class="tlaGBC" title="Branch 0 was taken 231 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         231 :   auto it = get_impl()-&gt;config_items_.find(key);</span></span>
-<span id="L133"><span class="lineNum">     133</span>         [<span class="tlaGBC" title="Branch 0 was taken 202 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 29 times"> + </span>]:<span class="tlaGNC">         231 :   if (it != get_impl()-&gt;config_items_.end()) {</span></span>
-<span id="L134"><span class="lineNum">     134</span>         [<span class="tlaGBC" title="Branch 0 was taken 202 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         202 :     return it-&gt;second.value;</span></span>
+<span id="L133"><span class="lineNum">     133</span>         [<span class="tlaGBC" title="Branch 0 was taken 221 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 10 times"> + </span>]:<span class="tlaGNC">         231 :   if (it != get_impl()-&gt;config_items_.end()) {</span></span>
+<span id="L134"><span class="lineNum">     134</span>         [<span class="tlaGBC" title="Branch 0 was taken 221 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         221 :     return it-&gt;second.value;</span></span>
 <span id="L135"><span class="lineNum">     135</span>                 :             :   }</span>
-<span id="L136"><span class="lineNum">     136</span>         [<span class="tlaGBC" title="Branch 0 was taken 29 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          29 :   return default_value;</span></span>
+<span id="L136"><span class="lineNum">     136</span>         [<span class="tlaGBC" title="Branch 0 was taken 10 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          10 :   return default_value;</span></span>
 <span id="L137"><span class="lineNum">     137</span>                 :<span class="tlaGNC">         231 : }</span></span>
 <span id="L138"><span class="lineNum">     138</span>                 :             : </span>
 <span id="L139"><span class="lineNum">     139</span>                 :<span class="tlaGNC">          19 : bool ConfigManager::has(const std::string&amp; key) const {</span></span>
@@ -256,11 +256,11 @@
 <span id="L171"><span class="lineNum">     171</span>                 :<span class="tlaGNC">          32 : bool ConfigManager::remove(const std::string&amp; key) {</span></span>
 <span id="L172"><span class="lineNum">     172</span>         [<span class="tlaGBC" title="Branch 0 was taken 32 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          32 :   std::lock_guard&lt;std::mutex&gt; lock(impl_-&gt;mutex_);</span></span>
 <span id="L173"><span class="lineNum">     173</span>         [<span class="tlaGBC" title="Branch 0 was taken 32 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          32 :   auto it = impl_-&gt;config_items_.find(key);</span></span>
-<span id="L174"><span class="lineNum">     174</span>         [<span class="tlaGBC" title="Branch 0 was taken 11 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 21 times"> + </span>]:<span class="tlaGNC">          32 :   if (it != impl_-&gt;config_items_.end()) {</span></span>
-<span id="L175"><span class="lineNum">     175</span>         [<span class="tlaGBC" title="Branch 0 was taken 11 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          11 :     impl_-&gt;config_items_.erase(it);</span></span>
-<span id="L176"><span class="lineNum">     176</span>                 :<span class="tlaGNC">          11 :     return true;</span></span>
+<span id="L174"><span class="lineNum">     174</span>         [<span class="tlaGBC" title="Branch 0 was taken 29 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 3 times"> + </span>]:<span class="tlaGNC">          32 :   if (it != impl_-&gt;config_items_.end()) {</span></span>
+<span id="L175"><span class="lineNum">     175</span>         [<span class="tlaGBC" title="Branch 0 was taken 29 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          29 :     impl_-&gt;config_items_.erase(it);</span></span>
+<span id="L176"><span class="lineNum">     176</span>                 :<span class="tlaGNC">          29 :     return true;</span></span>
 <span id="L177"><span class="lineNum">     177</span>                 :             :   }</span>
-<span id="L178"><span class="lineNum">     178</span>                 :<span class="tlaGNC">          21 :   return false;</span></span>
+<span id="L178"><span class="lineNum">     178</span>                 :<span class="tlaGNC">           3 :   return false;</span></span>
 <span id="L179"><span class="lineNum">     179</span>                 :<span class="tlaGNC">          32 : }</span></span>
 <span id="L180"><span class="lineNum">     180</span>                 :             : </span>
 <span id="L181"><span class="lineNum">     181</span>                 :<span class="tlaGNC">           1 : void ConfigManager::clear() {</span></span>

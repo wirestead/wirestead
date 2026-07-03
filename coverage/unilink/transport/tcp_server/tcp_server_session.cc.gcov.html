@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 23:22:02</td>
+            <td class="headerValue">2026-07-03 00:28:11</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">97.7&nbsp;%</td>
@@ -435,41 +435,41 @@
 <span id="L332"><span class="lineNum">     332</span>                 :<span class="tlaUNC tlaBgUNC">           0 :     stats_.record_failed_send();</span></span>
 <span id="L333"><span class="lineNum">     333</span>                 :<span class="tlaUNC">           0 :     return false;</span></span>
 <span id="L334"><span class="lineNum">     334</span>                 :             :   }</span>
-<span id="L335"><span class="lineNum">     335</span>                 :<span class="tlaGNC tlaBgGNC">         205 :   const auto reject_for_pressure = [this, added]() {</span></span>
-<span id="L336"><span class="lineNum">     336</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 205 times"> + </span>]:<span class="tlaGNC">         205 :     if (bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {</span></span>
+<span id="L335"><span class="lineNum">     335</span>                 :<span class="tlaGNC tlaBgGNC">         203 :   const auto reject_for_pressure = [this, added]() {</span></span>
+<span id="L336"><span class="lineNum">     336</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 203 times"> + </span>]:<span class="tlaGNC">         203 :     if (bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {</span></span>
 <span id="L337"><span class="lineNum">     337</span>                 :<span class="tlaUNC tlaBgUNC">           0 :       stats_.record_dropped(1, added);</span></span>
 <span id="L338"><span class="lineNum">     338</span>                 :             :     } else {</span>
-<span id="L339"><span class="lineNum">     339</span>                 :<span class="tlaGNC tlaBgGNC">         205 :       stats_.record_failed_send();</span></span>
+<span id="L339"><span class="lineNum">     339</span>                 :<span class="tlaGNC tlaBgGNC">         203 :       stats_.record_failed_send();</span></span>
 <span id="L340"><span class="lineNum">     340</span>                 :             :     }</span>
-<span id="L341"><span class="lineNum">     341</span>                 :<span class="tlaGNC">         510 :   };</span></span>
-<span id="L342"><span class="lineNum">     342</span>   [<span class="tlaGBC" title="Branch 0 was taken 128 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 177 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 100 times"> + </span><span class="tlaGBC" title="Branch 3 was taken 28 times"> + </span> :<span class="tlaGNC">         405 :   if (backpressure_active_.load() || queue_bytes_ + added &gt; bp_high_ ||</span></span>
-<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 205 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 100 times"> + </span>]
-<span id="L343"><span class="lineNum">     343</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 100 times"> + </span>]:<span class="tlaGNC">         100 :       queue_bytes_ + pending_bytes_ + added &gt; bp_limit_) {</span></span>
-<span id="L344"><span class="lineNum">     344</span>                 :<span class="tlaGNC">         205 :     reject_for_pressure();</span></span>
-<span id="L345"><span class="lineNum">     345</span>                 :<span class="tlaGNC">         205 :     return false;</span></span>
+<span id="L341"><span class="lineNum">     341</span>                 :<span class="tlaGNC">         508 :   };</span></span>
+<span id="L342"><span class="lineNum">     342</span>   [<span class="tlaGBC" title="Branch 0 was taken 127 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 178 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 102 times"> + </span><span class="tlaGBC" title="Branch 3 was taken 25 times"> + </span> :<span class="tlaGNC">         407 :   if (backpressure_active_.load() || queue_bytes_ + added &gt; bp_high_ ||</span></span>
+<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 203 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 102 times"> + </span>]
+<span id="L343"><span class="lineNum">     343</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 102 times"> + </span>]:<span class="tlaGNC">         102 :       queue_bytes_ + pending_bytes_ + added &gt; bp_limit_) {</span></span>
+<span id="L344"><span class="lineNum">     344</span>                 :<span class="tlaGNC">         203 :     reject_for_pressure();</span></span>
+<span id="L345"><span class="lineNum">     345</span>                 :<span class="tlaGNC">         203 :     return false;</span></span>
 <span id="L346"><span class="lineNum">     346</span>                 :             :   }</span>
-<span id="L347"><span class="lineNum">     347</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 100 times"> + </span>]:<span class="tlaGNC">         100 :   if (!queue_util::try_reserve_write_bytes(queue_bytes_, pending_bytes_, backpressure_active_, added, bp_high_,</span></span>
+<span id="L347"><span class="lineNum">     347</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 102 times"> + </span>]:<span class="tlaGNC">         102 :   if (!queue_util::try_reserve_write_bytes(queue_bytes_, pending_bytes_, backpressure_active_, added, bp_high_,</span></span>
 <span id="L348"><span class="lineNum">     348</span>                 :             :                                            bp_limit_)) {</span>
 <span id="L349"><span class="lineNum">     349</span>                 :<span class="tlaUNC tlaBgUNC">           0 :     reject_for_pressure();</span></span>
 <span id="L350"><span class="lineNum">     350</span>                 :<span class="tlaUNC">           0 :     return false;</span></span>
 <span id="L351"><span class="lineNum">     351</span>                 :             :   }</span>
-<span id="L352"><span class="lineNum">     352</span>                 :<span class="tlaGNC tlaBgGNC">         100 :   stats_.record_accepted(added);</span></span>
+<span id="L352"><span class="lineNum">     352</span>                 :<span class="tlaGNC tlaBgGNC">         102 :   stats_.record_accepted(added);</span></span>
 <span id="L353"><span class="lineNum">     353</span>                 :             : </span>
-<span id="L354"><span class="lineNum">     354</span>   [<span class="tlaGBC" title="Branch 0 was taken 100 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 100 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">         100 :   net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {</span></span>
+<span id="L354"><span class="lineNum">     354</span>   [<span class="tlaGBC" title="Branch 0 was taken 102 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 102 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">         102 :   net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {</span></span>
 <span class="lineNum">        </span>    <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaUNC" title="Branch 5 was not taken"> - </span><span class="tlaUNC" title="Branch 6 was not taken"> - </span><span class="tlaUNC" title="Branch 7 was not taken"> - </span>]
-<span id="L355"><span class="lineNum">     355</span>   [<span class="tlaGBC" title="Branch 0 was taken 100 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 100 times"> + </span> :<span class="tlaGNC">         100 :     if (!self-&gt;alive_ || self-&gt;closing_) {</span></span>
-<span class="lineNum">        </span>          <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaGBC" title="Branch 5 was taken 100 times"> + </span>]
+<span id="L355"><span class="lineNum">     355</span>   [<span class="tlaGBC" title="Branch 0 was taken 102 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 102 times"> + </span> :<span class="tlaGNC">         102 :     if (!self-&gt;alive_ || self-&gt;closing_) {</span></span>
+<span class="lineNum">        </span>          <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaGBC" title="Branch 5 was taken 102 times"> + </span>]
 <span id="L356"><span class="lineNum">     356</span>                 :<span class="tlaUNC tlaBgUNC">           0 :       queue_util::release_reserved_write_bytes(self-&gt;queue_bytes_, added);</span></span>
 <span id="L357"><span class="lineNum">     357</span>                 :<span class="tlaUNC">           0 :       self-&gt;stats_.record_failed_send();</span></span>
 <span id="L358"><span class="lineNum">     358</span>                 :<span class="tlaUNC">           0 :       return;</span></span>
 <span id="L359"><span class="lineNum">     359</span>                 :             :     }</span>
 <span id="L360"><span class="lineNum">     360</span>                 :             : </span>
-<span id="L361"><span class="lineNum">     361</span>                 :<span class="tlaGNC tlaBgGNC">         100 :     self-&gt;tx_.emplace_back(std::move(buf));</span></span>
-<span id="L362"><span class="lineNum">     362</span>                 :<span class="tlaGNC">         100 :     self-&gt;observe_queue();</span></span>
-<span id="L363"><span class="lineNum">     363</span>                 :<span class="tlaGNC">         100 :     self-&gt;report_backpressure(self-&gt;queue_bytes_);</span></span>
-<span id="L364"><span class="lineNum">     364</span>         [<span class="tlaGBC" title="Branch 0 was taken 98 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 2 times"> + </span>]:<span class="tlaGNC">         100 :     if (!self-&gt;writing_) self-&gt;do_write();</span></span>
+<span id="L361"><span class="lineNum">     361</span>                 :<span class="tlaGNC tlaBgGNC">         102 :     self-&gt;tx_.emplace_back(std::move(buf));</span></span>
+<span id="L362"><span class="lineNum">     362</span>                 :<span class="tlaGNC">         102 :     self-&gt;observe_queue();</span></span>
+<span id="L363"><span class="lineNum">     363</span>                 :<span class="tlaGNC">         102 :     self-&gt;report_backpressure(self-&gt;queue_bytes_);</span></span>
+<span id="L364"><span class="lineNum">     364</span>         [<span class="tlaGBC" title="Branch 0 was taken 100 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 2 times"> + </span>]:<span class="tlaGNC">         102 :     if (!self-&gt;writing_) self-&gt;do_write();</span></span>
 <span id="L365"><span class="lineNum">     365</span>                 :             :   });</span>
-<span id="L366"><span class="lineNum">     366</span>                 :<span class="tlaGNC">         100 :   return true;</span></span>
+<span id="L366"><span class="lineNum">     366</span>                 :<span class="tlaGNC">         102 :   return true;</span></span>
 <span id="L367"><span class="lineNum">     367</span>                 :             : }</span>
 <span id="L368"><span class="lineNum">     368</span>                 :             : </span>
 <span id="L369"><span class="lineNum">     369</span>                 :<span class="tlaGNC">          97 : void TcpServerSession::on_bytes(OnBytes cb) {</span></span>
@@ -497,7 +497,7 @@
 <span id="L388"><span class="lineNum">     388</span>                 :             :   });</span>
 <span id="L389"><span class="lineNum">     389</span>                 :<span class="tlaGNC">          99 : }</span></span>
 <span id="L390"><span class="lineNum">     390</span>                 :             : </span>
-<span id="L391"><span class="lineNum">     391</span>                 :<span class="tlaGNC">         625 : bool TcpServerSession::alive() const { return alive_.load(); }</span></span>
+<span id="L391"><span class="lineNum">     391</span>                 :<span class="tlaGNC">         624 : bool TcpServerSession::alive() const { return alive_.load(); }</span></span>
 <span id="L392"><span class="lineNum">     392</span>                 :             : </span>
 <span id="L393"><span class="lineNum">     393</span>                 :<span class="tlaGNC">          15 : wrapper::RuntimeStats TcpServerSession::stats() const {</span></span>
 <span id="L394"><span class="lineNum">     394</span>                 :<span class="tlaGNC">          45 :   return stats_.snapshot(queue_bytes_.load(std::memory_order_relaxed), pending_bytes_.load(std::memory_order_relaxed),</span></span>
@@ -570,58 +570,58 @@
 <span id="L455"><span class="lineNum">     455</span>                 :             :       }));</span>
 <span id="L456"><span class="lineNum">     456</span>                 :<span class="tlaGNC">        2269 : }</span></span>
 <span id="L457"><span class="lineNum">     457</span>                 :             : </span>
-<span id="L458"><span class="lineNum">     458</span>                 :<span class="tlaGNC">         236 : void TcpServerSession::do_write() {</span></span>
-<span id="L459"><span class="lineNum">     459</span>         [<span class="tlaGBC" title="Branch 0 was taken 107 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 129 times"> + </span>]:<span class="tlaGNC">         236 :   if (tx_.empty()) {</span></span>
-<span id="L460"><span class="lineNum">     460</span>                 :<span class="tlaGNC">         107 :     writing_ = false;</span></span>
-<span id="L461"><span class="lineNum">     461</span>                 :<span class="tlaGNC">         107 :     return;</span></span>
+<span id="L458"><span class="lineNum">     458</span>                 :<span class="tlaGNC">         240 : void TcpServerSession::do_write() {</span></span>
+<span id="L459"><span class="lineNum">     459</span>         [<span class="tlaGBC" title="Branch 0 was taken 109 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 131 times"> + </span>]:<span class="tlaGNC">         240 :   if (tx_.empty()) {</span></span>
+<span id="L460"><span class="lineNum">     460</span>                 :<span class="tlaGNC">         109 :     writing_ = false;</span></span>
+<span id="L461"><span class="lineNum">     461</span>                 :<span class="tlaGNC">         109 :     return;</span></span>
 <span id="L462"><span class="lineNum">     462</span>                 :             :   }</span>
-<span id="L463"><span class="lineNum">     463</span>                 :<span class="tlaGNC">         129 :   writing_ = true;</span></span>
-<span id="L464"><span class="lineNum">     464</span>         [<span class="tlaGBC" title="Branch 0 was taken 129 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         129 :   auto self = shared_from_this();</span></span>
+<span id="L463"><span class="lineNum">     463</span>                 :<span class="tlaGNC">         131 :   writing_ = true;</span></span>
+<span id="L464"><span class="lineNum">     464</span>         [<span class="tlaGBC" title="Branch 0 was taken 131 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         131 :   auto self = shared_from_this();</span></span>
 <span id="L465"><span class="lineNum">     465</span>                 :             : </span>
 <span id="L466"><span class="lineNum">     466</span>                 :             :   // Move buffer out of queue immediately to ensure lifetime safety during async op</span>
 <span id="L467"><span class="lineNum">     467</span>                 :             :   // Optimization: Move into current_write_buffer_ to keep it alive during async op</span>
 <span id="L468"><span class="lineNum">     468</span>                 :             :   // without allocating a shared_ptr control block.</span>
-<span id="L469"><span class="lineNum">     469</span>                 :<span class="tlaGNC">         129 :   current_write_buffer_ = std::move(tx_.front());</span></span>
-<span id="L470"><span class="lineNum">     470</span>                 :<span class="tlaGNC">         129 :   tx_.pop_front();</span></span>
+<span id="L469"><span class="lineNum">     469</span>                 :<span class="tlaGNC">         131 :   current_write_buffer_ = std::move(tx_.front());</span></span>
+<span id="L470"><span class="lineNum">     470</span>                 :<span class="tlaGNC">         131 :   tx_.pop_front();</span></span>
 <span id="L471"><span class="lineNum">     471</span>                 :             : </span>
-<span id="L472"><span class="lineNum">     472</span>                 :<span class="tlaGNC">         129 :   auto&amp; current = *current_write_buffer_;</span></span>
+<span id="L472"><span class="lineNum">     472</span>                 :<span class="tlaGNC">         131 :   auto&amp; current = *current_write_buffer_;</span></span>
 <span id="L473"><span class="lineNum">     473</span>                 :             : </span>
-<span id="L474"><span class="lineNum">     474</span>                 :<span class="tlaGNC">         122 :   auto on_write = [self](const boost::system::error_code&amp; ec, std::size_t n) {</span></span>
+<span id="L474"><span class="lineNum">     474</span>                 :<span class="tlaGNC">         124 :   auto on_write = [self](const boost::system::error_code&amp; ec, std::size_t n) {</span></span>
 <span id="L475"><span class="lineNum">     475</span>                 :             :     // Release the buffer immediately</span>
-<span id="L476"><span class="lineNum">     476</span>                 :<span class="tlaGNC">         122 :     self-&gt;current_write_buffer_.reset();</span></span>
+<span id="L476"><span class="lineNum">     476</span>                 :<span class="tlaGNC">         124 :     self-&gt;current_write_buffer_.reset();</span></span>
 <span id="L477"><span class="lineNum">     477</span>                 :             : </span>
-<span id="L478"><span class="lineNum">     478</span>   [<span class="tlaGBC" title="Branch 0 was taken 120 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 2 times"> + </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 120 times"> + </span> :<span class="tlaGNC">         122 :     if (self-&gt;closing_ || !self-&gt;alive_) return;</span></span>
-<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 120 times"> + </span>]
-<span id="L479"><span class="lineNum">     479</span>         [<span class="tlaGBC" title="Branch 0 was taken 120 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         120 :     if (self-&gt;queue_bytes_ &gt;= n) {</span></span>
-<span id="L480"><span class="lineNum">     480</span>                 :<span class="tlaGNC">         120 :       self-&gt;queue_bytes_ -= n;</span></span>
+<span id="L478"><span class="lineNum">     478</span>   [<span class="tlaGBC" title="Branch 0 was taken 122 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 2 times"> + </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 122 times"> + </span> :<span class="tlaGNC">         124 :     if (self-&gt;closing_ || !self-&gt;alive_) return;</span></span>
+<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 122 times"> + </span>]
+<span id="L479"><span class="lineNum">     479</span>         [<span class="tlaGBC" title="Branch 0 was taken 122 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         122 :     if (self-&gt;queue_bytes_ &gt;= n) {</span></span>
+<span id="L480"><span class="lineNum">     480</span>                 :<span class="tlaGNC">         122 :       self-&gt;queue_bytes_ -= n;</span></span>
 <span id="L481"><span class="lineNum">     481</span>                 :             :     } else {</span>
 <span id="L482"><span class="lineNum">     482</span>                 :<span class="tlaUNC tlaBgUNC">           0 :       self-&gt;queue_bytes_ = 0;</span></span>
 <span id="L483"><span class="lineNum">     483</span>                 :             :     }</span>
-<span id="L484"><span class="lineNum">     484</span>                 :<span class="tlaGNC tlaBgGNC">         120 :     self-&gt;report_backpressure(self-&gt;queue_bytes_);</span></span>
+<span id="L484"><span class="lineNum">     484</span>                 :<span class="tlaGNC tlaBgGNC">         122 :     self-&gt;report_backpressure(self-&gt;queue_bytes_);</span></span>
 <span id="L485"><span class="lineNum">     485</span>                 :             : </span>
-<span id="L486"><span class="lineNum">     486</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 119 times"> + </span>]:<span class="tlaGNC">         120 :     if (ec) {</span></span>
+<span id="L486"><span class="lineNum">     486</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 121 times"> + </span>]:<span class="tlaGNC">         122 :     if (ec) {</span></span>
 <span id="L487"><span class="lineNum">     487</span>                 :<span class="tlaGNC">           1 :       self-&gt;do_close();</span></span>
 <span id="L488"><span class="lineNum">     488</span>                 :<span class="tlaGNC">           1 :       return;</span></span>
 <span id="L489"><span class="lineNum">     489</span>                 :             :     }</span>
-<span id="L490"><span class="lineNum">     490</span>                 :<span class="tlaGNC">         119 :     self-&gt;stats_.record_sent(n);</span></span>
-<span id="L491"><span class="lineNum">     491</span>                 :<span class="tlaGNC">         119 :     self-&gt;reset_idle_timer();</span></span>
-<span id="L492"><span class="lineNum">     492</span>                 :<span class="tlaGNC">         119 :     self-&gt;do_write();</span></span>
-<span id="L493"><span class="lineNum">     493</span>                 :<span class="tlaGNC">         129 :   };</span></span>
+<span id="L490"><span class="lineNum">     490</span>                 :<span class="tlaGNC">         121 :     self-&gt;stats_.record_sent(n);</span></span>
+<span id="L491"><span class="lineNum">     491</span>                 :<span class="tlaGNC">         121 :     self-&gt;reset_idle_timer();</span></span>
+<span id="L492"><span class="lineNum">     492</span>                 :<span class="tlaGNC">         121 :     self-&gt;do_write();</span></span>
+<span id="L493"><span class="lineNum">     493</span>                 :<span class="tlaGNC">         131 :   };</span></span>
 <span id="L494"><span class="lineNum">     494</span>                 :             : </span>
-<span id="L495"><span class="lineNum">     495</span>                 :<span class="tlaGNC">         129 :   std::visit(</span></span>
-<span id="L496"><span class="lineNum">     496</span>         [<span class="tlaGBC" title="Branch 0 was taken 129 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         258 :       [&amp;](const auto&amp; buf) {</span></span>
+<span id="L495"><span class="lineNum">     495</span>                 :<span class="tlaGNC">         131 :   std::visit(</span></span>
+<span id="L496"><span class="lineNum">     496</span>         [<span class="tlaGBC" title="Branch 0 was taken 131 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">         262 :       [&amp;](const auto&amp; buf) {</span></span>
 <span id="L497"><span class="lineNum">     497</span>                 :             :         using T = std::decay_t&lt;decltype(buf)&gt;;</span>
 <span id="L498"><span class="lineNum">     498</span>                 :             :         if constexpr (std::is_same_v&lt;T, std::shared_ptr&lt;const std::vector&lt;uint8_t&gt;&gt;&gt;) {</span>
-<span id="L499"><span class="lineNum">     499</span>   [<span class="tlaGBC" title="Branch 0 was taken 101 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 101 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">         101 :           socket_-&gt;async_write(net::buffer(buf-&gt;data(), buf-&gt;size()), net::bind_executor(strand_, on_write));</span></span>
-<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 101 times"> + </span><span class="tlaUNC" title="Branch 5 was not taken"> - </span>]
+<span id="L499"><span class="lineNum">     499</span>   [<span class="tlaGBC" title="Branch 0 was taken 103 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 103 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">         103 :           socket_-&gt;async_write(net::buffer(buf-&gt;data(), buf-&gt;size()), net::bind_executor(strand_, on_write));</span></span>
+<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 103 times"> + </span><span class="tlaUNC" title="Branch 5 was not taken"> - </span>]
 <span id="L500"><span class="lineNum">     500</span>                 :             :         } else {</span>
 <span id="L501"><span class="lineNum">     501</span>   [<span class="tlaGBC" title="Branch 0 was taken 28 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 28 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">          28 :           socket_-&gt;async_write(net::buffer(buf.data(), buf.size()), net::bind_executor(strand_, on_write));</span></span>
 <span class="lineNum">        </span> <span class="tlaGBC" title="Branch 4 was taken 28 times"> + </span><span class="tlaUNC" title="Branch 5 was not taken"> - </span><span class="tlaGBC" title="Branch 6 was taken 7 times"> + </span><span class="tlaUNC" title="Branch 7 was not taken"> - </span><span class="tlaGBC" title="Branch 8 was taken 7 times"> + </span> 
 <span class="lineNum">        </span>             <span class="tlaUNC" title="Branch 9 was not taken"> - </span>]
 <span id="L502"><span class="lineNum">     502</span>                 :             :         }</span>
-<span id="L503"><span class="lineNum">     503</span>                 :<span class="tlaGNC">         129 :       },</span></span>
+<span id="L503"><span class="lineNum">     503</span>                 :<span class="tlaGNC">         131 :       },</span></span>
 <span id="L504"><span class="lineNum">     504</span>                 :             :       current);</span>
-<span id="L505"><span class="lineNum">     505</span>                 :<span class="tlaGNC">         129 : }</span></span>
+<span id="L505"><span class="lineNum">     505</span>                 :<span class="tlaGNC">         131 : }</span></span>
 <span id="L506"><span class="lineNum">     506</span>                 :             : </span>
 <span id="L507"><span class="lineNum">     507</span>                 :<span class="tlaGNC">         101 : void TcpServerSession::do_close() {</span></span>
 <span id="L508"><span class="lineNum">     508</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 101 times"> + </span>]:<span class="tlaGNC">         101 :   if (cleanup_done_.exchange(true)) return;  // Ensures cleanup runs only once</span></span>
@@ -687,21 +687,21 @@
 <span id="L560"><span class="lineNum">     560</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 28 times"> + </span>]:<span class="tlaGNC">          29 :   if (dropped.any()) stats_.record_dropped(dropped.messages, dropped.bytes);</span></span>
 <span id="L561"><span class="lineNum">     561</span>                 :<span class="tlaGNC">          29 : }</span></span>
 <span id="L562"><span class="lineNum">     562</span>                 :             : </span>
-<span id="L563"><span class="lineNum">     563</span>                 :<span class="tlaGNC">         447 : void TcpServerSession::observe_queue() {</span></span>
-<span id="L564"><span class="lineNum">     564</span>                 :<span class="tlaGNC">        1341 :   stats_.observe_queue(queue_bytes_.load(std::memory_order_relaxed) + pending_bytes_.load(std::memory_order_relaxed));</span></span>
-<span id="L565"><span class="lineNum">     565</span>                 :<span class="tlaGNC">         447 : }</span></span>
+<span id="L563"><span class="lineNum">     563</span>                 :<span class="tlaGNC">         455 : void TcpServerSession::observe_queue() {</span></span>
+<span id="L564"><span class="lineNum">     564</span>                 :<span class="tlaGNC">        1365 :   stats_.observe_queue(queue_bytes_.load(std::memory_order_relaxed) + pending_bytes_.load(std::memory_order_relaxed));</span></span>
+<span id="L565"><span class="lineNum">     565</span>                 :<span class="tlaGNC">         455 : }</span></span>
 <span id="L566"><span class="lineNum">     566</span>                 :             : </span>
-<span id="L567"><span class="lineNum">     567</span>                 :<span class="tlaGNC">         252 : void TcpServerSession::report_backpressure(size_t queued_bytes) {</span></span>
-<span id="L568"><span class="lineNum">     568</span>   [<span class="tlaGBC" title="Branch 0 was taken 252 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 252 times"> + </span> :<span class="tlaGNC">         252 :   if (closing_ || !alive_) return;</span></span>
-<span class="lineNum">        </span>          <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaGBC" title="Branch 5 was taken 252 times"> + </span>]
-<span id="L569"><span class="lineNum">     569</span>                 :<span class="tlaGNC">         252 :   observe_queue();</span></span>
-<span id="L570"><span class="lineNum">     570</span>   [<span class="tlaGBC" title="Branch 0 was taken 186 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 66 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 65 times"> + </span><span class="tlaGBC" title="Branch 3 was taken 121 times"> + </span> :<span class="tlaGNC">         252 :   if (!backpressure_active_ &amp;&amp; queued_bytes &gt;= bp_high_) {</span></span>
-<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 65 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 187 times"> + </span>]
-<span id="L571"><span class="lineNum">     571</span>                 :<span class="tlaGNC">          65 :     backpressure_active_ = true;</span></span>
-<span id="L572"><span class="lineNum">     572</span>                 :<span class="tlaGNC">          65 :     stats_.record_backpressure_event();</span></span>
-<span id="L573"><span class="lineNum">     573</span>         [<span class="tlaGBC" title="Branch 0 was taken 64 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span>]:<span class="tlaGNC">          65 :     if (on_bp_) {</span></span>
+<span id="L567"><span class="lineNum">     567</span>                 :<span class="tlaGNC">         256 : void TcpServerSession::report_backpressure(size_t queued_bytes) {</span></span>
+<span id="L568"><span class="lineNum">     568</span>   [<span class="tlaGBC" title="Branch 0 was taken 256 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaGBC" title="Branch 3 was taken 256 times"> + </span> :<span class="tlaGNC">         256 :   if (closing_ || !alive_) return;</span></span>
+<span class="lineNum">        </span>          <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaGBC" title="Branch 5 was taken 256 times"> + </span>]
+<span id="L569"><span class="lineNum">     569</span>                 :<span class="tlaGNC">         256 :   observe_queue();</span></span>
+<span id="L570"><span class="lineNum">     570</span>   [<span class="tlaGBC" title="Branch 0 was taken 188 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 68 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 67 times"> + </span><span class="tlaGBC" title="Branch 3 was taken 121 times"> + </span> :<span class="tlaGNC">         256 :   if (!backpressure_active_ &amp;&amp; queued_bytes &gt;= bp_high_) {</span></span>
+<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 67 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 189 times"> + </span>]
+<span id="L571"><span class="lineNum">     571</span>                 :<span class="tlaGNC">          67 :     backpressure_active_ = true;</span></span>
+<span id="L572"><span class="lineNum">     572</span>                 :<span class="tlaGNC">          67 :     stats_.record_backpressure_event();</span></span>
+<span id="L573"><span class="lineNum">     573</span>         [<span class="tlaGBC" title="Branch 0 was taken 66 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span>]:<span class="tlaGNC">          67 :     if (on_bp_) {</span></span>
 <span id="L574"><span class="lineNum">     574</span>                 :             :       try {</span>
-<span id="L575"><span class="lineNum">     575</span>         [<span class="tlaGBC" title="Branch 0 was taken 64 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          64 :         on_bp_(queued_bytes);</span></span>
+<span id="L575"><span class="lineNum">     575</span>         [<span class="tlaGBC" title="Branch 0 was taken 66 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          66 :         on_bp_(queued_bytes);</span></span>
 <span id="L576"><span class="lineNum">     576</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaUNC tlaBgUNC">           0 :       } catch (const std::exception&amp; e) {</span></span>
 <span id="L577"><span class="lineNum">     577</span>   [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaUNC">           0 :         UNILINK_LOG_ERROR(&quot;tcp_server_session&quot;, &quot;on_backpressure&quot;,</span></span>
 <span class="lineNum">        </span> <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaUNC" title="Branch 5 was not taken"> - </span><span class="tlaUNC" title="Branch 6 was not taken"> - </span><span class="tlaUNC" title="Branch 7 was not taken"> - </span><span class="tlaUNC" title="Branch 8 was not taken"> - </span> 
@@ -714,26 +714,26 @@
 <span class="lineNum">        </span>             <span class="tlaUNC" title="Branch 9 was not taken"> - </span>]
 <span id="L581"><span class="lineNum">     581</span>                 :<span class="tlaUNC">           0 :       }</span></span>
 <span id="L582"><span class="lineNum">     582</span>                 :             :     }</span>
-<span id="L583"><span class="lineNum">     583</span>   [<span class="tlaGBC" title="Branch 0 was taken 66 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 121 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 58 times"> + </span><span class="tlaGBC" title="Branch 3 was taken 8 times"> + </span> :<span class="tlaGNC tlaBgGNC">         187 :   } else if (backpressure_active_ &amp;&amp; queued_bytes &lt;= bp_low_) {</span></span>
-<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 58 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 129 times"> + </span>]
+<span id="L583"><span class="lineNum">     583</span>   [<span class="tlaGBC" title="Branch 0 was taken 68 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 121 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 60 times"> + </span><span class="tlaGBC" title="Branch 3 was taken 8 times"> + </span> :<span class="tlaGNC tlaBgGNC">         189 :   } else if (backpressure_active_ &amp;&amp; queued_bytes &lt;= bp_low_) {</span></span>
+<span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 60 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 129 times"> + </span>]
 <span id="L584"><span class="lineNum">     584</span>                 :             :     // Flush pending_ → tx_</span>
-<span id="L585"><span class="lineNum">     585</span>                 :<span class="tlaGNC">          58 :     const size_t moved = pending_bytes_.exchange(0);</span></span>
-<span id="L586"><span class="lineNum">     586</span>                 :<span class="tlaGNC">          58 :     queue_bytes_ += moved;</span></span>
-<span id="L587"><span class="lineNum">     587</span>         [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 58 times"> + </span>]:<span class="tlaGNC">          60 :     while (!pending_.empty()) {</span></span>
+<span id="L585"><span class="lineNum">     585</span>                 :<span class="tlaGNC">          60 :     const size_t moved = pending_bytes_.exchange(0);</span></span>
+<span id="L586"><span class="lineNum">     586</span>                 :<span class="tlaGNC">          60 :     queue_bytes_ += moved;</span></span>
+<span id="L587"><span class="lineNum">     587</span>         [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 60 times"> + </span>]:<span class="tlaGNC">          62 :     while (!pending_.empty()) {</span></span>
 <span id="L588"><span class="lineNum">     588</span>                 :<span class="tlaGNC">           2 :       tx_.emplace_back(std::move(pending_.front()));</span></span>
 <span id="L589"><span class="lineNum">     589</span>                 :<span class="tlaGNC">           2 :       pending_.pop_front();</span></span>
 <span id="L590"><span class="lineNum">     590</span>                 :             :     }</span>
-<span id="L591"><span class="lineNum">     591</span>                 :<span class="tlaGNC">          58 :     observe_queue();</span></span>
-<span id="L592"><span class="lineNum">     592</span>                 :<span class="tlaGNC">          58 :     backpressure_active_ = false;</span></span>
-<span id="L593"><span class="lineNum">     593</span>                 :<span class="tlaGNC">          58 :     stats_.record_backpressure_event();</span></span>
-<span id="L594"><span class="lineNum">     594</span>         [<span class="tlaGBC" title="Branch 0 was taken 57 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span>]:<span class="tlaGNC">          58 :     if (on_bp_) {</span></span>
+<span id="L591"><span class="lineNum">     591</span>                 :<span class="tlaGNC">          60 :     observe_queue();</span></span>
+<span id="L592"><span class="lineNum">     592</span>                 :<span class="tlaGNC">          60 :     backpressure_active_ = false;</span></span>
+<span id="L593"><span class="lineNum">     593</span>                 :<span class="tlaGNC">          60 :     stats_.record_backpressure_event();</span></span>
+<span id="L594"><span class="lineNum">     594</span>         [<span class="tlaGBC" title="Branch 0 was taken 59 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span>]:<span class="tlaGNC">          60 :     if (on_bp_) {</span></span>
 <span id="L595"><span class="lineNum">     595</span>                 :             :       try {</span>
-<span id="L596"><span class="lineNum">     596</span>         [<span class="tlaGBC" title="Branch 0 was taken 57 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          57 :         on_bp_(queued_bytes);</span></span>
+<span id="L596"><span class="lineNum">     596</span>         [<span class="tlaGBC" title="Branch 0 was taken 59 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          59 :         on_bp_(queued_bytes);</span></span>
 <span id="L597"><span class="lineNum">     597</span>                 :<span class="tlaUNC tlaBgUNC">           0 :       } catch (...) {</span></span>
 <span id="L598"><span class="lineNum">     598</span>                 :<span class="tlaUNC">           0 :       }  // fire OFF with pre-flush queue size</span></span>
 <span id="L599"><span class="lineNum">     599</span>                 :             :     }</span>
 <span id="L600"><span class="lineNum">     600</span>                 :             :     // If post-flush queue is still high, fire ON again</span>
-<span id="L601"><span class="lineNum">     601</span>         [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 56 times"> + </span>]:<span class="tlaGNC tlaBgGNC">          58 :     if (queue_bytes_ &gt;= bp_high_) {</span></span>
+<span id="L601"><span class="lineNum">     601</span>         [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 58 times"> + </span>]:<span class="tlaGNC tlaBgGNC">          60 :     if (queue_bytes_ &gt;= bp_high_) {</span></span>
 <span id="L602"><span class="lineNum">     602</span>                 :<span class="tlaGNC">           2 :       backpressure_active_ = true;</span></span>
 <span id="L603"><span class="lineNum">     603</span>                 :<span class="tlaGNC">           2 :       stats_.record_backpressure_event();</span></span>
 <span id="L604"><span class="lineNum">     604</span>         [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">           2 :       if (on_bp_) {</span></span>
@@ -743,12 +743,12 @@
 <span id="L608"><span class="lineNum">     608</span>                 :<span class="tlaUNC">           0 :         }</span></span>
 <span id="L609"><span class="lineNum">     609</span>                 :             :       }</span>
 <span id="L610"><span class="lineNum">     610</span>                 :             :     }</span>
-<span id="L611"><span class="lineNum">     611</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 58 times"> + </span>]:<span class="tlaGNC tlaBgGNC">          58 :     if (!writing_) do_write();</span></span>
+<span id="L611"><span class="lineNum">     611</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 60 times"> + </span>]:<span class="tlaGNC tlaBgGNC">          60 :     if (!writing_) do_write();</span></span>
 <span id="L612"><span class="lineNum">     612</span>                 :             :   }</span>
 <span id="L613"><span class="lineNum">     613</span>                 :             : }</span>
 <span id="L614"><span class="lineNum">     614</span>                 :             : </span>
-<span id="L615"><span class="lineNum">     615</span>                 :<span class="tlaGNC">        2390 : void TcpServerSession::reset_idle_timer() {</span></span>
-<span id="L616"><span class="lineNum">     616</span>         [<span class="tlaGBC" title="Branch 0 was taken 2388 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 2 times"> + </span>]:<span class="tlaGNC">        2390 :   if (idle_timeout_ms_ &lt;= 0) return;</span></span>
+<span id="L615"><span class="lineNum">     615</span>                 :<span class="tlaGNC">        2392 : void TcpServerSession::reset_idle_timer() {</span></span>
+<span id="L616"><span class="lineNum">     616</span>         [<span class="tlaGBC" title="Branch 0 was taken 2390 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 2 times"> + </span>]:<span class="tlaGNC">        2392 :   if (idle_timeout_ms_ &lt;= 0) return;</span></span>
 <span id="L617"><span class="lineNum">     617</span>                 :             : </span>
 <span id="L618"><span class="lineNum">     618</span>                 :             :   // Cancel any existing timer</span>
 <span id="L619"><span class="lineNum">     619</span>         [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">           2 :   idle_timer_.cancel();</span></span>

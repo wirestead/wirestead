@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 23:22:02</td>
+            <td class="headerValue">2026-07-03 00:28:11</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -108,33 +108,33 @@
 <span id="L30"><span class="lineNum">      30</span>         [<span class="tlaGBC" title="Branch 0 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC tlaBgGNC">          34 : ErrorHandler::ErrorHandler() = default;</span></span>
 <span id="L31"><span class="lineNum">      31</span>                 :<span class="tlaGNC">          34 : ErrorHandler::~ErrorHandler() = default;</span></span>
 <span id="L32"><span class="lineNum">      32</span>                 :             : </span>
-<span id="L33"><span class="lineNum">      33</span>                 :<span class="tlaGNC">        1118 : ErrorHandler&amp; ErrorHandler::instance() {</span></span>
-<span id="L34"><span class="lineNum">      34</span>   [<span class="tlaGBC" title="Branch 0 was taken 34 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1084 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">        1118 :   static ErrorHandler inst;</span></span>
+<span id="L33"><span class="lineNum">      33</span>                 :<span class="tlaGNC">        1122 : ErrorHandler&amp; ErrorHandler::instance() {</span></span>
+<span id="L34"><span class="lineNum">      34</span>   [<span class="tlaGBC" title="Branch 0 was taken 34 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1088 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">        1122 :   static ErrorHandler inst;</span></span>
 <span class="lineNum">        </span>    <span class="tlaGBC" title="Branch 4 was taken 34 times"> + </span><span class="tlaUNC" title="Branch 5 was not taken"> - </span><span class="tlaUNC" title="Branch 6 was not taken"> - </span><span class="tlaUNC" title="Branch 7 was not taken"> - </span>]
-<span id="L35"><span class="lineNum">      35</span>                 :<span class="tlaGNC">        1118 :   return inst;</span></span>
+<span id="L35"><span class="lineNum">      35</span>                 :<span class="tlaGNC">        1122 :   return inst;</span></span>
 <span id="L36"><span class="lineNum">      36</span>                 :             : }</span>
 <span id="L37"><span class="lineNum">      37</span>                 :             : </span>
 <span id="L38"><span class="lineNum">      38</span>                 :<span class="tlaGNC">           1 : ErrorHandler&amp; ErrorHandler::default_handler() { return instance(); }</span></span>
 <span id="L39"><span class="lineNum">      39</span>                 :             : </span>
-<span id="L40"><span class="lineNum">      40</span>                 :<span class="tlaGNC">        1073 : void ErrorHandler::report_error(const ErrorInfo&amp; error) {</span></span>
-<span id="L41"><span class="lineNum">      41</span>         [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1071 times"> + </span>]:<span class="tlaGNC">        1073 :   if (!enabled_.load()) {</span></span>
+<span id="L40"><span class="lineNum">      40</span>                 :<span class="tlaGNC">        1077 : void ErrorHandler::report_error(const ErrorInfo&amp; error) {</span></span>
+<span id="L41"><span class="lineNum">      41</span>         [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1075 times"> + </span>]:<span class="tlaGNC">        1077 :   if (!enabled_.load()) {</span></span>
 <span id="L42"><span class="lineNum">      42</span>                 :<span class="tlaGNC">           5 :     return;</span></span>
 <span id="L43"><span class="lineNum">      43</span>                 :             :   }</span>
 <span id="L44"><span class="lineNum">      44</span>                 :             : </span>
-<span id="L45"><span class="lineNum">      45</span>         [<span class="tlaGBC" title="Branch 0 was taken 3 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1068 times"> + </span>]:<span class="tlaGNC">        1071 :   if (error.level &lt; min_level_.load()) {</span></span>
+<span id="L45"><span class="lineNum">      45</span>         [<span class="tlaGBC" title="Branch 0 was taken 3 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1072 times"> + </span>]:<span class="tlaGNC">        1075 :   if (error.level &lt; min_level_.load()) {</span></span>
 <span id="L46"><span class="lineNum">      46</span>                 :<span class="tlaGNC">           3 :     return;</span></span>
 <span id="L47"><span class="lineNum">      47</span>                 :             :   }</span>
 <span id="L48"><span class="lineNum">      48</span>                 :             : </span>
-<span id="L49"><span class="lineNum">      49</span>                 :<span class="tlaGNC">        1068 :   std::vector&lt;ErrorCallback&gt; callbacks_copy;</span></span>
+<span id="L49"><span class="lineNum">      49</span>                 :<span class="tlaGNC">        1072 :   std::vector&lt;ErrorCallback&gt; callbacks_copy;</span></span>
 <span id="L50"><span class="lineNum">      50</span>                 :             :   {</span>
-<span id="L51"><span class="lineNum">      51</span>         [<span class="tlaGBC" title="Branch 0 was taken 1068 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1068 :     std::lock_guard&lt;std::mutex&gt; lock(mutex_);</span></span>
-<span id="L52"><span class="lineNum">      52</span>         [<span class="tlaGBC" title="Branch 0 was taken 1068 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1068 :     update_stats(error);</span></span>
-<span id="L53"><span class="lineNum">      53</span>         [<span class="tlaGBC" title="Branch 0 was taken 1068 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1068 :     add_to_recent_errors(error);</span></span>
-<span id="L54"><span class="lineNum">      54</span>         [<span class="tlaGBC" title="Branch 0 was taken 1068 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1068 :     add_to_component_errors(error);</span></span>
-<span id="L55"><span class="lineNum">      55</span>         [<span class="tlaGBC" title="Branch 0 was taken 1068 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1068 :     callbacks_copy = callbacks_;</span></span>
-<span id="L56"><span class="lineNum">      56</span>                 :<span class="tlaGNC">        1068 :   }</span></span>
-<span id="L57"><span class="lineNum">      57</span>         [<span class="tlaGBC" title="Branch 0 was taken 1068 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1068 :   notify_callbacks(callbacks_copy, error);</span></span>
-<span id="L58"><span class="lineNum">      58</span>                 :<span class="tlaGNC">        1068 : }</span></span>
+<span id="L51"><span class="lineNum">      51</span>         [<span class="tlaGBC" title="Branch 0 was taken 1072 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1072 :     std::lock_guard&lt;std::mutex&gt; lock(mutex_);</span></span>
+<span id="L52"><span class="lineNum">      52</span>         [<span class="tlaGBC" title="Branch 0 was taken 1072 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1072 :     update_stats(error);</span></span>
+<span id="L53"><span class="lineNum">      53</span>         [<span class="tlaGBC" title="Branch 0 was taken 1072 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1072 :     add_to_recent_errors(error);</span></span>
+<span id="L54"><span class="lineNum">      54</span>         [<span class="tlaGBC" title="Branch 0 was taken 1072 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1072 :     add_to_component_errors(error);</span></span>
+<span id="L55"><span class="lineNum">      55</span>         [<span class="tlaGBC" title="Branch 0 was taken 1072 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1072 :     callbacks_copy = callbacks_;</span></span>
+<span id="L56"><span class="lineNum">      56</span>                 :<span class="tlaGNC">        1072 :   }</span></span>
+<span id="L57"><span class="lineNum">      57</span>         [<span class="tlaGBC" title="Branch 0 was taken 1072 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1072 :   notify_callbacks(callbacks_copy, error);</span></span>
+<span id="L58"><span class="lineNum">      58</span>                 :<span class="tlaGNC">        1072 : }</span></span>
 <span id="L59"><span class="lineNum">      59</span>                 :             : </span>
 <span id="L60"><span class="lineNum">      60</span>                 :<span class="tlaGNC">           9 : void ErrorHandler::register_callback(ErrorCallback callback) {</span></span>
 <span id="L61"><span class="lineNum">      61</span>         [<span class="tlaGBC" title="Branch 0 was taken 9 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">           9 :   std::lock_guard&lt;std::mutex&gt; lock(mutex_);</span></span>
@@ -202,25 +202,25 @@
 <span id="L123"><span class="lineNum">     123</span>                 :<span class="tlaGNC">          16 :                                            [level](const ErrorInfo&amp; error) { return error.level == level; }));</span></span>
 <span id="L124"><span class="lineNum">     124</span>                 :<span class="tlaGNC">           5 : }</span></span>
 <span id="L125"><span class="lineNum">     125</span>                 :             : </span>
-<span id="L126"><span class="lineNum">     126</span>                 :<span class="tlaGNC">        1068 : void ErrorHandler::update_stats(const ErrorInfo&amp; error) {</span></span>
-<span id="L127"><span class="lineNum">     127</span>         [<span class="tlaGBC" title="Branch 0 was taken 1068 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1068 :   std::lock_guard&lt;std::mutex&gt; lock(stats_mutex_);</span></span>
+<span id="L126"><span class="lineNum">     126</span>                 :<span class="tlaGNC">        1072 : void ErrorHandler::update_stats(const ErrorInfo&amp; error) {</span></span>
+<span id="L127"><span class="lineNum">     127</span>         [<span class="tlaGBC" title="Branch 0 was taken 1072 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1072 :   std::lock_guard&lt;std::mutex&gt; lock(stats_mutex_);</span></span>
 <span id="L128"><span class="lineNum">     128</span>                 :             : </span>
-<span id="L129"><span class="lineNum">     129</span>                 :<span class="tlaGNC">        1068 :   stats_.total_errors++;</span></span>
-<span id="L130"><span class="lineNum">     130</span>                 :<span class="tlaGNC">        1068 :   stats_.errors_by_level[static_cast&lt;int&gt;(error.level)]++;</span></span>
-<span id="L131"><span class="lineNum">     131</span>                 :<span class="tlaGNC">        1068 :   stats_.errors_by_category[static_cast&lt;int&gt;(error.category)]++;</span></span>
+<span id="L129"><span class="lineNum">     129</span>                 :<span class="tlaGNC">        1072 :   stats_.total_errors++;</span></span>
+<span id="L130"><span class="lineNum">     130</span>                 :<span class="tlaGNC">        1072 :   stats_.errors_by_level[static_cast&lt;int&gt;(error.level)]++;</span></span>
+<span id="L131"><span class="lineNum">     131</span>                 :<span class="tlaGNC">        1072 :   stats_.errors_by_category[static_cast&lt;int&gt;(error.category)]++;</span></span>
 <span id="L132"><span class="lineNum">     132</span>                 :             : </span>
-<span id="L133"><span class="lineNum">     133</span>         [<span class="tlaGBC" title="Branch 0 was taken 22 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1046 times"> + </span>]:<span class="tlaGNC">        1068 :   if (error.retryable) {</span></span>
-<span id="L134"><span class="lineNum">     134</span>                 :<span class="tlaGNC">          22 :     stats_.retryable_errors++;</span></span>
+<span id="L133"><span class="lineNum">     133</span>         [<span class="tlaGBC" title="Branch 0 was taken 26 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1046 times"> + </span>]:<span class="tlaGNC">        1072 :   if (error.retryable) {</span></span>
+<span id="L134"><span class="lineNum">     134</span>                 :<span class="tlaGNC">          26 :     stats_.retryable_errors++;</span></span>
 <span id="L135"><span class="lineNum">     135</span>                 :             :   }</span>
 <span id="L136"><span class="lineNum">     136</span>                 :             : </span>
-<span id="L137"><span class="lineNum">     137</span>   [<span class="tlaGBC" title="Branch 0 was taken 1068 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 32 times"> + </span><span class="tlaGBC" title="Branch 3 was taken 1036 times"> + </span>]:<span class="tlaGNC">        1068 :   if (stats_.first_error == std::chrono::system_clock::time_point{}) {</span></span>
+<span id="L137"><span class="lineNum">     137</span>   [<span class="tlaGBC" title="Branch 0 was taken 1072 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 32 times"> + </span><span class="tlaGBC" title="Branch 3 was taken 1040 times"> + </span>]:<span class="tlaGNC">        1072 :   if (stats_.first_error == std::chrono::system_clock::time_point{}) {</span></span>
 <span id="L138"><span class="lineNum">     138</span>                 :<span class="tlaGNC">          32 :     stats_.first_error = error.timestamp;</span></span>
 <span id="L139"><span class="lineNum">     139</span>                 :             :   }</span>
-<span id="L140"><span class="lineNum">     140</span>                 :<span class="tlaGNC">        1068 :   stats_.last_error = error.timestamp;</span></span>
-<span id="L141"><span class="lineNum">     141</span>                 :<span class="tlaGNC">        1068 : }</span></span>
+<span id="L140"><span class="lineNum">     140</span>                 :<span class="tlaGNC">        1072 :   stats_.last_error = error.timestamp;</span></span>
+<span id="L141"><span class="lineNum">     141</span>                 :<span class="tlaGNC">        1072 : }</span></span>
 <span id="L142"><span class="lineNum">     142</span>                 :             : </span>
-<span id="L143"><span class="lineNum">     143</span>                 :<span class="tlaGNC">        1068 : void ErrorHandler::notify_callbacks(const std::vector&lt;ErrorCallback&gt;&amp; callbacks, const ErrorInfo&amp; error) {</span></span>
-<span id="L144"><span class="lineNum">     144</span>         [<span class="tlaGBC" title="Branch 0 was taken 11 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1068 times"> + </span>]:<span class="tlaGNC">        1079 :   for (const auto&amp; callback : callbacks) {</span></span>
+<span id="L143"><span class="lineNum">     143</span>                 :<span class="tlaGNC">        1072 : void ErrorHandler::notify_callbacks(const std::vector&lt;ErrorCallback&gt;&amp; callbacks, const ErrorInfo&amp; error) {</span></span>
+<span id="L144"><span class="lineNum">     144</span>         [<span class="tlaGBC" title="Branch 0 was taken 11 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1072 times"> + </span>]:<span class="tlaGNC">        1083 :   for (const auto&amp; callback : callbacks) {</span></span>
 <span id="L145"><span class="lineNum">     145</span>                 :             :     try {</span>
 <span id="L146"><span class="lineNum">     146</span>         [<span class="tlaGBC" title="Branch 0 was taken 9 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 2 times"> + </span>]:<span class="tlaGNC">          11 :       callback(error);</span></span>
 <span id="L147"><span class="lineNum">     147</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span>]:<span class="tlaGNC">           2 :     } catch (const std::exception&amp; e) {</span></span>
@@ -235,40 +235,40 @@
 <span class="lineNum">        </span>             <span class="tlaUNC" title="Branch 9 was not taken"> - </span>]
 <span id="L152"><span class="lineNum">     152</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">           1 :     }</span></span>
 <span id="L153"><span class="lineNum">     153</span>                 :             :   }</span>
-<span id="L154"><span class="lineNum">     154</span>                 :<span class="tlaGNC">        1068 : }</span></span>
+<span id="L154"><span class="lineNum">     154</span>                 :<span class="tlaGNC">        1072 : }</span></span>
 <span id="L155"><span class="lineNum">     155</span>                 :             : </span>
-<span id="L156"><span class="lineNum">     156</span>                 :<span class="tlaGNC">        1068 : void ErrorHandler::add_to_recent_errors(const ErrorInfo&amp; error) {</span></span>
-<span id="L157"><span class="lineNum">     157</span>                 :<span class="tlaGNC">        1068 :   recent_errors_.push_back(error);</span></span>
+<span id="L156"><span class="lineNum">     156</span>                 :<span class="tlaGNC">        1072 : void ErrorHandler::add_to_recent_errors(const ErrorInfo&amp; error) {</span></span>
+<span id="L157"><span class="lineNum">     157</span>                 :<span class="tlaGNC">        1072 :   recent_errors_.push_back(error);</span></span>
 <span id="L158"><span class="lineNum">     158</span>                 :             : </span>
 <span id="L159"><span class="lineNum">     159</span>                 :             :   // Keep only the most recent errors</span>
-<span id="L160"><span class="lineNum">     160</span>         [<span class="tlaGBC" title="Branch 0 was taken 5 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1063 times"> + </span>]:<span class="tlaGNC">        1068 :   if (recent_errors_.size() &gt; MAX_RECENT_ERRORS) {</span></span>
+<span id="L160"><span class="lineNum">     160</span>         [<span class="tlaGBC" title="Branch 0 was taken 5 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1067 times"> + </span>]:<span class="tlaGNC">        1072 :   if (recent_errors_.size() &gt; MAX_RECENT_ERRORS) {</span></span>
 <span id="L161"><span class="lineNum">     161</span>         [<span class="tlaGBC" title="Branch 0 was taken 5 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          10 :     recent_errors_.erase(</span></span>
 <span id="L162"><span class="lineNum">     162</span>                 :<span class="tlaGNC">           5 :         recent_errors_.begin(),</span></span>
 <span id="L163"><span class="lineNum">     163</span>                 :<span class="tlaGNC">          10 :         recent_errors_.begin() + static_cast&lt;std::ptrdiff_t&gt;(recent_errors_.size() - MAX_RECENT_ERRORS));</span></span>
 <span id="L164"><span class="lineNum">     164</span>                 :             :   }</span>
-<span id="L165"><span class="lineNum">     165</span>                 :<span class="tlaGNC">        1068 : }</span></span>
+<span id="L165"><span class="lineNum">     165</span>                 :<span class="tlaGNC">        1072 : }</span></span>
 <span id="L166"><span class="lineNum">     166</span>                 :             : </span>
-<span id="L167"><span class="lineNum">     167</span>                 :<span class="tlaGNC">        1068 : void ErrorHandler::add_to_component_errors(const ErrorInfo&amp; error) {</span></span>
-<span id="L168"><span class="lineNum">     168</span>                 :<span class="tlaGNC">        1068 :   errors_by_component_[error.component].push_back(error);</span></span>
+<span id="L167"><span class="lineNum">     167</span>                 :<span class="tlaGNC">        1072 : void ErrorHandler::add_to_component_errors(const ErrorInfo&amp; error) {</span></span>
+<span id="L168"><span class="lineNum">     168</span>                 :<span class="tlaGNC">        1072 :   errors_by_component_[error.component].push_back(error);</span></span>
 <span id="L169"><span class="lineNum">     169</span>                 :             : </span>
 <span id="L170"><span class="lineNum">     170</span>                 :             :   // Limit component error history to prevent memory growth</span>
-<span id="L171"><span class="lineNum">     171</span>                 :<span class="tlaGNC">        1068 :   constexpr size_t MAX_COMPONENT_ERRORS = 100;</span></span>
-<span id="L172"><span class="lineNum">     172</span>                 :<span class="tlaGNC">        1068 :   auto&amp; component_errors = errors_by_component_[error.component];</span></span>
-<span id="L173"><span class="lineNum">     173</span>         [<span class="tlaGBC" title="Branch 0 was taken 905 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 163 times"> + </span>]:<span class="tlaGNC">        1068 :   if (component_errors.size() &gt; MAX_COMPONENT_ERRORS) {</span></span>
+<span id="L171"><span class="lineNum">     171</span>                 :<span class="tlaGNC">        1072 :   constexpr size_t MAX_COMPONENT_ERRORS = 100;</span></span>
+<span id="L172"><span class="lineNum">     172</span>                 :<span class="tlaGNC">        1072 :   auto&amp; component_errors = errors_by_component_[error.component];</span></span>
+<span id="L173"><span class="lineNum">     173</span>         [<span class="tlaGBC" title="Branch 0 was taken 905 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 167 times"> + </span>]:<span class="tlaGNC">        1072 :   if (component_errors.size() &gt; MAX_COMPONENT_ERRORS) {</span></span>
 <span id="L174"><span class="lineNum">     174</span>         [<span class="tlaGBC" title="Branch 0 was taken 905 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">        1810 :     component_errors.erase(</span></span>
 <span id="L175"><span class="lineNum">     175</span>                 :<span class="tlaGNC">         905 :         component_errors.begin(),</span></span>
 <span id="L176"><span class="lineNum">     176</span>                 :<span class="tlaGNC">        1810 :         component_errors.begin() + static_cast&lt;std::ptrdiff_t&gt;(component_errors.size() - MAX_COMPONENT_ERRORS));</span></span>
 <span id="L177"><span class="lineNum">     177</span>                 :             :   }</span>
-<span id="L178"><span class="lineNum">     178</span>                 :<span class="tlaGNC">        1068 : }</span></span>
+<span id="L178"><span class="lineNum">     178</span>                 :<span class="tlaGNC">        1072 : }</span></span>
 <span id="L179"><span class="lineNum">     179</span>                 :             : </span>
 <span id="L180"><span class="lineNum">     180</span>                 :             : // Convenience functions implementation</span>
 <span id="L181"><span class="lineNum">     181</span>                 :             : namespace error_reporting {</span>
 <span id="L182"><span class="lineNum">     182</span>                 :             : </span>
-<span id="L183"><span class="lineNum">     183</span>                 :<span class="tlaGNC">          43 : void report_connection_error(std::string_view component, std::string_view operation,</span></span>
+<span id="L183"><span class="lineNum">     183</span>                 :<span class="tlaGNC">          47 : void report_connection_error(std::string_view component, std::string_view operation,</span></span>
 <span id="L184"><span class="lineNum">     184</span>                 :             :                              const boost::system::error_code&amp; ec, bool retryable) {</span>
-<span id="L185"><span class="lineNum">     185</span>   [<span class="tlaGBC" title="Branch 0 was taken 43 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 43 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          43 :   ErrorInfo error(ErrorLevel::ERROR, ErrorCategory::CONNECTION, component, operation, ec.message(), ec, retryable);</span></span>
-<span id="L186"><span class="lineNum">     186</span>   [<span class="tlaGBC" title="Branch 0 was taken 43 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 43 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          43 :   ErrorHandler::instance().report_error(error);</span></span>
-<span id="L187"><span class="lineNum">     187</span>                 :<span class="tlaGNC">          43 : }</span></span>
+<span id="L185"><span class="lineNum">     185</span>   [<span class="tlaGBC" title="Branch 0 was taken 47 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 47 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          47 :   ErrorInfo error(ErrorLevel::ERROR, ErrorCategory::CONNECTION, component, operation, ec.message(), ec, retryable);</span></span>
+<span id="L186"><span class="lineNum">     186</span>   [<span class="tlaGBC" title="Branch 0 was taken 47 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 47 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          47 :   ErrorHandler::instance().report_error(error);</span></span>
+<span id="L187"><span class="lineNum">     187</span>                 :<span class="tlaGNC">          47 : }</span></span>
 <span id="L188"><span class="lineNum">     188</span>                 :             : </span>
 <span id="L189"><span class="lineNum">     189</span>                 :<span class="tlaGNC">           1 : void report_communication_error(std::string_view component, std::string_view operation, std::string_view message,</span></span>
 <span id="L190"><span class="lineNum">     190</span>                 :             :                                 bool retryable) {</span>

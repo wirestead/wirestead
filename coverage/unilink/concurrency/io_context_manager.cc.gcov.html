@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 23:22:02</td>
+            <td class="headerValue">2026-07-03 00:28:11</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryMed">81.8&nbsp;%</td>
@@ -137,7 +137,7 @@
 <span id="L59"><span class="lineNum">      59</span>                 :             : </span>
 <span id="L60"><span class="lineNum">      60</span>                 :<span class="tlaGNC">          35 :   void stop() {</span></span>
 <span id="L61"><span class="lineNum">      61</span>         [<span class="tlaGBC" title="Branch 0 was taken 35 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          35 :     std::unique_lock&lt;std::mutex&gt; lock(mutex_);</span></span>
-<span id="L62"><span class="lineNum">      62</span>         [<span class="tlaGBC" title="Branch 0 was taken 35 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          76 :     cv_.wait(lock, [this] { return !stopping_; });</span></span>
+<span id="L62"><span class="lineNum">      62</span>         [<span class="tlaGBC" title="Branch 0 was taken 35 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          75 :     cv_.wait(lock, [this] { return !stopping_; });</span></span>
 <span id="L63"><span class="lineNum">      63</span>   [<span class="tlaGBC" title="Branch 0 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 33 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 2 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">          35 :     if (!owns_context_ &amp;&amp; ioc_) return;</span></span>
 <span class="lineNum">        </span>          <span class="tlaGBC" title="Branch 4 was taken 2 times"> + </span><span class="tlaGBC" title="Branch 5 was taken 33 times"> + </span>]
 <span id="L64"><span class="lineNum">      64</span>   [<span class="tlaGBC" title="Branch 0 was taken 10 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 23 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 8 times"> + </span><span class="tlaGBC" title="Branch 3 was taken 2 times"> + </span> :<span class="tlaGNC">          33 :     if (!running_.load() &amp;&amp; !io_thread_.joinable()) return;</span></span>
@@ -239,7 +239,7 @@
 <span id="L148"><span class="lineNum">     148</span>         [<span class="tlaGBC" title="Branch 0 was taken 176 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC tlaBgGNC">         352 :     impl_-&gt;io_thread_ = std::jthread([this, context](std::stop_token st) {</span></span>
 <span id="L149"><span class="lineNum">     149</span>                 :             :       try {</span>
 <span id="L150"><span class="lineNum">     150</span>                 :             :         // Register stop callback to gracefully stop io_context when jthread is stopped</span>
-<span id="L151"><span class="lineNum">     151</span>                 :<span class="tlaGNC">         197 :         std::stop_callback cb(st, [context] { context-&gt;stop(); });</span></span>
+<span id="L151"><span class="lineNum">     151</span>                 :<span class="tlaGNC">         196 :         std::stop_callback cb(st, [context] { context-&gt;stop(); });</span></span>
 <span id="L152"><span class="lineNum">     152</span>         [<span class="tlaGBC" title="Branch 0 was taken 23 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span>]:<span class="tlaGNC">         176 :         context-&gt;run();</span></span>
 <span id="L153"><span class="lineNum">     153</span>         [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          25 :       } catch (const std::exception&amp; e) {</span></span>
 <span id="L154"><span class="lineNum">     154</span>   [<span class="tlaGBC" title="Branch 0 was taken 1 time"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 1 time"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">           1 :         UNILINK_LOG_ERROR(&quot;io_context_manager&quot;, &quot;run&quot;, fmt::format(&quot;Thread error: {}&quot;, e.what()));</span></span>

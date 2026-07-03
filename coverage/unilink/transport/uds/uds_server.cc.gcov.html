@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 23:22:02</td>
+            <td class="headerValue">2026-07-03 00:28:11</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryMed">78.8&nbsp;%</td>
@@ -626,18 +626,18 @@
 <span id="L519"><span class="lineNum">     519</span>                 :<span class="tlaGNC">          17 :       std::weak_ptr&lt;UdsServer&gt; weak_self = self;</span></span>
 <span id="L520"><span class="lineNum">     520</span>   [<span class="tlaGBC" title="Branch 0 was taken 17 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 17 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">          17 :       session-&gt;on_bytes([weak_self, client_id](memory::ConstByteSpan data) {</span></span>
 <span class="lineNum">        </span>          <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaUNC" title="Branch 5 was not taken"> - </span>]
-<span id="L521"><span class="lineNum">     521</span>                 :<span class="tlaGNC">          15 :         auto s = weak_self.lock();</span></span>
-<span id="L522"><span class="lineNum">     522</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 15 times"> + </span>]:<span class="tlaGNC">          15 :         if (!s) return;</span></span>
-<span id="L523"><span class="lineNum">     523</span>                 :<span class="tlaGNC">          15 :         MultiClientDataHandler data_handler;</span></span>
-<span id="L524"><span class="lineNum">     524</span>                 :<span class="tlaGNC">          15 :         OnBytes bytes_handler;</span></span>
+<span id="L521"><span class="lineNum">     521</span>                 :<span class="tlaGNC">          14 :         auto s = weak_self.lock();</span></span>
+<span id="L522"><span class="lineNum">     522</span>         [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 14 times"> + </span>]:<span class="tlaGNC">          14 :         if (!s) return;</span></span>
+<span id="L523"><span class="lineNum">     523</span>                 :<span class="tlaGNC">          14 :         MultiClientDataHandler data_handler;</span></span>
+<span id="L524"><span class="lineNum">     524</span>                 :<span class="tlaGNC">          14 :         OnBytes bytes_handler;</span></span>
 <span id="L525"><span class="lineNum">     525</span>                 :             :         {</span>
-<span id="L526"><span class="lineNum">     526</span>         [<span class="tlaGBC" title="Branch 0 was taken 15 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          15 :           std::lock_guard&lt;std::mutex&gt; lock(s-&gt;impl_-&gt;sessions_mutex_);</span></span>
-<span id="L527"><span class="lineNum">     527</span>         [<span class="tlaGBC" title="Branch 0 was taken 15 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          15 :           data_handler = s-&gt;impl_-&gt;on_multi_data_;</span></span>
-<span id="L528"><span class="lineNum">     528</span>         [<span class="tlaGBC" title="Branch 0 was taken 15 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          15 :           bytes_handler = s-&gt;impl_-&gt;on_bytes_;</span></span>
-<span id="L529"><span class="lineNum">     529</span>                 :<span class="tlaGNC">          15 :         }</span></span>
-<span id="L530"><span class="lineNum">     530</span>   [<span class="tlaGBC" title="Branch 0 was taken 6 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 9 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 6 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          15 :         if (data_handler) data_handler(client_id, data);</span></span>
-<span id="L531"><span class="lineNum">     531</span>   [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 15 times"> + </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          15 :         if (bytes_handler) bytes_handler(data);</span></span>
-<span id="L532"><span class="lineNum">     532</span>         [<span class="tlaGBC" title="Branch 0 was taken 15 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          15 :       });</span></span>
+<span id="L526"><span class="lineNum">     526</span>         [<span class="tlaGBC" title="Branch 0 was taken 14 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          14 :           std::lock_guard&lt;std::mutex&gt; lock(s-&gt;impl_-&gt;sessions_mutex_);</span></span>
+<span id="L527"><span class="lineNum">     527</span>         [<span class="tlaGBC" title="Branch 0 was taken 14 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          14 :           data_handler = s-&gt;impl_-&gt;on_multi_data_;</span></span>
+<span id="L528"><span class="lineNum">     528</span>         [<span class="tlaGBC" title="Branch 0 was taken 14 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          14 :           bytes_handler = s-&gt;impl_-&gt;on_bytes_;</span></span>
+<span id="L529"><span class="lineNum">     529</span>                 :<span class="tlaGNC">          14 :         }</span></span>
+<span id="L530"><span class="lineNum">     530</span>   [<span class="tlaGBC" title="Branch 0 was taken 6 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 8 times"> + </span><span class="tlaGBC" title="Branch 2 was taken 6 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          14 :         if (data_handler) data_handler(client_id, data);</span></span>
+<span id="L531"><span class="lineNum">     531</span>   [<span class="tlaUNC" title="Branch 0 was not taken"> - </span><span class="tlaGBC" title="Branch 1 was taken 14 times"> + </span><span class="tlaUNC" title="Branch 2 was not taken"> - </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span>]:<span class="tlaGNC">          14 :         if (bytes_handler) bytes_handler(data);</span></span>
+<span id="L532"><span class="lineNum">     532</span>         [<span class="tlaGBC" title="Branch 0 was taken 14 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          14 :       });</span></span>
 <span id="L533"><span class="lineNum">     533</span>                 :             : </span>
 <span id="L534"><span class="lineNum">     534</span>   [<span class="tlaGBC" title="Branch 0 was taken 17 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span><span class="tlaGBC" title="Branch 2 was taken 17 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">          17 :       session-&gt;on_close([weak_self, client_id]() {</span></span>
 <span class="lineNum">        </span>          <span class="tlaUNC" title="Branch 4 was not taken"> - </span><span class="tlaUNC" title="Branch 5 was not taken"> - </span>]

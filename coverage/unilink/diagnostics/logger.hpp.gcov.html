@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 23:22:02</td>
+            <td class="headerValue">2026-07-03 00:28:11</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -56,9 +56,9 @@
 </td>
             <td></td>
             <td class="headerItem">Branches:</td>
-            <td class="headerCovTableEntryLo">54.2&nbsp;%</td>
-            <td class="headerCovTableEntry">24</td>
-            <td class="headerCovTableEntry">13</td>
+            <td class="headerCovTableEntryLo">53.8&nbsp;%</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntry">14</td>
           </tr>
                   <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
                 </table>
@@ -314,11 +314,11 @@
 <span id="L236"><span class="lineNum">     236</span>                 :             : </span>
 <span id="L237"><span class="lineNum">     237</span>                 :             :   // Main logging functions</span>
 <span id="L238"><span class="lineNum">     238</span>                 :             :   void log(LogLevel level, std::string_view component, std::string_view operation, std::string_view message,</span>
-<span id="L239"><span class="lineNum">     239</span>   [<span class="tlaGBC" title="Branch 0 was taken 43 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 2 was taken 20 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">        1294 :            const std::source_location&amp; loc = std::source_location::current());</span></span>
-<span class="lineNum">        </span> <span class="tlaGBC" title="Branch 4 was taken 24 times"> + </span><span class="tlaUNC" title="Branch 5 was not taken"> - </span><span class="tlaGBC" title="Branch 6 was taken 11 times"> + </span><span class="tlaUNC" title="Branch 7 was not taken"> - </span><span class="tlaGBC" title="Branch 8 was taken 1 time"> + </span> 
+<span id="L239"><span class="lineNum">     239</span>   [<span class="tlaGBC" title="Branch 0 was taken 43 times"> + </span><span class="tlaGBC" title="Branch 1 was taken 1 time"> + </span><span class="tlaGBC" title="Branch 2 was taken 24 times"> + </span><span class="tlaUNC" title="Branch 3 was not taken"> - </span> :<span class="tlaGNC">        1324 :            const std::source_location&amp; loc = std::source_location::current());</span></span>
+<span class="lineNum">        </span> <span class="tlaGBC" title="Branch 4 was taken 28 times"> + </span><span class="tlaUNC" title="Branch 5 was not taken"> - </span><span class="tlaGBC" title="Branch 6 was taken 20 times"> + </span><span class="tlaUNC" title="Branch 7 was not taken"> - </span><span class="tlaGBC" title="Branch 8 was taken 1 time"> + </span> 
 <span class="lineNum">        </span> <span class="tlaUNC" title="Branch 9 was not taken"> - </span><span class="tlaGBC" title="Branch 10 was taken 1 time"> + </span><span class="tlaUNC" title="Branch 11 was not taken"> - </span><span class="tlaGBC" title="Branch 12 was taken 4 times"> + </span><span class="tlaUNC" title="Branch 13 was not taken"> - </span> 
-<span class="lineNum">        </span> <span class="tlaGBC" title="Branch 14 was taken 2 times"> + </span><span class="tlaUNC" title="Branch 15 was not taken"> - </span><span class="tlaGBC" title="Branch 16 was taken 2 times"> + </span><span class="tlaUNC" title="Branch 17 was not taken"> - </span><span class="tlaGBC" title="Branch 18 was taken 15 times"> + </span> 
-<span class="lineNum">        </span>             <span class="tlaUNC" title="Branch 19 was not taken"> - </span>]
+<span class="lineNum">        </span> <span class="tlaGBC" title="Branch 14 was taken 1 time"> + </span><span class="tlaUNC" title="Branch 15 was not taken"> - </span><span class="tlaGBC" title="Branch 16 was taken 2 times"> + </span><span class="tlaUNC" title="Branch 17 was not taken"> - </span><span class="tlaGBC" title="Branch 18 was taken 17 times"> + </span> 
+<span class="lineNum">        </span>       <span class="tlaUNC" title="Branch 19 was not taken"> - </span><span class="tlaGBC" title="Branch 20 was taken 1 time"> + </span><span class="tlaUNC" title="Branch 21 was not taken"> - </span>]
 <span id="L240"><span class="lineNum">     240</span>                 :             : </span>
 <span id="L241"><span class="lineNum">     241</span>                 :             :   void debug(std::string_view component, std::string_view operation, std::string_view message,</span>
 <span id="L242"><span class="lineNum">     242</span>                 :<span class="tlaGNC">           1 :              const std::source_location&amp; loc = std::source_location::current());</span></span>
@@ -333,7 +333,7 @@
 <span id="L251"><span class="lineNum">     251</span>                 :             : </span>
 <span id="L252"><span class="lineNum">     252</span>                 :             :  private:</span>
 <span id="L253"><span class="lineNum">     253</span>                 :             :   struct Impl;</span>
-<span id="L254"><span class="lineNum">     254</span>                 :<span class="tlaGNC">        2373 :   const Impl* get_impl() const { return impl_.get(); }</span></span>
+<span id="L254"><span class="lineNum">     254</span>                 :<span class="tlaGNC">        2403 :   const Impl* get_impl() const { return impl_.get(); }</span></span>
 <span id="L255"><span class="lineNum">     255</span>                 :             :   Impl* get_impl() { return impl_.get(); }</span>
 <span id="L256"><span class="lineNum">     256</span>                 :             :   std::unique_ptr&lt;Impl&gt; impl_;</span>
 <span id="L257"><span class="lineNum">     257</span>                 :             : };</span>

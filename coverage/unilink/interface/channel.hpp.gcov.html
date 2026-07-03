@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 23:22:02</td>
+            <td class="headerValue">2026-07-03 00:28:11</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryLo">0.0&nbsp;%</td>
@@ -135,13 +135,19 @@
 <span id="L57"><span class="lineNum">      57</span>                 :             :   virtual bool async_try_write_move(std::vector&lt;uint8_t&gt;&amp;&amp; data) = 0;</span>
 <span id="L58"><span class="lineNum">      58</span>                 :             :   virtual bool async_try_write_shared(std::shared_ptr&lt;const std::vector&lt;uint8_t&gt;&gt; data) = 0;</span>
 <span id="L59"><span class="lineNum">      59</span>                 :             : </span>
-<span id="L60"><span class="lineNum">      60</span>                 :             :   // Callbacks</span>
-<span id="L61"><span class="lineNum">      61</span>                 :             :   virtual void on_bytes(OnBytes cb) = 0;</span>
-<span id="L62"><span class="lineNum">      62</span>                 :             :   virtual void on_state(OnState cb) = 0;</span>
-<span id="L63"><span class="lineNum">      63</span>                 :             :   virtual void on_backpressure(OnBackpressure cb) = 0;</span>
-<span id="L64"><span class="lineNum">      64</span>                 :             : };</span>
-<span id="L65"><span class="lineNum">      65</span>                 :             : }  // namespace interface</span>
-<span id="L66"><span class="lineNum">      66</span>                 :             : }  // namespace unilink</span>
+<span id="L60"><span class="lineNum">      60</span>                 :             :   // Callbacks. Thread-safe: may be called at any time, including after</span>
+<span id="L61"><span class="lineNum">      61</span>                 :             :   // start(), from any thread. Replacing a callback is synchronized against</span>
+<span id="L62"><span class="lineNum">      62</span>                 :             :   // concurrent invocation on the io thread - the implementation either</span>
+<span id="L63"><span class="lineNum">      63</span>                 :             :   // guards storage with a mutex (copy-under-lock, invoke outside the lock)</span>
+<span id="L64"><span class="lineNum">      64</span>                 :             :   // or dispatches the assignment onto the same strand the io thread runs</span>
+<span id="L65"><span class="lineNum">      65</span>                 :             :   // on. Re-registering a callback takes effect for subsequent events; it</span>
+<span id="L66"><span class="lineNum">      66</span>                 :             :   // does not retroactively affect an invocation already in progress (#436).</span>
+<span id="L67"><span class="lineNum">      67</span>                 :             :   virtual void on_bytes(OnBytes cb) = 0;</span>
+<span id="L68"><span class="lineNum">      68</span>                 :             :   virtual void on_state(OnState cb) = 0;</span>
+<span id="L69"><span class="lineNum">      69</span>                 :             :   virtual void on_backpressure(OnBackpressure cb) = 0;</span>
+<span id="L70"><span class="lineNum">      70</span>                 :             : };</span>
+<span id="L71"><span class="lineNum">      71</span>                 :             : }  // namespace interface</span>
+<span id="L72"><span class="lineNum">      72</span>                 :             : }  // namespace unilink</span>
         </pre>
               </td>
             </tr>

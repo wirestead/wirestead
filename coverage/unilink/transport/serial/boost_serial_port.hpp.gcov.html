@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-02 23:22:02</td>
+            <td class="headerValue">2026-07-03 00:28:11</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryLo">36.4&nbsp;%</td>
@@ -106,8 +106,8 @@
 <span id="L28"><span class="lineNum">      28</span>                 :             :  public:</span>
 <span id="L29"><span class="lineNum">      29</span>         [<span class="tlaGBC" title="Branch 0 was taken 10 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC tlaBgGNC">          10 :   explicit BoostSerialPort(net::io_context&amp; ioc) : port_(ioc) {}</span></span>
 <span id="L30"><span class="lineNum">      30</span>                 :             : </span>
-<span id="L31"><span class="lineNum">      31</span>         [<span class="tlaGBC" title="Branch 0 was taken 8 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">           8 :   void open(const std::string&amp; device, boost::system::error_code&amp; ec) override { port_.open(device, ec); }</span></span>
-<span id="L32"><span class="lineNum">      32</span>                 :<span class="tlaGNC">          28 :   bool is_open() const override { return port_.is_open(); }</span></span>
+<span id="L31"><span class="lineNum">      31</span>         [<span class="tlaGBC" title="Branch 0 was taken 13 times"> + </span><span class="tlaUNC" title="Branch 1 was not taken"> - </span>]:<span class="tlaGNC">          13 :   void open(const std::string&amp; device, boost::system::error_code&amp; ec) override { port_.open(device, ec); }</span></span>
+<span id="L32"><span class="lineNum">      32</span>                 :<span class="tlaGNC">          33 :   bool is_open() const override { return port_.is_open(); }</span></span>
 <span id="L33"><span class="lineNum">      33</span>         [<span class="tlaUNC" title="Branch 0 was not executed"> # </span><span class="tlaUNC" title="Branch 1 was not executed"> # </span>]:<span class="tlaUNC tlaBgUNC">           0 :   void close(boost::system::error_code&amp; ec) override { port_.close(ec); }</span></span>
 <span id="L34"><span class="lineNum">      34</span>                 :             : </span>
 <span id="L35"><span class="lineNum">      35</span>                 :<span class="tlaUNC">           0 :   void set_option(const net::serial_port_base::baud_rate&amp; option, boost::system::error_code&amp; ec) override {</span></span>
