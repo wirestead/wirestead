@@ -230,6 +230,7 @@ struct UdsClient::Impl {
     if (channel_) {
       channel_->on_bytes(nullptr);
       channel_->on_state(nullptr);
+      channel_->on_backpressure(nullptr);
       lock.unlock();
       channel_->stop();
       lock.lock();

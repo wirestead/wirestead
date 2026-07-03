@@ -51,7 +51,8 @@ class UNILINK_API ChannelInterface {
    * @return A future that resolves to true when the channel is connected/listening,
    *         or false if startup failed (e.g. connection refused, max retries exhausted).
    *         On false, the registered on_error() callback will have been invoked with
-   *         the specific failure reason.
+   *         the specific failure reason. This future always resolves - including on a
+   *         restart after stop() (#444) - never blocks indefinitely.
    */
   [[nodiscard]] virtual std::future<bool> start() = 0;
 
@@ -68,6 +69,16 @@ class UNILINK_API ChannelInterface {
    *
    * Safe to call from any thread. After stop() returns, no further callbacks will fire
    * and it is safe to destroy the object. Calling stop() more than once is a no-op.
+   *
+   * Restart contract (#444): stop() fully tears down the underlying transport
+   * (socket/serial port, queues, timers) rather than leaving it in a reusable
+   * half-alive state. Every on_*() callback and every config setter ever
+   * called on this wrapper remains in force across any number of stop()/
+   * start() cycles - a subsequent start() reconstructs the transport from
+   * this wrapper's retained configuration and re-registers all callbacks
+   * automatically, including config changes made while stopped. Session/
+   * client-id state and stats() reset on restart. Callers never need to
+   * re-register callbacks or reconfigure after a stop()/start() cycle.
    */
   virtual void stop() = 0;
   virtual bool connected() const = 0;

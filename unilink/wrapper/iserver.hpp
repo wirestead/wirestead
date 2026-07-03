@@ -44,6 +44,14 @@ class UNILINK_API ServerInterface {
   virtual ~ServerInterface() = default;
 
   // Lifecycle
+  /**
+   * @brief Start the server asynchronously.
+   *
+   * @return A future that resolves to true when listening, or false on failure
+   *         (e.g. bind failure, port already in use). This future always
+   *         resolves - including on a restart after stop() (#444) - never
+   *         blocks indefinitely.
+   */
   [[nodiscard]] virtual std::future<bool> start() = 0;
 
   /**
@@ -56,6 +64,16 @@ class UNILINK_API ServerInterface {
    *
    * Safe to call from any thread. After stop() returns, no further callbacks will fire
    * and it is safe to destroy the object. Calling stop() more than once is a no-op.
+   *
+   * Restart contract (#444): stop() fully tears down the underlying transport
+   * (acceptor, sessions, timers) rather than leaving it in a reusable
+   * half-alive state. Every on_*() callback and every config setter ever
+   * called on this wrapper remains in force across any number of stop()/
+   * start() cycles - a subsequent start() reconstructs the transport from
+   * this wrapper's retained configuration and re-registers all callbacks
+   * automatically, including config changes made while stopped. Connected-
+   * client state and stats() reset on restart. Callers never need to
+   * re-register callbacks or reconfigure after a stop()/start() cycle.
    */
   virtual void stop() = 0;
   virtual bool listening() const = 0;
