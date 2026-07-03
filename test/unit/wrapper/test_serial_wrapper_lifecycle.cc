@@ -216,6 +216,54 @@ TEST_F(SerialWrapperLifecycleTest, AutoManageStartsAndStopsChannel) {
   EXPECT_TRUE(disconnected.load() || !serial->connected());
 }
 
+// #440: Serial now defaults to a dedicated io_context + thread instead of
+// the shared IoContextManager singleton. Two default-built instances must
+// run their callbacks on distinct threads. Uses device_ (/dev/null or NUL),
+// which opens successfully but fails baud-rate configuration since it isn't
+// a real TTY - that failure fires on_error on the transport's own thread,
+// giving a portable way to observe thread identity without a real device.
+TEST_F(SerialWrapperLifecycleTest, DefaultUsesDistinctThreadsPerInstance) {
+  std::atomic<std::thread::id> thread1{};
+  std::atomic<std::thread::id> thread2{};
+
+  auto serial1 = unilink::serial(device_, 9600).reopen_on_error(false).build();
+  auto serial2 = unilink::serial(device_, 9600).reopen_on_error(false).build();
+  serial1->on_error([&](const wrapper::ErrorContext&) { thread1 = std::this_thread::get_id(); });
+  serial2->on_error([&](const wrapper::ErrorContext&) { thread2 = std::this_thread::get_id(); });
+
+  serial1->start();
+  serial2->start();
+
+  ASSERT_TRUE(TestUtils::waitForCondition(
+      [&] { return thread1.load() != std::thread::id{} && thread2.load() != std::thread::id{}; }, 2000));
+  EXPECT_NE(thread1.load(), thread2.load());
+
+  serial1->stop();
+  serial2->stop();
+}
+
+// #440: .shared_context(true) opts back into the shared IoContextManager
+// singleton - two such instances should end up driven by the same thread.
+TEST_F(SerialWrapperLifecycleTest, SharedContextOptInUsesOneThread) {
+  std::atomic<std::thread::id> thread1{};
+  std::atomic<std::thread::id> thread2{};
+
+  auto serial1 = unilink::serial(device_, 9600).shared_context(true).reopen_on_error(false).build();
+  auto serial2 = unilink::serial(device_, 9600).shared_context(true).reopen_on_error(false).build();
+  serial1->on_error([&](const wrapper::ErrorContext&) { thread1 = std::this_thread::get_id(); });
+  serial2->on_error([&](const wrapper::ErrorContext&) { thread2 = std::this_thread::get_id(); });
+
+  serial1->start();
+  serial2->start();
+
+  ASSERT_TRUE(TestUtils::waitForCondition(
+      [&] { return thread1.load() != std::thread::id{} && thread2.load() != std::thread::id{}; }, 2000));
+  EXPECT_EQ(thread1.load(), thread2.load());
+
+  serial1->stop();
+  serial2->stop();
+}
+
 TEST_F(SerialWrapperLifecycleTest, ConfigurationSetters) {
   auto serial = std::make_shared<wrapper::Serial>(device_, 9600);
 
