@@ -33,6 +33,7 @@
 #include "unilink/diagnostics/error_mapping.hpp"
 #include "unilink/factory/channel_factory.hpp"
 #include "unilink/transport/tcp_client/tcp_client.hpp"
+#include "unilink/wrapper/error_context_builder.hpp"
 
 namespace unilink {
 namespace wrapper {
@@ -439,16 +440,8 @@ struct TcpClient::Impl {
         if (state == base::LinkState::Closed && disconnect_handler) {
           disconnect_handler(ConnectionContext(0));
         } else if (state == base::LinkState::Error && error_handler) {
-          bool handled = false;
-          if (auto transport = std::dynamic_pointer_cast<transport::TcpClient>(channel_snapshot)) {
-            if (auto info = transport->last_error_info()) {
-              error_handler(diagnostics::to_error_context(*info));
-              handled = true;
-            }
-          }
-          if (!handled) {
-            error_handler(ErrorContext(ErrorCode::IoError, "Connection error"));
-          }
+          error_handler(channel_snapshot ? detail::build_error_context(*channel_snapshot, "Connection error")
+                                         : ErrorContext(ErrorCode::IoError, "Connection error"));
         }
       }
     });

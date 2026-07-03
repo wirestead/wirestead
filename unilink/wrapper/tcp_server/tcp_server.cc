@@ -32,6 +32,7 @@
 #include "unilink/config/tcp_server_config.hpp"
 #include "unilink/factory/channel_factory.hpp"
 #include "unilink/transport/tcp_server/tcp_server.hpp"
+#include "unilink/wrapper/error_context_builder.hpp"
 
 namespace unilink {
 namespace wrapper {
@@ -469,7 +470,8 @@ struct TcpServer::Impl {
           }
         }
         if (handler) {
-          handler(ErrorContext(ErrorCode::IoError, "Server error"));
+          handler(channel_ ? detail::build_error_context(*channel_, "Server error")
+                           : ErrorContext(ErrorCode::IoError, "Server error"));
         }
       }
     });

@@ -33,6 +33,7 @@
 #include "unilink/base/constants.hpp"
 #include "unilink/factory/channel_factory.hpp"
 #include "unilink/transport/serial/serial.hpp"
+#include "unilink/wrapper/error_context_builder.hpp"
 
 namespace unilink {
 namespace wrapper {
@@ -446,7 +447,8 @@ struct Serial::Impl {
             disconnect_handler_snapshot(ConnectionContext(0));
           }
           if (error_handler_snapshot) {
-            error_handler_snapshot(ErrorContext(ErrorCode::IoError, "Connection error"));
+            error_handler_snapshot(channel ? detail::build_error_context(*channel, "Connection error")
+                                           : ErrorContext(ErrorCode::IoError, "Connection error"));
           }
           break;
         }

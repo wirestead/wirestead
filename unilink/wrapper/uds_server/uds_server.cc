@@ -13,6 +13,7 @@
 #include "unilink/framer/line_framer.hpp"
 #include "unilink/framer/packet_framer.hpp"
 #include "unilink/transport/uds/uds_server.hpp"
+#include "unilink/wrapper/error_context_builder.hpp"
 
 namespace unilink {
 namespace wrapper {
@@ -369,7 +370,8 @@ struct UdsServer::Impl {
           }
         }
         if (handler) {
-          handler(ErrorContext(ErrorCode::IoError, "Server error"));
+          handler(server_ ? detail::build_error_context(*server_, "Server error")
+                          : ErrorContext(ErrorCode::IoError, "Server error"));
         }
       }
     });

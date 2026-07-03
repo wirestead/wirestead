@@ -32,6 +32,7 @@
 #include "unilink/base/common.hpp"
 #include "unilink/factory/channel_factory.hpp"
 #include "unilink/transport/udp/udp.hpp"
+#include "unilink/wrapper/error_context_builder.hpp"
 
 namespace unilink {
 namespace wrapper {
@@ -353,7 +354,8 @@ struct UdpServer::Impl {
       }
 
       if (error_handler_copy) {
-        error_handler_copy(ErrorContext(ErrorCode::IoError, "Server error"));
+        error_handler_copy(channel ? detail::build_error_context(*channel, "Server error")
+                                   : ErrorContext(ErrorCode::IoError, "Server error"));
       }
     });
   }
