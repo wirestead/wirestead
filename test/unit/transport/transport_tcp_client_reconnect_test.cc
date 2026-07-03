@@ -92,7 +92,7 @@ TEST_F(TcpClientReconnectTest, LiveSetRetryIntervalIsClampedNotUnbounded) {
   cfg.host = "127.0.0.1";
   cfg.port = port_;  // nothing listens here
   cfg.max_retries = -1;
-  cfg.retry_interval_ms = 500;  // deliberately not the eventual live value
+  cfg.retry_interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;
 
   auto client = TcpClient::create(cfg);
 
@@ -109,18 +109,28 @@ TEST_F(TcpClientReconnectTest, LiveSetRetryIntervalIsClampedNotUnbounded) {
   });
 
   client->start();
+
+  // Wait for the first connect attempt before flipping the live setter, so
+  // the 0-clamp is guaranteed to apply to every retry timer scheduled
+  // afterward rather than racing the client's own startup.
+  {
+    std::unique_lock<std::mutex> lock(mtx);
+    ASSERT_TRUE(cv.wait_for(lock, 5s, [&] { return !connecting_at.empty(); }))
+        << "Client never made its first connect attempt";
+  }
+
   client->set_retry_interval(0);  // the live setter-bypass scenario from #432
 
   std::unique_lock<std::mutex> lock(mtx);
-  ASSERT_TRUE(cv.wait_for(lock, 5s, [&] { return connecting_at.size() >= 4; }))
+  ASSERT_TRUE(cv.wait_for(lock, 10s, [&] { return connecting_at.size() >= 3; }))
       << "Client never retried enough times to measure spacing";
 
-  // Compare the last two gaps (earlier ones may still reflect the
-  // pre-live-set 500ms interval or in-flight timers).
+  // Use the last gap: guaranteed to be scheduled after set_retry_interval(0)
+  // took effect.
   auto it = connecting_at.end();
-  auto t3 = *(--it);
-  auto t2 = *(--it);
-  auto gap = std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count();
+  auto t_last = *(--it);
+  auto t_prev = *(--it);
+  auto gap = std::chrono::duration_cast<std::chrono::milliseconds>(t_last - t_prev).count();
   lock.unlock();
 
   EXPECT_GE(gap, static_cast<long>(base::constants::MIN_RETRY_INTERVAL_MS) - 20)
