@@ -57,6 +57,7 @@ struct TcpServer::Impl {
 
   // Configuration
   std::atomic<bool> auto_start_{false};
+  std::atomic<bool> shared_context_{false};
   std::atomic<bool> port_retry_enabled_{false};
   std::atomic<int> max_port_retries_{3};
   std::atomic<int> port_retry_interval_ms_{1000};
@@ -223,6 +224,7 @@ struct TcpServer::Impl {
       config.keep_alive = keep_alive_.load();
       config.send_buffer_size = send_buffer_size_.load();
       config.receive_buffer_size = receive_buffer_size_.load();
+      config.use_shared_context = shared_context_.load();
 
       channel_ = factory::ChannelFactory::create(config, external_ioc_);
       transport_cache_ = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
@@ -592,6 +594,11 @@ TcpServer& TcpServer::auto_start(bool m) {
 TcpServer& TcpServer::bind_address(const std::string& address) {
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->bind_address_ = address;
+  return *this;
+}
+
+TcpServer& TcpServer::shared_context(bool use_shared) {
+  impl_->shared_context_.store(use_shared);
   return *this;
 }
 

@@ -44,6 +44,12 @@ struct TcpServerConfig {
   size_t send_buffer_size = 0;
   size_t receive_buffer_size = 0;
 
+  // Opt into the shared IoContextManager singleton instead of a dedicated
+  // io_context + thread (the default since #440). Only meaningful for
+  // deliberately trading per-instance parallelism for reduced thread/memory
+  // overhead across many instances in one process.
+  bool use_shared_context = false;
+
   // Validation methods
   bool is_valid() const {
     return (util::InputValidator::is_valid_ipv4(bind_address) || util::InputValidator::is_valid_ipv6(bind_address)) &&

@@ -30,6 +30,7 @@ TcpServerBuilder<State>::TcpServerBuilder(uint16_t port)
       bind_address_("0.0.0.0"),
       auto_start_(false),
       independent_context_(false),
+      shared_context_(false),
       max_clients_(0),
       client_limit_enabled_(false),
       port_retry_enabled_(false),
@@ -56,6 +57,7 @@ std::unique_ptr<wrapper::TcpServer> TcpServerBuilder<State>::build() {
   } else {
     server = std::make_unique<wrapper::TcpServer>(port_);
   }
+  if (shared_context_) server->shared_context(true);
 
   if (this->on_data_) server->on_data(this->on_data_);
   if (this->on_data_batch_) server->on_data_batch(this->on_data_batch_);
@@ -115,6 +117,12 @@ TcpServerBuilder<State>& TcpServerBuilder<State>::bind_address(const std::string
 template <uint32_t State>
 TcpServerBuilder<State>& TcpServerBuilder<State>::independent_context(bool use_independent) {
   independent_context_ = use_independent;
+  return *this;
+}
+
+template <uint32_t State>
+TcpServerBuilder<State>& TcpServerBuilder<State>::shared_context(bool use_shared) {
+  shared_context_ = use_shared;
   return *this;
 }
 

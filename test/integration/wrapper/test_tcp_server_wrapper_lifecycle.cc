@@ -64,6 +64,75 @@ TEST_F(TcpServerWrapperLifecycleTest, ServerStartStopMultipleTimes) {
   }
 }
 
+// #440: TcpServer now defaults to a dedicated io_context + thread instead of
+// the shared IoContextManager singleton. Two default-constructed servers
+// must run their callbacks on distinct threads.
+TEST_F(TcpServerWrapperLifecycleTest, DefaultUsesDistinctThreadsPerInstance) {
+  uint16_t port2 = TestUtils::getAvailableTestPort();
+
+  std::atomic<std::thread::id> thread1{};
+  std::atomic<std::thread::id> thread2{};
+  auto server1 = unilink::tcp_server(test_port_).on_error([](auto&&) {}).build();
+  auto server2 = unilink::tcp_server(port2).on_error([](auto&&) {}).build();
+
+  server1->on_connect([&](const wrapper::ConnectionContext&) { thread1 = std::this_thread::get_id(); });
+  server2->on_connect([&](const wrapper::ConnectionContext&) { thread2 = std::this_thread::get_id(); });
+
+  auto f1 = server1->start();
+  auto f2 = server2->start();
+  EXPECT_TRUE(f1.get());
+  EXPECT_TRUE(f2.get());
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return server1->listening() && server2->listening(); }, 1000));
+
+  auto client1 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client2 = unilink::tcp_client("127.0.0.1", port2).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  client1->start();
+  client2->start();
+
+  ASSERT_TRUE(TestUtils::waitForCondition(
+      [&] { return thread1.load() != std::thread::id{} && thread2.load() != std::thread::id{}; }, 2000));
+  EXPECT_NE(thread1.load(), thread2.load());
+
+  client1->stop();
+  client2->stop();
+  server1->stop();
+  server2->stop();
+}
+
+// #440: .shared_context(true) opts back into the shared IoContextManager
+// singleton - two such servers should end up driven by the same thread.
+TEST_F(TcpServerWrapperLifecycleTest, SharedContextOptInUsesOneThread) {
+  uint16_t port2 = TestUtils::getAvailableTestPort();
+
+  std::atomic<std::thread::id> thread1{};
+  std::atomic<std::thread::id> thread2{};
+  auto server1 = unilink::tcp_server(test_port_).shared_context(true).on_error([](auto&&) {}).build();
+  auto server2 = unilink::tcp_server(port2).shared_context(true).on_error([](auto&&) {}).build();
+
+  server1->on_connect([&](const wrapper::ConnectionContext&) { thread1 = std::this_thread::get_id(); });
+  server2->on_connect([&](const wrapper::ConnectionContext&) { thread2 = std::this_thread::get_id(); });
+
+  auto f1 = server1->start();
+  auto f2 = server2->start();
+  EXPECT_TRUE(f1.get());
+  EXPECT_TRUE(f2.get());
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return server1->listening() && server2->listening(); }, 1000));
+
+  auto client1 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client2 = unilink::tcp_client("127.0.0.1", port2).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  client1->start();
+  client2->start();
+
+  ASSERT_TRUE(TestUtils::waitForCondition(
+      [&] { return thread1.load() != std::thread::id{} && thread2.load() != std::thread::id{}; }, 2000));
+  EXPECT_EQ(thread1.load(), thread2.load());
+
+  client1->stop();
+  client2->stop();
+  server1->stop();
+  server2->stop();
+}
+
 TEST_F(TcpServerWrapperLifecycleTest, ExternalContextNotStoppedWhenNotManaged) {
   auto ioc = std::make_shared<boost::asio::io_context>();
   // Critical: Keep ioc running even when server stops

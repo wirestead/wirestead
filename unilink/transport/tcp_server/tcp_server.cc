@@ -28,6 +28,7 @@
 #include <thread>
 #include <unordered_map>
 
+#include "unilink/concurrency/io_context_manager.hpp"
 #include "unilink/concurrency/thread_safe_state.hpp"
 #include "unilink/diagnostics/exceptions.hpp"
 #include "unilink/diagnostics/logger.hpp"
@@ -49,6 +50,7 @@ struct TcpServer::Impl {
 
   std::unique_ptr<net::io_context> owned_ioc_;
   bool owns_ioc_;
+  bool uses_shared_context_{false};
   net::io_context& ioc_;
   std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> work_guard_;
   std::jthread ioc_thread_;
@@ -76,10 +78,11 @@ struct TcpServer::Impl {
 
   ErrorInfoHolder error_info_holder_{"tcp_server"};
 
-  explicit Impl(const config::TcpServerConfig& cfg)
-      : owned_ioc_(std::make_unique<net::io_context>()),
-        owns_ioc_(true),
-        ioc_(*owned_ioc_),
+  explicit Impl(const config::TcpServerConfig& cfg, bool use_shared_context)
+      : owned_ioc_(use_shared_context ? nullptr : std::make_unique<net::io_context>()),
+        owns_ioc_(!use_shared_context),
+        uses_shared_context_(use_shared_context),
+        ioc_(use_shared_context ? concurrency::IoContextManager::instance().get_context() : *owned_ioc_),
         cfg_(cfg),
         max_clients_(cfg.max_connections > 0 ? static_cast<size_t>(cfg.max_connections) : 0),
         client_limit_enabled_(cfg.max_connections > 0) {
@@ -439,7 +442,7 @@ struct TcpServer::Impl {
       return;
     }
 
-    bool has_active_ioc = owns_ioc_;
+    bool has_active_ioc = owns_ioc_ || (uses_shared_context_ && concurrency::IoContextManager::instance().is_running());
 
     if (has_active_ioc && self) {
       auto cleanup_promise = std::make_shared<std::promise<void>>();
@@ -476,8 +479,8 @@ struct TcpServer::Impl {
   }
 };
 
-std::shared_ptr<TcpServer> TcpServer::create(const config::TcpServerConfig& cfg) {
-  return std::shared_ptr<TcpServer>(new TcpServer(cfg));
+std::shared_ptr<TcpServer> TcpServer::create(const config::TcpServerConfig& cfg, bool use_shared_context) {
+  return std::shared_ptr<TcpServer>(new TcpServer(cfg, use_shared_context));
 }
 
 std::shared_ptr<TcpServer> TcpServer::create(const config::TcpServerConfig& cfg,
@@ -486,7 +489,8 @@ std::shared_ptr<TcpServer> TcpServer::create(const config::TcpServerConfig& cfg,
   return std::shared_ptr<TcpServer>(new TcpServer(cfg, std::move(acceptor), ioc));
 }
 
-TcpServer::TcpServer(const config::TcpServerConfig& cfg) : impl_(std::make_unique<Impl>(cfg)) {}
+TcpServer::TcpServer(const config::TcpServerConfig& cfg, bool use_shared_context)
+    : impl_(std::make_unique<Impl>(cfg, use_shared_context)) {}
 
 TcpServer::TcpServer(const config::TcpServerConfig& cfg, std::unique_ptr<interface::TcpAcceptorInterface> acceptor,
                      net::io_context& ioc)
@@ -510,6 +514,13 @@ void TcpServer::start() {
     return;
   }
   impl->stopping_.store(false);
+
+  if (impl->uses_shared_context_) {
+    auto& manager = concurrency::IoContextManager::instance();
+    if (!manager.is_running()) {
+      manager.start();
+    }
+  }
 
   if (!impl->acceptor_) {
     impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::SYSTEM, "start",

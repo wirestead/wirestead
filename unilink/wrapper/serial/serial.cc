@@ -83,6 +83,7 @@ struct Serial::Impl {
 
   // Configuration
   std::atomic<bool> auto_start_ = false;
+  std::atomic<bool> shared_context_{false};
   int data_bits = 8;
   int stop_bits = 1;
   std::string parity = "none";
@@ -528,6 +529,7 @@ struct Serial::Impl {
     config.reopen_on_error = reopen_on_error;
     config.backpressure_threshold = backpressure_threshold;
     config.backpressure_strategy = backpressure_strategy;
+    config.use_shared_context = shared_context_.load();
     return config;
   }
 };
@@ -614,6 +616,11 @@ Serial& Serial::on_message_batch(BatchMessageHandler h) {
 Serial& Serial::auto_start(bool m) {
   impl_->auto_start_.store(m);
   if (impl_->auto_start_.load() && !impl_->started_.load()) start();
+  return *this;
+}
+
+Serial& Serial::shared_context(bool use_shared) {
+  impl_->shared_context_.store(use_shared);
   return *this;
 }
 

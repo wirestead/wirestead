@@ -45,7 +45,12 @@ namespace transport {
  */
 class UNILINK_API Serial : public interface::Channel, public std::enable_shared_from_this<Serial> {
  public:
-  static std::shared_ptr<Serial> create(const config::SerialConfig& cfg);
+  // use_shared_context: opt into the shared IoContextManager singleton
+  // instead of the default dedicated io_context + thread. Only meaningful
+  // for multi-instance-per-process deployments deliberately trading
+  // parallelism for reduced thread/memory overhead (#440); most callers
+  // should leave this false.
+  static std::shared_ptr<Serial> create(const config::SerialConfig& cfg, bool use_shared_context = false);
   static std::shared_ptr<Serial> create(const config::SerialConfig& cfg, boost::asio::io_context& ioc);
   static std::shared_ptr<Serial> create(const config::SerialConfig& cfg,
                                         std::unique_ptr<interface::SerialPortInterface> port,
@@ -85,7 +90,7 @@ class UNILINK_API Serial : public interface::Channel, public std::enable_shared_
   void set_retry_interval(unsigned interval_ms);
 
  private:
-  explicit Serial(const config::SerialConfig& cfg);
+  explicit Serial(const config::SerialConfig& cfg, bool use_shared_context);
   Serial(const config::SerialConfig& cfg, std::unique_ptr<interface::SerialPortInterface> port,
          boost::asio::io_context& ioc);
 

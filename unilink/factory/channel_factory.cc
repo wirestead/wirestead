@@ -61,7 +61,7 @@ std::shared_ptr<interface::Channel> ChannelFactory::create_tcp_server(
     auto acceptor = std::make_unique<transport::BoostTcpAcceptor>(*external_ioc);
     return transport::TcpServer::create(cfg, std::move(acceptor), *external_ioc);
   }
-  return transport::TcpServer::create(cfg);
+  return transport::TcpServer::create(cfg, cfg.use_shared_context);
 }
 
 std::shared_ptr<interface::Channel> ChannelFactory::create_tcp_client(
@@ -77,7 +77,7 @@ std::shared_ptr<interface::Channel> ChannelFactory::create_serial(
   if (external_ioc) {
     return transport::Serial::create(cfg, std::make_unique<transport::BoostSerialPort>(*external_ioc), *external_ioc);
   }
-  return transport::Serial::create(cfg);
+  return transport::Serial::create(cfg, cfg.use_shared_context);
 }
 
 std::shared_ptr<interface::Channel> ChannelFactory::create_udp(const config::UdpConfig& cfg,

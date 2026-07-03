@@ -50,6 +50,7 @@ class UNILINK_API SerialBuilder : public BuilderInterface<wrapper::Serial, Seria
         baud_rate_(other.baud_rate_),
         auto_start_(other.auto_start_),
         independent_context_(other.independent_context_),
+        shared_context_(other.shared_context_),
         retry_interval_ms_(other.retry_interval_ms_),
         retry_interval_set_(other.retry_interval_set_),
         char_size_(other.char_size_),
@@ -94,6 +95,11 @@ class UNILINK_API SerialBuilder : public BuilderInterface<wrapper::Serial, Seria
   SerialBuilder<State>& reopen_on_error(bool enable = true);
   SerialBuilder<State>& retry_interval(std::chrono::milliseconds interval);
   SerialBuilder<State>& independent_context(bool use_independent = true);
+  // Opt into the shared IoContextManager singleton instead of the default
+  // dedicated io_context + thread (#440). Only meaningful for deliberately
+  // trading per-instance parallelism for reduced thread/memory overhead
+  // across many instances in one process; most callers should not need this.
+  SerialBuilder<State>& shared_context(bool use_shared = true);
 
  private:
   template <uint32_t S>
@@ -103,6 +109,7 @@ class UNILINK_API SerialBuilder : public BuilderInterface<wrapper::Serial, Seria
   uint32_t baud_rate_;
   bool auto_start_;
   bool independent_context_;
+  bool shared_context_{false};
 
   uint32_t retry_interval_ms_;
   bool retry_interval_set_{false};

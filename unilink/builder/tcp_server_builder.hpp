@@ -52,6 +52,7 @@ class UNILINK_API TcpServerBuilder : public BuilderInterface<wrapper::TcpServer,
         bind_address_set_(other.bind_address_set_),
         auto_start_(other.auto_start_),
         independent_context_(other.independent_context_),
+        shared_context_(other.shared_context_),
         max_clients_(other.max_clients_),
         client_limit_enabled_(other.client_limit_enabled_),
         port_retry_enabled_(other.port_retry_enabled_),
@@ -94,6 +95,11 @@ class UNILINK_API TcpServerBuilder : public BuilderInterface<wrapper::TcpServer,
   TcpServerBuilder<State>& auto_start(bool auto_start = true) override;
   TcpServerBuilder<State>& bind_address(const std::string& address);
   TcpServerBuilder<State>& independent_context(bool use_independent = true);
+  // Opt into the shared IoContextManager singleton instead of the default
+  // dedicated io_context + thread (#440). Only meaningful for deliberately
+  // trading per-instance parallelism for reduced thread/memory overhead
+  // across many servers in one process; most callers should not need this.
+  TcpServerBuilder<State>& shared_context(bool use_shared = true);
   TcpServerBuilder<State>& max_clients(uint32_t max_clients);
   TcpServerBuilder<State>& enable_port_retry(bool enable = true);
   TcpServerBuilder<State>& max_port_retries(uint32_t max_retries);
@@ -126,6 +132,7 @@ class UNILINK_API TcpServerBuilder : public BuilderInterface<wrapper::TcpServer,
   bool bind_address_set_{false};
   bool auto_start_;
   bool independent_context_;
+  bool shared_context_{false};
 
   uint32_t max_clients_;
   bool client_limit_enabled_;
