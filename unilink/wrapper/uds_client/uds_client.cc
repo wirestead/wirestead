@@ -25,6 +25,7 @@
 #include <optional>
 #include <shared_mutex>
 #include <stdexcept>
+#include <stop_token>
 #include <thread>
 #include <vector>
 
@@ -48,7 +49,7 @@ struct UdsClient::Impl {
   std::shared_ptr<boost::asio::io_context> external_ioc_;
   std::atomic<bool> use_external_context_{false};
   std::atomic<bool> manage_external_context_{false};
-  std::thread external_thread_;
+  std::jthread external_thread_;
   std::unique_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> work_guard_;
 
   std::vector<std::promise<bool>> pending_promises_;
@@ -188,9 +189,10 @@ struct UdsClient::Impl {
           }
           work_guard_ = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
               boost::asio::make_work_guard(*external_ioc_));
-          external_thread_ = std::thread([this]() {
+          external_thread_ = std::jthread([ioc = external_ioc_](std::stop_token st) {
             try {
-              external_ioc_->run();
+              std::stop_callback cb(st, [ioc] { ioc->stop(); });
+              ioc->run();
             } catch (...) {
             }
           });
@@ -244,6 +246,7 @@ struct UdsClient::Impl {
     if (external_thread_.joinable()) {
       if (std::this_thread::get_id() != external_thread_.get_id()) {
         lock.unlock();  // RELEASE LOCK BEFORE JOINING
+        external_thread_.request_stop();
         external_thread_.join();
         lock.lock();  // RE-ACQUIRE
       } else {
