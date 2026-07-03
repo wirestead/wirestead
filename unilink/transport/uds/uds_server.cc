@@ -536,7 +536,8 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self) {
 
       auto session = std::make_shared<UdsServerSession>(
           *self->impl_->ioc_, std::move(socket), self->impl_->cfg_.backpressure_threshold,
-          self->impl_->cfg_.idle_timeout_ms, self->impl_->cfg_.backpressure_strategy);
+          self->impl_->cfg_.idle_timeout_ms, self->impl_->cfg_.backpressure_strategy,
+          self->impl_->cfg_.enable_memory_pool);
 
       std::weak_ptr<UdsServer> weak_self = self;
       session->on_bytes([weak_self, client_id](memory::ConstByteSpan data) {

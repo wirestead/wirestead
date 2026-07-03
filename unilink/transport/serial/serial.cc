@@ -67,6 +67,11 @@ struct Serial::Impl {
 
   std::unique_ptr<interface::SerialPortInterface> port_;
   config::SerialConfig cfg_;
+  // #443: per-channel pool instead of the process-wide GlobalMemoryPool
+  // singleton - avoids cross-channel contention on the singleton's bucket
+  // mutexes. Capacity is much smaller than the old shared default since
+  // it's no longer amortized across every channel in the process.
+  memory::MemoryPool pool_{50, 200};
   net::steady_timer retry_timer_;
 
   std::vector<uint8_t> rx_;
@@ -648,8 +653,8 @@ bool Serial::async_write_copy(memory::ConstByteSpan data) {
     return false;
   }
 
-  if (n <= 65536) {
-    memory::PooledBuffer pooled(n);
+  if (n <= 65536 && impl->cfg_.enable_memory_pool) {
+    memory::PooledBuffer pooled(n, impl->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), n);
       if (impl->queued_bytes_ + impl->pending_bytes_ + n > impl->bp_limit_) {

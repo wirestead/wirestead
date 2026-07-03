@@ -23,11 +23,13 @@ namespace unilink {
 namespace transport {
 
 UdsServerSession::UdsServerSession(net::io_context& ioc, uds::socket sock, size_t backpressure_threshold,
-                                   int idle_timeout_ms, base::constants::BackpressureStrategy strategy)
+                                   int idle_timeout_ms, base::constants::BackpressureStrategy strategy,
+                                   bool enable_memory_pool)
     : ioc_(ioc),
       strand_(net::make_strand(ioc_)),
       idle_timer_(ioc),
       socket_(std::make_unique<BoostUdsSocket>(std::move(sock))),
+      enable_memory_pool_(enable_memory_pool),
       bp_strategy_(strategy),
       bp_high_(backpressure_threshold),
       bp_low_(backpressure_threshold > 1 ? backpressure_threshold / 2 : backpressure_threshold),
@@ -37,11 +39,12 @@ UdsServerSession::UdsServerSession(net::io_context& ioc, uds::socket sock, size_
 
 UdsServerSession::UdsServerSession(net::io_context& ioc, std::unique_ptr<interface::UdsSocketInterface> socket,
                                    size_t backpressure_threshold, int idle_timeout_ms,
-                                   base::constants::BackpressureStrategy strategy)
+                                   base::constants::BackpressureStrategy strategy, bool enable_memory_pool)
     : ioc_(ioc),
       strand_(net::make_strand(ioc_)),
       idle_timer_(ioc),
       socket_(std::move(socket)),
+      enable_memory_pool_(enable_memory_pool),
       bp_strategy_(strategy),
       bp_high_(backpressure_threshold),
       bp_low_(backpressure_threshold > 1 ? backpressure_threshold / 2 : backpressure_threshold),
@@ -78,6 +81,29 @@ void UdsServerSession::reset_stats() {
 }
 
 bool UdsServerSession::async_write_copy(memory::ConstByteSpan data) {
+  size_t size = data.size();
+  if (enable_memory_pool_ && size > 0 && size <= 65536) {
+    if (!alive_ || closing_) {
+      stats_.record_failed_send();
+      return false;
+    }
+    memory::PooledBuffer pooled(size, pool_);
+    if (pooled.valid()) {
+      base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
+      if (queue_bytes_ + pending_bytes_ + size > bp_limit_) {
+        stats_.record_failed_send();
+        return false;
+      }
+      stats_.record_accepted(size);
+      net::post(strand_, [this, self = shared_from_this(), buf = std::move(pooled)]() mutable {
+        if (!alive_) return;
+        size_t added = buf.size();
+        route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
+      });
+      return true;
+    }
+  }
+
   std::vector<uint8_t> vec(data.begin(), data.end());
   return async_write_move(std::move(vec));
 }

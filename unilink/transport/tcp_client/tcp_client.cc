@@ -90,6 +90,11 @@ struct TcpClient::Impl {
   // don't need this lock (#436).
   mutable std::mutex cfg_mtx_;
   TcpClientConfig cfg_;
+  // #443: per-channel pool instead of the process-wide GlobalMemoryPool
+  // singleton - avoids cross-channel contention on the singleton's bucket
+  // mutexes. Capacity is much smaller than the old shared default (400/2000)
+  // since it's no longer amortized across every channel in the process.
+  memory::MemoryPool pool_{50, 200};
   net::steady_timer retry_timer_;
   net::steady_timer connect_timer_;
   net::steady_timer idle_timer_;
@@ -321,9 +326,9 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
     return false;
   }
 
-  if (size <= 65536) {
+  if (size <= 65536 && impl_->cfg_.enable_memory_pool) {
     try {
-      memory::PooledBuffer pooled_buffer(size);
+      memory::PooledBuffer pooled_buffer(size, impl_->pool_);
       if (pooled_buffer.valid()) {
         base::safe_memory::safe_memcpy(pooled_buffer.data(), data.data(), size);
         const auto added = pooled_buffer.size();

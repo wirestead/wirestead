@@ -114,4 +114,31 @@ TEST_F(MemoryPoolLimitsTest, LargeAllocation) {
   pool_->release(std::move(buf), large_size);
 }
 
+// #443: PooledBuffer(size, pool) must draw from and release back to the
+// specific pool instance passed in, not GlobalMemoryPool::instance() -
+// this is what makes per-channel pools (one MemoryPool member per
+// transport instance) actually isolated from each other.
+TEST(PooledBufferPerPoolTest, DrawsFromAndReleasesToTheGivenPoolNotGlobal) {
+  MemoryPool pool_a(4, 16);
+  MemoryPool pool_b(4, 16);
+
+  {
+    PooledBuffer buf(MemoryPool::BufferSize::SMALL, pool_a);
+    EXPECT_TRUE(buf.valid());
+  }
+  // The buffer was acquired from and released back to pool_a - pool_a should
+  // show a recorded allocation, pool_b must remain completely untouched.
+  EXPECT_EQ(pool_a.stats().total_allocations, 1U);
+  EXPECT_EQ(pool_b.stats().total_allocations, 0U);
+
+  {
+    PooledBuffer buf(MemoryPool::BufferSize::SMALL, pool_a);
+    EXPECT_TRUE(buf.valid());
+  }
+  // Second acquire should hit the bucket populated by the first release.
+  EXPECT_EQ(pool_a.stats().pool_hits, 1U);
+  EXPECT_EQ(pool_b.stats().total_allocations, 0U);
+  EXPECT_EQ(pool_b.stats().pool_hits, 0U);
+}
+
 }  // namespace

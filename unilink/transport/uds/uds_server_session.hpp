@@ -59,12 +59,14 @@ class UNILINK_API UdsServerSession : public std::enable_shared_from_this<UdsServ
   UdsServerSession(net::io_context& ioc, uds::socket sock,
                    size_t backpressure_threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD,
                    int idle_timeout_ms = 0,
-                   base::constants::BackpressureStrategy strategy = base::constants::BackpressureStrategy::Reliable);
+                   base::constants::BackpressureStrategy strategy = base::constants::BackpressureStrategy::Reliable,
+                   bool enable_memory_pool = true);
 
   UdsServerSession(net::io_context& ioc, std::unique_ptr<interface::UdsSocketInterface> socket,
                    size_t backpressure_threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD,
                    int idle_timeout_ms = 0,
-                   base::constants::BackpressureStrategy strategy = base::constants::BackpressureStrategy::Reliable);
+                   base::constants::BackpressureStrategy strategy = base::constants::BackpressureStrategy::Reliable,
+                   bool enable_memory_pool = true);
 
   void start();
   bool async_write_copy(memory::ConstByteSpan data);
@@ -98,6 +100,12 @@ class UNILINK_API UdsServerSession : public std::enable_shared_from_this<UdsServ
   net::strand<net::io_context::executor_type> strand_;
   net::steady_timer idle_timer_;
   std::unique_ptr<interface::UdsSocketInterface> socket_;
+  // #443: per-session pool instead of the process-wide GlobalMemoryPool
+  // singleton - avoids cross-channel contention on the singleton's bucket
+  // mutexes. Also fixes UDS never actually pooling at all (async_write_copy
+  // used to always heap-allocate a fresh std::vector).
+  memory::MemoryPool pool_{50, 200};
+  bool enable_memory_pool_ = true;
   std::array<uint8_t, base::constants::DEFAULT_READ_BUFFER_SIZE> rx_{};
   std::deque<BufferVariant> tx_;
   std::deque<BufferVariant> pending_;

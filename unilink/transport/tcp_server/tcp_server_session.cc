@@ -27,11 +27,13 @@ namespace unilink {
 namespace transport {
 
 TcpServerSession::TcpServerSession(net::io_context& ioc, tcp::socket sock, size_t backpressure_threshold,
-                                   int idle_timeout_ms, base::constants::BackpressureStrategy strategy)
+                                   int idle_timeout_ms, base::constants::BackpressureStrategy strategy,
+                                   bool enable_memory_pool)
     : ioc_(ioc),
       strand_(ioc.get_executor()),
       idle_timer_(ioc),
       socket_(std::make_unique<BoostTcpSocket>(std::move(sock))),
+      enable_memory_pool_(enable_memory_pool),
       writing_(false),
       queue_bytes_(0),
       bp_strategy_(strategy),
@@ -47,11 +49,12 @@ TcpServerSession::TcpServerSession(net::io_context& ioc, tcp::socket sock, size_
 
 TcpServerSession::TcpServerSession(net::io_context& ioc, std::unique_ptr<interface::TcpSocketInterface> socket,
                                    size_t backpressure_threshold, int idle_timeout_ms,
-                                   base::constants::BackpressureStrategy strategy)
+                                   base::constants::BackpressureStrategy strategy, bool enable_memory_pool)
     : ioc_(ioc),
       strand_(ioc.get_executor()),
       idle_timer_(ioc),
       socket_(std::move(socket)),
+      enable_memory_pool_(enable_memory_pool),
       writing_(false),
       queue_bytes_(0),
       bp_strategy_(strategy),
@@ -92,8 +95,8 @@ bool TcpServerSession::async_write_copy(memory::ConstByteSpan data) {
   }
 
   // Use memory pool for better performance (only for reasonable sizes)
-  if (size <= base::constants::LARGE_BUFFER_THRESHOLD) {  // Only use pool for buffers <= 64KB
-    memory::PooledBuffer pooled_buffer(size);
+  if (size <= base::constants::LARGE_BUFFER_THRESHOLD && enable_memory_pool_) {  // Only use pool for buffers <= 64KB
+    memory::PooledBuffer pooled_buffer(size, pool_);
     if (pooled_buffer.valid()) {
       // Copy data to pooled buffer safely
       base::safe_memory::safe_memcpy(pooled_buffer.data(), data.data(), size);

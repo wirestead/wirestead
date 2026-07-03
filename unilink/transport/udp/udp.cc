@@ -78,6 +78,11 @@ struct UdpChannel::Impl {
   bool writing_{false};
   std::atomic<size_t> queue_bytes_{0};
   config::UdpConfig cfg_;
+  // #443: per-channel pool instead of the process-wide GlobalMemoryPool
+  // singleton - avoids cross-channel contention on the singleton's bucket
+  // mutexes. Capacity is much smaller than the old shared default since
+  // it's no longer amortized across every channel in the process.
+  memory::MemoryPool pool_{50, 200};
   // Atomic rather than mutex-guarded: read both from the strand (report_backpressure,
   // do_write) and from arbitrary caller threads (the async_try_write_* fast-fail
   // prechecks) - a strand-post here would only protect the former, not the latter (#436).
@@ -796,7 +801,7 @@ bool UdpChannel::async_write_copy(memory::ConstByteSpan data) {
   }
 
   if (impl->cfg_.enable_memory_pool && size <= 65536) {
-    memory::PooledBuffer pooled(size);
+    memory::PooledBuffer pooled(size, impl->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
       if (impl->queue_bytes_ + impl->pending_bytes_ + size > impl->bp_limit_) {
@@ -1047,7 +1052,7 @@ bool UdpChannel::async_write_to(memory::ConstByteSpan data, const boost::asio::i
     return false;
   }
   if (impl->cfg_.enable_memory_pool && size <= 65536) {
-    memory::PooledBuffer pooled(size);
+    memory::PooledBuffer pooled(size, impl->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
       if (impl->queue_bytes_ + impl->pending_bytes_ + size > impl->bp_limit_) {

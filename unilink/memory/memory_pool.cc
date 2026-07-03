@@ -239,6 +239,15 @@ PooledBuffer::PooledBuffer(MemoryPool::BufferSize buffer_size)
   buffer_ = pool_->acquire(size_);
 }
 
+PooledBuffer::PooledBuffer(size_t size, MemoryPool& pool) : size_(size), pool_(&pool) {
+  buffer_ = pool_->acquire(size);
+}
+
+PooledBuffer::PooledBuffer(MemoryPool::BufferSize buffer_size, MemoryPool& pool)
+    : size_(static_cast<size_t>(buffer_size)), pool_(&pool) {
+  buffer_ = pool_->acquire(size_);
+}
+
 PooledBuffer::~PooledBuffer() {
   if (buffer_ && pool_) {
     pool_->release(std::move(buffer_), size_);
