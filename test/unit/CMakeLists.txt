@@ -123,9 +123,10 @@ unilink_add_unit_gtest(
 )
 
 # Wrapper tests (separate executables across TCP/UDP/UDS/Serial)
-foreach(test_file
-        test_serial_wrapper_lifecycle.cc test_serial_wrapper_options.cc
-        test_runtime_stats.cc test_send_buffer_apis.cc
+foreach(
+  test_file
+  test_serial_wrapper_lifecycle.cc test_serial_wrapper_options.cc
+  test_runtime_stats.cc test_send_buffer_apis.cc test_error_context_builder.cc
 )
   get_filename_component(test_name ${test_file} NAME_WE)
 
