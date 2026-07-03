@@ -254,24 +254,36 @@ struct UdpServer::Impl {
             auto framer = framer_factory();
             if (framer) {
               framer->on_message([this, client_id](memory::ConstByteSpan msg) {
-                std::unique_lock<std::shared_mutex> lock(mutex);
-                if (on_message_batch_) {
-                  message_batch_queue_.emplace_back(client_id, memory::SafeDataBuffer(msg));
-                  if (message_batch_queue_.size() >= max_batch_size_) {
-                    auto handler = on_message_batch_;
-                    auto batch = std::move(message_batch_queue_);
-                    message_batch_queue_.clear();
-                    lock.unlock();
-                    handler(batch);
-                  } else if (message_batch_queue_.size() == 1) {
-                    schedule_batch_timer();
+                // #441: snapshot under a shared_lock (pure read), build the
+                // copy before taking the exclusive lock for queue mutation.
+                bool batch_mode;
+                MessageHandler on_message_handler;
+                {
+                  std::shared_lock<std::shared_mutex> lock(mutex);
+                  batch_mode = static_cast<bool>(on_message_batch_);
+                  on_message_handler = on_message;
+                }
+
+                if (batch_mode) {
+                  MessageContext ctx(client_id, memory::SafeDataBuffer(msg));
+                  BatchMessageHandler flush_handler;
+                  std::vector<MessageContext> batch;
+                  {
+                    std::unique_lock<std::shared_mutex> lock(mutex);
+                    message_batch_queue_.emplace_back(std::move(ctx));
+                    if (message_batch_queue_.size() >= max_batch_size_) {
+                      flush_handler = on_message_batch_;
+                      batch = std::move(message_batch_queue_);
+                      message_batch_queue_.clear();
+                    } else if (message_batch_queue_.size() == 1) {
+                      schedule_batch_timer();
+                    }
                   }
+                  if (flush_handler) flush_handler(batch);
                   return;
                 }
 
-                MessageHandler on_message_handler = on_message;
                 if (on_message_handler) {
-                  lock.unlock();
                   on_message_handler(MessageContext(client_id, memory::SafeDataBuffer(msg)));
                 }
               });
@@ -291,25 +303,38 @@ struct UdpServer::Impl {
       }
 
       {
-        std::unique_lock<std::shared_mutex> lock(mutex);
-        if (on_data_batch_) {
-          data_batch_queue_.emplace_back(client_id, memory::SafeDataBuffer(data));
-          if (data_batch_queue_.size() >= max_batch_size_) {
-            auto handler = on_data_batch_;
-            auto batch = std::move(data_batch_queue_);
-            data_batch_queue_.clear();
-            lock.unlock();
-            handler(batch);
-          } else if (data_batch_queue_.size() == 1) {
-            schedule_batch_timer();
+        // #441: snapshot the handler under a shared_lock (not unique_lock) -
+        // this is a pure read, matching try_send's locking level so it no
+        // longer blocks concurrent sends even briefly.
+        bool batch_mode;
+        MessageHandler data_handler_copy;
+        {
+          std::shared_lock<std::shared_mutex> lock(mutex);
+          batch_mode = static_cast<bool>(on_data_batch_);
+          data_handler_copy = on_data;
+        }
+
+        if (batch_mode) {
+          // #441: build the copy before taking the exclusive lock, so the
+          // lock is only held for the queue mutation itself, not the
+          // allocation.
+          MessageContext ctx(client_id, memory::SafeDataBuffer(data));
+          BatchMessageHandler flush_handler;
+          std::vector<MessageContext> batch;
+          {
+            std::unique_lock<std::shared_mutex> lock(mutex);
+            data_batch_queue_.emplace_back(std::move(ctx));
+            if (data_batch_queue_.size() >= max_batch_size_) {
+              flush_handler = on_data_batch_;
+              batch = std::move(data_batch_queue_);
+              data_batch_queue_.clear();
+            } else if (data_batch_queue_.size() == 1) {
+              schedule_batch_timer();
+            }
           }
-        } else {
-          MessageHandler data_handler_copy = on_data;
-          if (data_handler_copy) {
-            lock.unlock();
-            data_handler_copy(MessageContext(client_id, memory::SafeDataBuffer(data)));
-            lock.lock();
-          }
+          if (flush_handler) flush_handler(batch);
+        } else if (data_handler_copy) {
+          data_handler_copy(MessageContext(client_id, memory::SafeDataBuffer(data)));
         }
       }
 

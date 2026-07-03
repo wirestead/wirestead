@@ -373,33 +373,42 @@ struct Serial::Impl {
       auto alive = weak_alive.lock();
       if (!alive) return;
 
+      // #441: snapshot the handler/framer pointers under a shared_lock (not
+      // unique_lock) - this is a pure read, matching try_send's locking
+      // level so it no longer blocks concurrent sends even briefly.
+      bool batch_mode;
+      MessageHandler handler;
       std::shared_ptr<framer::IFramer> framer_to_push;
-      std::unique_lock<std::shared_mutex> lock(mutex_);
-      if (data_batch_handler_) {
-        data_batch_queue_.emplace_back(0, memory::SafeDataBuffer(data));
-        if (data_batch_queue_.size() >= max_batch_size_) {
-          auto handler = data_batch_handler_;
-          auto batch = std::move(data_batch_queue_);
-          data_batch_queue_.clear();
-          lock.unlock();
-          handler(batch);
-          lock.lock();
-        } else if (data_batch_queue_.size() == 1) {
-          schedule_batch_timer();
-        }
-      } else {
-        MessageHandler handler = data_handler;
-        if (handler) {
-          lock.unlock();
-          handler(MessageContext(0, memory::SafeDataBuffer(data)));
-          lock.lock();
-        }
-      }
-
-      if (framer) {
+      {
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        batch_mode = static_cast<bool>(data_batch_handler_);
+        handler = data_handler;
         framer_to_push = framer;
       }
-      lock.unlock();
+
+      if (batch_mode) {
+        // #441: build the copy before taking the exclusive lock, so the
+        // lock is only held for the queue mutation itself, not the
+        // allocation.
+        MessageContext ctx(0, memory::SafeDataBuffer(data));
+        BatchMessageHandler flush_handler;
+        std::vector<MessageContext> batch;
+        {
+          std::unique_lock<std::shared_mutex> lock(mutex_);
+          data_batch_queue_.emplace_back(std::move(ctx));
+          if (data_batch_queue_.size() >= max_batch_size_) {
+            flush_handler = data_batch_handler_;
+            batch = std::move(data_batch_queue_);
+            data_batch_queue_.clear();
+          } else if (data_batch_queue_.size() == 1) {
+            schedule_batch_timer();
+          }
+        }
+        if (flush_handler) flush_handler(batch);
+      } else if (handler) {
+        handler(MessageContext(0, memory::SafeDataBuffer(data)));
+      }
+
       if (framer_to_push) framer_to_push->push_bytes(data);
     });
 
@@ -462,24 +471,36 @@ struct Serial::Impl {
   void attach_framer_callback() {
     if (!framer) return;
     framer->on_message([this](memory::ConstByteSpan msg) {
-      std::unique_lock<std::shared_mutex> lock(mutex_);
-      if (message_batch_handler_) {
-        message_batch_queue_.emplace_back(0, memory::SafeDataBuffer(msg));
-        if (message_batch_queue_.size() >= max_batch_size_) {
-          auto handler = message_batch_handler_;
-          auto batch = std::move(message_batch_queue_);
-          message_batch_queue_.clear();
-          lock.unlock();
-          handler(batch);
-        } else if (message_batch_queue_.size() == 1) {
-          schedule_batch_timer();
+      // #441: snapshot under a shared_lock (pure read), build the copy
+      // before taking the exclusive lock for queue mutation.
+      bool batch_mode;
+      MessageHandler handler;
+      {
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        batch_mode = static_cast<bool>(message_batch_handler_);
+        handler = message_handler;
+      }
+
+      if (batch_mode) {
+        MessageContext ctx(0, memory::SafeDataBuffer(msg));
+        BatchMessageHandler flush_handler;
+        std::vector<MessageContext> batch;
+        {
+          std::unique_lock<std::shared_mutex> lock(mutex_);
+          message_batch_queue_.emplace_back(std::move(ctx));
+          if (message_batch_queue_.size() >= max_batch_size_) {
+            flush_handler = message_batch_handler_;
+            batch = std::move(message_batch_queue_);
+            message_batch_queue_.clear();
+          } else if (message_batch_queue_.size() == 1) {
+            schedule_batch_timer();
+          }
         }
+        if (flush_handler) flush_handler(batch);
         return;
       }
 
-      MessageHandler handler = message_handler;
       if (handler) {
-        lock.unlock();
         handler(MessageContext(0, memory::SafeDataBuffer(msg)));
       }
     });
