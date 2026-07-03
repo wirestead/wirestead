@@ -24,6 +24,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <stdexcept>
+#include <stop_token>
 #include <thread>
 #include <vector>
 
@@ -205,13 +206,10 @@ struct TcpClient::Impl {
       }
       work_guard_ = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
           external_ioc_->get_executor());
-      external_thread_ = std::jthread([this, ioc = external_ioc_](std::stop_token st) {
+      external_thread_ = std::jthread([ioc = external_ioc_](std::stop_token st) {
         try {
-          while (!st.stop_requested() && started_.load() && !ioc->stopped()) {
-            if (ioc->run_one_for(std::chrono::milliseconds(50)) == 0) {
-              std::this_thread::yield();
-            }
-          }
+          std::stop_callback cb(st, [ioc] { ioc->stop(); });
+          ioc->run();
         } catch (...) {
         }
       });
