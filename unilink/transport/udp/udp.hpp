@@ -24,6 +24,7 @@
 
 #include "unilink/base/visibility.hpp"
 #include "unilink/config/udp_config.hpp"
+#include "unilink/diagnostics/error_types.hpp"
 #include "unilink/interface/channel.hpp"
 
 namespace boost {
@@ -61,6 +62,7 @@ class UNILINK_API UdpChannel : public interface::Channel, public std::enable_sha
   bool is_backpressure_active() const override;
   wrapper::RuntimeStats stats() const override;
   void reset_stats() override;
+  std::optional<diagnostics::ErrorInfo> last_error_info() const override;
 
   // 1:1 writes (using configured remote_endpoint_)
   bool async_write_copy(memory::ConstByteSpan data) override;

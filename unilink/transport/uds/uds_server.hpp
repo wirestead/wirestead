@@ -17,12 +17,14 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "unilink/base/visibility.hpp"
 #include "unilink/config/uds_config.hpp"
+#include "unilink/diagnostics/error_types.hpp"
 #include "unilink/interface/channel.hpp"
 
 namespace boost {
@@ -76,6 +78,7 @@ class UNILINK_API UdsServer : public interface::Channel, public std::enable_shar
   void on_backpressure(OnBackpressure cb) override;
   wrapper::RuntimeStats stats() const override;
   void reset_stats() override;
+  std::optional<diagnostics::ErrorInfo> last_error_info() const override;
 
   // Multi-client support
   bool broadcast(std::string_view message);

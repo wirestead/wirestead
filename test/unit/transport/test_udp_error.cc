@@ -67,6 +67,10 @@ TEST(TransportUdpErrorTest, SendOversizedPacket) {
 
   EXPECT_TRUE(error_occurred.load()) << "Sending >65535 bytes via UDP should trigger Error state";
 
+  // #445: last_error_info() should now report detail for this transport too.
+  ASSERT_TRUE(channel->last_error_info().has_value());
+  EXPECT_EQ(channel->last_error_info()->component, "udp");
+
   channel->stop();
 }
 

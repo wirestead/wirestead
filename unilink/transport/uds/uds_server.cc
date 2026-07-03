@@ -35,6 +35,7 @@
 #include "unilink/diagnostics/logger.hpp"
 #include "unilink/diagnostics/runtime_stats_counter.hpp"
 #include "unilink/interface/iuds_acceptor.hpp"
+#include "unilink/transport/base/error_info_holder.hpp"
 #include "unilink/transport/uds/boost_uds_acceptor.hpp"
 #include "unilink/transport/uds/uds_server_session.hpp"
 
@@ -68,6 +69,8 @@ struct UdsServer::Impl {
 
   mutable std::mutex sessions_mutex_;
   std::unordered_map<ClientId, std::shared_ptr<UdsServerSession>> sessions_;
+
+  ErrorInfoHolder error_info_holder_{"uds_server"};
 
   Impl(const config::UdsServerConfig& cfg, net::io_context* ioc_ptr)
       : owned_ioc_(ioc_ptr ? nullptr : std::make_unique<net::io_context>()),
@@ -222,6 +225,8 @@ void UdsServer::start() {
 
   if (!impl_->cfg_.is_valid()) {
     UNILINK_LOG_ERROR("uds_server", "start", "Invalid UDS server configuration or socket path");
+    impl_->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONFIGURATION,
+                                           "start", {}, "Invalid UDS server configuration or socket path", false, 0);
     impl_->state_.set_state(base::LinkState::Error);
     impl_->notify_state();
     return;
@@ -233,7 +238,10 @@ void UdsServer::start() {
   boost::system::error_code ec;
   impl_->acceptor_->open(uds(), ec);
   if (ec) {
-    UNILINK_LOG_ERROR("uds_server", "start", fmt::format("Failed to open acceptor: {}", ec.message()));
+    std::string msg = fmt::format("Failed to open acceptor: {}", ec.message());
+    UNILINK_LOG_ERROR("uds_server", "start", msg);
+    impl_->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::SYSTEM, "open",
+                                           ec, msg, false, 0);
     impl_->state_.set_state(base::LinkState::Error);
     impl_->notify_state();
     return;
@@ -243,7 +251,11 @@ void UdsServer::start() {
   try {
     endpoint = uds::endpoint(impl_->cfg_.socket_path);
   } catch (const std::exception& e) {
-    UNILINK_LOG_ERROR("uds_server", "start", fmt::format("Invalid UDS endpoint: {}", e.what()));
+    std::string msg = fmt::format("Invalid UDS endpoint: {}", e.what());
+    UNILINK_LOG_ERROR("uds_server", "start", msg);
+    impl_->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONFIGURATION,
+                                           "start", make_error_code(boost::system::errc::filename_too_long), msg, false,
+                                           0);
     impl_->state_.set_state(base::LinkState::Error);
     impl_->notify_state();
     return;
@@ -251,8 +263,10 @@ void UdsServer::start() {
 
   impl_->acceptor_->bind(endpoint, ec);
   if (ec) {
-    UNILINK_LOG_ERROR("uds_server", "start",
-                      fmt::format("Failed to bind to {}: {}", impl_->cfg_.socket_path, ec.message()));
+    std::string msg = fmt::format("Failed to bind to {}: {}", impl_->cfg_.socket_path, ec.message());
+    UNILINK_LOG_ERROR("uds_server", "start", msg);
+    impl_->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION,
+                                           "bind", ec, msg, false, 0);
     impl_->state_.set_state(base::LinkState::Error);
     impl_->notify_state();
     return;
@@ -260,7 +274,10 @@ void UdsServer::start() {
 
   impl_->acceptor_->listen(net::socket_base::max_listen_connections, ec);
   if (ec) {
-    UNILINK_LOG_ERROR("uds_server", "start", fmt::format("Failed to listen: {}", ec.message()));
+    std::string msg = fmt::format("Failed to listen: {}", ec.message());
+    UNILINK_LOG_ERROR("uds_server", "start", msg);
+    impl_->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION,
+                                           "listen", ec, msg, false, 0);
     impl_->state_.set_state(base::LinkState::Error);
     impl_->notify_state();
     return;
@@ -333,6 +350,10 @@ void UdsServer::reset_stats() {
   for (const auto& pair : impl_->sessions_) {
     if (pair.second) pair.second->reset_stats();
   }
+}
+
+std::optional<diagnostics::ErrorInfo> UdsServer::last_error_info() const {
+  return impl_->error_info_holder_.last_error_info();
 }
 
 bool UdsServer::async_write_copy(memory::ConstByteSpan data) {
@@ -571,7 +592,10 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self) {
 
       // Log only real errors, not operation_aborted
       if (ec != boost::asio::error::operation_aborted) {
-        UNILINK_LOG_ERROR("uds_server", "accept", fmt::format("Accept failed: {}", ec.message()));
+        std::string msg = fmt::format("Accept failed: {}", ec.message());
+        UNILINK_LOG_ERROR("uds_server", "accept", msg);
+        impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION,
+                                              "accept", ec, msg, true, 0);
         impl->state_.set_state(base::LinkState::Error);
         impl->notify_state();
       }

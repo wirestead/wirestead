@@ -440,6 +440,9 @@ TEST_F(TransportTcpServerTest, InjectedAcceptorOpenFailureMovesToError) {
   ioc.run_for(std::chrono::milliseconds(50));
 
   EXPECT_TRUE(error_seen.load());
+  // #445: last_error_info() should now report detail for this transport too.
+  ASSERT_TRUE(server_->last_error_info().has_value());
+  EXPECT_EQ(server_->last_error_info()->component, "tcp_server");
 
   server_->stop();
   server_.reset();

@@ -41,6 +41,7 @@
 #include "unilink/memory/memory_pool.hpp"
 #include "unilink/transport/base/bp_state_machine.hpp"
 #include "unilink/transport/base/bp_utils.hpp"
+#include "unilink/transport/base/error_info_holder.hpp"
 #include "unilink/transport/serial/boost_serial_port.hpp"
 
 namespace unilink {
@@ -106,6 +107,8 @@ struct Serial::Impl {
 
   std::atomic<bool> opened_{false};
   ThreadSafeLinkState state_{LinkState::Idle};
+
+  ErrorInfoHolder error_info_holder_{"serial"};
 
   void observe_queue() {
     stats_.observe_queue(queued_bytes_.load(std::memory_order_relaxed) +
@@ -313,8 +316,12 @@ struct Serial::Impl {
             try {
               on_bytes(memory::ConstByteSpan(impl->rx_.data(), n));
             } catch (const std::exception& e) {
-              UNILINK_LOG_ERROR("serial", "on_bytes", fmt::format("Exception in callback: {}", e.what()));
+              std::string msg = fmt::format("Exception in callback: {}", e.what());
+              UNILINK_LOG_ERROR("serial", "on_bytes", msg);
               if (impl->cfg_.stop_on_callback_exception) {
+                impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR,
+                                                      diagnostics::ErrorCategory::COMMUNICATION, "on_bytes", {}, msg,
+                                                      false, 0);
                 impl->opened_.store(false);
                 impl->close_port();
                 impl->state_.set_state(LinkState::Error);
@@ -325,6 +332,9 @@ struct Serial::Impl {
               return;
             } catch (...) {
               if (impl->cfg_.stop_on_callback_exception) {
+                impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR,
+                                                      diagnostics::ErrorCategory::COMMUNICATION, "on_bytes", {},
+                                                      "Unknown exception in callback", false, 0);
                 impl->opened_.store(false);
                 impl->close_port();
                 impl->state_.set_state(LinkState::Error);
@@ -433,6 +443,8 @@ struct Serial::Impl {
     diagnostics::error_reporting::report_connection_error("serial", where, ec, retryable);
 
     UNILINK_LOG_ERROR("serial", where, fmt::format("Error: {}", ec.message()));
+    error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, where, ec,
+                                    ec.message(), retryable, 0);
 
     if (cfg_.reopen_on_error) {
       opened_.store(false);
@@ -613,6 +625,10 @@ void Serial::reset_stats() {
   auto impl = get_impl();
   impl->stats_.reset(impl->queued_bytes_.load(std::memory_order_relaxed) +
                      impl->pending_bytes_.load(std::memory_order_relaxed));
+}
+
+std::optional<diagnostics::ErrorInfo> Serial::last_error_info() const {
+  return get_impl()->error_info_holder_.last_error_info();
 }
 
 boost::asio::any_io_executor Serial::get_executor() { return impl_->strand_; }
