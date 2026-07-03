@@ -54,6 +54,7 @@
 #include "unilink/memory/memory_pool.hpp"
 #include "unilink/transport/base/bp_state_machine.hpp"
 #include "unilink/transport/base/bp_utils.hpp"
+#include "unilink/transport/base/error_info_holder.hpp"
 #include "unilink/transport/tcp_client/detail/reconnect_decider.hpp"
 
 namespace unilink {
@@ -125,8 +126,7 @@ struct TcpClient::Impl {
   uint32_t reconnect_attempt_count_{0};
   std::optional<ReconnectPolicy> reconnect_policy_;
 
-  mutable std::mutex last_err_mtx_;
-  std::optional<diagnostics::ErrorInfo> last_error_info_;
+  ErrorInfoHolder error_info_holder_{"tcp_client"};
 
   Impl(const TcpClientConfig& cfg, net::io_context* ioc_ptr)
       : owned_ioc_(ioc_ptr ? nullptr : std::make_shared<net::io_context>()),
@@ -205,8 +205,7 @@ TcpClient::TcpClient(TcpClient&&) noexcept = default;
 TcpClient& TcpClient::operator=(TcpClient&&) noexcept = default;
 
 std::optional<diagnostics::ErrorInfo> TcpClient::last_error_info() const {
-  std::lock_guard<std::mutex> lock(impl_->last_err_mtx_);
-  return impl_->last_error_info_;
+  return impl_->error_info_holder_.last_error_info();
 }
 
 void TcpClient::start() {
@@ -730,11 +729,7 @@ void TcpClient::Impl::schedule_retry(std::shared_ptr<TcpClient> self, uint64_t s
     return;
   }
 
-  std::optional<diagnostics::ErrorInfo> last_err;
-  {
-    std::lock_guard<std::mutex> lock(last_err_mtx_);
-    last_err = last_error_info_;
-  }
+  std::optional<diagnostics::ErrorInfo> last_err = error_info_holder_.last_error_info();
 
   if (!last_err) {
     last_err = diagnostics::ErrorInfo(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION,
@@ -1215,10 +1210,7 @@ void TcpClient::Impl::notify_state() {
 void TcpClient::Impl::record_error(diagnostics::ErrorLevel lvl, diagnostics::ErrorCategory cat,
                                    std::string_view operation, const boost::system::error_code& ec,
                                    std::string_view msg, bool retryable, uint32_t retry_count) {
-  std::lock_guard<std::mutex> lock(last_err_mtx_);
-  diagnostics::ErrorInfo info(lvl, cat, "tcp_client", operation, msg, ec, retryable);
-  info.retry_count = retry_count;
-  last_error_info_ = info;
+  error_info_holder_.record_error(lvl, cat, operation, ec, msg, retryable, retry_count);
 }
 
 void TcpClient::Impl::reset_io_objects() {
