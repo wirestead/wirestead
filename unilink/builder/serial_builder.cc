@@ -33,6 +33,7 @@ SerialBuilder<State>::SerialBuilder(const std::string& device, uint32_t baud_rat
       baud_rate_(baud_rate),
       auto_start_(false),
       independent_context_(false),
+      shared_context_(false),
       retry_interval_ms_(base::constants::DEFAULT_RETRY_INTERVAL_MS),
       char_size_(8),
       stop_bits_(1),
@@ -54,6 +55,7 @@ std::unique_ptr<wrapper::Serial> SerialBuilder<State>::build() {
   } else {
     serial = std::make_unique<wrapper::Serial>(device_, baud_rate_);
   }
+  if (shared_context_) serial->shared_context(true);
 
   if (this->on_data_) serial->on_data(this->on_data_);
   if (this->on_data_batch_) serial->on_data_batch(this->on_data_batch_);
@@ -192,6 +194,12 @@ SerialBuilder<State>& SerialBuilder<State>::retry_interval(std::chrono::millisec
 template <uint32_t State>
 SerialBuilder<State>& SerialBuilder<State>::independent_context(bool use_independent) {
   independent_context_ = use_independent;
+  return *this;
+}
+
+template <uint32_t State>
+SerialBuilder<State>& SerialBuilder<State>::shared_context(bool use_shared) {
+  shared_context_ = use_shared;
   return *this;
 }
 

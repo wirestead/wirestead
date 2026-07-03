@@ -32,6 +32,7 @@
 
 #include "unilink/base/common.hpp"
 #include "unilink/base/constants.hpp"
+#include "unilink/concurrency/io_context_manager.hpp"
 #include "unilink/concurrency/thread_safe_state.hpp"
 #include "unilink/diagnostics/error_handler.hpp"
 #include "unilink/diagnostics/logger.hpp"
@@ -59,6 +60,7 @@ struct Serial::Impl {
   std::unique_ptr<net::io_context> owned_ioc_;
   net::io_context& ioc_;
   bool owns_ioc_{false};
+  bool uses_shared_context_{false};
   net::strand<net::io_context::executor_type> strand_;
   std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> work_guard_;
   std::jthread ioc_thread_;
@@ -172,10 +174,11 @@ struct Serial::Impl {
     if (!writing_) do_write(self);
   }
 
-  explicit Impl(const config::SerialConfig& cfg)
-      : owned_ioc_(std::make_unique<net::io_context>()),
-        ioc_(*owned_ioc_),
-        owns_ioc_(true),
+  explicit Impl(const config::SerialConfig& cfg, bool use_shared_context)
+      : owned_ioc_(use_shared_context ? nullptr : std::make_unique<net::io_context>()),
+        ioc_(use_shared_context ? concurrency::IoContextManager::instance().get_context() : *owned_ioc_),
+        owns_ioc_(!use_shared_context),
+        uses_shared_context_(use_shared_context),
         strand_(ioc_.get_executor()),
         cfg_(cfg),
         retry_timer_(ioc_),
@@ -517,8 +520,8 @@ struct Serial::Impl {
   }
 };
 
-std::shared_ptr<Serial> Serial::create(const config::SerialConfig& cfg) {
-  return std::shared_ptr<Serial>(new Serial(cfg));
+std::shared_ptr<Serial> Serial::create(const config::SerialConfig& cfg, bool use_shared_context) {
+  return std::shared_ptr<Serial>(new Serial(cfg, use_shared_context));
 }
 
 std::shared_ptr<Serial> Serial::create(const config::SerialConfig& cfg, net::io_context& ioc) {
@@ -530,7 +533,8 @@ std::shared_ptr<Serial> Serial::create(const config::SerialConfig& cfg,
   return std::shared_ptr<Serial>(new Serial(cfg, std::move(port), ioc));
 }
 
-Serial::Serial(const config::SerialConfig& cfg) : impl_(std::make_unique<Impl>(cfg)) {}
+Serial::Serial(const config::SerialConfig& cfg, bool use_shared_context)
+    : impl_(std::make_unique<Impl>(cfg, use_shared_context)) {}
 
 Serial::Serial(const config::SerialConfig& cfg, std::unique_ptr<interface::SerialPortInterface> port,
                net::io_context& ioc)
@@ -555,6 +559,11 @@ void Serial::start() {
   if (impl->started_) return;
   impl->stopping_.store(false);
   UNILINK_LOG_INFO("serial", "start", fmt::format("Starting device: {}", impl->cfg_.device));
+  if (impl->uses_shared_context_) {
+    auto& manager = concurrency::IoContextManager::instance();
+    if (!manager.is_running()) manager.start();
+    if (impl->ioc_.stopped()) impl->ioc_.restart();
+  }
   impl->work_guard_ =
       std::make_unique<net::executor_work_guard<net::io_context::executor_type>>(impl->ioc_.get_executor());
   if (impl->owns_ioc_) {

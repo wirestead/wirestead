@@ -46,6 +46,12 @@ struct SerialConfig {
   unsigned retry_interval_ms = base::constants::DEFAULT_RETRY_INTERVAL_MS;
   int max_retries = base::constants::DEFAULT_MAX_RETRIES;
 
+  // Opt into the shared IoContextManager singleton instead of a dedicated
+  // io_context + thread (the default since #440). Only meaningful for
+  // deliberately trading per-instance parallelism for reduced thread/memory
+  // overhead across many instances in one process.
+  bool use_shared_context = false;
+
   // Validation methods
   bool is_valid() const {
     return !device.empty() && baud_rate > 0 && char_size >= 5 && char_size <= 8 && (stop_bits == 1 || stop_bits == 2) &&

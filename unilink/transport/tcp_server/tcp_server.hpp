@@ -46,7 +46,12 @@ namespace transport {
  */
 class UNILINK_API TcpServer : public interface::Channel, public std::enable_shared_from_this<TcpServer> {
  public:
-  static std::shared_ptr<TcpServer> create(const config::TcpServerConfig& cfg);
+  // use_shared_context: opt into the shared IoContextManager singleton
+  // instead of the default dedicated io_context + thread. Only meaningful
+  // for multi-server-per-process deployments deliberately trading
+  // parallelism for reduced thread/memory overhead (#440); most callers
+  // should leave this false.
+  static std::shared_ptr<TcpServer> create(const config::TcpServerConfig& cfg, bool use_shared_context = false);
   static std::shared_ptr<TcpServer> create(const config::TcpServerConfig& cfg,
                                            std::unique_ptr<interface::TcpAcceptorInterface> acceptor,
                                            boost::asio::io_context& ioc);
@@ -105,7 +110,7 @@ class UNILINK_API TcpServer : public interface::Channel, public std::enable_shar
   base::LinkState state() const;
 
  private:
-  explicit TcpServer(const config::TcpServerConfig& cfg);
+  explicit TcpServer(const config::TcpServerConfig& cfg, bool use_shared_context);
   TcpServer(const config::TcpServerConfig& cfg, std::unique_ptr<interface::TcpAcceptorInterface> acceptor,
             boost::asio::io_context& ioc);
 

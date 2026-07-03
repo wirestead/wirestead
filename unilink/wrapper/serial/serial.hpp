@@ -93,6 +93,12 @@ class UNILINK_API Serial : public ChannelInterface {
   Serial& on_message_batch(BatchMessageHandler handler) override;
 
   Serial& auto_start(bool manage = true) override;
+  // Opt into the shared IoContextManager singleton instead of the default
+  // dedicated io_context + thread (#440). Must be set before the first
+  // start() call to take effect. Only meaningful for deliberately trading
+  // per-instance parallelism for reduced thread/memory overhead across many
+  // instances in one process; most callers should not need this.
+  Serial& shared_context(bool use_shared = true);
 
   // Serial-specific methods
   Serial& baud_rate(uint32_t baud_rate);

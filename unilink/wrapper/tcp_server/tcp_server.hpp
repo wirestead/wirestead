@@ -96,6 +96,12 @@ class UNILINK_API TcpServer : public ServerInterface {
   // Configuration (Fluent API)
   TcpServer& auto_start(bool manage = true) override;
   TcpServer& bind_address(const std::string& address);
+  // Opt into the shared IoContextManager singleton instead of the default
+  // dedicated io_context + thread (#440). Must be set before the first
+  // start() call to take effect. Only meaningful for deliberately trading
+  // per-instance parallelism for reduced thread/memory overhead across many
+  // servers in one process; most callers should not need this.
+  TcpServer& shared_context(bool use_shared = true);
   TcpServer& port_retry(bool enable = true, int max_retries = 3, int retry_interval_ms = 1000);
   /**
    * @brief Configure application-level idle timeout for accepted sessions.
