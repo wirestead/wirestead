@@ -271,7 +271,10 @@ TEST_F(TransportUdsClientTest, InvalidConfigMovesToErrorAndRecordsLastError) {
 }
 
 TEST_F(TransportUdsClientTest, ConnectionTimeoutRecordsLastError) {
-  cfg.connection_timeout_ms = 20;
+  // #432: connection_timeout_ms is now clamped to MIN_CONNECTION_TIMEOUT_MS -
+  // use that value explicitly (rather than an arbitrarily smaller one that
+  // would silently get clamped up) and give run_for() enough margin past it.
+  cfg.connection_timeout_ms = base::constants::MIN_CONNECTION_TIMEOUT_MS;
   cfg.max_retries = 0;
 
   auto local_mock = new MockUdsSocket();
@@ -292,7 +295,7 @@ TEST_F(TransportUdsClientTest, ConnectionTimeoutRecordsLastError) {
 
   local_client->start();
   ioc.restart();
-  ioc.run_for(std::chrono::milliseconds(100));
+  ioc.run_for(std::chrono::milliseconds(base::constants::MIN_CONNECTION_TIMEOUT_MS) + std::chrono::milliseconds(200));
 
   EXPECT_TRUE(error_seen.load());
   ASSERT_TRUE(local_client->last_error_info().has_value());

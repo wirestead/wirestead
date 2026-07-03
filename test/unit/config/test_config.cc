@@ -269,6 +269,110 @@ TEST_F(ConfigTest, TcpClientConfigDirectValidation) {
   EXPECT_TRUE(config.is_valid());
 }
 
+// #432: connection_timeout_ms/idle_timeout_ms had constants in
+// base/constants.hpp that neither is_valid() nor validate_and_clamp()
+// ever checked, for both TcpClientConfig and UdsClientConfig - a
+// connection_timeout(0) reached connect_timer_ unclamped and caused an
+// instant-timeout reconnect loop (the reported failure scenario).
+TEST_F(ConfigTest, TcpClientAndUdsClientConfigTimeoutFieldsAreValidatedAndClamped) {
+  TcpClientConfig tcp;
+  EXPECT_TRUE(tcp.is_valid());
+
+  tcp.connection_timeout_ms = base::constants::MIN_CONNECTION_TIMEOUT_MS - 1;
+  EXPECT_FALSE(tcp.is_valid()) << "connection_timeout_ms below the minimum must be rejected";
+  tcp.validate_and_clamp();
+  EXPECT_EQ(tcp.connection_timeout_ms, base::constants::MIN_CONNECTION_TIMEOUT_MS);
+
+  tcp.connection_timeout_ms = base::constants::MAX_CONNECTION_TIMEOUT_MS + 1;
+  EXPECT_FALSE(tcp.is_valid());
+  tcp.validate_and_clamp();
+  EXPECT_EQ(tcp.connection_timeout_ms, base::constants::MAX_CONNECTION_TIMEOUT_MS);
+
+  tcp.idle_timeout_ms = base::constants::MAX_IDLE_TIMEOUT_MS + 1;
+  EXPECT_FALSE(tcp.is_valid());
+  tcp.validate_and_clamp();
+  EXPECT_EQ(tcp.idle_timeout_ms, base::constants::MAX_IDLE_TIMEOUT_MS);
+
+  // 0 means "disabled" and must not be clamped up to MIN_IDLE_TIMEOUT_MS.
+  tcp.idle_timeout_ms = 0;
+  EXPECT_TRUE(tcp.is_valid());
+  tcp.validate_and_clamp();
+  EXPECT_EQ(tcp.idle_timeout_ms, 0u);
+
+  UdsClientConfig uds;
+  EXPECT_TRUE(uds.is_valid());
+  uds.connection_timeout_ms = base::constants::MIN_CONNECTION_TIMEOUT_MS - 1;
+  EXPECT_FALSE(uds.is_valid());
+  uds.validate_and_clamp();
+  EXPECT_EQ(uds.connection_timeout_ms, base::constants::MIN_CONNECTION_TIMEOUT_MS);
+}
+
+// #432: TcpServerConfig/UdsServerConfig's idle_timeout_ms only had a
+// lower-bound clamp (< 0 -> 0); an over-large value was never rejected or
+// capped even though MAX_IDLE_TIMEOUT_MS exists.
+TEST_F(ConfigTest, ServerConfigIdleTimeoutUpperBoundIsEnforced) {
+  TcpServerConfig tcp_server;
+  tcp_server.idle_timeout_ms = static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS) + 1;
+  EXPECT_FALSE(tcp_server.is_valid());
+  tcp_server.validate_and_clamp();
+  EXPECT_EQ(tcp_server.idle_timeout_ms, static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS));
+
+  UdsServerConfig uds_server;
+  uds_server.idle_timeout_ms = static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS) + 1;
+  EXPECT_FALSE(uds_server.is_valid());
+  uds_server.validate_and_clamp();
+  EXPECT_EQ(uds_server.idle_timeout_ms, static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS));
+}
+
+// #432: SerialConfig::is_valid() never checked the device path format
+// (InputValidator::is_valid_device_path existed but was private/unwired)
+// nor baud_rate's upper bound.
+TEST_F(ConfigTest, SerialConfigDevicePathAndBaudRateAreValidated) {
+  SerialConfig cfg;
+  EXPECT_TRUE(cfg.is_valid());
+
+  cfg.device = "not-a-real-device";
+  EXPECT_FALSE(cfg.is_valid()) << "device path must match /dev/... or COMn";
+#ifdef _WIN32
+  cfg.device = "COM7";
+#else
+  cfg.device = "/dev/ttyUSB1";
+#endif
+  EXPECT_TRUE(cfg.is_valid());
+
+  cfg.baud_rate = base::constants::MAX_BAUD_RATE + 1;
+  EXPECT_FALSE(cfg.is_valid());
+  cfg.validate_and_clamp();
+  EXPECT_EQ(cfg.baud_rate, base::constants::MAX_BAUD_RATE);
+
+  cfg.baud_rate = base::constants::MIN_BAUD_RATE - 1;
+  EXPECT_FALSE(cfg.is_valid());
+  cfg.validate_and_clamp();
+  EXPECT_EQ(cfg.baud_rate, base::constants::MIN_BAUD_RATE);
+}
+
+// #432: UdpConfig never checked bind_address/remote_address format at all,
+// even though both are passed straight to boost::asio::ip::make_address()
+// (literal IPv4/IPv6 only, no hostname resolution).
+TEST_F(ConfigTest, UdpConfigAddressFormatIsValidated) {
+  UdpConfig cfg;
+  EXPECT_TRUE(cfg.is_valid());
+
+  cfg.bind_address = "not-an-ip";
+  EXPECT_FALSE(cfg.is_valid());
+  cfg.bind_address = "0.0.0.0";
+  EXPECT_TRUE(cfg.is_valid());
+
+  cfg.remote_address = "not-an-ip";
+  cfg.remote_port = 9000;
+  EXPECT_FALSE(cfg.is_valid());
+  cfg.remote_address = "127.0.0.1";
+  EXPECT_TRUE(cfg.is_valid());
+
+  cfg.bind_address = "::1";
+  EXPECT_TRUE(cfg.is_valid()) << "IPv6 bind address should be valid";
+}
+
 TEST(SocketTuningConfigTest, SocketBufferConfigValidationAndClamping) {
   TcpClientConfig tcp_client;
   EXPECT_TRUE(tcp_client.tcp_no_delay);
@@ -322,7 +426,11 @@ TEST_F(ConfigTest, SerialConfigDirectValidationAndClamping) {
 
   config.device.clear();
   EXPECT_FALSE(config.is_valid());
-  config.device = "loopback";
+#ifdef _WIN32
+  config.device = "COM3";
+#else
+  config.device = "/dev/ttyFake";
+#endif
 
   config.baud_rate = 0;
   EXPECT_FALSE(config.is_valid());

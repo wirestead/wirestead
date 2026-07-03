@@ -55,7 +55,8 @@ struct TcpServerConfig {
     return (util::InputValidator::is_valid_ipv4(bind_address) || util::InputValidator::is_valid_ipv6(bind_address)) &&
            port > 0 && backpressure_threshold >= base::constants::MIN_BACKPRESSURE_THRESHOLD &&
            backpressure_threshold <= base::constants::MAX_BACKPRESSURE_THRESHOLD && max_connections >= 0 &&
-           idle_timeout_ms >= 0 &&
+           (idle_timeout_ms == 0 || (idle_timeout_ms >= static_cast<int>(base::constants::MIN_IDLE_TIMEOUT_MS) &&
+                                     idle_timeout_ms <= static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS))) &&
            (send_buffer_size == 0 || (send_buffer_size >= base::constants::MIN_SOCKET_BUFFER_SIZE &&
                                       send_buffer_size <= base::constants::MAX_SOCKET_BUFFER_SIZE)) &&
            (receive_buffer_size == 0 || (receive_buffer_size >= base::constants::MIN_SOCKET_BUFFER_SIZE &&
@@ -78,6 +79,12 @@ struct TcpServerConfig {
 
     if (idle_timeout_ms < 0) {
       idle_timeout_ms = 0;
+    } else if (idle_timeout_ms != 0) {
+      if (idle_timeout_ms < static_cast<int>(base::constants::MIN_IDLE_TIMEOUT_MS)) {
+        idle_timeout_ms = static_cast<int>(base::constants::MIN_IDLE_TIMEOUT_MS);
+      } else if (idle_timeout_ms > static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS)) {
+        idle_timeout_ms = static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS);
+      }
     }
 
     if (send_buffer_size != 0 && send_buffer_size < base::constants::MIN_SOCKET_BUFFER_SIZE) {

@@ -845,6 +845,11 @@ void Serial::set_backpressure_strategy(base::constants::BackpressureStrategy str
 }
 
 void Serial::set_retry_interval(unsigned interval_ms) {
+  if (interval_ms < base::constants::MIN_RETRY_INTERVAL_MS) {
+    interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;
+  } else if (interval_ms > base::constants::MAX_RETRY_INTERVAL_MS) {
+    interval_ms = base::constants::MAX_RETRY_INTERVAL_MS;
+  }
   get_impl()->retry_interval_ms_.store(interval_ms, std::memory_order_relaxed);
 }
 

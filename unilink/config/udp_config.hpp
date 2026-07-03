@@ -21,6 +21,7 @@
 #include <string>
 
 #include "unilink/base/constants.hpp"
+#include "unilink/util/input_validator.hpp"
 
 namespace unilink {
 namespace config {
@@ -40,11 +41,21 @@ struct UdpConfig {
   size_t receive_buffer_size = 0;
 
   bool is_valid() const {
+    // bind_address/remote_address are passed straight to
+    // boost::asio::ip::make_address() (unilink/transport/udp/udp.cc) -
+    // literal IPv4/IPv6 addresses only, no hostname resolution.
+    if (!util::InputValidator::is_valid_ipv4(bind_address) && !util::InputValidator::is_valid_ipv6(bind_address)) {
+      return false;
+    }
     if (backpressure_threshold < base::constants::MIN_BACKPRESSURE_THRESHOLD ||
         backpressure_threshold > base::constants::MAX_BACKPRESSURE_THRESHOLD) {
       return false;
     }
     if (remote_address.has_value() != remote_port.has_value()) return false;
+    if (remote_address && !util::InputValidator::is_valid_ipv4(*remote_address) &&
+        !util::InputValidator::is_valid_ipv6(*remote_address)) {
+      return false;
+    }
     if (remote_port && *remote_port == 0) return false;
     if (send_buffer_size != 0 && (send_buffer_size < base::constants::MIN_SOCKET_BUFFER_SIZE ||
                                   send_buffer_size > base::constants::MAX_SOCKET_BUFFER_SIZE)) {

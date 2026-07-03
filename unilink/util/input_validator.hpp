@@ -77,11 +77,9 @@ class UNILINK_API InputValidator {
   static bool is_valid_ipv6(const std::string& address);
   static bool is_valid_hostname(std::string_view hostname);
   static bool is_valid_uds_path(const std::string& path);
-
- private:
-  // Helper methods
   static bool is_valid_device_path(const std::string& device);
 
+ private:
   // Constants for retry count
   static constexpr int FINITE_MIN_RETRY_COUNT = 0;
   static constexpr int FINITE_MAX_RETRY_COUNT = base::constants::MAX_RETRIES_LIMIT;

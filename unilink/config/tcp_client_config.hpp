@@ -52,6 +52,10 @@ struct TcpClientConfig {
     return util::InputValidator::is_valid_host(host) && port > 0 &&
            retry_interval_ms >= base::constants::MIN_RETRY_INTERVAL_MS &&
            retry_interval_ms <= base::constants::MAX_RETRY_INTERVAL_MS &&
+           connection_timeout_ms >= base::constants::MIN_CONNECTION_TIMEOUT_MS &&
+           connection_timeout_ms <= base::constants::MAX_CONNECTION_TIMEOUT_MS &&
+           (idle_timeout_ms == 0 || (idle_timeout_ms >= base::constants::MIN_IDLE_TIMEOUT_MS &&
+                                     idle_timeout_ms <= base::constants::MAX_IDLE_TIMEOUT_MS)) &&
            backpressure_threshold >= base::constants::MIN_BACKPRESSURE_THRESHOLD &&
            backpressure_threshold <= base::constants::MAX_BACKPRESSURE_THRESHOLD &&
            (send_buffer_size == 0 || (send_buffer_size >= base::constants::MIN_SOCKET_BUFFER_SIZE &&
@@ -67,6 +71,20 @@ struct TcpClientConfig {
       retry_interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;
     } else if (retry_interval_ms > base::constants::MAX_RETRY_INTERVAL_MS) {
       retry_interval_ms = base::constants::MAX_RETRY_INTERVAL_MS;
+    }
+
+    if (connection_timeout_ms < base::constants::MIN_CONNECTION_TIMEOUT_MS) {
+      connection_timeout_ms = base::constants::MIN_CONNECTION_TIMEOUT_MS;
+    } else if (connection_timeout_ms > base::constants::MAX_CONNECTION_TIMEOUT_MS) {
+      connection_timeout_ms = base::constants::MAX_CONNECTION_TIMEOUT_MS;
+    }
+
+    if (idle_timeout_ms != 0) {
+      if (idle_timeout_ms < base::constants::MIN_IDLE_TIMEOUT_MS) {
+        idle_timeout_ms = base::constants::MIN_IDLE_TIMEOUT_MS;
+      } else if (idle_timeout_ms > base::constants::MAX_IDLE_TIMEOUT_MS) {
+        idle_timeout_ms = base::constants::MAX_IDLE_TIMEOUT_MS;
+      }
     }
 
     if (backpressure_threshold < base::constants::MIN_BACKPRESSURE_THRESHOLD) {

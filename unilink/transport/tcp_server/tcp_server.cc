@@ -861,6 +861,9 @@ void TcpServer::on_multi_disconnect(MultiClientDisconnectHandler h) {
 
 void TcpServer::set_client_limit(size_t max) {
   auto impl = get_impl();
+  if (max > base::constants::MAX_MAX_CONNECTIONS) {
+    max = base::constants::MAX_MAX_CONNECTIONS;
+  }
   std::lock_guard<std::mutex> l(impl->sessions_mutex_);
   impl->max_clients_ = max;
   if (max == 0) {

@@ -191,6 +191,16 @@ unilink_add_unit_gtest(
   "unit_transport_reconnect_stable" 30
 )
 
+# Real-socket TcpClient reconnect behavior (server restart, live retry_interval
+# clamping - #432). Uses real sockets/timing so it's not in the fast foreach
+# above; was previously written but never wired into the build (added #332,
+# orphaned since).
+unilink_add_unit_gtest(
+  run_unit_transport_tcp_client_reconnect_test
+  ${CMAKE_CURRENT_SOURCE_DIR}/transport/transport_tcp_client_reconnect_test.cc
+  "unit_transport_reconnect_stable" 30
+)
+
 # Shared backpressure state machine (#434) - isolated, no sockets/io_context
 unilink_add_unit_gtest(
   run_unit_test_bp_state_machine
