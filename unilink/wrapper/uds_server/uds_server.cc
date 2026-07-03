@@ -6,6 +6,7 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <shared_mutex>
+#include <stop_token>
 #include <thread>
 
 #include "unilink/diagnostics/error_mapping.hpp"
@@ -29,7 +30,7 @@ struct UdsServer::Impl {
   std::condition_variable bp_cv_;
   std::shared_ptr<interface::Channel> server_;
   std::vector<std::promise<bool>> pending_promises_;
-  std::thread external_thread_;
+  std::jthread external_thread_;
   std::unique_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> work_guard_;
 
   std::atomic<bool> started_{false};
@@ -205,8 +206,9 @@ struct UdsServer::Impl {
       }
       work_guard_ = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
           boost::asio::make_work_guard(*external_ioc_));
-      external_thread_ = std::thread([ioc = external_ioc_]() {
+      external_thread_ = std::jthread([ioc = external_ioc_](std::stop_token st) {
         try {
+          std::stop_callback cb(st, [ioc] { ioc->stop(); });
           ioc->run();
         } catch (...) {
         }
@@ -255,6 +257,7 @@ struct UdsServer::Impl {
     if (should_join && external_thread_.joinable()) {
       try {
         if (std::this_thread::get_id() != external_thread_.get_id()) {
+          external_thread_.request_stop();
           external_thread_.join();
         } else {
           external_thread_.detach();
