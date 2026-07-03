@@ -86,7 +86,11 @@ constexpr unsigned MAX_CLEANUP_INTERVAL_MS = 1000;           // 1s maximum clean
 constexpr unsigned DEFAULT_HEALTH_CHECK_INTERVAL_MS = 1000;  // 1s health check interval
 
 // Connection and session constants
-constexpr size_t MAX_MAX_CONNECTIONS = 10000;   // Maximum allowed connections
+constexpr size_t MAX_MAX_CONNECTIONS = 10000;  // Maximum allowed connections
+// #437: a server started with defaults must have some ceiling on total
+// memory a large number of slow/malicious clients can consume - 0 (the old
+// default) meant unlimited.
+constexpr size_t DEFAULT_MAX_CONNECTIONS = 1024;
 constexpr size_t DEFAULT_IDLE_TIMEOUT_MS = 0;   // Idle timeout disabled by default
 constexpr size_t MIN_IDLE_TIMEOUT_MS = 1;       // 1ms minimum idle timeout when enabled
 constexpr size_t MAX_IDLE_TIMEOUT_MS = 300000;  // 5m maximum idle timeout
