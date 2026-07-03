@@ -145,6 +145,30 @@ TEST_F(TransportUdsClientTest, ConnectionFailure) {
   EXPECT_TRUE(has_error);
 }
 
+// Regression test for jwsung91/unilink#445: record_error()'s retry_count
+// parameter used to be silently discarded here (an unnamed uint32_t
+// parameter in the pre-ErrorInfoHolder implementation), so
+// last_error_info()->retry_count always reported 0 regardless of how many
+// reconnect attempts had actually happened - unlike TcpClient's equivalent,
+// which always set it correctly. Asserts it's now propagated end-to-end
+// through the shared ErrorInfoHolder.
+TEST_F(TransportUdsClientTest, RepeatedConnectionFailuresRecordIncreasingRetryCount) {
+  cfg.retry_interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;
+  cfg.max_retries = -1;
+  EXPECT_CALL(*mock_socket, async_connect(_, _))
+      .WillRepeatedly(Invoke([this](const net::local::stream_protocol::endpoint&,
+                                    std::function<void(const boost::system::error_code&)> handler) {
+        net::post(ioc, [handler]() { handler(make_error_code(boost::asio::error::connection_refused)); });
+      }));
+
+  client->start();
+  ioc.restart();
+  ioc.run_for(std::chrono::milliseconds(1500));
+
+  ASSERT_TRUE(client->last_error_info().has_value());
+  EXPECT_GT(client->last_error_info()->retry_count, 0u);
+}
+
 TEST_F(TransportUdsClientTest, WriteData) {
   // Setup successful connection first
   std::cout << "WriteData: setting up async_connect mock" << std::endl;

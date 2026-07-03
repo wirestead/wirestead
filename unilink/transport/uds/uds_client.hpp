@@ -88,7 +88,7 @@ class UNILINK_API UdsClient : public Channel, public std::enable_shared_from_thi
   void on_state(OnState cb) override;
   void on_backpressure(OnBackpressure cb) override;
 
-  std::optional<diagnostics::ErrorInfo> last_error_info() const;
+  std::optional<diagnostics::ErrorInfo> last_error_info() const override;
 
   void set_backpressure_strategy(base::constants::BackpressureStrategy strategy);
   void set_retry_interval(unsigned interval_ms);

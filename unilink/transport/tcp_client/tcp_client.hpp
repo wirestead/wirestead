@@ -85,7 +85,7 @@ class UNILINK_API TcpClient : public Channel, public std::enable_shared_from_thi
   void on_state(OnState cb) override;
   void on_backpressure(OnBackpressure cb) override;
 
-  std::optional<diagnostics::ErrorInfo> last_error_info() const;
+  std::optional<diagnostics::ErrorInfo> last_error_info() const override;
 
   // Dynamic configuration methods. Thread-safe; take effect for the next
   // reconnect/idle-timeout decision, not retroactively for one already in
