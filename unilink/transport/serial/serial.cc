@@ -39,6 +39,7 @@
 #include "unilink/diagnostics/runtime_stats_counter.hpp"
 #include "unilink/interface/iserial_port.hpp"
 #include "unilink/memory/memory_pool.hpp"
+#include "unilink/transport/base/bp_state_machine.hpp"
 #include "unilink/transport/base/bp_utils.hpp"
 #include "unilink/transport/serial/boost_serial_port.hpp"
 
@@ -111,10 +112,69 @@ struct Serial::Impl {
                          pending_bytes_.load(std::memory_order_relaxed));
   }
 
-  void maybe_flush_for_keep_latest(size_t added) {
-    const auto dropped = queue_util::maybe_flush_for_keep_latest(bp_strategy_, added, bp_high_, tx_, queued_bytes_,
-                                                                 backpressure_active_);
+  queue_util::BackpressureFields bp_fields() {
+    return queue_util::BackpressureFields{queued_bytes_,
+                                          pending_bytes_,
+                                          backpressure_active_,
+                                          bp_high_,
+                                          bp_low_,
+                                          bp_limit_,
+                                          bp_strategy_.load(std::memory_order_relaxed)};
+  }
+
+  // Shared decide_enqueue()/route dispatch used by all 4 async_write_* call
+  // sites (async_write_copy's pool+fallback paths, async_write_move,
+  // async_write_shared) (#434). Unlike every other transport, a rejection
+  // caused by the tx_/BestEffort-trim overflow check is treated as a FATAL
+  // transport error here rather than reject-and-continue - this is a
+  // pre-existing, deliberate Serial-specific behavior the design plan
+  // flagged as needing a product decision, not something to silently unify
+  // away. A rejection caused by the separate Reliable-pending_-overflow
+  // check (queue+pending+added > bp_limit_ while backpressure is already
+  // active) still just drops and continues, matching everyone else -
+  // distinguished here since decide_enqueue()'s Rejected result doesn't
+  // otherwise tell the two apart.
+  //
+  // Also normalizes an internal inconsistency found while migrating: only
+  // async_write_copy's *fallback* path (and async_write_move/_shared)
+  // triggered the fatal-error behavior on tx_ overflow before this change -
+  // the *pooled*-buffer path in async_write_copy did not, for no documented
+  // reason. All 4 call sites now behave identically.
+  void route_enqueued_buffer(std::shared_ptr<Serial> self, BufferVariant&& buf, size_t added) {
+    const bool reliable_pending_active =
+        bp_strategy_.load(std::memory_order_relaxed) == base::constants::BackpressureStrategy::Reliable &&
+        backpressure_active_.load(std::memory_order_relaxed);
+
+    auto f = bp_fields();
+    queue_util::DropAccounting dropped;
+    auto decision = queue_util::decide_enqueue(f, added, tx_, dropped);
     if (dropped.any()) stats_.record_dropped(dropped.messages, dropped.bytes);
+
+    if (decision == queue_util::EnqueueDecision::Rejected) {
+      UNILINK_LOG_ERROR("serial", "write", "Queue limit exceeded, dropping message");
+      if (reliable_pending_active) {
+        return;
+      }
+      report_backpressure(queued_bytes_ + added);
+      tx_.clear();
+      queued_bytes_ = 0;
+      writing_ = false;
+      state_.set_state(LinkState::Error);
+      notify_state();
+      handle_error(self, "write_queue_overflow", make_error_code(boost::system::errc::no_buffer_space));
+      return;
+    }
+    if (decision == queue_util::EnqueueDecision::Pending) {
+      pending_bytes_ += added;
+      pending_.emplace_back(std::move(buf));
+      observe_queue();
+      return;
+    }
+    queued_bytes_ += added;
+    tx_.emplace_back(std::move(buf));
+    observe_queue();
+    report_backpressure(queued_bytes_);
+    if (!writing_) do_write(self);
   }
 
   explicit Impl(const config::SerialConfig& cfg)
@@ -419,6 +479,14 @@ struct Serial::Impl {
     }
   }
 
+  // Unlike every other migrated transport, this deliberately keeps taking no
+  // `self` parameter and passes an empty kick_write hook to the shared
+  // state machine below: perform_cleanup() (reachable from ~Impl(), where
+  // shared_from_this() cannot be used at all) calls this with no self
+  // available, and the corresponding do_write() kick after a backpressure
+  // OFF transition is still issued manually at every async_write_* call
+  // site exactly as before (#434 - normalizing this into the shared hook
+  // was judged not worth the self-availability hazard in the cleanup path).
   void report_backpressure(size_t qb) {
     if (stopping_.load()) return;
     observe_queue();
@@ -429,44 +497,18 @@ struct Serial::Impl {
       on_bp = on_bp_;
     }
 
-    if (!backpressure_active_ && qb >= bp_high_) {
-      backpressure_active_ = true;
-      stats_.record_backpressure_event();
-      if (on_bp) {
-        try {
-          on_bp(qb);
-        } catch (...) {
-        }
-      }
-    } else if (backpressure_active_ && qb <= bp_low_) {
-      // Flush pending_ → tx_
-      const size_t moved = pending_bytes_.exchange(0);
-      queued_bytes_ += moved;
-      while (!pending_.empty()) {
-        tx_.emplace_back(std::move(pending_.front()));
-        pending_.pop_front();
-      }
-      observe_queue();
-      backpressure_active_ = false;
-      stats_.record_backpressure_event();
-      if (on_bp) {
-        try {
-          on_bp(qb);
-        } catch (...) {
-        }  // fire OFF with pre-flush queue size
-      }
-      // If post-flush queue is still high, fire ON again
-      if (queued_bytes_ >= bp_high_) {
-        backpressure_active_ = true;
-        stats_.record_backpressure_event();
-        if (on_bp) {
-          try {
-            on_bp(queued_bytes_);
-          } catch (...) {
+    auto f = bp_fields();
+    queue_util::report_backpressure(
+        f, qb, on_bp, stats_,
+        [&]() -> size_t {
+          const size_t moved = pending_bytes_.exchange(0);
+          while (!pending_.empty()) {
+            tx_.emplace_back(std::move(pending_.front()));
+            pending_.pop_front();
           }
-        }
-      }
-    }
+          return moved;
+        },
+        [&]() { observe_queue(); });
   }
 };
 
@@ -605,32 +647,7 @@ bool Serial::async_write_copy(memory::ConstByteSpan data) {
       net::post(impl->strand_, [self = shared_from_this(), buf = std::move(pooled)]() mutable {
         auto impl = self->get_impl();
         const auto added = buf.size();
-
-        // Reliable: route to pending_ when backpressure is active
-        if (impl->bp_strategy_ == base::constants::BackpressureStrategy::Reliable &&
-            impl->backpressure_active_.load()) {
-          if (impl->queued_bytes_ + impl->pending_bytes_ + added > impl->bp_limit_) {
-            UNILINK_LOG_ERROR("serial", "write", "Queue limit exceeded, dropping message");
-            return;
-          }
-          impl->pending_bytes_ += added;
-          impl->pending_.emplace_back(std::move(buf));
-          impl->observe_queue();
-          return;
-        }
-
-        impl->maybe_flush_for_keep_latest(added);
-
-        if (impl->queued_bytes_ + added > impl->bp_limit_) {
-          UNILINK_LOG_ERROR("serial", "write", "Queue limit exceeded, dropping message");
-          impl->report_backpressure(impl->queued_bytes_ + added);
-          return;
-        }
-        impl->queued_bytes_ += added;
-        impl->tx_.emplace_back(std::move(buf));
-        impl->observe_queue();
-        impl->report_backpressure(impl->queued_bytes_);
-        if (!impl->writing_) impl->do_write(self);
+        impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
       });
       return true;
     }
@@ -645,36 +662,7 @@ bool Serial::async_write_copy(memory::ConstByteSpan data) {
   net::post(impl->strand_, [self = shared_from_this(), buf = std::move(fallback)]() mutable {
     auto impl = self->get_impl();
     const auto added = buf.size();
-
-    // Reliable: route to pending_ when backpressure is active
-    if (impl->bp_strategy_ == base::constants::BackpressureStrategy::Reliable && impl->backpressure_active_.load()) {
-      if (impl->queued_bytes_ + impl->pending_bytes_ + added > impl->bp_limit_) {
-        UNILINK_LOG_ERROR("serial", "write", "Queue limit exceeded, dropping message");
-        return;
-      }
-      impl->pending_bytes_ += added;
-      impl->pending_.emplace_back(std::move(buf));
-      impl->observe_queue();
-      return;
-    }
-
-    impl->maybe_flush_for_keep_latest(added);
-
-    if (impl->queued_bytes_ + added > impl->bp_limit_) {
-      impl->report_backpressure(impl->queued_bytes_ + added);
-      impl->tx_.clear();
-      impl->queued_bytes_ = 0;
-      impl->writing_ = false;
-      impl->state_.set_state(LinkState::Error);
-      impl->notify_state();
-      impl->handle_error(self, "write_queue_overflow", make_error_code(boost::system::errc::no_buffer_space));
-      return;
-    }
-    impl->queued_bytes_ += added;
-    impl->tx_.emplace_back(std::move(buf));
-    impl->observe_queue();
-    impl->report_backpressure(impl->queued_bytes_);
-    if (!impl->writing_) impl->do_write(self);
+    impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
   return true;
 }
@@ -697,36 +685,7 @@ bool Serial::async_write_move(std::vector<uint8_t>&& data) {
   impl->stats_.record_accepted(added);
   net::post(impl->strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
     auto impl = self->get_impl();
-
-    // Reliable: route to pending_ when backpressure is active
-    if (impl->bp_strategy_ == base::constants::BackpressureStrategy::Reliable && impl->backpressure_active_.load()) {
-      if (impl->queued_bytes_ + impl->pending_bytes_ + added > impl->bp_limit_) {
-        UNILINK_LOG_ERROR("serial", "write", "Queue limit exceeded, dropping message");
-        return;
-      }
-      impl->pending_bytes_ += added;
-      impl->pending_.emplace_back(std::move(buf));
-      impl->observe_queue();
-      return;
-    }
-
-    impl->maybe_flush_for_keep_latest(added);
-
-    if (impl->queued_bytes_ + added > impl->bp_limit_) {
-      impl->report_backpressure(impl->queued_bytes_ + added);
-      impl->tx_.clear();
-      impl->queued_bytes_ = 0;
-      impl->writing_ = false;
-      impl->state_.set_state(LinkState::Error);
-      impl->notify_state();
-      impl->handle_error(self, "write_queue_overflow", make_error_code(boost::system::errc::no_buffer_space));
-      return;
-    }
-    impl->queued_bytes_ += added;
-    impl->tx_.emplace_back(std::move(buf));
-    impl->observe_queue();
-    impl->report_backpressure(impl->queued_bytes_);
-    if (!impl->writing_) impl->do_write(self);
+    impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
   return true;
 }
@@ -749,36 +708,7 @@ bool Serial::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data
   impl->stats_.record_accepted(added);
   net::post(impl->strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
     auto impl = self->get_impl();
-
-    // Reliable: route to pending_ when backpressure is active
-    if (impl->bp_strategy_ == base::constants::BackpressureStrategy::Reliable && impl->backpressure_active_.load()) {
-      if (impl->queued_bytes_ + impl->pending_bytes_ + added > impl->bp_limit_) {
-        UNILINK_LOG_ERROR("serial", "write", "Queue limit exceeded, dropping message");
-        return;
-      }
-      impl->pending_bytes_ += added;
-      impl->pending_.emplace_back(std::move(buf));
-      impl->observe_queue();
-      return;
-    }
-
-    impl->maybe_flush_for_keep_latest(added);
-
-    if (impl->queued_bytes_ + added > impl->bp_limit_) {
-      impl->report_backpressure(impl->queued_bytes_ + added);
-      impl->tx_.clear();
-      impl->queued_bytes_ = 0;
-      impl->writing_ = false;
-      impl->state_.set_state(LinkState::Error);
-      impl->notify_state();
-      impl->handle_error(self, "write_queue_overflow", make_error_code(boost::system::errc::no_buffer_space));
-      return;
-    }
-    impl->queued_bytes_ += added;
-    impl->tx_.emplace_back(std::move(buf));
-    impl->observe_queue();
-    impl->report_backpressure(impl->queued_bytes_);
-    if (!impl->writing_) impl->do_write(self);
+    impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
   return true;
 }
