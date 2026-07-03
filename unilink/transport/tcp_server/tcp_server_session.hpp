@@ -59,12 +59,14 @@ class UNILINK_API TcpServerSession : public std::enable_shared_from_this<TcpServ
   TcpServerSession(net::io_context& ioc, tcp::socket sock,
                    size_t backpressure_threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD,
                    int idle_timeout_ms = 0,
-                   base::constants::BackpressureStrategy strategy = base::constants::BackpressureStrategy::Reliable);
+                   base::constants::BackpressureStrategy strategy = base::constants::BackpressureStrategy::Reliable,
+                   bool enable_memory_pool = true);
   // Constructor for testing with dependency injection
   TcpServerSession(net::io_context& ioc, std::unique_ptr<interface::TcpSocketInterface> socket,
                    size_t backpressure_threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD,
                    int idle_timeout_ms = 0,
-                   base::constants::BackpressureStrategy strategy = base::constants::BackpressureStrategy::Reliable);
+                   base::constants::BackpressureStrategy strategy = base::constants::BackpressureStrategy::Reliable,
+                   bool enable_memory_pool = true);
 
   void start();
   bool async_write_copy(memory::ConstByteSpan data);
@@ -99,6 +101,12 @@ class UNILINK_API TcpServerSession : public std::enable_shared_from_this<TcpServ
   net::strand<net::io_context::executor_type> strand_;
   net::steady_timer idle_timer_;
   std::unique_ptr<interface::TcpSocketInterface> socket_;
+  // #443: per-session pool instead of the process-wide GlobalMemoryPool
+  // singleton - avoids cross-channel contention on the singleton's bucket
+  // mutexes. Capacity is much smaller than the old shared default since
+  // it's no longer amortized across every connected client in the process.
+  memory::MemoryPool pool_{50, 200};
+  bool enable_memory_pool_ = true;
   std::array<uint8_t, base::constants::DEFAULT_READ_BUFFER_SIZE> rx_{};
   std::deque<BufferVariant> tx_;
   std::deque<BufferVariant> pending_;

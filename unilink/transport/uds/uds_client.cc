@@ -69,6 +69,11 @@ struct UdsClient::Impl {
   // transport/tcp_client/tcp_client.cc (#436).
   mutable std::mutex cfg_mtx_;
   UdsClientConfig cfg_;
+  // #443: UDS never actually pooled - async_write_copy always heap-allocated
+  // a fresh std::vector, despite a dead PooledBuffer std::visit branch
+  // suggesting otherwise. Give it a real per-channel pool like every other
+  // transport, instead of the process-wide GlobalMemoryPool singleton.
+  memory::MemoryPool pool_{50, 200};
   net::steady_timer retry_timer_;
   net::steady_timer connect_timer_;
   bool owns_ioc_ = true;
@@ -286,6 +291,28 @@ void UdsClient::reset_stats() {
 boost::asio::any_io_executor UdsClient::get_executor() { return impl_->strand_; }
 
 bool UdsClient::async_write_copy(memory::ConstByteSpan data) {
+  size_t size = data.size();
+  if (impl_->cfg_.enable_memory_pool && size > 0 && size <= 65536) {
+    if (!impl_->connected_.load() || impl_->stop_requested_.load()) {
+      impl_->stats_.record_failed_send();
+      return false;
+    }
+    memory::PooledBuffer pooled(size, impl_->pool_);
+    if (pooled.valid()) {
+      base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
+      if (impl_->queue_bytes_ + impl_->pending_bytes_ + size > impl_->bp_limit_) {
+        impl_->stats_.record_failed_send();
+        return false;
+      }
+      impl_->stats_.record_accepted(size);
+      net::post(impl_->strand_, [this, self = shared_from_this(), buf = std::move(pooled)]() mutable {
+        size_t added = buf.size();
+        impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
+      });
+      return true;
+    }
+  }
+
   std::vector<uint8_t> vec(data.begin(), data.end());
   return async_write_move(std::move(vec));
 }

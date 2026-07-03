@@ -147,6 +147,11 @@ class UNILINK_API PooledBuffer {
  public:
   explicit PooledBuffer(size_t size);
   explicit PooledBuffer(MemoryPool::BufferSize buffer_size);
+  // #443: draw from a specific pool (e.g. a per-channel instance) instead of
+  // the process-wide GlobalMemoryPool singleton, to avoid cross-channel
+  // contention on the singleton's bucket mutexes.
+  PooledBuffer(size_t size, MemoryPool& pool);
+  PooledBuffer(MemoryPool::BufferSize buffer_size, MemoryPool& pool);
   ~PooledBuffer();
 
   // Non-copyable, movable
