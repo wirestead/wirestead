@@ -64,9 +64,13 @@ enum class EnqueueDecision {
 // decision, and is responsible for incrementing the corresponding byte
 // counter (queue_bytes/pending_bytes) to match. For BestEffort, trims `tx`
 // via the existing maybe_flush_for_keep_latest() before returning
-// Immediate, recording anything dropped into `dropped_out`.
-template <typename Deque>
-inline EnqueueDecision decide_enqueue(BackpressureFields& f, size_t added, Deque& tx, DropAccounting& dropped_out) {
+// Immediate, recording anything dropped into `dropped_out`. `project`
+// defaults to identity (tx's elements are the BufferVariant directly);
+// UDP's tx_ holds TxItem{BufferVariant, destination} instead and supplies a
+// projection extracting `.buffer`.
+template <typename Deque, typename Project = IdentityProjection>
+inline EnqueueDecision decide_enqueue(BackpressureFields& f, size_t added, Deque& tx, DropAccounting& dropped_out,
+                                      Project project = Project{}) {
   using Strategy = ::unilink::base::constants::BackpressureStrategy;
 
   if (f.strategy == Strategy::Reliable && f.backpressure_active.load(std::memory_order_relaxed)) {
@@ -79,7 +83,8 @@ inline EnqueueDecision decide_enqueue(BackpressureFields& f, size_t added, Deque
 
   if (f.strategy == Strategy::BestEffort && (f.backpressure_active.load(std::memory_order_relaxed) ||
                                              f.queue_bytes.load(std::memory_order_relaxed) + added > f.bp_high)) {
-    dropped_out = maybe_flush_for_keep_latest(f.strategy, added, f.bp_high, tx, f.queue_bytes, f.backpressure_active);
+    dropped_out =
+        maybe_flush_for_keep_latest(f.strategy, added, f.bp_high, tx, f.queue_bytes, f.backpressure_active, project);
   }
 
   if (f.queue_bytes.load(std::memory_order_relaxed) + added > f.bp_limit) {

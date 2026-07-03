@@ -39,6 +39,7 @@
 #include "unilink/diagnostics/logger.hpp"
 #include "unilink/diagnostics/runtime_stats_counter.hpp"
 #include "unilink/memory/memory_pool.hpp"
+#include "unilink/transport/base/bp_state_machine.hpp"
 #include "unilink/transport/base/bp_utils.hpp"
 
 namespace unilink {
@@ -322,6 +323,16 @@ struct UdpChannel::Impl {
     start_receive(self);
   }
 
+  queue_util::BackpressureFields bp_fields() {
+    return queue_util::BackpressureFields{queue_bytes_,
+                                          pending_bytes_,
+                                          backpressure_active_,
+                                          bp_high_,
+                                          bp_low_,
+                                          bp_limit_,
+                                          bp_strategy_.load(std::memory_order_relaxed)};
+  }
+
   // Drops all queued (tx_) and pending (pending_, reliable-mode overflow) writes and clears
   // backpressure, notifying any waiter directly. Mirrors perform_stop_cleanup()'s approach
   // rather than calling report_backpressure(), because report_backpressure() flushes pending_
@@ -329,25 +340,18 @@ struct UdpChannel::Impl {
   // which would leave a Reliable-mode sender blocked in send_blocking()'s bp_cv_ wait forever
   // since nothing will ever call do_write() again once the channel has stopped/errored (#427).
   void drain_queue_and_clear_backpressure() {
-    tx_.clear();
-    queue_bytes_ = 0;
-    pending_.clear();
-    pending_bytes_ = 0;
-    const bool had_backpressure = backpressure_active_;
-    backpressure_active_ = false;
-    if (had_backpressure) {
-      OnBackpressure on_bp;
-      {
-        std::lock_guard<std::mutex> lock(callback_mtx_);
-        on_bp = on_bp_;
-      }
-      if (on_bp) {
-        try {
-          on_bp(queue_bytes_);
-        } catch (...) {
-        }
-      }
+    OnBackpressure on_bp;
+    {
+      std::lock_guard<std::mutex> lock(callback_mtx_);
+      on_bp = on_bp_;
     }
+    auto f = bp_fields();
+    queue_util::drain_and_clear_backpressure(f, on_bp, [&]() {
+      tx_.clear();
+      queue_bytes_ = 0;
+      pending_.clear();
+      pending_bytes_ = 0;
+    });
   }
 
   void do_write(std::shared_ptr<UdpChannel> self) {
@@ -476,48 +480,24 @@ struct UdpChannel::Impl {
       on_bp = on_bp_;
     }
 
-    if (!backpressure_active_ && queued_bytes >= bp_high_) {
-      backpressure_active_ = true;
-      stats_.record_backpressure_event();
-      if (on_bp) {
-        try {
-          on_bp(queued_bytes);
-        } catch (const std::exception& e) {
-          UNILINK_LOG_ERROR("udp", "on_backpressure", fmt::format("Exception in backpressure callback: {}", e.what()));
-        } catch (...) {
-          UNILINK_LOG_ERROR("udp", "on_backpressure", "Unknown exception in backpressure callback");
-        }
-      }
-    } else if (backpressure_active_ && queued_bytes <= bp_low_) {
-      // Flush pending_ → tx_
-      const size_t moved = pending_bytes_.exchange(0);
-      queue_bytes_ += moved;
-      while (!pending_.empty()) {
-        tx_.emplace_back(std::move(pending_.front()));
-        pending_.pop_front();
-      }
-      observe_queue();
-      backpressure_active_ = false;
-      stats_.record_backpressure_event();
-      if (on_bp) {
-        try {
-          on_bp(queued_bytes);
-        } catch (...) {
-        }  // fire OFF with pre-flush queue size
-      }
-      // If post-flush queue is still high, fire ON again
-      if (queue_bytes_ >= bp_high_) {
-        backpressure_active_ = true;
-        stats_.record_backpressure_event();
-        if (on_bp) {
-          try {
-            on_bp(queue_bytes_);
-          } catch (...) {
+    auto f = bp_fields();
+    queue_util::report_backpressure(
+        f, queued_bytes, on_bp, stats_,
+        [&]() -> size_t {
+          // Flush pending_ → tx_
+          const size_t moved = pending_bytes_.exchange(0);
+          while (!pending_.empty()) {
+            tx_.emplace_back(std::move(pending_.front()));
+            pending_.pop_front();
           }
-        }
-      }
-      if (!writing_) do_write(self);
-    }
+          return moved;
+        },
+        [&]() {
+          // Post-flush sample: queue_bytes_ has already been updated by the
+          // time this kick runs, unlike the flush hook above (#434).
+          observe_queue();
+          if (!writing_) do_write(self);
+        });
   }
 
   void observe_queue() {
@@ -531,54 +511,36 @@ struct UdpChannel::Impl {
       return false;
     }
 
-    // Reliable: route to pending_ when backpressure is active
-    if (bp_strategy_ == base::constants::BackpressureStrategy::Reliable && backpressure_active_.load()) {
-      if (queue_bytes_ + pending_bytes_ + size > bp_limit_) {
-        UNILINK_LOG_ERROR("udp", "write",
-                          fmt::format("Queue limit exceeded ({} bytes)", queue_bytes_ + pending_bytes_ + size));
-        return false;
-      }
+    auto f = bp_fields();
+    queue_util::DropAccounting dropped;
+    // TxItem carries a destination endpoint alongside the BufferVariant that
+    // decide_enqueue()'s BestEffort trim needs to visit - project onto
+    // `.buffer` rather than the item itself (#434).
+    auto decision =
+        queue_util::decide_enqueue(f, size, tx_, dropped, [](TxItem& item) -> BufferVariant& { return item.buffer; });
+    if (dropped.any()) {
+      stats_.record_dropped(dropped.messages, dropped.bytes);
+    }
+
+    if (decision == queue_util::EnqueueDecision::Rejected) {
+      UNILINK_LOG_ERROR("udp", "write",
+                        fmt::format("Queue limit exceeded ({} bytes)", queue_bytes_ + pending_bytes_ + size));
+      // Always reporting here (rather than only for the non-Reliable-pending
+      // rejection path, as the pre-#434 code did) is a no-op in practice for
+      // the Reliable+pending case: queued_bytes is already >= bp_high_ or
+      // this rejection couldn't have happened, so report_backpressure()'s
+      // OFF-transition check (<= bp_low_) can't fire here either way.
+      report_backpressure(self, queue_bytes_ + size);
+      return false;
+    }
+
+    if (decision == queue_util::EnqueueDecision::Pending) {
       pending_bytes_ += size;
       pending_.push_back({std::move(buffer), dest});
       observe_queue();
       return true;
     }
 
-    if (bp_strategy_ == base::constants::BackpressureStrategy::BestEffort &&
-        (backpressure_active_ || queue_bytes_ + size > bp_high_)) {
-      size_t dropped_messages = 0;
-      size_t dropped_bytes = 0;
-      if (size >= bp_high_) {
-        // Compute bytes to remove from tx_ (note: in-flight datagram already popped from tx_)
-        size_t removed_bytes = 0;
-        for (const auto& item : tx_) {
-          removed_bytes += std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
-        }
-        dropped_messages = tx_.size();
-        dropped_bytes = removed_bytes;
-        tx_.clear();
-        queue_bytes_ = (queue_bytes_ > removed_bytes) ? (queue_bytes_ - removed_bytes) : 0;
-      } else {
-        while (!tx_.empty() && (queue_bytes_ + size > bp_high_)) {
-          auto& oldest = tx_.front();
-          size_t oldest_size =
-              std::visit([](const auto& buf) { return queue_util::variant_buffer_size(buf); }, oldest.buffer);
-          queue_bytes_ = (queue_bytes_ > oldest_size) ? (queue_bytes_ - oldest_size) : 0;
-          tx_.pop_front();
-          ++dropped_messages;
-          dropped_bytes += oldest_size;
-        }
-      }
-      if (dropped_messages > 0 || dropped_bytes > 0) {
-        stats_.record_dropped(dropped_messages, dropped_bytes);
-      }
-    }
-
-    if (queue_bytes_ + size > bp_limit_) {
-      UNILINK_LOG_ERROR("udp", "write", fmt::format("Queue limit exceeded ({} bytes)", queue_bytes_ + size));
-      report_backpressure(self, queue_bytes_ + size);
-      return false;
-    }
     queue_bytes_ += size;
     tx_.push_back({std::move(buffer), dest});
     observe_queue();
@@ -622,26 +584,19 @@ struct UdpChannel::Impl {
   void perform_stop_cleanup() {
     try {
       close_socket();
-      tx_.clear();
-      queue_bytes_ = 0;
-      pending_.clear();
-      pending_bytes_ = 0;
       writing_ = false;
-      const bool had_backpressure = backpressure_active_;
-      backpressure_active_ = false;
-      if (had_backpressure) {
-        OnBackpressure on_bp;
-        {
-          std::lock_guard<std::mutex> lock(callback_mtx_);
-          on_bp = on_bp_;
-        }
-        if (on_bp) {
-          try {
-            on_bp(queue_bytes_);
-          } catch (...) {
-          }
-        }
+      OnBackpressure on_bp;
+      {
+        std::lock_guard<std::mutex> lock(callback_mtx_);
+        on_bp = on_bp_;
       }
+      auto f = bp_fields();
+      queue_util::drain_and_clear_backpressure(f, on_bp, [&]() {
+        tx_.clear();
+        queue_bytes_ = 0;
+        pending_.clear();
+        pending_bytes_ = 0;
+      });
       connected_.store(false);
       opened_.store(false);
       if (owns_ioc_ && work_guard_) {
