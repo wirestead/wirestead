@@ -41,6 +41,7 @@
 #include "unilink/memory/memory_pool.hpp"
 #include "unilink/transport/base/bp_state_machine.hpp"
 #include "unilink/transport/base/bp_utils.hpp"
+#include "unilink/transport/base/error_info_holder.hpp"
 
 namespace unilink {
 namespace transport {
@@ -106,6 +107,8 @@ struct UdpChannel::Impl {
   OnState on_state_;
   OnBackpressure on_bp_;
 
+  ErrorInfoHolder error_info_holder_{"udp"};
+
   explicit Impl(const config::UdpConfig& config)
       : owned_ioc_(std::make_unique<net::io_context>()),
         ioc_(owned_ioc_.get()),
@@ -168,24 +171,27 @@ struct UdpChannel::Impl {
     boost::system::error_code ec;
     auto address = net::ip::make_address(cfg_.bind_address, ec);
     if (ec) {
-      UNILINK_LOG_ERROR("udp", "bind", fmt::format("Invalid bind address: {}", cfg_.bind_address));
-      transition_to(LinkState::Error, ec);
+      std::string msg = fmt::format("Invalid bind address: {}", cfg_.bind_address);
+      UNILINK_LOG_ERROR("udp", "bind", msg);
+      transition_to(LinkState::Error, ec, "bind", msg);
       return;
     }
 
     local_endpoint_ = udp::endpoint(address, cfg_.local_port);
     socket_.open(local_endpoint_.protocol(), ec);
     if (ec) {
-      UNILINK_LOG_ERROR("udp", "open", fmt::format("Socket open failed: {}", ec.message()));
-      transition_to(LinkState::Error, ec);
+      std::string msg = fmt::format("Socket open failed: {}", ec.message());
+      UNILINK_LOG_ERROR("udp", "open", msg);
+      transition_to(LinkState::Error, ec, "open", msg);
       return;
     }
 
     if (cfg_.reuse_address) {
       socket_.set_option(net::socket_base::reuse_address(true), ec);
       if (ec) {
-        UNILINK_LOG_ERROR("udp", "open", fmt::format("Failed to set reuse_address: {}", ec.message()));
-        transition_to(LinkState::Error, ec);
+        std::string msg = fmt::format("Failed to set reuse_address: {}", ec.message());
+        UNILINK_LOG_ERROR("udp", "open", msg);
+        transition_to(LinkState::Error, ec, "open", msg);
         return;
       }
     }
@@ -193,16 +199,18 @@ struct UdpChannel::Impl {
     if (cfg_.enable_broadcast) {
       socket_.set_option(net::socket_base::broadcast(true), ec);
       if (ec) {
-        UNILINK_LOG_ERROR("udp", "open", fmt::format("Failed to set broadcast: {}", ec.message()));
-        transition_to(LinkState::Error, ec);
+        std::string msg = fmt::format("Failed to set broadcast: {}", ec.message());
+        UNILINK_LOG_ERROR("udp", "open", msg);
+        transition_to(LinkState::Error, ec, "open", msg);
         return;
       }
     }
 
     socket_.bind(local_endpoint_, ec);
     if (ec) {
-      UNILINK_LOG_ERROR("udp", "bind", fmt::format("Bind failed: {}", ec.message()));
-      transition_to(LinkState::Error, ec);
+      std::string msg = fmt::format("Bind failed: {}", ec.message());
+      UNILINK_LOG_ERROR("udp", "bind", msg);
+      transition_to(LinkState::Error, ec, "bind", msg);
       return;
     }
 
@@ -258,13 +266,14 @@ struct UdpChannel::Impl {
 
     if (ec == boost::asio::error::message_size || bytes >= rx_.size()) {
       UNILINK_LOG_ERROR("udp", "receive", "Datagram truncated (buffer too small)");
-      transition_to(LinkState::Error, ec);
+      transition_to(LinkState::Error, ec, "receive", "Datagram truncated (buffer too small)");
       return;
     }
 
     if (ec) {
-      UNILINK_LOG_ERROR("udp", "receive", fmt::format("Receive failed: {}", ec.message()));
-      transition_to(LinkState::Error, ec);
+      std::string msg = fmt::format("Receive failed: {}", ec.message());
+      UNILINK_LOG_ERROR("udp", "receive", msg);
+      transition_to(LinkState::Error, ec, "receive", msg);
       return;
     }
 
@@ -287,15 +296,16 @@ struct UdpChannel::Impl {
         try {
           on_bytes(memory::ConstByteSpan(rx_.data(), bytes));
         } catch (const std::exception& e) {
-          UNILINK_LOG_ERROR("udp", "on_bytes", fmt::format("Exception in bytes callback: {}", e.what()));
+          std::string msg = fmt::format("Exception in bytes callback: {}", e.what());
+          UNILINK_LOG_ERROR("udp", "on_bytes", msg);
           if (cfg_.stop_on_callback_exception) {
-            transition_to(LinkState::Error);
+            transition_to(LinkState::Error, {}, "on_bytes", msg);
             return;
           }
         } catch (...) {
           UNILINK_LOG_ERROR("udp", "on_bytes", "Unknown exception in bytes callback");
           if (cfg_.stop_on_callback_exception) {
-            transition_to(LinkState::Error);
+            transition_to(LinkState::Error, {}, "on_bytes", "Unknown exception in bytes callback");
             return;
           }
         }
@@ -305,15 +315,16 @@ struct UdpChannel::Impl {
         try {
           on_bytes_from(memory::ConstByteSpan(rx_.data(), bytes), recv_endpoint_);
         } catch (const std::exception& e) {
-          UNILINK_LOG_ERROR("udp", "on_bytes_from", fmt::format("Exception in bytes callback: {}", e.what()));
+          std::string msg = fmt::format("Exception in bytes callback: {}", e.what());
+          UNILINK_LOG_ERROR("udp", "on_bytes_from", msg);
           if (cfg_.stop_on_callback_exception) {
-            transition_to(LinkState::Error);
+            transition_to(LinkState::Error, {}, "on_bytes_from", msg);
             return;
           }
         } catch (...) {
           UNILINK_LOG_ERROR("udp", "on_bytes_from", "Unknown exception in bytes callback");
           if (cfg_.stop_on_callback_exception) {
-            transition_to(LinkState::Error);
+            transition_to(LinkState::Error, {}, "on_bytes_from", "Unknown exception in bytes callback");
             return;
           }
         }
@@ -406,8 +417,9 @@ struct UdpChannel::Impl {
       }
 
       if (ec) {
-        UNILINK_LOG_ERROR("udp", "write", fmt::format("Send failed: {}", ec.message()));
-        impl->transition_to(LinkState::Error, ec);
+        std::string msg = fmt::format("Send failed: {}", ec.message());
+        UNILINK_LOG_ERROR("udp", "write", msg);
+        impl->transition_to(LinkState::Error, ec, "write", msg);
         impl->writing_ = false;
         // do_write() will never run again to reach the "already in Error" cleanup above, so
         // drain everything and clear backpressure here directly.
@@ -558,7 +570,8 @@ struct UdpChannel::Impl {
     remote_endpoint_ = udp::endpoint(addr, *cfg_.remote_port);
   }
 
-  void transition_to(LinkState target, const boost::system::error_code& ec = {}) {
+  void transition_to(LinkState target, const boost::system::error_code& ec = {}, std::string_view operation = {},
+                     std::string_view msg = {}) {
     if (ec == net::error::operation_aborted) {
       return;
     }
@@ -567,6 +580,11 @@ struct UdpChannel::Impl {
     if ((current == LinkState::Closed || current == LinkState::Error) &&
         (target == LinkState::Closed || target == LinkState::Error)) {
       return;
+    }
+
+    if (target == LinkState::Error) {
+      error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, operation,
+                                      ec, msg.empty() ? std::string_view(ec.message()) : msg, static_cast<bool>(ec), 0);
     }
 
     if (target == LinkState::Closed || target == LinkState::Error) {
@@ -747,6 +765,10 @@ void UdpChannel::reset_stats() {
                      impl->pending_bytes_.load(std::memory_order_relaxed));
 }
 
+std::optional<diagnostics::ErrorInfo> UdpChannel::last_error_info() const {
+  return get_impl()->error_info_holder_.last_error_info();
+}
+
 bool UdpChannel::async_write_copy(memory::ConstByteSpan data) {
   auto impl = get_impl();
   if (data.empty()) {
@@ -823,7 +845,7 @@ bool UdpChannel::async_write_move(std::vector<uint8_t>&& data) {
 
   if (size > impl->bp_limit_) {
     UNILINK_LOG_ERROR("udp", "write", "Queue limit exceeded by single write");
-    impl->transition_to(LinkState::Error);
+    impl->transition_to(LinkState::Error, {}, "write", "Queue limit exceeded by single write");
     impl->stats_.record_failed_send();
     return false;
   }
@@ -863,7 +885,7 @@ bool UdpChannel::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> 
   auto size = data->size();
   if (size > impl->bp_limit_) {
     UNILINK_LOG_ERROR("udp", "write", "Queue limit exceeded by single write");
-    impl->transition_to(LinkState::Error);
+    impl->transition_to(LinkState::Error, {}, "write", "Queue limit exceeded by single write");
     impl->stats_.record_failed_send();
     return false;
   }
