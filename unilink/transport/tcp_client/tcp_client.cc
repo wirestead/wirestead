@@ -52,6 +52,7 @@
 #include "unilink/diagnostics/logger.hpp"
 #include "unilink/diagnostics/runtime_stats_counter.hpp"
 #include "unilink/memory/memory_pool.hpp"
+#include "unilink/transport/base/bp_state_machine.hpp"
 #include "unilink/transport/base/bp_utils.hpp"
 #include "unilink/transport/tcp_client/detail/reconnect_decider.hpp"
 
@@ -165,9 +166,11 @@ struct TcpClient::Impl {
   void join_ioc_thread(bool allow_detach);
   void close_socket();
   void recalculate_backpressure_bounds();
-  void maybe_flush_for_keep_latest(size_t added);
   void report_backpressure(std::shared_ptr<TcpClient> self, size_t queued_bytes);
   void observe_queue();
+  // Shared decide_enqueue()/route dispatch used by all 3 async_write_* variants (#434).
+  void route_enqueued_buffer(std::shared_ptr<TcpClient> self, BufferVariant&& buf, size_t added);
+  queue_util::BackpressureFields bp_fields();
   void notify_state();
   void reset_io_objects();
   void apply_socket_options();
@@ -332,41 +335,7 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
         }
         impl_->stats_.record_accepted(added);
         net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(pooled_buffer), added]() mutable {
-          if (self->impl_->stop_requested_.load() || self->impl_->state_.is_state(LinkState::Closed) ||
-              self->impl_->state_.is_state(LinkState::Error)) {
-            return;
-          }
-
-          // Reliable: route to pending_ when backpressure is active
-          if (self->impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable &&
-              self->impl_->backpressure_active_.load()) {
-            if (self->impl_->queue_bytes_ + self->impl_->pending_bytes_ + added > self->impl_->bp_limit_) {
-              UNILINK_LOG_ERROR("tcp_client", "write",
-                                fmt::format("Queue limit exceeded ({} bytes)", self->impl_->queue_bytes_ + added));
-              return;
-            }
-            self->impl_->pending_bytes_ += added;
-            self->impl_->pending_.emplace_back(std::move(buf));
-            self->impl_->observe_queue();
-            return;
-          }
-
-          self->impl_->maybe_flush_for_keep_latest(added);
-
-          if (self->impl_->queue_bytes_ + added > self->impl_->bp_limit_) {
-            UNILINK_LOG_ERROR("tcp_client", "write",
-                              fmt::format("Queue limit exceeded ({} bytes)", self->impl_->queue_bytes_ + added));
-            self->impl_->record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::COMMUNICATION,
-                                      "write", boost::asio::error::no_buffer_space, "Queue limit exceeded", false, 0);
-            self->impl_->report_backpressure(self, self->impl_->queue_bytes_ + added);
-            return;
-          }
-
-          self->impl_->queue_bytes_ += added;
-          self->impl_->tx_.emplace_back(std::move(buf));
-          self->impl_->observe_queue();
-          self->impl_->report_backpressure(self, self->impl_->queue_bytes_);
-          if (!self->impl_->writing_) self->impl_->do_write(self, self->impl_->current_seq_.load());
+          self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
         });
         return true;
       }
@@ -380,48 +349,7 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
   impl_->stats_.record_accepted(added);
 
   net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added]() mutable {
-    if (self->impl_->stop_requested_.load() || self->impl_->state_.is_state(LinkState::Closed) ||
-        self->impl_->state_.is_state(LinkState::Error)) {
-      return;
-    }
-
-    // Reliable: route to pending_ when backpressure is active
-    if (self->impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable &&
-        self->impl_->backpressure_active_.load()) {
-      if (self->impl_->queue_bytes_ + self->impl_->pending_bytes_ + added > self->impl_->bp_limit_) {
-        UNILINK_LOG_ERROR("tcp_client", "write",
-                          fmt::format("Queue limit exceeded ({} bytes)", self->impl_->queue_bytes_ + added));
-        return;
-      }
-      self->impl_->pending_bytes_ += added;
-      self->impl_->pending_.emplace_back(std::move(buf));
-      self->impl_->observe_queue();
-      return;
-    }
-
-    self->impl_->maybe_flush_for_keep_latest(added);
-
-    if (self->impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable &&
-        self->impl_->queue_bytes_ + self->impl_->pending_bytes_ + added > self->impl_->bp_limit_) {
-      UNILINK_LOG_ERROR("tcp_client", "write",
-                        fmt::format("Queue limit exceeded ({} bytes)", self->impl_->queue_bytes_ + added));
-      return;
-    }
-
-    if (self->impl_->queue_bytes_ + added > self->impl_->bp_limit_) {
-      UNILINK_LOG_ERROR("tcp_client", "write",
-                        fmt::format("Queue limit exceeded ({} bytes)", self->impl_->queue_bytes_ + added));
-      self->impl_->record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::COMMUNICATION, "write",
-                                boost::asio::error::no_buffer_space, "Queue limit exceeded", false, 0);
-      self->impl_->report_backpressure(self, self->impl_->queue_bytes_ + added);
-      return;
-    }
-
-    self->impl_->queue_bytes_ += added;
-    self->impl_->tx_.emplace_back(std::move(buf));
-    self->impl_->observe_queue();
-    self->impl_->report_backpressure(self, self->impl_->queue_bytes_);
-    if (!self->impl_->writing_) self->impl_->do_write(self, self->impl_->current_seq_.load());
+    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
   return true;
 }
@@ -453,41 +381,7 @@ bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
   }
   impl_->stats_.record_accepted(added);
   net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (self->impl_->stop_requested_.load() || self->impl_->state_.is_state(LinkState::Closed) ||
-        self->impl_->state_.is_state(LinkState::Error)) {
-      return;
-    }
-
-    // Reliable: route to pending_ when backpressure is active
-    if (self->impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable &&
-        self->impl_->backpressure_active_.load()) {
-      if (self->impl_->queue_bytes_ + self->impl_->pending_bytes_ + added > self->impl_->bp_limit_) {
-        UNILINK_LOG_ERROR("tcp_client", "write",
-                          fmt::format("Queue limit exceeded ({} bytes)", self->impl_->queue_bytes_ + added));
-        return;
-      }
-      self->impl_->pending_bytes_ += added;
-      self->impl_->pending_.emplace_back(std::move(buf));
-      self->impl_->observe_queue();
-      return;
-    }
-
-    self->impl_->maybe_flush_for_keep_latest(added);
-
-    if (self->impl_->queue_bytes_ + added > self->impl_->bp_limit_) {
-      UNILINK_LOG_ERROR("tcp_client", "write",
-                        fmt::format("Queue limit exceeded ({} bytes)", self->impl_->queue_bytes_ + added));
-      self->impl_->record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::COMMUNICATION, "write",
-                                boost::asio::error::no_buffer_space, "Queue limit exceeded", false, 0);
-      self->impl_->report_backpressure(self, self->impl_->queue_bytes_ + added);
-      return;
-    }
-
-    self->impl_->queue_bytes_ += added;
-    self->impl_->tx_.emplace_back(std::move(buf));
-    self->impl_->observe_queue();
-    self->impl_->report_backpressure(self, self->impl_->queue_bytes_);
-    if (!self->impl_->writing_) self->impl_->do_write(self, self->impl_->current_seq_.load());
+    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
   return true;
 }
@@ -519,41 +413,7 @@ bool TcpClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> d
   }
   impl_->stats_.record_accepted(added);
   net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (self->impl_->stop_requested_.load() || self->impl_->state_.is_state(LinkState::Closed) ||
-        self->impl_->state_.is_state(LinkState::Error)) {
-      return;
-    }
-
-    // Reliable: route to pending_ when backpressure is active
-    if (self->impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable &&
-        self->impl_->backpressure_active_.load()) {
-      if (self->impl_->queue_bytes_ + self->impl_->pending_bytes_ + added > self->impl_->bp_limit_) {
-        UNILINK_LOG_ERROR("tcp_client", "write",
-                          fmt::format("Queue limit exceeded ({} bytes)", self->impl_->queue_bytes_ + added));
-        return;
-      }
-      self->impl_->pending_bytes_ += added;
-      self->impl_->pending_.emplace_back(std::move(buf));
-      self->impl_->observe_queue();
-      return;
-    }
-
-    self->impl_->maybe_flush_for_keep_latest(added);
-
-    if (self->impl_->queue_bytes_ + added > self->impl_->bp_limit_) {
-      UNILINK_LOG_ERROR("tcp_client", "write",
-                        fmt::format("Queue limit exceeded ({} bytes)", self->impl_->queue_bytes_ + added));
-      self->impl_->record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::COMMUNICATION, "write",
-                                boost::asio::error::no_buffer_space, "Queue limit exceeded", false, 0);
-      self->impl_->report_backpressure(self, self->impl_->queue_bytes_ + added);
-      return;
-    }
-
-    self->impl_->queue_bytes_ += added;
-    self->impl_->tx_.emplace_back(std::move(buf));
-    self->impl_->observe_queue();
-    self->impl_->report_backpressure(self, self->impl_->queue_bytes_);
-    if (!self->impl_->writing_) self->impl_->do_write(self, self->impl_->current_seq_.load());
+    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
   return true;
 }
@@ -1161,10 +1021,44 @@ void TcpClient::Impl::recalculate_backpressure_bounds() {
   backpressure_active_ = false;
 }
 
-void TcpClient::Impl::maybe_flush_for_keep_latest(size_t added) {
-  const auto dropped =
-      queue_util::maybe_flush_for_keep_latest(bp_strategy_, added, bp_high_, tx_, queue_bytes_, backpressure_active_);
+queue_util::BackpressureFields TcpClient::Impl::bp_fields() {
+  return queue_util::BackpressureFields{queue_bytes_,
+                                        pending_bytes_,
+                                        backpressure_active_,
+                                        bp_high_,
+                                        bp_low_,
+                                        bp_limit_,
+                                        bp_strategy_.load(std::memory_order_relaxed)};
+}
+
+void TcpClient::Impl::route_enqueued_buffer(std::shared_ptr<TcpClient> self, BufferVariant&& buf, size_t added) {
+  if (stop_requested_.load() || state_.is_state(LinkState::Closed) || state_.is_state(LinkState::Error)) {
+    return;
+  }
+
+  auto f = bp_fields();
+  queue_util::DropAccounting dropped;
+  auto decision = queue_util::decide_enqueue(f, added, tx_, dropped);
   if (dropped.any()) stats_.record_dropped(dropped.messages, dropped.bytes);
+
+  if (decision == queue_util::EnqueueDecision::Rejected) {
+    UNILINK_LOG_ERROR("tcp_client", "write", fmt::format("Queue limit exceeded ({} bytes)", queue_bytes_ + added));
+    record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::COMMUNICATION, "write",
+                 boost::asio::error::no_buffer_space, "Queue limit exceeded", false, 0);
+    report_backpressure(self, queue_bytes_ + added);
+    return;
+  }
+  if (decision == queue_util::EnqueueDecision::Pending) {
+    pending_bytes_ += added;
+    pending_.emplace_back(std::move(buf));
+    observe_queue();
+    return;
+  }
+  queue_bytes_ += added;
+  tx_.emplace_back(std::move(buf));
+  observe_queue();
+  report_backpressure(self, queue_bytes_);
+  if (!writing_) do_write(self, current_seq_.load());
 }
 
 void TcpClient::Impl::observe_queue() {
@@ -1181,49 +1075,21 @@ void TcpClient::Impl::report_backpressure(std::shared_ptr<TcpClient> self, size_
     on_bp = on_bp_;
   }
 
-  if (!backpressure_active_ && queued_bytes >= bp_high_) {
-    backpressure_active_ = true;
-    stats_.record_backpressure_event();
-    if (on_bp) {
-      try {
-        on_bp(queued_bytes);
-      } catch (const std::exception& e) {
-        UNILINK_LOG_ERROR("tcp_client", "on_backpressure",
-                          fmt::format("Exception in backpressure callback: {}", e.what()));
-      } catch (...) {
-        UNILINK_LOG_ERROR("tcp_client", "on_backpressure", "Unknown exception in backpressure callback");
-      }
-    }
-  } else if (backpressure_active_ && queued_bytes <= bp_low_) {
-    // Flush pending_ → tx_
-    const size_t moved = pending_bytes_.exchange(0);
-    queue_bytes_ += moved;
-    while (!pending_.empty()) {
-      tx_.emplace_back(std::move(pending_.front()));
-      pending_.pop_front();
-    }
-    observe_queue();
-    backpressure_active_ = false;
-    stats_.record_backpressure_event();
-    if (on_bp) {
-      try {
-        on_bp(queued_bytes);
-      } catch (...) {
-      }  // fire OFF with pre-flush queue size
-    }
-    // If post-flush queue is still high, fire ON again
-    if (queue_bytes_ >= bp_high_) {
-      backpressure_active_ = true;
-      stats_.record_backpressure_event();
-      if (on_bp) {
-        try {
-          on_bp(queue_bytes_);
-        } catch (...) {
+  auto f = bp_fields();
+  queue_util::report_backpressure(
+      f, queued_bytes, on_bp, stats_,
+      [&]() -> size_t {
+        const size_t moved = pending_bytes_.exchange(0);
+        while (!pending_.empty()) {
+          tx_.emplace_back(std::move(pending_.front()));
+          pending_.pop_front();
         }
-      }
-    }
-    if (!writing_) do_write(self, current_seq_.load());
-  }
+        return moved;
+      },
+      [&]() {
+        observe_queue();
+        if (!writing_) do_write(self, current_seq_.load());
+      });
 }
 
 void TcpClient::Impl::transition_to(LinkState next, const boost::system::error_code& ec) {
@@ -1265,6 +1131,13 @@ void TcpClient::Impl::perform_stop_cleanup() {
     pending_bytes_ = 0;
     writing_ = false;
     connected_.store(false);
+    // Deliberately does NOT fire on_bp_ here, unlike UDP/server sessions'
+    // terminal drain (#434): this is an explicit, tested contract
+    // (ContractComplianceTest.TcpClient_Backpressure_Contract) - a
+    // Reliable-mode caller blocked in send_blocking() is woken instead via
+    // the wrapper's own bp_cv_.notify_all()/is_connected() check, not a
+    // relief callback. Don't "fix" this to match the other transports
+    // without updating that contract test first.
     backpressure_active_ = false;
 
     if (owns_ioc_ && work_guard_) {
