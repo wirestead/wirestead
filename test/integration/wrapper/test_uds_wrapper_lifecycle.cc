@@ -420,7 +420,19 @@ TEST(UdsServerWrapperLifecycleTest, LineSendingVariantsReachConnectedClients) {
   EXPECT_TRUE(server->send_to_line(client_id, "send-to"));
   EXPECT_TRUE(server->try_send_to_line(client_id, "try-send-to"));
 
-  ASSERT_TRUE(test::TestUtils::waitForCondition([&]() { return received.load() >= 1; }, 5000));
+  // Wait for all 4 lines to arrive, not just the first - each send/broadcast
+  // call can complete as a separate on_data invocation, so checking after
+  // only one has arrived is a race (matches the already-correct wait
+  // condition in TcpServerWrapperLifecycleTest's identically-named test).
+  ASSERT_TRUE(test::TestUtils::waitForCondition(
+      [&]() {
+        std::lock_guard<std::mutex> lock(received_mutex);
+        return received_data.find("broadcast\n") != std::string::npos &&
+               received_data.find("try-broadcast\n") != std::string::npos &&
+               received_data.find("send-to\n") != std::string::npos &&
+               received_data.find("try-send-to\n") != std::string::npos;
+      },
+      5000));
   std::lock_guard<std::mutex> lock(received_mutex);
   EXPECT_NE(received_data.find("broadcast\n"), std::string::npos);
   EXPECT_NE(received_data.find("try-broadcast\n"), std::string::npos);
