@@ -36,7 +36,7 @@ class ContractChannel : public unilink::interface::Channel {
   void start() override { connected_ = true; }
   void stop() override { connected_ = false; }
   bool is_connected() const override { return connected_; }
-  bool is_backpressure_active() const override { return backpressure_active_; }
+  bool is_backpressure_active() const override { return backpressure_active_.load(); }
   boost::asio::any_io_executor get_executor() override { return ioc_.get_executor(); }
 
   bool async_write_copy(unilink::memory::ConstByteSpan data) override {
@@ -98,7 +98,7 @@ class ContractChannel : public unilink::interface::Channel {
   }
 
   void set_try_accepts(bool accepts) { try_accepts_ = accepts; }
-  void set_backpressure_active(bool active) { backpressure_active_ = active; }
+  void set_backpressure_active(bool active) { backpressure_active_.store(active); }
 
   int write_copy_count() const {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -127,7 +127,7 @@ class ContractChannel : public unilink::interface::Channel {
 
  private:
   bool record_try_result(size_t bytes) {
-    if (try_accepts_ && !backpressure_active_) {
+    if (try_accepts_ && !backpressure_active_.load()) {
       stats_.messages_accepted += 1;
       stats_.bytes_accepted += bytes;
       return true;
@@ -139,7 +139,7 @@ class ContractChannel : public unilink::interface::Channel {
   mutable std::mutex mutex_;
   boost::asio::io_context ioc_;
   bool connected_{true};
-  bool backpressure_active_{false};
+  std::atomic<bool> backpressure_active_{false};
   bool try_accepts_{false};
   int write_copy_count_{0};
   int write_move_count_{0};
