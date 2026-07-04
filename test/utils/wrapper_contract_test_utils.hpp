@@ -59,7 +59,8 @@ class FakeChannel : public interface::Channel {
     return async_write_shared(std::move(data));
   }
 
-  bool is_backpressure_active() const override { return false; }
+  bool is_backpressure_active() const override { return backpressure_active_; }
+  void set_backpressure_active(bool active) { backpressure_active_ = active; }
 
   void on_bytes(OnBytes cb) override { on_bytes_ = std::move(cb); }
   void on_state(OnState cb) override { on_state_ = std::move(cb); }
@@ -86,6 +87,7 @@ class FakeChannel : public interface::Channel {
 
  private:
   bool connected_{false};
+  bool backpressure_active_{false};
   int write_count_{0};
   OnBytes on_bytes_;
   OnState on_state_;

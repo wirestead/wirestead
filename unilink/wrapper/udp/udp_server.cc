@@ -32,6 +32,7 @@
 #include "unilink/base/common.hpp"
 #include "unilink/factory/channel_factory.hpp"
 #include "unilink/transport/udp/udp.hpp"
+#include "unilink/wrapper/callback_guard.hpp"
 #include "unilink/wrapper/error_context_builder.hpp"
 
 namespace unilink {
@@ -248,6 +249,12 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
       // handlers, so a bare `this` could otherwise dangle.
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
+
+      // #449: everything below runs synchronously on this io thread - mark
+      // it so a blocking send_to() called from within one of these
+      // callbacks fails fast instead of deadlocking.
+      detail::CallbackGuard callback_guard;
+
       ClientId client_id = 0;
       bool is_new = false;
       ConnectionHandler connect_handler_copy{nullptr};
@@ -542,12 +549,20 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   // registering to wait when the notify fires - in the rare case that race is lost, an
   // unbounded wait() would block forever. Poll with a bounded timeout instead so a missed
   // notify only costs a short delay rather than a permanent hang (see #427, #431).
+  //
+  // Returns false without sending instead of waiting if called from the
+  // channel's own io thread while backpressure is active - e.g. a blocking
+  // send_to() called from inside an on_data/on_message callback. Clearing
+  // backpressure requires that same io thread to make progress, so
+  // blocking here would deadlock forever rather than eventually clear
+  // (#449).
   bool send_to_blocking(ClientId client_id, std::string_view data) {
     std::unique_lock<std::mutex> bp_lock(bp_mutex_);
     auto predicate = [this] {
       std::shared_lock<std::shared_mutex> lock(mutex);
       return !started.load() || !channel || !channel->is_backpressure_active();
     };
+    if (!predicate() && detail::in_data_callback()) return false;
     while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), predicate)) {
     }
     return try_send_to(client_id, data);
