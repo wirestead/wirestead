@@ -19,6 +19,8 @@ Simple async C++ communication library for Serial, TCP, UDP, and Unix Domain Soc
 
 The project prioritizes **API clarity, predictable runtime behavior, and stability** over rapid feature expansion.
 
+> **Security note**: all transports send data in plaintext - there is no built-in TLS/DTLS support. See [Security and Threat Model](https://github.com/jwsung91/unilink/blob/main/docs/security.md) before using `unilink` over an untrusted network.
+
 ## Feature Highlights
 
 * **Unified transport surface**: Consistent builders and wrappers for TCP client/server, UDP, Serial, and UDS.
@@ -70,6 +72,7 @@ Core repository entrypoints:
 - [Installation](https://github.com/jwsung91/unilink/blob/main/docs/installation.md)
 - [API Stability Summary](https://github.com/jwsung91/unilink/blob/main/docs/api_stability.md)
 - [Error Model](https://github.com/jwsung91/unilink/blob/main/docs/error_model.md)
+- [Security and Threat Model](https://github.com/jwsung91/unilink/blob/main/docs/security.md)
 - [Callback Data Lifetime](https://github.com/jwsung91/unilink/blob/main/docs/callbacks.md)
 - [Performance Validation](https://github.com/jwsung91/unilink/blob/main/docs/performance_validation.md)
 - [Release Checklist](https://github.com/jwsung91/unilink/blob/main/docs/release_checklist.md)
