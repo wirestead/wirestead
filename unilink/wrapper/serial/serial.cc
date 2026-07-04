@@ -45,7 +45,7 @@ std::string to_lower(std::string s) {
 }
 }  // namespace
 
-struct Serial::Impl {
+struct Serial::Impl : public std::enable_shared_from_this<Impl> {
   mutable std::shared_mutex mutex_;
   std::mutex bp_mutex_;
   std::condition_variable bp_cv_;
@@ -103,7 +103,12 @@ struct Serial::Impl {
   Impl(const std::string& dev, uint32_t baud, std::shared_ptr<boost::asio::io_context> ioc)
       : device(dev), baud_rate(baud), external_ioc(std::move(ioc)), use_external_context(external_ioc != nullptr) {}
   explicit Impl(std::shared_ptr<interface::Channel> ch) : channel(std::move(ch)), factory_managed_channel_(false) {
-    setup_internal_handlers();
+    // #450: setup_internal_handlers() captures weak_from_this() - calling it
+    // from inside this constructor would capture an empty weak_ptr, since
+    // enable_shared_from_this isn't wired up until make_shared() finishes
+    // constructing the object. Deferred to Serial's own constructor, which
+    // runs after impl_ is a fully-formed shared_ptr<Impl> (already called
+    // there for this constructor, so nothing to add there).
   }
 
   ~Impl() {
@@ -153,13 +158,15 @@ struct Serial::Impl {
   void schedule_batch_timer() {
     if (!batch_timer_) return;
     batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait(
-        [this, weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
-          if (ec) return;
-          auto alive = weak_alive.lock();
-          if (!alive) return;
-          flush_batches();
-        });
+    batch_timer_->async_wait([this, weak_impl = weak_from_this(),
+                              weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
+      if (ec) return;
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
+      auto alive = weak_alive.lock();
+      if (!alive) return;
+      flush_batches();
+    });
   }
 
   std::future<bool> start() {
@@ -368,8 +375,11 @@ struct Serial::Impl {
     batch_timer_ = std::make_unique<boost::asio::steady_timer>(channel->get_executor());
 
     std::weak_ptr<bool> weak_alive = alive_marker_;
+    std::weak_ptr<Impl> weak_impl = weak_from_this();
 
-    channel->on_bytes([this, weak_alive](memory::ConstByteSpan data) {
+    channel->on_bytes([this, weak_impl, weak_alive](memory::ConstByteSpan data) {
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
 
@@ -412,8 +422,10 @@ struct Serial::Impl {
       if (framer_to_push) framer_to_push->push_bytes(data);
     });
 
-    channel->on_backpressure([this, weak_alive](size_t queued) {
+    channel->on_backpressure([this, weak_impl, weak_alive](size_t queued) {
       bp_cv_.notify_all();
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
       std::function<void(size_t)> handler;
@@ -424,7 +436,9 @@ struct Serial::Impl {
       if (handler) handler(queued);
     });
 
-    channel->on_state([this, weak_alive](base::LinkState state) {
+    channel->on_state([this, weak_impl, weak_alive](base::LinkState state) {
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
 
@@ -555,10 +569,10 @@ struct Serial::Impl {
   }
 };
 
-Serial::Serial(const std::string& d, uint32_t b) : impl_(std::make_unique<Impl>(d, b)) {}
+Serial::Serial(const std::string& d, uint32_t b) : impl_(std::make_shared<Impl>(d, b)) {}
 Serial::Serial(const std::string& d, uint32_t b, std::shared_ptr<boost::asio::io_context> i)
-    : impl_(std::make_unique<Impl>(d, b, i)) {}
-Serial::Serial(std::shared_ptr<interface::Channel> ch) : impl_(std::make_unique<Impl>(ch)) {
+    : impl_(std::make_shared<Impl>(d, b, i)) {}
+Serial::Serial(std::shared_ptr<interface::Channel> ch) : impl_(std::make_shared<Impl>(ch)) {
   impl_->setup_internal_handlers();
 }
 Serial::~Serial() = default;

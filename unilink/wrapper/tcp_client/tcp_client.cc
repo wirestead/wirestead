@@ -39,7 +39,7 @@
 namespace unilink {
 namespace wrapper {
 
-struct TcpClient::Impl {
+struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   mutable std::shared_mutex mutex_;
   std::mutex bp_mutex_;
   std::condition_variable bp_cv_;
@@ -103,7 +103,11 @@ struct TcpClient::Impl {
 
   explicit Impl(std::shared_ptr<interface::Channel> channel)
       : host_(""), port_(0), channel_(std::move(channel)), started_(false) {
-    setup_internal_handlers();
+    // #450: setup_internal_handlers() captures weak_from_this() - calling it
+    // from inside this constructor would capture an empty weak_ptr, since
+    // enable_shared_from_this isn't wired up until make_shared() finishes
+    // constructing the object. Deferred to TcpClient's own constructor,
+    // which runs after impl_ is a fully-formed shared_ptr<Impl>.
   }
 
   ~Impl() {
@@ -153,13 +157,18 @@ struct TcpClient::Impl {
   void schedule_batch_timer() {
     if (!batch_timer_) return;
     batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait(
-        [this, weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
-          if (ec) return;
-          auto alive = weak_alive.lock();
-          if (!alive) return;
-          flush_batches();
-        });
+    batch_timer_->async_wait([this, weak_impl = weak_from_this(),
+                              weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
+      if (ec) return;
+      // #450: keep Impl alive for the duration of this callback - on an
+      // externally-owned io_context, stop() doesn't join/wait for
+      // in-flight handlers, so a bare `this` could otherwise dangle.
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
+      auto alive = weak_alive.lock();
+      if (!alive) return;
+      flush_batches();
+    });
   }
 
   std::future<bool> start() {
@@ -375,8 +384,14 @@ struct TcpClient::Impl {
     batch_timer_ = std::make_unique<boost::asio::steady_timer>(channel_->get_executor());
 
     std::weak_ptr<bool> weak_alive = alive_marker_;
+    std::weak_ptr<Impl> weak_impl = weak_from_this();
 
-    channel_->on_bytes([this, weak_alive](memory::ConstByteSpan data) {
+    channel_->on_bytes([this, weak_impl, weak_alive](memory::ConstByteSpan data) {
+      // #450: keep Impl alive for the duration of this callback - on an
+      // externally-owned io_context, stop() doesn't join/wait for in-flight
+      // handlers, so a bare `this` could otherwise dangle.
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
 
@@ -419,7 +434,9 @@ struct TcpClient::Impl {
       if (framer_to_push) framer_to_push->push_bytes(data);
     });
 
-    channel_->on_state([this, weak_alive](base::LinkState state) {
+    channel_->on_state([this, weak_impl, weak_alive](base::LinkState state) {
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
       ConnectionHandler connect_handler;
@@ -454,8 +471,10 @@ struct TcpClient::Impl {
       }
     });
 
-    channel_->on_backpressure([this, weak_alive](size_t queued) {
+    channel_->on_backpressure([this, weak_impl, weak_alive](size_t queued) {
       bp_cv_.notify_all();
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
       std::function<void(size_t)> handler;
@@ -524,10 +543,12 @@ struct TcpClient::Impl {
   }
 };
 
-TcpClient::TcpClient(const std::string& h, uint16_t p) : impl_(std::make_unique<Impl>(h, p)) {}
+TcpClient::TcpClient(const std::string& h, uint16_t p) : impl_(std::make_shared<Impl>(h, p)) {}
 TcpClient::TcpClient(const std::string& h, uint16_t p, std::shared_ptr<boost::asio::io_context> ioc)
-    : impl_(std::make_unique<Impl>(h, p, ioc)) {}
-TcpClient::TcpClient(std::shared_ptr<interface::Channel> ch) : impl_(std::make_unique<Impl>(ch)) {}
+    : impl_(std::make_shared<Impl>(h, p, ioc)) {}
+TcpClient::TcpClient(std::shared_ptr<interface::Channel> ch) : impl_(std::make_shared<Impl>(ch)) {
+  impl_->setup_internal_handlers();
+}
 TcpClient::~TcpClient() = default;
 
 TcpClient::TcpClient(TcpClient&&) noexcept = default;

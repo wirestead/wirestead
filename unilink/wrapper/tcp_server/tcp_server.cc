@@ -38,7 +38,7 @@
 namespace unilink {
 namespace wrapper {
 
-struct TcpServer::Impl {
+struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
   mutable std::shared_mutex mutex_;
   std::mutex bp_mutex_;
   std::condition_variable bp_cv_;
@@ -140,7 +140,11 @@ struct TcpServer::Impl {
         backpressure_threshold_(base::constants::DEFAULT_BACKPRESSURE_THRESHOLD),
         backpressure_strategy_(base::constants::BackpressureStrategy::Reliable) {
     transport_cache_ = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
-    setup_internal_handlers();
+    // #450: setup_internal_handlers() captures weak_from_this() - calling it
+    // from inside this constructor would capture an empty weak_ptr, since
+    // enable_shared_from_this isn't wired up until make_shared() finishes
+    // constructing the object. Deferred to TcpServer's own constructor,
+    // which runs after impl_ is a fully-formed shared_ptr<Impl>.
   }
 
   ~Impl() {
@@ -190,13 +194,15 @@ struct TcpServer::Impl {
   void schedule_batch_timer() {
     if (!batch_timer_) return;
     batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait(
-        [this, weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
-          if (ec) return;
-          auto alive = weak_alive.lock();
-          if (!alive) return;
-          flush_batches();
-        });
+    batch_timer_->async_wait([this, weak_impl = weak_from_this(),
+                              weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
+      if (ec) return;
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
+      auto alive = weak_alive.lock();
+      if (!alive) return;
+      flush_batches();
+    });
   }
 
   std::future<bool> start() {
@@ -363,9 +369,12 @@ struct TcpServer::Impl {
     batch_timer_ = std::make_unique<boost::asio::steady_timer>(channel_->get_executor());
 
     std::weak_ptr<bool> weak_alive = alive_marker_;
+    std::weak_ptr<Impl> weak_impl = weak_from_this();
     auto transport_server = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
     if (transport_server) {
-      transport_server->on_multi_connect([this, weak_alive](ClientId id, const std::string& info) {
+      transport_server->on_multi_connect([this, weak_impl, weak_alive](ClientId id, const std::string& info) {
+        auto impl_keepalive = weak_impl.lock();
+        if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
 
@@ -417,7 +426,9 @@ struct TcpServer::Impl {
         }
         if (handler) handler(ConnectionContext(id, info));
       });
-      transport_server->on_multi_data([this, weak_alive](ClientId id, memory::ConstByteSpan data_span) {
+      transport_server->on_multi_data([this, weak_impl, weak_alive](ClientId id, memory::ConstByteSpan data_span) {
+        auto impl_keepalive = weak_impl.lock();
+        if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
 
@@ -463,7 +474,9 @@ struct TcpServer::Impl {
 
         if (framer) framer->push_bytes(data_span);
       });
-      transport_server->on_multi_disconnect([this, weak_alive](ClientId id) {
+      transport_server->on_multi_disconnect([this, weak_impl, weak_alive](ClientId id) {
+        auto impl_keepalive = weak_impl.lock();
+        if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
 
@@ -476,8 +489,10 @@ struct TcpServer::Impl {
         if (handler) handler(ConnectionContext(id));
       });
 
-      transport_server->on_backpressure([this, weak_alive](size_t queued) {
+      transport_server->on_backpressure([this, weak_impl, weak_alive](size_t queued) {
         bp_cv_.notify_all();
+        auto impl_keepalive = weak_impl.lock();
+        if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
         std::function<void(size_t)> handler;
@@ -488,7 +503,9 @@ struct TcpServer::Impl {
         if (handler) handler(queued);
       });
     }
-    channel_->on_state([this, weak_alive](base::LinkState state) {
+    channel_->on_state([this, weak_impl, weak_alive](base::LinkState state) {
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
 
@@ -526,10 +543,12 @@ struct TcpServer::Impl {
   }
 };
 
-TcpServer::TcpServer(uint16_t port) : impl_(std::make_unique<Impl>(port)) {}
+TcpServer::TcpServer(uint16_t port) : impl_(std::make_shared<Impl>(port)) {}
 TcpServer::TcpServer(uint16_t port, std::shared_ptr<boost::asio::io_context> ioc)
-    : impl_(std::make_unique<Impl>(port, ioc)) {}
-TcpServer::TcpServer(std::shared_ptr<interface::Channel> ch) : impl_(std::make_unique<Impl>(ch)) {}
+    : impl_(std::make_shared<Impl>(port, ioc)) {}
+TcpServer::TcpServer(std::shared_ptr<interface::Channel> ch) : impl_(std::make_shared<Impl>(ch)) {
+  impl_->setup_internal_handlers();
+}
 TcpServer::~TcpServer() = default;
 
 TcpServer::TcpServer(TcpServer&&) noexcept = default;

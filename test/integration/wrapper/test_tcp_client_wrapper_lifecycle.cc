@@ -175,6 +175,64 @@ TEST_F(TcpClientWrapperLifecycleTest, ExternalContextNotStoppedWhenNotManaged) {
   if (t.joinable()) t.join();
 }
 
+// #450: with an externally-owned, unmanaged io_context (manage_external_
+// context defaults to false), stop() does not join any thread - so a caller
+// following the documented "call stop() then destroy" pattern could
+// previously destroy the wrapper's Impl while a callback dispatched on the
+// external context was still executing against it (use-after-free). Proves
+// that destroying the client while a callback is deliberately kept
+// in-flight (blocked until released, well after the client itself is gone)
+// does not crash - the callback's own weak_from_this()-promoted shared_ptr
+// keeps Impl alive for the callback's duration regardless of the wrapper
+// object's own lifetime.
+TEST_F(TcpClientWrapperLifecycleTest, DestroyingClientWhileHandlerInFlightOnExternalContextIsSafe) {
+  auto ioc = std::make_shared<boost::asio::io_context>();
+  auto work = boost::asio::make_work_guard(*ioc);
+  std::thread ioc_thread([&]() { ioc->run(); });
+
+  auto client = std::make_shared<wrapper::TcpClient>("127.0.0.1", test_port_, ioc);
+  // manage_external_context left at its default (false) - the documented
+  // "safe to destroy after stop()" case this issue is about.
+
+  std::mutex cb_mutex;
+  std::condition_variable cb_cv;
+  bool handler_entered = false;
+  bool release_handler = false;
+
+  client->on_connect([&](const wrapper::ConnectionContext&) {
+    std::unique_lock<std::mutex> lock(cb_mutex);
+    handler_entered = true;
+    cb_cv.notify_all();
+    // Simulate a slow/in-flight handler still executing while the caller
+    // below calls stop() and destroys the client.
+    cb_cv.wait(lock, [&] { return release_handler; });
+  });
+
+  auto started = client->start();
+  {
+    std::unique_lock<std::mutex> lock(cb_mutex);
+    ASSERT_TRUE(cb_cv.wait_for(lock, 2s, [&] { return handler_entered; }));
+  }
+
+  client->stop();
+  client.reset();  // the exact "stop() then destroy" sequence the docs say is safe
+
+  {
+    std::lock_guard<std::mutex> lock(cb_mutex);
+    release_handler = true;
+  }
+  cb_cv.notify_all();
+
+  // Reaching here without crashing/UB (verified under ASAN separately) means
+  // the in-flight callback's own lifetime-extension kept Impl alive for its
+  // own duration, independent of the now-destroyed wrapper.
+  std::this_thread::sleep_for(50ms);
+
+  work.reset();
+  ioc->stop();
+  if (ioc_thread.joinable()) ioc_thread.join();
+}
+
 TEST_F(TcpClientWrapperLifecycleTest, ExternalContextManagedRunsAndStops) {
   auto ioc = std::make_shared<boost::asio::io_context>();
   client_ = std::make_shared<wrapper::TcpClient>("127.0.0.1", test_port_, ioc);
