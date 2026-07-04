@@ -474,6 +474,9 @@ void TcpServerSession::route_enqueued_buffer(BufferVariant&& buf, size_t added) 
 
   if (decision == queue_util::EnqueueDecision::Rejected) {
     UNILINK_LOG_ERROR("tcp_server_session", "write", "Queue limit exceeded, dropping message");
+    // #448: record as dropped so it's reflected in RuntimeStats instead of
+    // silently vanishing after being counted as accepted.
+    stats_.record_dropped(1, added);
     report_backpressure(queue_bytes_ + added);
     return;
   }

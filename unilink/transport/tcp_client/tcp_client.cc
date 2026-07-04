@@ -1049,6 +1049,11 @@ void TcpClient::Impl::route_enqueued_buffer(std::shared_ptr<TcpClient> self, Buf
     UNILINK_LOG_ERROR("tcp_client", "write", fmt::format("Queue limit exceeded ({} bytes)", queue_bytes_ + added));
     record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::COMMUNICATION, "write",
                  boost::asio::error::no_buffer_space, "Queue limit exceeded", false, 0);
+    // #448: this path used to leave RuntimeStats showing the message as
+    // accepted (from the caller-thread pre-check) with no corresponding
+    // sent/dropped/queued accounting - record it as dropped so it's at
+    // least observable.
+    stats_.record_dropped(1, added);
     report_backpressure(self, queue_bytes_ + added);
     return;
   }

@@ -547,6 +547,9 @@ struct UdpChannel::Impl {
       // the Reliable+pending case: queued_bytes is already >= bp_high_ or
       // this rejection couldn't have happened, so report_backpressure()'s
       // OFF-transition check (<= bp_low_) can't fire here either way.
+      // #448: record as dropped so it's reflected in RuntimeStats instead of
+      // silently vanishing after being counted as accepted.
+      stats_.record_dropped(1, size);
       report_backpressure(self, queue_bytes_ + size);
       return false;
     }
