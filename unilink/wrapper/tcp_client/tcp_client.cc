@@ -332,13 +332,33 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     return true;
   }
 
+  // #509: wait_for_backpressure_clear()'s condition (is_backpressure_active(),
+  // tied to bp_high) and the transport's own hard queue-byte cap
+  // (bp_limit = bp_high * 4, rechecked inside each async_write_*) are
+  // different thresholds observed at different times - something else can
+  // refill the queue in the narrow window between the wait exiting and this
+  // write's own cap check, rejecting a write on an otherwise perfectly
+  // healthy channel. Retry a bounded number of times rather than giving up
+  // after one attempt, since the failure is almost always transient, not
+  // permanent. Bounded (rather than unbounded like the wait loop itself) so
+  // a payload that can never fit under a very small configured
+  // backpressure_threshold still fails in bounded time instead of hanging.
+  static constexpr int kMaxBlockingSendAttempts = 5;
+
   bool send_move(std::vector<uint8_t>&& data) {
     if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) {
-      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      if (!wait_for_backpressure_clear(bp_lock)) return false;
-      std::shared_lock<std::shared_mutex> lock(mutex_);
-      if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
-      return channel_->async_write_move(std::move(data));
+      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+        if (!wait_for_backpressure_clear(bp_lock)) return false;
+        bp_lock.unlock();
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
+        // async_write_move only actually moves from `data` on success (see
+        // TcpClient::async_write_move), so retrying with the same `data`
+        // after a `false` return is safe.
+        if (channel_->async_write_move(std::move(data))) return true;
+      }
+      return false;
     }
     return try_send_move(std::move(data));
   }
@@ -346,11 +366,15 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   bool send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
     if (!data || data->empty()) return false;
     if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) {
-      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      if (!wait_for_backpressure_clear(bp_lock)) return false;
-      std::shared_lock<std::shared_mutex> lock(mutex_);
-      if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
-      return channel_->async_write_shared(std::move(data));
+      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+        if (!wait_for_backpressure_clear(bp_lock)) return false;
+        bp_lock.unlock();
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
+        if (channel_->async_write_shared(data)) return true;
+      }
+      return false;
     }
     return try_send_shared(std::move(data));
   }
@@ -363,12 +387,17 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   bool try_send_line(std::string_view line) { return try_send(std::string(line) + "\n"); }
 
   bool send_blocking(std::string_view data) {
-    std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-    if (!wait_for_backpressure_clear(bp_lock)) return false;
-    std::shared_lock<std::shared_mutex> lock(mutex_);
-    if (!started_.load() || !channel_) return false;
     auto binary_view = base::safe_convert::string_to_bytes(data);
-    return channel_->async_write_copy(memory::ConstByteSpan(binary_view.first, binary_view.second));
+    memory::ConstByteSpan span(binary_view.first, binary_view.second);
+    for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+      if (!wait_for_backpressure_clear(bp_lock)) return false;
+      bp_lock.unlock();
+      std::shared_lock<std::shared_mutex> lock(mutex_);
+      if (!started_.load() || !channel_) return false;
+      if (channel_->async_write_copy(span)) return true;
+    }
+    return false;
   }
 
   bool send_line_blocking(std::string_view line) { return send_blocking(std::string(line) + "\n"); }

@@ -357,19 +357,32 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
   // callback. Clearing backpressure requires that same io thread to make
   // progress, so blocking here would deadlock forever rather than
   // eventually clear (#449).
+  // #509: the wait predicate (is_backpressure_active(client_id), tied to
+  // bp_high) and the transport's own hard queue-byte cap for that session
+  // (bp_limit) are different thresholds observed at different times, so a
+  // single write attempt can spuriously fail right after the wait exits.
+  // Bounded retry rather than unbounded, so a payload that can never fit
+  // still fails in bounded time.
+  static constexpr int kMaxBlockingSendAttempts = 5;
+
   bool send_to_blocking(ClientId client_id, std::string_view data) {
-    std::unique_lock<std::mutex> lock(bp_mutex_);
-    auto predicate = [this, client_id]() {
+    for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+      std::unique_lock<std::mutex> lock(bp_mutex_);
+      auto predicate = [this, client_id]() {
+        std::shared_lock<std::shared_mutex> rlock(mutex_);
+        const auto& ts = transport_cache_;
+        return !started_.load() || !ts || !ts->is_backpressure_active(client_id);
+      };
+      if (!predicate() && detail::in_data_callback()) return false;
+      while (!bp_cv_.wait_for(lock, std::chrono::milliseconds(50), predicate)) {
+      }
+      lock.unlock();
       std::shared_lock<std::shared_mutex> rlock(mutex_);
       const auto& ts = transport_cache_;
-      return !started_.load() || !ts || !ts->is_backpressure_active(client_id);
-    };
-    if (!predicate() && detail::in_data_callback()) return false;
-    while (!bp_cv_.wait_for(lock, std::chrono::milliseconds(50), predicate)) {
+      if (!ts) return false;
+      if (ts->send_to_client(client_id, data)) return true;
     }
-    std::shared_lock<std::shared_mutex> rlock(mutex_);
-    const auto& ts = transport_cache_;
-    return ts ? ts->send_to_client(client_id, data) : false;
+    return false;
   }
 
   void setup_internal_handlers() {
