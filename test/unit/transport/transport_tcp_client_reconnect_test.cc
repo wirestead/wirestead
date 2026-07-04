@@ -138,3 +138,21 @@ TEST_F(TcpClientReconnectTest, LiveSetRetryIntervalIsClampedNotUnbounded) {
 
   client->stop();
 }
+
+// #446: TcpClient's move ctor/assignment are defaulted (and public, unlike
+// its private regular constructors), so a moved-from instance has a null
+// impl_. Destroying it must not dereference that null pointer (matches
+// TcpServer/Serial/UdpChannel/UdsServer, whose destructors already
+// null-guard). Reachable via the public API by move-constructing from a
+// dereferenced create()'d shared_ptr, which leaves the original
+// (still-shared_ptr-owned) object moved-from; its destructor runs whenever
+// the shared_ptr's refcount reaches zero.
+TEST_F(TcpClientReconnectTest, DestroyingAMovedFromInstanceDoesNotCrash) {
+  config::TcpClientConfig cfg;
+  cfg.host = "127.0.0.1";
+  cfg.port = port_;  // nothing needs to be listening for this test
+
+  auto client_ptr = TcpClient::create(cfg);
+  TcpClient moved_to(std::move(*client_ptr));
+  client_ptr.reset();  // destroys the now moved-from original - the assertion
+}

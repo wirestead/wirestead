@@ -198,6 +198,11 @@ UdsClient::UdsClient(const UdsClientConfig& cfg, std::unique_ptr<interface::UdsS
     : impl_(std::make_unique<Impl>(cfg, &ioc, std::move(socket))) {}
 
 UdsClient::~UdsClient() {
+  // #446: null after being moved-from - the move ctor/assignment are
+  // defaulted, and destroying a moved-from instance must not dereference
+  // a null impl_ (matches TcpServer/Serial/UdpChannel/UdsServer's
+  // destructors, which already guard this way).
+  if (!impl_) return;
   stop();
 
   if (impl_->owns_ioc_ && impl_->ioc_thread_.joinable()) {
