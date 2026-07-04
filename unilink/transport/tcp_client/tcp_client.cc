@@ -64,7 +64,7 @@ namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
 using base::LinkState;
-using concurrency::ThreadSafeLinkState;
+using concurrency::AtomicLinkState;
 using config::TcpClientConfig;
 using interface::Channel;
 
@@ -126,7 +126,7 @@ struct TcpClient::Impl {
   OnBackpressure on_bp_;
   mutable std::mutex callback_mtx_;
   std::atomic<bool> connected_{false};
-  ThreadSafeLinkState state_{LinkState::Idle};
+  AtomicLinkState state_{LinkState::Idle};
   int retry_attempts_ = 0;
   uint32_t reconnect_attempt_count_{0};
   std::optional<ReconnectPolicy> reconnect_policy_;
@@ -214,7 +214,7 @@ std::optional<diagnostics::ErrorInfo> TcpClient::last_error_info() const {
 }
 
 void TcpClient::start() {
-  auto current_state = impl_->state_.state();
+  auto current_state = impl_->state_.get();
   if (current_state == LinkState::Connecting || current_state == LinkState::Connected) {
     UNILINK_LOG_DEBUG("tcp_client", "start", "Start called while already active, ignoring");
     return;
@@ -1106,7 +1106,7 @@ void TcpClient::Impl::transition_to(LinkState next, const boost::system::error_c
     return;
   }
 
-  const auto current = state_.state();
+  const auto current = state_.get();
   const bool retrying_same_state = (next == LinkState::Connecting && current == LinkState::Connecting);
   if ((current == LinkState::Closed || current == LinkState::Error) &&
       (next == LinkState::Closed || next == LinkState::Error)) {
@@ -1121,7 +1121,7 @@ void TcpClient::Impl::transition_to(LinkState next, const boost::system::error_c
     return;
   }
 
-  state_.set_state(next);
+  state_.set(next);
   notify_state();
 }
 
@@ -1178,7 +1178,7 @@ void TcpClient::Impl::reset_start_state() {
   pending_.clear();
   pending_bytes_ = 0;
   backpressure_active_ = false;
-  state_.set_state(LinkState::Idle);
+  state_.set(LinkState::Idle);
 }
 
 void TcpClient::Impl::join_ioc_thread(bool allow_detach) {
@@ -1213,7 +1213,7 @@ void TcpClient::Impl::notify_state() {
   if (!on_state) return;
 
   try {
-    on_state(state_.state());
+    on_state(state_.get());
   } catch (const std::exception& e) {
     UNILINK_LOG_ERROR("tcp_client", "on_state", "Exception in state callback: " + std::string(e.what()));
   } catch (...) {

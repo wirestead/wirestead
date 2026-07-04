@@ -58,7 +58,7 @@ struct TcpServer::Impl {
   std::unique_ptr<interface::TcpAcceptorInterface> acceptor_;
   config::TcpServerConfig cfg_;
 
-  concurrency::ThreadSafeLinkState state_{base::LinkState::Idle};
+  concurrency::AtomicLinkState state_{base::LinkState::Idle};
   OnBytes on_bytes_;
   OnState on_state_;
   OnBackpressure on_bp_;
@@ -136,7 +136,7 @@ struct TcpServer::Impl {
         cb = on_state_;
       }
       if (cb) {
-        cb(state_.state());
+        cb(state_.get());
       }
     } catch (...) {
     }
@@ -190,7 +190,7 @@ struct TcpServer::Impl {
       UNILINK_LOG_ERROR("tcp_server", "bind", msg);
       error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONFIGURATION, "bind",
                                       ec, msg, false, static_cast<uint32_t>(retry_count));
-      state_.set_state(base::LinkState::Error);
+      state_.set(base::LinkState::Error);
       notify_state();
       return;
     }
@@ -202,7 +202,7 @@ struct TcpServer::Impl {
         UNILINK_LOG_ERROR("tcp_server", "open", msg);
         error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::SYSTEM, "open", ec,
                                         msg, false, static_cast<uint32_t>(retry_count));
-        state_.set_state(base::LinkState::Error);
+        state_.set(base::LinkState::Error);
         notify_state();
         return;
       }
@@ -227,7 +227,7 @@ struct TcpServer::Impl {
         UNILINK_LOG_ERROR("tcp_server", "bind", msg);
         error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "bind",
                                         ec, msg, false, static_cast<uint32_t>(retry_count));
-        state_.set_state(base::LinkState::Error);
+        state_.set(base::LinkState::Error);
         notify_state();
         return;
       }
@@ -239,12 +239,12 @@ struct TcpServer::Impl {
       UNILINK_LOG_ERROR("tcp_server", "listen", msg);
       error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "listen",
                                       ec, msg, false, static_cast<uint32_t>(retry_count));
-      state_.set_state(base::LinkState::Error);
+      state_.set(base::LinkState::Error);
       notify_state();
       return;
     }
 
-    state_.set_state(base::LinkState::Listening);
+    state_.set(base::LinkState::Listening);
     notify_state();
     do_accept(self);
   }
@@ -262,7 +262,7 @@ struct TcpServer::Impl {
           accept_impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR,
                                                        diagnostics::ErrorCategory::CONNECTION, "accept", ec,
                                                        fmt::format("Accept failed: {}", ec.message()), true, 0);
-          accept_impl->state_.set_state(base::LinkState::Error);
+          accept_impl->state_.set(base::LinkState::Error);
           accept_impl->notify_state();
         }
         if (!accept_impl->state_.is_state(base::LinkState::Closed) && !accept_impl->stopping_.load()) {
@@ -365,7 +365,7 @@ struct TcpServer::Impl {
           }
         }
         if (was_current) {
-          close_impl->state_.set_state(base::LinkState::Listening);
+          close_impl->state_.set(base::LinkState::Listening);
           close_impl->notify_state();
         }
       });
@@ -388,7 +388,7 @@ struct TcpServer::Impl {
       }
       if (connect_cb) connect_cb(client_id, client_info);
 
-      accept_impl->state_.set_state(base::LinkState::Connected);
+      accept_impl->state_.set(base::LinkState::Connected);
       accept_impl->notify_state();
       accept_impl->do_accept(self);
     });
@@ -418,7 +418,7 @@ struct TcpServer::Impl {
         }
       }
 
-      state_.set_state(base::LinkState::Closed);
+      state_.set(base::LinkState::Closed);
       notify_state();
     } catch (...) {
     }
@@ -511,7 +511,7 @@ TcpServer& TcpServer::operator=(TcpServer&&) noexcept = default;
 
 void TcpServer::start() {
   auto impl = get_impl();
-  auto current = impl->state_.state();
+  auto current = impl->state_.get();
   if (current == base::LinkState::Listening || current == base::LinkState::Connected ||
       current == base::LinkState::Connecting) {
     return;
@@ -528,7 +528,7 @@ void TcpServer::start() {
   if (!impl->acceptor_) {
     impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::SYSTEM, "start",
                                           {}, "No acceptor available", false, 0);
-    impl->state_.set_state(base::LinkState::Error);
+    impl->state_.set(base::LinkState::Error);
     impl->notify_state();
     return;
   }
@@ -876,7 +876,7 @@ void TcpServer::set_client_limit(size_t max) {
   }
 }
 
-base::LinkState TcpServer::state() const { return get_impl()->state_.state(); }
+base::LinkState TcpServer::state() const { return get_impl()->state_.get(); }
 
 }  // namespace transport
 }  // namespace unilink

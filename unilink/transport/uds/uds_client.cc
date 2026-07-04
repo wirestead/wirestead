@@ -52,7 +52,7 @@ namespace net = boost::asio;
 using uds = net::local::stream_protocol;
 
 using base::LinkState;
-using concurrency::ThreadSafeLinkState;
+using concurrency::AtomicLinkState;
 using config::UdsClientConfig;
 using interface::Channel;
 
@@ -101,7 +101,7 @@ struct UdsClient::Impl {
   OnBackpressure on_bp_;
   mutable std::mutex callback_mtx_;
   std::atomic<bool> connected_{false};
-  ThreadSafeLinkState state_{LinkState::Idle};
+  AtomicLinkState state_{LinkState::Idle};
   int retry_attempts_ = 0;
   uint32_t reconnect_attempt_count_{0};
   std::optional<ReconnectPolicy> reconnect_policy_;
@@ -213,7 +213,7 @@ UdsClient::UdsClient(UdsClient&&) noexcept = default;
 UdsClient& UdsClient::operator=(UdsClient&&) noexcept = default;
 
 void UdsClient::start() {
-  auto current_state = impl_->state_.state();
+  auto current_state = impl_->state_.get();
   if (current_state == LinkState::Connecting || current_state == LinkState::Connected) {
     return;
   }
@@ -273,7 +273,7 @@ void UdsClient::stop() {
   }
 
   // Transition to Idle state (lock-free or safe call)
-  impl_->state_.set_state(LinkState::Idle);
+  impl_->state_.set(LinkState::Idle);
 }
 
 bool UdsClient::is_connected() const { return impl_->connected_.load(); }
@@ -681,7 +681,7 @@ void UdsClient::Impl::handle_close(std::shared_ptr<UdsClient> self, uint64_t seq
 }
 
 void UdsClient::Impl::transition_to(LinkState next, const boost::system::error_code&) {
-  state_.set_state(next);
+  state_.set(next);
   OnState cb;
   {
     std::lock_guard<std::mutex> lock(callback_mtx_);
@@ -711,7 +711,7 @@ void UdsClient::Impl::perform_stop_cleanup(uint64_t seq) {
     work_guard_.reset();
   }
 
-  state_.set_state(LinkState::Idle);
+  state_.set(LinkState::Idle);
 }
 
 void UdsClient::Impl::close_socket() {
