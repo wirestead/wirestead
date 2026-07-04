@@ -62,14 +62,14 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
   std::atomic<bool> port_retry_enabled_{false};
   std::atomic<int> max_port_retries_{3};
   std::atomic<int> port_retry_interval_ms_{1000};
-  std::atomic<int> idle_timeout_ms_{0};
+  std::atomic<int> idle_timeout_ms_{static_cast<int>(base::constants::DEFAULT_IDLE_TIMEOUT_MS)};
   std::atomic<bool> client_limit_enabled_{false};
   std::atomic<size_t> max_clients_{0};
   std::atomic<size_t> backpressure_threshold_{base::constants::DEFAULT_BACKPRESSURE_THRESHOLD};
   std::atomic<base::constants::BackpressureStrategy> backpressure_strategy_{
       base::constants::BackpressureStrategy::Reliable};
-  std::atomic<bool> tcp_no_delay_{true};
-  std::atomic<bool> keep_alive_{false};
+  std::atomic<bool> tcp_no_delay_{base::constants::DEFAULT_TCP_NO_DELAY};
+  std::atomic<bool> keep_alive_{base::constants::DEFAULT_KEEP_ALIVE};
   std::atomic<size_t> send_buffer_size_{0};
   std::atomic<size_t> receive_buffer_size_{0};
 
@@ -102,7 +102,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         port_retry_enabled_(false),
         max_port_retries_(3),
         port_retry_interval_ms_(1000),
-        idle_timeout_ms_(0),
+        idle_timeout_ms_(static_cast<int>(base::constants::DEFAULT_IDLE_TIMEOUT_MS)),
         client_limit_enabled_(false),
         max_clients_(0),
         backpressure_threshold_(base::constants::DEFAULT_BACKPRESSURE_THRESHOLD),
@@ -119,7 +119,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         port_retry_enabled_(false),
         max_port_retries_(3),
         port_retry_interval_ms_(1000),
-        idle_timeout_ms_(0),
+        idle_timeout_ms_(static_cast<int>(base::constants::DEFAULT_IDLE_TIMEOUT_MS)),
         client_limit_enabled_(false),
         max_clients_(0),
         backpressure_threshold_(base::constants::DEFAULT_BACKPRESSURE_THRESHOLD),
@@ -134,7 +134,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         port_retry_enabled_(false),
         max_port_retries_(3),
         port_retry_interval_ms_(1000),
-        idle_timeout_ms_(0),
+        idle_timeout_ms_(static_cast<int>(base::constants::DEFAULT_IDLE_TIMEOUT_MS)),
         client_limit_enabled_(false),
         max_clients_(0),
         backpressure_threshold_(base::constants::DEFAULT_BACKPRESSURE_THRESHOLD),

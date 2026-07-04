@@ -39,7 +39,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
 
   // Configuration
   std::atomic<bool> auto_start_{false};
-  std::atomic<int> idle_timeout_ms_{0};
+  std::atomic<int> idle_timeout_ms_{static_cast<int>(base::constants::DEFAULT_IDLE_TIMEOUT_MS)};
   std::atomic<size_t> max_clients_{0};
   std::atomic<bool> client_limit_enabled_{false};
   std::atomic<size_t> backpressure_threshold_{base::constants::DEFAULT_BACKPRESSURE_THRESHOLD};

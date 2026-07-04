@@ -66,6 +66,10 @@ constexpr unsigned MAX_CONNECTION_TIMEOUT_MS = 300000;    // 5 minutes maximum
 constexpr int DEFAULT_MAX_RETRIES = -1;  // Unlimited retries
 constexpr int MAX_RETRIES_LIMIT = 1000;  // Maximum retry limit
 
+// Socket option constants
+constexpr bool DEFAULT_TCP_NO_DELAY = true;  // Disable Nagle's algorithm by default (#429)
+constexpr bool DEFAULT_KEEP_ALIVE = false;   // TCP keep-alive off by default
+
 // Memory pool constants
 constexpr size_t DEFAULT_MEMORY_POOL_SIZE = 100;  // Number of pre-allocated buffers
 constexpr size_t MIN_MEMORY_POOL_SIZE = 10;       // Minimum pool size
