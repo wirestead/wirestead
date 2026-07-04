@@ -25,12 +25,23 @@ This client expects a TCP server to be listening on `127.0.0.1:8080`.
 For a runnable client/server pair, see the full tutorials in
 `unilink-docs`.
 
+`max_retries` defaults to unlimited, so `start_sync()` blocks until a
+connection actually succeeds or fails outright - it never returns `false`
+on its own while the client keeps retrying an unreachable server. Set an
+explicit `max_retries`/`connection_timeout` (as below) if you want
+`start_sync()` to give up and return `false` after a bounded number of
+attempts, which is almost always what you want for a first run or a
+one-shot script.
+
 ```cpp
+#include <chrono>
 #include <iostream>
 #include <unilink/unilink.hpp>
 
 int main() {
     auto client = unilink::tcp_client("127.0.0.1", 8080)
+        .max_retries(3)
+        .connection_timeout(std::chrono::seconds(2))
         .on_data([](const unilink::MessageContext& ctx) {
             std::cout << "received " << ctx.data().size() << " bytes\n";
         })
@@ -40,6 +51,7 @@ int main() {
         .build();
 
     if (!client->start_sync()) {
+        std::cerr << "failed to connect - is a server listening on 127.0.0.1:8080?\n";
         return 1;
     }
 
@@ -56,6 +68,8 @@ int main() {
 - `ctx.data()` is a callback-scoped view. Copy data if it must outlive the callback.
 - Use `try_send(...)` for non-blocking producer loops.
 - Use `RuntimeStats` for diagnostics and queue/drop visibility.
+- `max_retries` defaults to unlimited (`-1`) - set it explicitly if you need
+  `start()`/`start_sync()` to eventually give up rather than retry forever.
 
 Related docs:
 
