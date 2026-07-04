@@ -125,7 +125,12 @@ class UNILINK_API TcpServer : public ServerInterface {
   struct Impl;
   const Impl* get_impl() const { return impl_.get(); }
   Impl* get_impl() { return impl_.get(); }
-  std::unique_ptr<Impl> impl_;
+  // #450: shared_ptr (not unique_ptr) so in-flight callbacks on an
+  // externally-owned io_context can extend Impl's lifetime for the
+  // duration of their invocation via weak_from_this(), rather than only
+  // checking a staleness flag that says nothing about whether Impl itself
+  // still exists.
+  std::shared_ptr<Impl> impl_;
 };
 
 }  // namespace wrapper

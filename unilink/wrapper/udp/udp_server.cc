@@ -59,7 +59,7 @@ struct UdpEndpointHash {
 };
 }  // namespace
 
-struct UdpServer::Impl {
+struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   config::UdpConfig cfg;
   std::shared_ptr<transport::UdpChannel> channel;
   std::shared_ptr<boost::asio::io_context> external_ioc;
@@ -114,7 +114,11 @@ struct UdpServer::Impl {
       : cfg(config), external_ioc(std::move(ioc)), use_external_context(external_ioc != nullptr) {}
   explicit Impl(std::shared_ptr<interface::Channel> ch)
       : channel(std::dynamic_pointer_cast<transport::UdpChannel>(ch)) {
-    setup_internal_handlers();
+    // #450: setup_internal_handlers() captures weak_from_this() - calling it
+    // from inside this constructor would capture an empty weak_ptr, since
+    // enable_shared_from_this isn't wired up until make_shared() finishes
+    // constructing the object. Deferred to UdpServer's own constructor,
+    // which runs after impl_ is a fully-formed shared_ptr<Impl>.
   }
 
   ~Impl() {
@@ -165,7 +169,10 @@ struct UdpServer::Impl {
   void schedule_batch_timer() {
     if (!batch_timer_) return;
     batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait([this, alive = std::weak_ptr<bool>(is_alive)](const boost::system::error_code& ec) {
+    batch_timer_->async_wait([this, weak_impl = weak_from_this(),
+                              alive = std::weak_ptr<bool>(is_alive)](const boost::system::error_code& ec) {
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       auto lock = alive.lock();
       if (!lock || !(*lock)) return;
 
@@ -183,7 +190,10 @@ struct UdpServer::Impl {
         std::max(std::chrono::milliseconds(100), std::min(std::chrono::milliseconds(5000), session_timeout / 2));
 
     reaper_timer->expires_after(interval);
-    reaper_timer->async_wait([this, alive = std::weak_ptr<bool>(is_alive)](const boost::system::error_code& ec) {
+    reaper_timer->async_wait([this, weak_impl = weak_from_this(),
+                              alive = std::weak_ptr<bool>(is_alive)](const boost::system::error_code& ec) {
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       auto lock = alive.lock();
       if (!lock || !(*lock)) return;
 
@@ -230,7 +240,14 @@ struct UdpServer::Impl {
 
     batch_timer_ = std::make_unique<boost::asio::steady_timer>(channel->get_executor());
 
-    channel->on_bytes_from([this](memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& ep) {
+    std::weak_ptr<Impl> weak_impl = weak_from_this();
+
+    channel->on_bytes_from([this, weak_impl](memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& ep) {
+      // #450: keep Impl alive for the duration of this callback - on an
+      // externally-owned io_context, stop() doesn't join/wait for in-flight
+      // handlers, so a bare `this` could otherwise dangle.
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       ClientId client_id = 0;
       bool is_new = false;
       ConnectionHandler connect_handler_copy{nullptr};
@@ -352,8 +369,10 @@ struct UdpServer::Impl {
       }
     });
 
-    channel->on_backpressure([this](size_t queued) {
+    channel->on_backpressure([this, weak_impl](size_t queued) {
       bp_cv_.notify_all();
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       std::function<void(size_t)> handler;
       {
         std::shared_lock<std::shared_mutex> lock(mutex);
@@ -362,7 +381,9 @@ struct UdpServer::Impl {
       if (handler) handler(queued);
     });
 
-    channel->on_state([this](base::LinkState state) {
+    channel->on_state([this, weak_impl](base::LinkState state) {
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       ErrorHandler error_handler_copy{nullptr};
       if (state == base::LinkState::Listening || state == base::LinkState::Connected) {
         is_listening.store(true);
@@ -555,15 +576,17 @@ struct UdpServer::Impl {
 UdpServer::UdpServer(uint16_t port) {
   config::UdpConfig cfg;
   cfg.local_port = port;
-  impl_ = std::make_unique<Impl>(cfg);
+  impl_ = std::make_shared<Impl>(cfg);
 }
 
-UdpServer::UdpServer(const config::UdpConfig& cfg) : impl_(std::make_unique<Impl>(cfg)) {}
+UdpServer::UdpServer(const config::UdpConfig& cfg) : impl_(std::make_shared<Impl>(cfg)) {}
 
 UdpServer::UdpServer(const config::UdpConfig& cfg, std::shared_ptr<boost::asio::io_context> ioc)
-    : impl_(std::make_unique<Impl>(cfg, ioc)) {}
+    : impl_(std::make_shared<Impl>(cfg, ioc)) {}
 
-UdpServer::UdpServer(std::shared_ptr<interface::Channel> ch) : impl_(std::make_unique<Impl>(std::move(ch))) {}
+UdpServer::UdpServer(std::shared_ptr<interface::Channel> ch) : impl_(std::make_shared<Impl>(std::move(ch))) {
+  impl_->setup_internal_handlers();
+}
 
 UdpServer::~UdpServer() = default;
 

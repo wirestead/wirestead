@@ -19,7 +19,7 @@
 namespace unilink {
 namespace wrapper {
 
-struct UdsServer::Impl {
+struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
   std::string socket_path_;
   std::shared_ptr<boost::asio::io_context> external_ioc_;
   std::atomic<bool> use_external_context_{false};
@@ -74,7 +74,11 @@ struct UdsServer::Impl {
         manage_external_context_(false) {}
 
   explicit Impl(std::shared_ptr<interface::Channel> channel) : socket_path_(""), server_(std::move(channel)) {
-    setup_internal_handlers();
+    // #450: setup_internal_handlers() captures weak_from_this() - calling it
+    // from inside this constructor would capture an empty weak_ptr, since
+    // enable_shared_from_this isn't wired up until make_shared() finishes
+    // constructing the object. Deferred to UdsServer's own constructor,
+    // which runs after impl_ is a fully-formed shared_ptr<Impl>.
   }
 
   ~Impl() {
@@ -164,13 +168,15 @@ struct UdsServer::Impl {
   void schedule_batch_timer() {
     if (!batch_timer_) return;
     batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait(
-        [this, weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
-          if (ec) return;
-          auto alive = weak_alive.lock();
-          if (!alive) return;
-          flush_batches();
-        });
+    batch_timer_->async_wait([this, weak_impl = weak_from_this(),
+                              weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
+      if (ec) return;
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
+      auto alive = weak_alive.lock();
+      if (!alive) return;
+      flush_batches();
+    });
   }
 
   std::future<bool> start() {
@@ -276,10 +282,13 @@ struct UdsServer::Impl {
     batch_timer_ = std::make_unique<boost::asio::steady_timer>(server_->get_executor());
 
     std::weak_ptr<bool> weak_alive = alive_marker_;
+    std::weak_ptr<Impl> weak_impl = weak_from_this();
 
     auto transport_server = std::dynamic_pointer_cast<transport::UdsServer>(server_);
     if (transport_server) {
-      transport_server->on_multi_connect([this, weak_alive](ClientId id, const std::string& info) {
+      transport_server->on_multi_connect([this, weak_impl, weak_alive](ClientId id, const std::string& info) {
+        auto impl_keepalive = weak_impl.lock();
+        if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
 
@@ -294,7 +303,9 @@ struct UdsServer::Impl {
         }
         if (handler) handler(ConnectionContext(id, info));
       });
-      transport_server->on_multi_data([this, weak_alive](ClientId id, memory::ConstByteSpan data_span) {
+      transport_server->on_multi_data([this, weak_impl, weak_alive](ClientId id, memory::ConstByteSpan data_span) {
+        auto impl_keepalive = weak_impl.lock();
+        if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
 
@@ -340,7 +351,9 @@ struct UdsServer::Impl {
 
         if (framer_to_push) framer_to_push->push_bytes(data_span);
       });
-      transport_server->on_multi_disconnect([this, weak_alive](ClientId id) {
+      transport_server->on_multi_disconnect([this, weak_impl, weak_alive](ClientId id) {
+        auto impl_keepalive = weak_impl.lock();
+        if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
 
@@ -353,8 +366,10 @@ struct UdsServer::Impl {
         if (handler) handler(ConnectionContext(id));
       });
 
-      transport_server->on_backpressure([this, weak_alive](size_t queued) {
+      transport_server->on_backpressure([this, weak_impl, weak_alive](size_t queued) {
         bp_cv_.notify_all();
+        auto impl_keepalive = weak_impl.lock();
+        if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
         std::function<void(size_t)> handler;
@@ -366,7 +381,9 @@ struct UdsServer::Impl {
       });
     }
 
-    server_->on_state([this, weak_alive](base::LinkState state) {
+    server_->on_state([this, weak_impl, weak_alive](base::LinkState state) {
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
 
@@ -444,12 +461,14 @@ struct UdsServer::Impl {
   }
 };
 
-UdsServer::UdsServer(const std::string& socket_path) : impl_(std::make_unique<Impl>(socket_path)) {}
+UdsServer::UdsServer(const std::string& socket_path) : impl_(std::make_shared<Impl>(socket_path)) {}
 
 UdsServer::UdsServer(const std::string& socket_path, std::shared_ptr<boost::asio::io_context> external_ioc)
-    : impl_(std::make_unique<Impl>(socket_path, std::move(external_ioc))) {}
+    : impl_(std::make_shared<Impl>(socket_path, std::move(external_ioc))) {}
 
-UdsServer::UdsServer(std::shared_ptr<interface::Channel> channel) : impl_(std::make_unique<Impl>(std::move(channel))) {}
+UdsServer::UdsServer(std::shared_ptr<interface::Channel> channel) : impl_(std::make_shared<Impl>(std::move(channel))) {
+  impl_->setup_internal_handlers();
+}
 
 UdsServer::~UdsServer() = default;
 
