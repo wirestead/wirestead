@@ -298,13 +298,25 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
     return true;
   }
 
+  // #509: see identical rationale in wrapper/tcp_client/tcp_client.cc -
+  // wait_for_backpressure_clear()'s condition and the transport's own hard
+  // queue-byte cap are different thresholds observed at different times, so
+  // a single write attempt can spuriously fail right after the wait exits.
+  // Bounded retry rather than unbounded, so a payload that can never fit
+  // still fails in bounded time.
+  static constexpr int kMaxBlockingSendAttempts = 5;
+
   bool send_move(std::vector<uint8_t>&& data) {
     if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) {
-      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      if (!wait_for_backpressure_clear(bp_lock)) return false;
-      std::shared_lock<std::shared_mutex> lock(mutex_);
-      if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
-      return channel_->async_write_move(std::move(data));
+      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+        if (!wait_for_backpressure_clear(bp_lock)) return false;
+        bp_lock.unlock();
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
+        if (channel_->async_write_move(std::move(data))) return true;
+      }
+      return false;
     }
     return try_send_move(std::move(data));
   }
@@ -312,11 +324,15 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
   bool send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
     if (!data || data->empty()) return false;
     if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) {
-      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      if (!wait_for_backpressure_clear(bp_lock)) return false;
-      std::shared_lock<std::shared_mutex> lock(mutex_);
-      if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
-      return channel_->async_write_shared(std::move(data));
+      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+        if (!wait_for_backpressure_clear(bp_lock)) return false;
+        bp_lock.unlock();
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
+        if (channel_->async_write_shared(data)) return true;
+      }
+      return false;
     }
     return try_send_shared(std::move(data));
   }
@@ -329,12 +345,16 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
   bool try_send_line(std::string_view line) { return try_send(std::string(line) + "\n"); }
 
   bool send_blocking(std::string_view data) {
-    std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-    if (!wait_for_backpressure_clear(bp_lock)) return false;
-    std::shared_lock<std::shared_mutex> lock(mutex_);
-    if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
-    return channel_->async_write_copy(
-        memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(data.data()), data.size()));
+    memory::ConstByteSpan span(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+    for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+      if (!wait_for_backpressure_clear(bp_lock)) return false;
+      bp_lock.unlock();
+      std::shared_lock<std::shared_mutex> lock(mutex_);
+      if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
+      if (channel_->async_write_copy(span)) return true;
+    }
+    return false;
   }
 
   bool try_send(std::string_view data) {

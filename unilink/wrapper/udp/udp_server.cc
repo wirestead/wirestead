@@ -556,16 +556,24 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   // backpressure requires that same io thread to make progress, so
   // blocking here would deadlock forever rather than eventually clear
   // (#449).
+  // #509: see identical rationale in wrapper/tcp_server/tcp_server.cc -
+  // bounded retry rather than a single attempt after the wait exits.
+  static constexpr int kMaxBlockingSendAttempts = 5;
+
   bool send_to_blocking(ClientId client_id, std::string_view data) {
-    std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-    auto predicate = [this] {
-      std::shared_lock<std::shared_mutex> lock(mutex);
-      return !started.load() || !channel || !channel->is_backpressure_active();
-    };
-    if (!predicate() && detail::in_data_callback()) return false;
-    while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), predicate)) {
+    for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+      auto predicate = [this] {
+        std::shared_lock<std::shared_mutex> lock(mutex);
+        return !started.load() || !channel || !channel->is_backpressure_active();
+      };
+      if (!predicate() && detail::in_data_callback()) return false;
+      while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), predicate)) {
+      }
+      bp_lock.unlock();
+      if (try_send_to(client_id, data)) return true;
     }
-    return try_send_to(client_id, data);
+    return false;
   }
 
   bool try_send_to(ClientId client_id, std::string_view data) {

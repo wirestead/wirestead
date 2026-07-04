@@ -260,13 +260,28 @@ struct UdpClient::Impl : public std::enable_shared_from_this<Impl> {
     return try_send(data);
   }
 
+  // #509: wait_for_backpressure_clear()'s condition and the transport's own
+  // hard queue-byte cap are different thresholds observed at different
+  // times, so a single write attempt can spuriously fail right after the
+  // wait exits. Bounded retry rather than unbounded, so a payload that can
+  // never fit still fails in bounded time. If a single write is rejected
+  // because the payload alone exceeds the transport's cap, UdpChannel also
+  // transitions to LinkState::Error (unlike TCP/UDS) - wait_for_backpressure_
+  // clear()'s own is_connected() check catches that and ends the retry loop
+  // after one real attempt, so this doesn't retry into a broken channel.
+  static constexpr int kMaxBlockingSendAttempts = 5;
+
   bool send_move(std::vector<uint8_t>&& data) {
     if (cfg.backpressure_strategy == base::constants::BackpressureStrategy::Reliable) {
-      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      if (!wait_for_backpressure_clear(bp_lock)) return false;
-      std::shared_lock<std::shared_mutex> lock(mutex_);
-      if (!started_.load() || !channel || !channel->is_connected()) return false;
-      return channel->async_write_move(std::move(data));
+      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+        if (!wait_for_backpressure_clear(bp_lock)) return false;
+        bp_lock.unlock();
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        if (!started_.load() || !channel || !channel->is_connected()) return false;
+        if (channel->async_write_move(std::move(data))) return true;
+      }
+      return false;
     }
     return try_send_move(std::move(data));
   }
@@ -274,11 +289,15 @@ struct UdpClient::Impl : public std::enable_shared_from_this<Impl> {
   bool send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
     if (!data || data->empty()) return false;
     if (cfg.backpressure_strategy == base::constants::BackpressureStrategy::Reliable) {
-      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      if (!wait_for_backpressure_clear(bp_lock)) return false;
-      std::shared_lock<std::shared_mutex> lock(mutex_);
-      if (!started_.load() || !channel || !channel->is_connected()) return false;
-      return channel->async_write_shared(std::move(data));
+      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+        if (!wait_for_backpressure_clear(bp_lock)) return false;
+        bp_lock.unlock();
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        if (!started_.load() || !channel || !channel->is_connected()) return false;
+        if (channel->async_write_shared(data)) return true;
+      }
+      return false;
     }
     return try_send_shared(std::move(data));
   }
@@ -291,12 +310,17 @@ struct UdpClient::Impl : public std::enable_shared_from_this<Impl> {
   bool try_send_line(std::string_view line) { return try_send(std::string(line) + "\n"); }
 
   bool send_blocking(std::string_view data) {
-    std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-    if (!wait_for_backpressure_clear(bp_lock)) return false;
-    std::shared_lock<std::shared_mutex> lock(mutex_);
-    if (!started_.load() || !channel || !channel->is_connected()) return false;
     auto binary_view = base::safe_convert::string_to_bytes(data);
-    return channel->async_write_copy(memory::ConstByteSpan(binary_view.first, binary_view.second));
+    memory::ConstByteSpan span(binary_view.first, binary_view.second);
+    for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+      if (!wait_for_backpressure_clear(bp_lock)) return false;
+      bp_lock.unlock();
+      std::shared_lock<std::shared_mutex> lock(mutex_);
+      if (!started_.load() || !channel || !channel->is_connected()) return false;
+      if (channel->async_write_copy(span)) return true;
+    }
+    return false;
   }
 
   // channel->on_backpressure() calls bp_cv_.notify_all() from the transport's io_context

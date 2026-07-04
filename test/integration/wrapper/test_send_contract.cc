@@ -42,6 +42,11 @@ class ContractChannel : public unilink::interface::Channel {
   bool async_write_copy(unilink::memory::ConstByteSpan data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++write_copy_count_;
+    if (fail_next_writes_ > 0) {
+      --fail_next_writes_;
+      stats_.failed_sends += 1;
+      return false;
+    }
     stats_.messages_accepted += 1;
     stats_.bytes_accepted += data.size();
     return true;
@@ -50,6 +55,11 @@ class ContractChannel : public unilink::interface::Channel {
   bool async_write_move(std::vector<uint8_t>&& data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++write_move_count_;
+    if (fail_next_writes_ > 0) {
+      --fail_next_writes_;
+      stats_.failed_sends += 1;
+      return false;
+    }
     stats_.messages_accepted += 1;
     stats_.bytes_accepted += data.size();
     return true;
@@ -59,6 +69,11 @@ class ContractChannel : public unilink::interface::Channel {
     if (!data) return false;
     std::lock_guard<std::mutex> lock(mutex_);
     ++write_shared_count_;
+    if (fail_next_writes_ > 0) {
+      --fail_next_writes_;
+      stats_.failed_sends += 1;
+      return false;
+    }
     stats_.messages_accepted += 1;
     stats_.bytes_accepted += data->size();
     return true;
@@ -99,6 +114,14 @@ class ContractChannel : public unilink::interface::Channel {
 
   void set_try_accepts(bool accepts) { try_accepts_ = accepts; }
   void set_backpressure_active(bool active) { backpressure_active_.store(active); }
+
+  // #509: makes the next `n` async_write_* calls fail (as if rejected by a
+  // hard queue-byte cap) regardless of is_backpressure_active(), simulating
+  // a write attempt losing the race against wait_for_backpressure_clear().
+  void fail_next_writes(int n) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    fail_next_writes_ = n;
+  }
 
   int write_copy_count() const {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -141,6 +164,7 @@ class ContractChannel : public unilink::interface::Channel {
   bool connected_{true};
   std::atomic<bool> backpressure_active_{false};
   bool try_accepts_{false};
+  int fail_next_writes_{0};
   int write_copy_count_{0};
   int write_move_count_{0};
   int write_shared_count_{0};
@@ -245,6 +269,29 @@ void verify_blocking_send_recovers_without_notify(std::string_view name) {
   EXPECT_TRUE(sent_future.get());
 }
 
+// Regression test for jwsung91/unilink#509: wait_for_backpressure_clear()'s
+// condition (is_backpressure_active(), tied to bp_high) and the transport's
+// own hard queue-byte cap (bp_limit) are different thresholds checked at
+// different times, so a write attempt can still be rejected immediately
+// after the wait exits - even though nothing about the channel/connection
+// state has actually changed to make the caller give up. Simulates that
+// narrow race directly: backpressure is never active (so the wait returns
+// immediately), but the first write attempt is made to fail anyway. A
+// correct fix retries rather than giving up after one failed attempt.
+template <typename Wrapper>
+void verify_blocking_send_retries_after_transient_write_rejection(std::string_view name) {
+  SCOPED_TRACE(std::string(name));
+  auto channel = std::make_shared<ContractChannel>();
+  channel->fail_next_writes(1);
+
+  Wrapper wrapper(channel);
+  ASSERT_TRUE(wrapper.start().get());
+
+  EXPECT_TRUE(wrapper.send("blocked"))
+      << "blocking send gave up after a single transient write rejection instead of retrying";
+  EXPECT_GE(channel->write_copy_count(), 2) << "expected at least one retry after the first write was rejected";
+}
+
 }  // namespace
 
 TEST(WrapperSendContractTest, BlockingSendRecoversWithoutBackpressureNotification) {
@@ -266,4 +313,11 @@ TEST(WrapperSendContractTest, ReliableSendVariantsDoNotUseTryWritePath) {
   verify_reliable_send_uses_strategy_aware_write<unilink::wrapper::UdpClient>("UdpClient");
   verify_reliable_send_uses_strategy_aware_write<unilink::wrapper::UdsClient>("UdsClient");
   verify_reliable_send_uses_strategy_aware_write<unilink::wrapper::Serial>("Serial");
+}
+
+TEST(WrapperSendContractTest, BlockingSendRetriesAfterTransientWriteRejection) {
+  verify_blocking_send_retries_after_transient_write_rejection<unilink::wrapper::TcpClient>("TcpClient");
+  verify_blocking_send_retries_after_transient_write_rejection<unilink::wrapper::UdpClient>("UdpClient");
+  verify_blocking_send_retries_after_transient_write_rejection<unilink::wrapper::UdsClient>("UdsClient");
+  verify_blocking_send_retries_after_transient_write_rejection<unilink::wrapper::Serial>("Serial");
 }
