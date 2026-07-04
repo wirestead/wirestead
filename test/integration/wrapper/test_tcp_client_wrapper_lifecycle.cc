@@ -23,6 +23,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -426,6 +427,34 @@ TEST(TcpClientWrapperContractTest, StopSuppressesLateCallbacks) {
   fake_channel->emit_state(base::LinkState::Closed);
 
   EXPECT_EQ(callbacks.load(), 0);
+}
+
+// #449: a blocking Reliable-mode send() called from inside an on_data
+// callback while backpressure is active must fail fast (return false)
+// instead of deadlocking - clearing backpressure requires progress on the
+// same io thread that a blocking wait would now be stuck on. FakeChannel
+// dispatches on_bytes synchronously on the calling (test) thread, exactly
+// matching how a real transport's io thread would invoke it.
+TEST(TcpClientWrapperContractTest, BlockingSendFromDataCallbackFailsFastInsteadOfDeadlocking) {
+  auto fake_channel = std::make_shared<wrapper_support::FakeChannel>();
+  wrapper::TcpClient client(fake_channel);
+  client.backpressure_strategy(base::constants::BackpressureStrategy::Reliable);
+
+  auto started = client.start();
+  fake_channel->emit_state(base::LinkState::Connected);
+  ASSERT_TRUE(started.get());
+  fake_channel->set_backpressure_active(true);
+
+  std::optional<bool> send_result_from_callback;
+  client.on_data([&](const wrapper::MessageContext&) { send_result_from_callback = client.send("reply"); });
+
+  auto start_time = std::chrono::steady_clock::now();
+  fake_channel->emit_bytes("payload");
+  auto elapsed = std::chrono::steady_clock::now() - start_time;
+
+  ASSERT_TRUE(send_result_from_callback.has_value()) << "on_data callback never ran";
+  EXPECT_FALSE(*send_result_from_callback) << "blocking send() from within a data callback must fail fast, not send";
+  EXPECT_LT(elapsed, std::chrono::seconds(1)) << "emit_bytes should return promptly, not block on backpressure";
 }
 
 TEST(TcpClientWrapperContractTest, BestEffortDisconnectedSendReturnsFalse) {

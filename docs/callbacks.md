@@ -27,3 +27,29 @@ client->on_data([](const unilink::MessageContext& ctx) {
 ```
 
 For binary payloads, use `data_as_vector()` before the callback returns.
+
+## Do not call a blocking send from within a callback
+
+`on_data`/`on_message` (and every other) callback runs on the channel's own
+io thread. `send()`/`send_blocking()`/`send_move()`/`send_shared()` in the
+default Reliable backpressure strategy block the calling thread until
+backpressure clears - but clearing backpressure requires that same io
+thread to keep making progress. Calling a blocking send from within a
+callback while backpressure is active would deadlock the entire channel,
+since the thread that would clear it is the one now waiting.
+
+To prevent this, a blocking send called from inside a callback while
+backpressure is active returns `false` immediately instead of blocking:
+
+```cpp
+client->on_data([&](const unilink::MessageContext& ctx) {
+    // If backpressure happens to be active when this fires, send() returns
+    // false right away rather than deadlocking - it does not block here.
+    client->send("reply");
+});
+```
+
+Always use the non-blocking `try_send()`/`try_send_move()`/`try_send_shared()`
+API from within a callback - check the return value and handle a `false`
+result (e.g. drop, retry later, or switch to `BackpressureStrategy::BestEffort`)
+rather than relying on a blocking send inside callback context.

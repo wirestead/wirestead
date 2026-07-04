@@ -14,6 +14,7 @@
 #include "unilink/framer/line_framer.hpp"
 #include "unilink/framer/packet_framer.hpp"
 #include "unilink/transport/uds/uds_server.hpp"
+#include "unilink/wrapper/callback_guard.hpp"
 #include "unilink/wrapper/error_context_builder.hpp"
 
 namespace unilink {
@@ -151,6 +152,13 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
   // process of registering to wait when the notify fires. Poll with a bounded timeout instead
   // of an unbounded wait() so a missed notify only costs a short delay rather than a
   // permanent hang (see #427, #431).
+  //
+  // Returns false without sending instead of waiting if called from the
+  // channel's own io thread while backpressure is active for this client -
+  // e.g. a blocking send_to() called from inside an on_data/on_message
+  // callback. Clearing backpressure requires that same io thread to make
+  // progress, so blocking here would deadlock forever rather than
+  // eventually clear (#449).
   bool send_to_blocking(ClientId client_id, std::string_view data) {
     std::unique_lock<std::mutex> lock(bp_mutex_);
     auto predicate = [this, client_id]() {
@@ -158,6 +166,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
       auto ts = std::dynamic_pointer_cast<transport::UdsServer>(server_);
       return !started_.load() || !ts || !ts->is_backpressure_active(client_id);
     };
+    if (!predicate() && detail::in_data_callback()) return false;
     while (!bp_cv_.wait_for(lock, std::chrono::milliseconds(50), predicate)) {
     }
     std::shared_lock<std::shared_mutex> rlock(mutex_);
@@ -308,6 +317,11 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
         if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
+
+        // #449: everything below runs synchronously on this io thread -
+        // mark it so a blocking send_to() called from within one of these
+        // callbacks fails fast instead of deadlocking.
+        detail::CallbackGuard callback_guard;
 
         // #441: snapshot the handler/framer pointers under a shared_lock
         // (not unique_lock) - this is a pure read, matching try_send's

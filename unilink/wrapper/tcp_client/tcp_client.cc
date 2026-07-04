@@ -34,6 +34,7 @@
 #include "unilink/diagnostics/error_mapping.hpp"
 #include "unilink/factory/channel_factory.hpp"
 #include "unilink/transport/tcp_client/tcp_client.hpp"
+#include "unilink/wrapper/callback_guard.hpp"
 #include "unilink/wrapper/error_context_builder.hpp"
 
 namespace unilink {
@@ -313,19 +314,28 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   // registering to wait when the notify fires - in the rare case that race is lost, an
   // unbounded wait() would block forever. Poll with a bounded timeout instead so a missed
   // notify only costs a short delay rather than a permanent hang (see #427, #431).
-  void wait_for_backpressure_clear(std::unique_lock<std::mutex>& bp_lock) {
+  //
+  // Returns false instead of waiting if called from the channel's own io
+  // thread while backpressure is active - e.g. a blocking send() called
+  // from inside an on_data/on_message callback. Clearing backpressure
+  // requires that same io thread to make progress, so blocking here would
+  // deadlock forever rather than eventually clear (#449).
+  bool wait_for_backpressure_clear(std::unique_lock<std::mutex>& bp_lock) {
     auto predicate = [this] {
       std::shared_lock<std::shared_mutex> lock(mutex_);
       return !started_.load() || !channel_ || !channel_->is_backpressure_active();
     };
+    if (predicate()) return true;
+    if (detail::in_data_callback()) return false;
     while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), predicate)) {
     }
+    return true;
   }
 
   bool send_move(std::vector<uint8_t>&& data) {
     if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) {
       std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      wait_for_backpressure_clear(bp_lock);
+      if (!wait_for_backpressure_clear(bp_lock)) return false;
       std::shared_lock<std::shared_mutex> lock(mutex_);
       if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
       return channel_->async_write_move(std::move(data));
@@ -337,7 +347,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     if (!data || data->empty()) return false;
     if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) {
       std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      wait_for_backpressure_clear(bp_lock);
+      if (!wait_for_backpressure_clear(bp_lock)) return false;
       std::shared_lock<std::shared_mutex> lock(mutex_);
       if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
       return channel_->async_write_shared(std::move(data));
@@ -354,7 +364,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   bool send_blocking(std::string_view data) {
     std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-    wait_for_backpressure_clear(bp_lock);
+    if (!wait_for_backpressure_clear(bp_lock)) return false;
     std::shared_lock<std::shared_mutex> lock(mutex_);
     if (!started_.load() || !channel_) return false;
     auto binary_view = base::safe_convert::string_to_bytes(data);
@@ -394,6 +404,14 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
+
+      // #449: everything below (data_handler_/data_batch_handler_, and
+      // transitively message_handler_/message_batch_handler_ via
+      // framer_to_push->push_bytes() below) runs synchronously on this io
+      // thread. Mark it so a blocking send() called from within one of
+      // these callbacks fails fast instead of deadlocking waiting for this
+      // same thread to clear backpressure.
+      detail::CallbackGuard callback_guard;
 
       // #441: snapshot the handler/framer pointers under a shared_lock (not
       // unique_lock) - this is a pure read, matching try_send's locking
