@@ -341,19 +341,9 @@ class PerformanceTest : public BaseTest {
  */
 class MemoryTest : public BaseTest {
  protected:
-  void SetUp() override {
-    BaseTest::SetUp();
-    // Reset memory pool for clean testing
-    auto& pool = unilink::memory::GlobalMemoryPool::instance();
-    pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-  }
+  void SetUp() override { BaseTest::SetUp(); }
 
-  void TearDown() override {
-    // Clean up memory pool
-    auto& pool = unilink::memory::GlobalMemoryPool::instance();
-    pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-    BaseTest::TearDown();
-  }
+  void TearDown() override { BaseTest::TearDown(); }
 };
 
 /**

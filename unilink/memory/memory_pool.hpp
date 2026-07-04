@@ -18,7 +18,6 @@
 
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -75,10 +74,11 @@ class UNILINK_API MemoryPool {
   void release(std::unique_ptr<uint8_t[]> buffer, size_t size);
   PoolStats stats() const;
   double hit_rate() const;
-  void cleanup_old_buffers(std::chrono::milliseconds max_age = std::chrono::minutes(5));
+  // Returns (bytes currently checked out, peak bytes ever checked out
+  // concurrently). Unlike a monotonically-increasing allocation counter,
+  // both reflect actual acquire()/release() traffic - the first value goes
+  // down as buffers are released (#451).
   std::pair<size_t, size_t> memory_usage() const;
-  void resize_pool(size_t new_size);
-  void auto_tune();
   HealthMetrics health_metrics() const;
 
  private:
@@ -101,10 +101,17 @@ class UNILINK_API MemoryPool {
   // Internal statistics (atomic for thread safety)
   std::atomic<size_t> total_allocations_{0};
   std::atomic<size_t> pool_hits_{0};
+  // #451: real, fluctuating usage tracking for memory_usage() - incremented
+  // in acquire(), decremented in release(), unlike total_allocations_ above
+  // which only ever grows.
+  std::atomic<size_t> outstanding_bytes_{0};
+  std::atomic<size_t> peak_bytes_{0};
 
   // Helper functions
   PoolBucket& bucket(size_t size);
   size_t bucket_index(size_t size) const;
+  void track_acquire(size_t size);
+  void track_release(size_t size);
 
   // Allocation functions
   std::unique_ptr<uint8_t[]> acquire_from_bucket(PoolBucket& bucket);

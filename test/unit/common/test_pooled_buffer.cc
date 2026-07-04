@@ -24,14 +24,7 @@
 
 using namespace unilink::memory;
 
-class PooledBufferTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    // Ensure clean state
-    auto& pool = GlobalMemoryPool::instance();
-    pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-  }
-};
+class PooledBufferTest : public ::testing::Test {};
 
 TEST_F(PooledBufferTest, ConstructionAndValidity) {
   PooledBuffer buffer(1024);
