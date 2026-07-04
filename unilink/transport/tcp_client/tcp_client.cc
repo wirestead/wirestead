@@ -198,6 +198,11 @@ TcpClient::TcpClient(const TcpClientConfig& cfg, boost::asio::io_context& ioc)
     : impl_(std::make_unique<Impl>(cfg, &ioc)) {}
 
 TcpClient::~TcpClient() {
+  // #446: null after being moved-from - the move ctor/assignment are
+  // defaulted, and destroying a moved-from instance must not dereference
+  // a null impl_ (matches TcpServer/Serial/UdpChannel/UdsServer's
+  // destructors, which already guard this way).
+  if (!impl_) return;
   stop();
   impl_->join_ioc_thread(true);
 

@@ -441,3 +441,23 @@ TEST_F(TransportUdsClientTest, BackpressureCallbackExceptionsAreSwallowed) {
 
   local_client->stop();
 }
+
+// #446: UdsClient's move ctor/assignment are defaulted (and public, unlike
+// its private regular constructors), so a moved-from instance has a null
+// impl_. Destroying it must not dereference that null pointer (matches
+// TcpServer/Serial/UdpChannel/UdsServer, whose destructors already
+// null-guard). Reachable via the public API by move-constructing from a
+// dereferenced create()'d shared_ptr, which leaves the original
+// (still-shared_ptr-owned) object moved-from; its destructor runs whenever
+// the shared_ptr's refcount reaches zero.
+TEST(TransportUdsClientMoveTest, DestroyingAMovedFromInstanceDoesNotCrash) {
+  config::UdsClientConfig cfg;
+  cfg.socket_path = TestUtils::makeUniqueUdsSocketPath("ulc_move").string();
+  TestUtils::removeFileIfExists(cfg.socket_path);
+
+  auto client_ptr = UdsClient::create(cfg);
+  UdsClient moved_to(std::move(*client_ptr));
+  client_ptr.reset();  // destroys the now moved-from original - the assertion
+
+  TestUtils::removeFileIfExists(cfg.socket_path);
+}
