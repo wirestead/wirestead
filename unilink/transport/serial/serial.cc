@@ -154,6 +154,9 @@ struct Serial::Impl {
 
     if (decision == queue_util::EnqueueDecision::Rejected) {
       UNILINK_LOG_ERROR("serial", "write", "Queue limit exceeded, dropping message");
+      // #448: record as dropped so it's reflected in RuntimeStats instead of
+      // silently vanishing after being counted as accepted.
+      stats_.record_dropped(1, added);
       if (reliable_pending_active) {
         return;
       }

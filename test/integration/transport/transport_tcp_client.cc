@@ -195,13 +195,22 @@ TEST_F(TransportTcpClientTest, QueueLimitDropsMessage) {
   std::atomic<bool> backpressure_seen{false};
   client_->on_backpressure([&](size_t) { backpressure_seen = true; });
 
-  // 1MB exceeds bp_limit (512KB): message dropped, backpressure fires, connection stays alive
-  std::vector<uint8_t> huge(1024 * 1024, 0xEF);
+  // bp_limit_ = max(backpressure_threshold * 4, DEFAULT_BACKPRESSURE_THRESHOLD) = 1MB here
+  // (backpressure_threshold=1024 * 4 = 4KB is below the 1MB default floor).
+  // A 2MB write exceeds it outright: message dropped, backpressure fires,
+  // connection stays alive.
+  std::vector<uint8_t> huge(2 * 1024 * 1024, 0xEF);
   client_->async_write_copy(memory::ConstByteSpan(huge.data(), huge.size()));
 
   ioc.run_for(std::chrono::milliseconds(50));
 
   EXPECT_TRUE(backpressure_seen.load());
+  // #448: this rejection path used to leave RuntimeStats showing the
+  // message as accepted with no corresponding dropped/sent/queued
+  // accounting - confirm it now shows up as a recorded drop.
+  auto stats = client_->stats();
+  EXPECT_GE(stats.dropped_messages, 1u);
+  EXPECT_GE(stats.dropped_bytes, huge.size());
 
   client_->stop();
   client_.reset();

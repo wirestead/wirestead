@@ -747,6 +747,9 @@ void UdsClient::Impl::route_enqueued_buffer(std::shared_ptr<UdsClient> self, Buf
 
   if (decision == queue_util::EnqueueDecision::Rejected) {
     UNILINK_LOG_ERROR("uds_client", "write", fmt::format("Queue limit exceeded ({} bytes)", queue_bytes_ + added));
+    // #448: record as dropped so it's reflected in RuntimeStats instead of
+    // silently vanishing after being counted as accepted.
+    stats_.record_dropped(1, added);
     report_backpressure(self, queue_bytes_ + added);
     return;
   }
