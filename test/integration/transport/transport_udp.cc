@@ -259,6 +259,76 @@ TEST_F(TransportUdpTest, RemoteStaysFirstPeer) {
   channel->stop();
 }
 
+// #435: RemoteStaysFirstPeer above only checks that the channel keeps
+// *sending* to the first peer - it doesn't check whether a later, different
+// sender's data still gets *delivered* through on_bytes(). Confirms it
+// doesn't: once locked to peer1, peer2's datagrams are silently discarded
+// rather than treated as legitimate data (the actual spoofing/hijack risk).
+TEST_F(TransportUdpTest, DatagramsFromNonRemotePeerAreDiscardedNotDelivered) {
+  uint16_t port = TestUtils::getAvailableTestPort();
+  config::UdpConfig cfg;
+  cfg.local_port = port;
+
+  auto channel = UdpChannel::create(cfg);
+
+  std::vector<std::string> received;
+  std::mutex received_mutex;
+  channel->on_bytes([&](memory::ConstByteSpan data) {
+    std::lock_guard<std::mutex> lock(received_mutex);
+    received.emplace_back(reinterpret_cast<const char*>(data.data()), data.size());
+  });
+
+  std::atomic<bool> ready{false};
+  channel->on_state([&](base::LinkState s) {
+    if (s == base::LinkState::Listening) ready = true;
+  });
+
+  channel->start();
+  EXPECT_TRUE(TestUtils::waitForCondition([&] { return ready.load(); }, 1000));
+
+  net::io_context ioc;
+  udp::socket peer1(ioc, udp::endpoint(udp::v4(), 0));
+  udp::socket peer2(ioc, udp::endpoint(udp::v4(), 0));
+
+  const std::string legit1 = "legit-1";
+  const std::string spoofed = "spoofed";
+  const std::string legit2 = "legit-2";
+
+  peer1.send_to(net::buffer(legit1), udp::endpoint(net::ip::make_address("127.0.0.1"), port));
+  EXPECT_TRUE(TestUtils::waitForCondition(
+      [&] {
+        std::lock_guard<std::mutex> lock(received_mutex);
+        return !received.empty();
+      },
+      2000));
+
+  // peer2 (not the locked-in remote) tries to inject data - must not appear
+  // in on_bytes deliveries.
+  peer2.send_to(net::buffer(spoofed), udp::endpoint(net::ip::make_address("127.0.0.1"), port));
+  TestUtils::waitFor(200);
+
+  // A second legitimate datagram from peer1 must still be delivered
+  // normally, proving the filter isn't overly broad.
+  peer1.send_to(net::buffer(legit2), udp::endpoint(net::ip::make_address("127.0.0.1"), port));
+  EXPECT_TRUE(TestUtils::waitForCondition(
+      [&] {
+        std::lock_guard<std::mutex> lock(received_mutex);
+        return received.size() >= 2;
+      },
+      2000));
+
+  {
+    std::lock_guard<std::mutex> lock(received_mutex);
+    for (const auto& msg : received) {
+      EXPECT_NE(msg, spoofed) << "Datagram from a non-remote sender was delivered to on_bytes";
+    }
+    EXPECT_EQ(received[0], legit1);
+    EXPECT_EQ(received.back(), legit2);
+  }
+
+  channel->stop();
+}
+
 TEST_F(TransportUdpTest, QueueLimitMovesToError) {
   net::io_context ioc;  // Use external IO context to control execution
   config::UdpConfig cfg;
