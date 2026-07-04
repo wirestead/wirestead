@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 
 project(
   unilink
-  VERSION 0.8.7
+  VERSION 0.8.8
   DESCRIPTION
     "Unified, cross-platform async C++ library for Serial, TCP, UDP, and UDS"
   HOMEPAGE_URL "https://github.com/jwsung91/unilink"
