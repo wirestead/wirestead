@@ -192,13 +192,14 @@ if(UNILINK_ENABLE_INSTALL)
 
   if(UNILINK_ENABLE_PKGCONFIG)
     set(PKGCONFIG_REQUIRES "")
-    set(PKGCONFIG_REQUIRES_PRIVATE "")
-    # Derived from UNILINK_PKGCONFIG_LIBS_PRIVATE (built up in
-    # UnilinkDependencies.cmake alongside the real
+    # Derived from
+    # UNILINK_PKGCONFIG_LIBS_PRIVATE/UNILINK_PKGCONFIG_REQUIRES_PRIVATE (built
+    # up in UnilinkDependencies.cmake alongside the real
     # target_link_libraries(unilink_dependencies ...) calls) instead of a
     # separately hardcoded list, so this can no longer silently drift out of
     # sync with what unilink_static actually links against.
     list(JOIN UNILINK_PKGCONFIG_LIBS_PRIVATE " " PKGCONFIG_LIBS_PRIVATE)
+    list(JOIN UNILINK_PKGCONFIG_REQUIRES_PRIVATE " " PKGCONFIG_REQUIRES_PRIVATE)
     set(PKGCONFIG_CFLAGS "")
 
     configure_file(
