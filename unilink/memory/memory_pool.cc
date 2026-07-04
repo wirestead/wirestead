@@ -63,11 +63,14 @@ std::unique_ptr<uint8_t[]> MemoryPool::acquire(size_t size) {
     auto buffer = create_buffer(size);
     // create_buffer throws on failure, so if we are here, we succeeded.
     total_allocations_.fetch_add(1, std::memory_order_relaxed);
+    track_acquire(size);
     return buffer;
   }
 
   auto& bkt = bucket(size);
-  return acquire_from_bucket(bkt);
+  auto buffer = acquire_from_bucket(bkt);
+  if (buffer) track_acquire(bkt.size_);
+  return buffer;
 }
 
 std::unique_ptr<uint8_t[]> MemoryPool::acquire(BufferSize buffer_size) {
@@ -81,10 +84,12 @@ void MemoryPool::release(std::unique_ptr<uint8_t[]> buffer, size_t size) {
 
   if (size > static_cast<size_t>(BufferSize::XLARGE)) {
     MEMORY_TRACK_DEALLOCATION(buffer.get());
+    track_release(size);
     return;  // unique_ptr destructor handles cleanup
   }
 
   auto& bkt = bucket(size);
+  track_release(bkt.size_);
   release_to_bucket(bkt, std::move(buffer));
 }
 
@@ -103,26 +108,20 @@ double MemoryPool::hit_rate() const {
   return static_cast<double>(hits) / static_cast<double>(total);
 }
 
-void MemoryPool::cleanup_old_buffers(std::chrono::milliseconds max_age) {
-  // Simplified: cleanup functionality disabled
-  (void)max_age;  // prevent unused parameter warning
-}
-
 std::pair<size_t, size_t> MemoryPool::memory_usage() const {
-  // Simplified: return basic memory usage
-  size_t total_allocs = total_allocations_.load(std::memory_order_relaxed);
-  size_t current_usage = total_allocs * 4096;  // estimate average buffer size
-  return std::make_pair(current_usage, current_usage);
+  return std::make_pair(outstanding_bytes_.load(std::memory_order_relaxed),
+                        peak_bytes_.load(std::memory_order_relaxed));
 }
 
-void MemoryPool::resize_pool(size_t new_size) {
-  // Simplified: resize functionality disabled
-  (void)new_size;  // prevent unused parameter warning
+void MemoryPool::track_acquire(size_t size) {
+  size_t new_outstanding = outstanding_bytes_.fetch_add(size, std::memory_order_relaxed) + size;
+  size_t prev_peak = peak_bytes_.load(std::memory_order_relaxed);
+  while (new_outstanding > prev_peak &&
+         !peak_bytes_.compare_exchange_weak(prev_peak, new_outstanding, std::memory_order_relaxed)) {
+  }
 }
 
-void MemoryPool::auto_tune() {
-  // Simplified: auto_tune functionality disabled
-}
+void MemoryPool::track_release(size_t size) { outstanding_bytes_.fetch_sub(size, std::memory_order_relaxed); }
 
 MemoryPool::HealthMetrics MemoryPool::health_metrics() const {
   HealthMetrics metrics;

@@ -39,17 +39,9 @@ using namespace std::chrono_literals;
 
 class StressTest : public BaseTest {
  protected:
-  void SetUp() override {
-    BaseTest::SetUp();
-    auto& pool = memory::GlobalMemoryPool::instance();
-    pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-  }
+  void SetUp() override { BaseTest::SetUp(); }
 
-  void TearDown() override {
-    auto& pool = memory::GlobalMemoryPool::instance();
-    pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-    BaseTest::TearDown();
-  }
+  void TearDown() override { BaseTest::TearDown(); }
 };
 
 TEST_F(StressTest, RealNetworkHighThroughput) {

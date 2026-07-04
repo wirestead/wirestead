@@ -55,19 +55,9 @@ namespace test {
  */
 class BoundaryTest : public BaseTest {
  protected:
-  void SetUp() override {
-    BaseTest::SetUp();
-    // Reset memory pool for clean testing
-    auto& pool = memory::GlobalMemoryPool::instance();
-    pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-  }
+  void SetUp() override { BaseTest::SetUp(); }
 
-  void TearDown() override {
-    // Clean up memory pool
-    auto& pool = memory::GlobalMemoryPool::instance();
-    pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-    BaseTest::TearDown();
-  }
+  void TearDown() override { BaseTest::TearDown(); }
 };
 
 // ============================================================================

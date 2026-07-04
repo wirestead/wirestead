@@ -89,19 +89,41 @@ TEST(MemoryPoolEdgeCaseTest, StatsAndMetrics) {
   EXPECT_EQ(health.hit_rate, 0.0);
 }
 
-TEST(MemoryPoolEdgeCaseTest, MaintenanceNoopsAndNullReleaseAreSafe) {
+TEST(MemoryPoolEdgeCaseTest, NullReleaseIsSafe) {
   MemoryPool pool;
 
   std::unique_ptr<uint8_t[]> empty;
   EXPECT_NO_THROW(pool.release(std::move(empty), static_cast<size_t>(MemoryPool::BufferSize::SMALL)));
-  EXPECT_NO_THROW(pool.cleanup_old_buffers(std::chrono::milliseconds(1)));
-  EXPECT_NO_THROW(pool.resize_pool(128));
-  EXPECT_NO_THROW(pool.auto_tune());
 
   auto before = pool.memory_usage();
   auto health = pool.health_metrics();
-  EXPECT_EQ(before.first, before.second);
+  EXPECT_EQ(before.first, before.second);  // nothing acquired yet - both 0
   EXPECT_EQ(health.hit_rate, pool.hit_rate());
+}
+
+// #451: memory_usage() must reflect actual current usage - going down when
+// buffers are released - not a monotonically-increasing allocation count.
+// The peak (second) value must stay at the high-water mark rather than
+// following the current value back down.
+TEST(MemoryPoolEdgeCaseTest, MemoryUsageReflectsReleases) {
+  MemoryPool pool;
+  constexpr size_t kSize = static_cast<size_t>(MemoryPool::BufferSize::SMALL);
+
+  auto buf1 = pool.acquire(kSize);
+  auto buf2 = pool.acquire(kSize);
+  auto usage_after_two = pool.memory_usage();
+  EXPECT_EQ(usage_after_two.first, 2 * kSize);
+  EXPECT_EQ(usage_after_two.second, 2 * kSize);
+
+  pool.release(std::move(buf1), kSize);
+  auto usage_after_release = pool.memory_usage();
+  EXPECT_EQ(usage_after_release.first, kSize) << "current usage must decrease after release()";
+  EXPECT_EQ(usage_after_release.second, 2 * kSize) << "peak must remain at the prior high-water mark";
+
+  pool.release(std::move(buf2), kSize);
+  auto usage_after_both_released = pool.memory_usage();
+  EXPECT_EQ(usage_after_both_released.first, 0u);
+  EXPECT_EQ(usage_after_both_released.second, 2 * kSize);
 }
 
 TEST(MemoryPoolEdgeCaseTest, StandardBucketsReuseAcrossSizes) {

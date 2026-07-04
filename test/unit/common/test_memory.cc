@@ -50,19 +50,11 @@ class MemoryIntegratedTest : public ::testing::Test {
     // Initialize test state
     test_port_ = TestUtils::getAvailableTestPort();
 
-    // Reset memory pool for clean testing
-    auto& pool = GlobalMemoryPool::instance();
-    pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-
     // Initialize memory tracking
     initial_memory_usage_ = get_memory_usage();
   }
 
   void TearDown() override {
-    // Clean up memory pool
-    auto& pool = GlobalMemoryPool::instance();
-    pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-
     // Clean up any test state
     TestUtils::waitFor(100);
 
@@ -243,15 +235,7 @@ TEST_F(MemoryIntegratedTest, BasicMemoryLeakDetection) {
     for (auto& buffer : buffers) {
       pool.release(std::move(buffer), buffer_size);
     }
-
-    // Periodic cleanup
-    if (cycle % 10 == 0) {
-      pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-    }
   }
-
-  // Force cleanup
-  pool.cleanup_old_buffers(std::chrono::milliseconds(0));
 
   // Get final stats
   auto final_stats = pool.stats();
@@ -302,15 +286,7 @@ TEST_F(MemoryIntegratedTest, LargeAllocationMemoryLeakDetection) {
     for (auto& buffer : buffers) {
       pool.release(std::move(buffer), buffer_size);
     }
-
-    // Periodic cleanup
-    if (cycle % 5 == 0) {
-      pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-    }
   }
-
-  // Force cleanup
-  pool.cleanup_old_buffers(std::chrono::milliseconds(0));
 
   // Get final stats
   auto final_stats = pool.stats();
@@ -365,9 +341,6 @@ TEST_F(MemoryIntegratedTest, ConcurrentMemoryLeakDetection) {
   for (auto& thread : threads) {
     thread.join();
   }
-
-  // Force cleanup
-  pool.cleanup_old_buffers(std::chrono::milliseconds(0));
 
   // Get final stats
   auto final_stats = pool.stats();
@@ -443,17 +416,9 @@ TEST_F(MemoryIntegratedTest, StressMemoryLeakDetection) {
       buffer_sizes.clear();
     }
 
-    // Periodic cleanup
-    if (cycle % 5 == 0) {
-      pool.cleanup_old_buffers(std::chrono::milliseconds(0));
-    }
-
     // Small delay to prevent overwhelming the system
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
-
-  // Force cleanup
-  pool.cleanup_old_buffers(std::chrono::milliseconds(0));
 
   // Get final stats
   auto final_stats = pool.stats();
@@ -512,9 +477,6 @@ TEST_F(MemoryIntegratedTest, MemoryUsageMonitoring) {
       std::cout << "Cycle " << cycle << " memory usage: " << current_memory << " bytes" << std::endl;
     }
   }
-
-  // Force cleanup
-  pool.cleanup_old_buffers(std::chrono::milliseconds(0));
 
   // Get final memory usage
   size_t final_memory = get_memory_usage();
