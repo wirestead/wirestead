@@ -46,6 +46,16 @@ using tcp = net::ip::tcp;
 
 struct TcpServer::Impl {
   std::atomic<bool> stopping_{false};
+  // #503: stop() can call perform_cleanup() from two different paths - the
+  // dispatched-onto-the-io_context call, and (if that doesn't complete
+  // within the timeout below) a direct fallback call on the stopping
+  // thread. Under slow/instrumented builds (TSAN) the dispatched call can
+  // still be mid-flight when the timeout fires, so both could run
+  // perform_cleanup()'s body concurrently - including acceptor_->close(),
+  // racing with the io_context thread's own concurrent async_accept.
+  // Guards perform_cleanup() to run its body at most once per stop cycle,
+  // reset back to false in start() alongside stopping_.
+  std::atomic<bool> cleanup_started_{false};
   std::atomic<ClientId> next_client_id_{0};
 
   std::unique_ptr<net::io_context> owned_ioc_;
@@ -395,6 +405,7 @@ struct TcpServer::Impl {
   }
 
   void perform_cleanup() {
+    if (cleanup_started_.exchange(true)) return;
     try {
       boost::system::error_code ec;
       if (acceptor_ && acceptor_->is_open()) {
@@ -445,9 +456,22 @@ struct TcpServer::Impl {
       return;
     }
 
-    bool has_active_ioc = owns_ioc_ || (uses_shared_context_ && concurrency::IoContextManager::instance().is_running());
-
-    if (has_active_ioc && self) {
+    // #503: previously gated on has_active_ioc (owns_ioc_ || a running
+    // shared IoContextManager) before deciding to dispatch perform_cleanup()
+    // onto ioc_ vs. calling it directly - but a "managed external context"
+    // (owns_ioc_ == false, since some other owner constructed the
+    // io_context, yet that owner's own thread may still be actively
+    // running it, e.g. the wrapper layer's own io_context+thread) fell
+    // through to the direct-call branch, racing acceptor_->close() against
+    // that thread's concurrent async_accept(). Whenever we have a valid
+    // self to dispatch through, always prefer dispatching onto ioc_ (with
+    // the same timeout-based direct-call fallback for the case where
+    // nothing is actually pumping it) - a stale, unserviced io_context only
+    // costs one extra harmless wait before falling back to the exact same
+    // direct call as before; self is only null when called from the
+    // destructor, where shared_from_this() isn't available and a direct
+    // call is the only option.
+    if (self) {
       auto cleanup_promise = std::make_shared<std::promise<void>>();
       auto cleanup_future = cleanup_promise->get_future();
 
@@ -517,6 +541,7 @@ void TcpServer::start() {
     return;
   }
   impl->stopping_.store(false);
+  impl->cleanup_started_.store(false);
 
   if (impl->uses_shared_context_) {
     auto& manager = concurrency::IoContextManager::instance();
