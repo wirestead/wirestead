@@ -49,7 +49,7 @@ namespace transport {
 namespace net = boost::asio;
 using udp = net::ip::udp;
 using base::LinkState;
-using concurrency::ThreadSafeLinkState;
+using concurrency::AtomicLinkState;
 
 struct UdpChannel::Impl {
   std::unique_ptr<net::io_context> owned_ioc_;
@@ -98,7 +98,7 @@ struct UdpChannel::Impl {
   std::atomic<bool> opened_{false};
   std::atomic<bool> connected_{false};
   bool started_{false};
-  ThreadSafeLinkState state_{LinkState::Idle};
+  AtomicLinkState state_{LinkState::Idle};
   std::atomic<bool> terminal_state_notified_{false};
 
   // Guards on_bytes_/on_bytes_from_/on_state_/on_bp_. Setters (called from
@@ -488,7 +488,7 @@ struct UdpChannel::Impl {
     }
     if (!on_state) return;
     try {
-      on_state(state_.state());
+      on_state(state_.get());
     } catch (const std::exception& e) {
       UNILINK_LOG_ERROR("udp", "on_state", fmt::format("Exception in state callback: {}", e.what()));
     } catch (...) {
@@ -593,7 +593,7 @@ struct UdpChannel::Impl {
       return;
     }
 
-    const auto current = state_.state();
+    const auto current = state_.get();
     if ((current == LinkState::Closed || current == LinkState::Error) &&
         (target == LinkState::Closed || target == LinkState::Error)) {
       return;
@@ -612,7 +612,7 @@ struct UdpChannel::Impl {
       return;
     }
 
-    state_.set_state(target);
+    state_.set(target);
     notify_state();
   }
 
@@ -723,7 +723,7 @@ void UdpChannel::start() {
     impl->writing_ = false;
     impl->queue_bytes_ = 0;
     impl->backpressure_active_ = false;
-    impl->state_.set_state(LinkState::Idle);
+    impl->state_.set(LinkState::Idle);
 
     impl->transition_to(LinkState::Connecting);
     impl->open_socket(self);

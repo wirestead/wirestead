@@ -49,7 +49,7 @@ namespace transport {
 
 namespace net = boost::asio;
 using base::LinkState;
-using concurrency::ThreadSafeLinkState;
+using concurrency::AtomicLinkState;
 
 using BufferVariant =
     std::variant<memory::PooledBuffer, std::vector<uint8_t>, std::shared_ptr<const std::vector<uint8_t>>>;
@@ -105,7 +105,7 @@ struct Serial::Impl {
   OnBackpressure on_bp_;
 
   std::atomic<bool> opened_{false};
-  ThreadSafeLinkState state_{LinkState::Idle};
+  AtomicLinkState state_{LinkState::Idle};
 
   ErrorInfoHolder error_info_holder_{"serial"};
 
@@ -164,7 +164,7 @@ struct Serial::Impl {
       tx_.clear();
       queued_bytes_ = 0;
       writing_ = false;
-      state_.set_state(LinkState::Error);
+      state_.set(LinkState::Error);
       notify_state();
       handle_error(self, "write_queue_overflow", make_error_code(boost::system::errc::no_buffer_space));
       return;
@@ -297,7 +297,7 @@ struct Serial::Impl {
     start_read(self);
 
     opened_.store(true);
-    state_.set_state(LinkState::Connected);
+    state_.set(LinkState::Connected);
     notify_state();
     do_write(self);
   }
@@ -328,7 +328,7 @@ struct Serial::Impl {
                                                       false, 0);
                 impl->opened_.store(false);
                 impl->close_port();
-                impl->state_.set_state(LinkState::Error);
+                impl->state_.set(LinkState::Error);
                 impl->notify_state();
                 return;
               }
@@ -341,7 +341,7 @@ struct Serial::Impl {
                                                       "Unknown exception in callback", false, 0);
                 impl->opened_.store(false);
                 impl->close_port();
-                impl->state_.set_state(LinkState::Error);
+                impl->state_.set(LinkState::Error);
                 impl->notify_state();
                 return;
               }
@@ -420,7 +420,7 @@ struct Serial::Impl {
       writing_ = false;
       report_backpressure(queued_bytes_);
       opened_.store(false);
-      state_.set_state(LinkState::Closed);
+      state_.set(LinkState::Closed);
       notify_state();
     } catch (...) {
     }
@@ -453,13 +453,13 @@ struct Serial::Impl {
     if (cfg_.reopen_on_error) {
       opened_.store(false);
       close_port();
-      state_.set_state(LinkState::Connecting);
+      state_.set(LinkState::Connecting);
       notify_state();
       if (self) schedule_retry(self, where, ec);
     } else {
       opened_.store(false);
       close_port();
-      state_.set_state(LinkState::Error);
+      state_.set(LinkState::Error);
       notify_state();
     }
   }
@@ -490,7 +490,7 @@ struct Serial::Impl {
     }
     if (!on_state) return;
     try {
-      on_state(state_.state());
+      on_state(state_.get());
     } catch (...) {
     }
   }
@@ -587,7 +587,7 @@ void Serial::start() {
   net::post(impl->strand_, [self] {
     auto impl = self->get_impl();
     if (!impl->stopping_.load()) {
-      impl->state_.set_state(LinkState::Connecting);
+      impl->state_.set(LinkState::Connecting);
       impl->notify_state();
       impl->open_and_configure(self);
     }
@@ -598,7 +598,7 @@ void Serial::start() {
 void Serial::stop() {
   auto impl = get_impl();
   if (!impl->started_) {
-    impl->state_.set_state(LinkState::Closed);
+    impl->state_.set(LinkState::Closed);
     return;
   }
 

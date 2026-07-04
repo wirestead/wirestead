@@ -58,7 +58,7 @@ struct UdsServer::Impl {
   std::unique_ptr<interface::UdsAcceptorInterface> acceptor_;
   config::UdsServerConfig cfg_;
 
-  concurrency::ThreadSafeLinkState state_{base::LinkState::Idle};
+  concurrency::AtomicLinkState state_{base::LinkState::Idle};
   OnBytes on_bytes_;
   OnState on_state_;
   OnBackpressure on_bp_;
@@ -125,7 +125,7 @@ struct UdsServer::Impl {
 
       std::remove(cfg_.socket_path.c_str());
 
-      state_.set_state(base::LinkState::Idle);
+      state_.set(base::LinkState::Idle);
       notify_state();
     } catch (...) {
     }
@@ -211,7 +211,7 @@ UdsServer::UdsServer(const config::UdsServerConfig& cfg, std::unique_ptr<interfa
 }
 
 UdsServer::~UdsServer() {
-  if (impl_ && impl_->state_.state() != base::LinkState::Idle) {
+  if (impl_ && impl_->state_.get() != base::LinkState::Idle) {
     impl_->stop(nullptr);
   }
 }
@@ -220,7 +220,7 @@ UdsServer::UdsServer(UdsServer&&) noexcept = default;
 UdsServer& UdsServer::operator=(UdsServer&&) noexcept = default;
 
 void UdsServer::start() {
-  if (impl_->state_.state() == base::LinkState::Listening) return;
+  if (impl_->state_.get() == base::LinkState::Listening) return;
 
   impl_->stopping_ = false;
 
@@ -228,7 +228,7 @@ void UdsServer::start() {
     UNILINK_LOG_ERROR("uds_server", "start", "Invalid UDS server configuration or socket path");
     impl_->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONFIGURATION,
                                            "start", {}, "Invalid UDS server configuration or socket path", false, 0);
-    impl_->state_.set_state(base::LinkState::Error);
+    impl_->state_.set(base::LinkState::Error);
     impl_->notify_state();
     return;
   }
@@ -243,7 +243,7 @@ void UdsServer::start() {
     UNILINK_LOG_ERROR("uds_server", "start", msg);
     impl_->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::SYSTEM, "open",
                                            ec, msg, false, 0);
-    impl_->state_.set_state(base::LinkState::Error);
+    impl_->state_.set(base::LinkState::Error);
     impl_->notify_state();
     return;
   }
@@ -257,7 +257,7 @@ void UdsServer::start() {
     impl_->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONFIGURATION,
                                            "start", make_error_code(boost::system::errc::filename_too_long), msg, false,
                                            0);
-    impl_->state_.set_state(base::LinkState::Error);
+    impl_->state_.set(base::LinkState::Error);
     impl_->notify_state();
     return;
   }
@@ -268,7 +268,7 @@ void UdsServer::start() {
     UNILINK_LOG_ERROR("uds_server", "start", msg);
     impl_->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION,
                                            "bind", ec, msg, false, 0);
-    impl_->state_.set_state(base::LinkState::Error);
+    impl_->state_.set(base::LinkState::Error);
     impl_->notify_state();
     return;
   }
@@ -279,12 +279,12 @@ void UdsServer::start() {
     UNILINK_LOG_ERROR("uds_server", "start", msg);
     impl_->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION,
                                            "listen", ec, msg, false, 0);
-    impl_->state_.set_state(base::LinkState::Error);
+    impl_->state_.set(base::LinkState::Error);
     impl_->notify_state();
     return;
   }
 
-  impl_->state_.set_state(base::LinkState::Listening);
+  impl_->state_.set(base::LinkState::Listening);
   impl_->notify_state();
 
   if (impl_->owns_ioc_ && !impl_->ioc_thread_.joinable()) {
@@ -307,7 +307,7 @@ void UdsServer::start() {
 
 void UdsServer::stop() { impl_->stop(shared_from_this()); }
 
-bool UdsServer::is_connected() const { return impl_->state_.state() == base::LinkState::Listening; }
+bool UdsServer::is_connected() const { return impl_->state_.get() == base::LinkState::Listening; }
 bool UdsServer::is_backpressure_active() const { return false; }
 
 bool UdsServer::is_backpressure_active(ClientId client_id) const {
@@ -513,7 +513,7 @@ void UdsServer::on_multi_disconnect(MultiClientDisconnectHandler handler) {
   impl_->on_multi_disconnect_ = std::move(handler);
 }
 
-base::LinkState UdsServer::state() const { return impl_->state_.state(); }
+base::LinkState UdsServer::state() const { return impl_->state_.get(); }
 
 void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self) {
   acceptor_->async_accept([self](const boost::system::error_code& ec, uds::socket socket) {
@@ -598,7 +598,7 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self) {
         UNILINK_LOG_ERROR("uds_server", "accept", msg);
         impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION,
                                               "accept", ec, msg, true, 0);
-        impl->state_.set_state(base::LinkState::Error);
+        impl->state_.set(base::LinkState::Error);
         impl->notify_state();
       }
 
@@ -622,7 +622,7 @@ void UdsServer::Impl::notify_state() {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
     cb = on_state_;
   }
-  if (cb) cb(state_.state());
+  if (cb) cb(state_.get());
 }
 
 }  // namespace transport
