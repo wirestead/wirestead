@@ -288,6 +288,15 @@ struct UdpChannel::Impl {
       transition_to(LinkState::Connected);
     }
 
+    // #435: once a remote peer is configured or locked in (above), only
+    // deliver data from that exact sender through on_bytes() - the
+    // point-to-point API. Without this, any other host could send spoofed
+    // datagrams after the fact and have them treated as legitimate data.
+    // on_bytes_from() is intentionally NOT filtered here: it's the
+    // multi-sender API (used by the UdpServer wrapper), which tracks and
+    // trusts each sender as its own session by design.
+    const bool from_established_remote = remote_endpoint_ && recv_endpoint_ == *remote_endpoint_;
+
     if (bytes > 0) {
       stats_.record_received(bytes);
       OnBytes on_bytes;
@@ -297,7 +306,7 @@ struct UdpChannel::Impl {
         on_bytes = on_bytes_;
         on_bytes_from = on_bytes_from_;
       }
-      if (on_bytes) {
+      if (on_bytes && from_established_remote) {
         try {
           on_bytes(memory::ConstByteSpan(rx_.data(), bytes));
         } catch (const std::exception& e) {
