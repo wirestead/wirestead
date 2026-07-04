@@ -99,7 +99,11 @@ jobs:
 
       - name: Test pkg-config
         run: |
-          export PKG_CONFIG_PATH="$RUNNER_TEMP/unilink-install/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          # unilink.pc's Requires.private now names spdlog's own .pc module
+          # (jwsung91/unilink#514) when spdlog is external, as vcpkg's spdlog
+          # port always is here - pkg-config needs that module's directory on
+          # the search path too, not just unilink's own install prefix.
+          export PKG_CONFIG_PATH="$RUNNER_TEMP/unilink-install/lib/pkgconfig:$VCPKG_ROOT/installed/$VCPKG_TARGET_TRIPLET/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
           echo "Testing pkg-config integration..."
           pkg-config --cflags --libs unilink
           echo "pkg-config test completed successfully!"

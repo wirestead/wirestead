@@ -241,6 +241,9 @@ endif()
 # drift apart the way they previously did (the .pc file used to hardcode its own
 # separate, incomplete copy of this list — see UnilinkPackaging.cmake).
 set(UNILINK_PKGCONFIG_LIBS_PRIVATE "")
+# pkg-config modules (matched by .pc filename, not their internal Name: field) a
+# pkg-config consumer must also pull in via Requires.private.
+set(UNILINK_PKGCONFIG_REQUIRES_PRIVATE "")
 
 # Link common dependencies
 target_link_libraries(unilink_dependencies INTERFACE Threads::Threads)
@@ -257,6 +260,11 @@ if(_UNILINK_SPDLOG_BUILD_TARGET)
     # A FetchContent-built spdlog is always a real compiled static library (not
     # header-only), so static consumers need it explicitly.
     list(APPEND UNILINK_PKGCONFIG_LIBS_PRIVATE "-lspdlog")
+  else()
+    # An external (find_package) spdlog isn't linked directly here - point
+    # pkg-config consumers at its own .pc module instead, so its own flags (and
+    # transitive deps like fmt) come along too.
+    list(APPEND UNILINK_PKGCONFIG_REQUIRES_PRIVATE "spdlog")
   endif()
 endif()
 if(UNILINK_LINK_BOOST_SYSTEM)
