@@ -76,9 +76,9 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   std::atomic<bool> auto_start_ = false;
   std::chrono::milliseconds retry_interval_{base::constants::DEFAULT_RETRY_INTERVAL_MS};
-  int max_retries_ = -1;
-  std::chrono::milliseconds connection_timeout_{5000};
-  std::chrono::milliseconds idle_timeout_{0};
+  int max_retries_ = base::constants::DEFAULT_MAX_RETRIES;
+  std::chrono::milliseconds connection_timeout_{base::constants::DEFAULT_CONNECTION_TIMEOUT_MS};
+  std::chrono::milliseconds idle_timeout_{base::constants::DEFAULT_IDLE_TIMEOUT_MS};
   IdleTimeoutAction idle_timeout_action_{IdleTimeoutAction::Reconnect};
   size_t backpressure_threshold_{base::constants::DEFAULT_BACKPRESSURE_THRESHOLD};
   // Atomic rather than mutex-guarded: read from the send()/send_line() fast
@@ -86,8 +86,8 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   // concurrently from any other thread (#436).
   std::atomic<base::constants::BackpressureStrategy> backpressure_strategy_{
       base::constants::BackpressureStrategy::Reliable};
-  bool tcp_no_delay_ = true;
-  bool keep_alive_ = false;
+  bool tcp_no_delay_ = base::constants::DEFAULT_TCP_NO_DELAY;
+  bool keep_alive_ = base::constants::DEFAULT_KEEP_ALIVE;
   size_t send_buffer_size_ = 0;
   size_t receive_buffer_size_ = 0;
 

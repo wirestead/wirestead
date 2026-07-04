@@ -87,7 +87,7 @@ struct UdsServerConfig {
   // growth from a large number of slow/malicious clients. 0 still means
   // unlimited for callers who explicitly opt into it.
   int max_connections = static_cast<int>(base::constants::DEFAULT_MAX_CONNECTIONS);
-  int idle_timeout_ms = 0;  // Idle connection timeout in milliseconds (0 = disabled)
+  int idle_timeout_ms = static_cast<int>(base::constants::DEFAULT_IDLE_TIMEOUT_MS);  // 0 = disabled
 
   bool is_valid() const {
     return util::InputValidator::is_valid_uds_path(socket_path) &&

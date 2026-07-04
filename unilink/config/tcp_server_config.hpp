@@ -41,9 +41,9 @@ struct TcpServerConfig {
   int max_port_retries = 3;           // Maximum number of retry attempts
   int port_retry_interval_ms = 1000;  // Retry interval in milliseconds
 
-  int idle_timeout_ms = 0;  // Idle connection timeout in milliseconds (0 = disabled)
-  bool tcp_no_delay = true;
-  bool keep_alive = false;
+  int idle_timeout_ms = static_cast<int>(base::constants::DEFAULT_IDLE_TIMEOUT_MS);  // 0 = disabled
+  bool tcp_no_delay = base::constants::DEFAULT_TCP_NO_DELAY;
+  bool keep_alive = base::constants::DEFAULT_KEEP_ALIVE;
   size_t send_buffer_size = 0;
   size_t receive_buffer_size = 0;
 

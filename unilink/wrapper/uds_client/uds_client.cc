@@ -76,8 +76,8 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
 
   std::atomic<bool> auto_start_ = false;
   std::chrono::milliseconds retry_interval_{base::constants::DEFAULT_RETRY_INTERVAL_MS};
-  int max_retries_ = -1;
-  std::chrono::milliseconds connection_timeout_{5000};
+  int max_retries_ = base::constants::DEFAULT_MAX_RETRIES;
+  std::chrono::milliseconds connection_timeout_{base::constants::DEFAULT_CONNECTION_TIMEOUT_MS};
   size_t backpressure_threshold_ = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD;
   // Atomic rather than mutex-guarded: read from the send()/send_line() fast
   // path on arbitrary caller threads while the setter can be called
