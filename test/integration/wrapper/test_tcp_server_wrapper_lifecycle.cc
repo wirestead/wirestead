@@ -248,6 +248,49 @@ TEST_F(TcpServerWrapperLifecycleTest, MaxClientsWhileStoppedAppliesOnNextStart) 
   client2->stop();
 }
 
+// #437: an over-limit connection used to pause the accept loop entirely
+// (paused_accept_), leaving any client whose TCP handshake completed while
+// paused connected but silent until a slot freed up. Now the server accepts
+// and immediately closes over-limit connections, and keeps accepting
+// afterward instead of pausing.
+TEST_F(TcpServerWrapperLifecycleTest, OverLimitConnectionIsClosedPromptlyAndAcceptLoopKeepsRunning) {
+  server_ = unilink::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_->max_clients(1);
+  ASSERT_TRUE(server_->start().get());
+
+  auto client1 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  ASSERT_TRUE(client1->start().get());
+  EXPECT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() >= 1; }, 5000));
+
+  // Second client is over the limit - must be closed promptly (not left
+  // connected-but-silent). Its own on_disconnect doesn't reliably fire here
+  // (an unlimited-retry client transitions Connected->Connecting again
+  // without a distinct Closed notification), so observe promptness via
+  // repeated connect attempts instead: the server accepting-then-closing
+  // each attempt drives the client's retry loop, which wouldn't advance at
+  // all if the connection were instead left open and silent.
+  auto client2 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  std::atomic<int> client2_connects{0};
+  client2->on_connect([&](const wrapper::ConnectionContext&) { client2_connects++; });
+  client2->start();
+  EXPECT_TRUE(TestUtils::waitForCondition([&] { return client2_connects.load() >= 3; }, 3000))
+      << "Over-limit client's retry loop did not advance - connection may have been left open and silent";
+  EXPECT_EQ(server_->client_count(), 1u);
+
+  // The accept loop must not have paused: after client1 disconnects and
+  // frees the only slot, a new client must still be able to connect without
+  // needing anything to explicitly "resume" accepting.
+  client1->stop();
+  EXPECT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() == 0; }, 5000));
+
+  auto client3 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  ASSERT_TRUE(client3->start().get());
+  EXPECT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() >= 1; }, 5000));
+
+  client2->stop();
+  client3->stop();
+}
+
 TEST_F(TcpServerWrapperLifecycleTest, SendAndCountReflectLiveClientsAndReturnStatus) {
   std::vector<size_t> ids;
   std::mutex ids_mutex;

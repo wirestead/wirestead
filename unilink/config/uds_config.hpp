@@ -83,7 +83,10 @@ struct UdsServerConfig {
   size_t backpressure_threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD;
   base::constants::BackpressureStrategy backpressure_strategy = base::constants::BackpressureStrategy::Reliable;
   bool enable_memory_pool = true;
-  int max_connections = 0;  // Maximum concurrent connections (0 = unlimited)
+  // #437: 0 (unlimited) used to be the default, risking unbounded memory
+  // growth from a large number of slow/malicious clients. 0 still means
+  // unlimited for callers who explicitly opt into it.
+  int max_connections = static_cast<int>(base::constants::DEFAULT_MAX_CONNECTIONS);
   int idle_timeout_ms = 0;  // Idle connection timeout in milliseconds (0 = disabled)
 
   bool is_valid() const {

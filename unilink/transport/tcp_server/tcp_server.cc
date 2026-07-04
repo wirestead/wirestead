@@ -72,7 +72,6 @@ struct TcpServer::Impl {
 
   size_t max_clients_;
   bool client_limit_enabled_;
-  bool paused_accept_ = false;
 
   std::shared_ptr<TcpServerSession> current_session_;
 
@@ -287,11 +286,19 @@ struct TcpServer::Impl {
       }
 
       if (accept_impl->client_limit_enabled_) {
-        std::lock_guard<std::mutex> lock(accept_impl->sessions_mutex_);
-        if (accept_impl->sessions_.size() >= accept_impl->max_clients_) {
+        bool over_limit;
+        {
+          std::lock_guard<std::mutex> lock(accept_impl->sessions_mutex_);
+          over_limit = accept_impl->sessions_.size() >= accept_impl->max_clients_;
+        }
+        if (over_limit) {
+          // #437: accept and immediately close over-limit connections
+          // instead of pausing the accept loop entirely - a client whose
+          // TCP handshake already completed while paused would otherwise
+          // sit connected but silent until a slot frees up.
           boost::system::error_code close_ec;
           sock.close(close_ec);
-          accept_impl->paused_accept_ = true;
+          accept_impl->do_accept(self);
           return;
         }
       }
@@ -349,11 +356,6 @@ struct TcpServer::Impl {
         {
           std::lock_guard<std::mutex> lock(close_impl->sessions_mutex_);
           close_impl->sessions_.erase(client_id);
-          if (close_impl->paused_accept_ &&
-              (!close_impl->client_limit_enabled_ || close_impl->sessions_.size() < close_impl->max_clients_)) {
-            close_impl->paused_accept_ = false;
-            net::post(close_impl->ioc_, [shared_self] { shared_self->get_impl()->do_accept(shared_self); });
-          }
           was_current = (close_impl->current_session_ == new_session);
           if (was_current) {
             if (!close_impl->sessions_.empty())
@@ -871,10 +873,6 @@ void TcpServer::set_client_limit(size_t max) {
     impl->client_limit_enabled_ = false;
   } else {
     impl->client_limit_enabled_ = true;
-  }
-  if (impl->paused_accept_ && (!impl->client_limit_enabled_ || impl->sessions_.size() < impl->max_clients_)) {
-    impl->paused_accept_ = false;
-    net::post(impl->ioc_, [self = shared_from_this()] { self->get_impl()->do_accept(self); });
   }
 }
 

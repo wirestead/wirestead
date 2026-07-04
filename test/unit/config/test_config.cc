@@ -274,6 +274,23 @@ TEST_F(ConfigTest, TcpClientConfigDirectValidation) {
 // ever checked, for both TcpClientConfig and UdsClientConfig - a
 // connection_timeout(0) reached connect_timer_ unclamped and caused an
 // instant-timeout reconnect loop (the reported failure scenario).
+// #437: max_connections used to default to 0 (unlimited), risking unbounded
+// memory growth from a large number of slow/malicious clients with no
+// built-in ceiling. Both server configs must now default to a finite limit.
+TEST_F(ConfigTest, ServerConfigsDefaultToAFiniteConnectionLimit) {
+  TcpServerConfig tcp_server;
+  EXPECT_EQ(tcp_server.max_connections, static_cast<int>(base::constants::DEFAULT_MAX_CONNECTIONS));
+  EXPECT_GT(tcp_server.max_connections, 0);
+
+  UdsServerConfig uds_server;
+  EXPECT_EQ(uds_server.max_connections, static_cast<int>(base::constants::DEFAULT_MAX_CONNECTIONS));
+  EXPECT_GT(uds_server.max_connections, 0);
+
+  // 0 must still mean "unlimited" for callers who explicitly opt into it.
+  tcp_server.max_connections = 0;
+  EXPECT_TRUE(tcp_server.is_valid());
+}
+
 TEST_F(ConfigTest, TcpClientAndUdsClientConfigTimeoutFieldsAreValidatedAndClamped) {
   TcpClientConfig tcp;
   EXPECT_TRUE(tcp.is_valid());
