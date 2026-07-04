@@ -245,8 +245,15 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         }
       }
     }
+    // #506: take a local copy of the shared_ptr before unlocking. Calling
+    // through the raw channel_ member here would race a concurrent stop()'s
+    // channel_.reset() on the member itself (not just the pointee) - TSAN
+    // caught exactly this under TcpServerWrapperLifecycleTest.
+    // ConcurrentStartStop. A local copy holds its own reference, so it stays
+    // valid and race-free even if another thread resets the member.
+    auto channel_copy = channel_;
     lock.unlock();
-    channel_->start();
+    channel_copy->start();
     if (use_external_context_.load() && manage_external_context_.load() && !external_thread_.joinable()) {
       if (external_ioc_ && external_ioc_->stopped()) {
         external_ioc_->restart();
@@ -284,8 +291,11 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         channel_->on_backpressure(nullptr);
         auto transport_server = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
         if (transport_server) transport_server->request_stop();
+        // #506: same rationale as start() above - copy before unlocking so
+        // this call can't race a concurrent channel_.reset() on the member.
+        auto channel_copy = channel_;
         lock.unlock();
-        channel_->stop();
+        channel_copy->stop();
         lock.lock();
       }
       if (use_external_context_.load() && manage_external_context_.load()) {
