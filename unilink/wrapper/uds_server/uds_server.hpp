@@ -98,6 +98,13 @@ class UNILINK_API UdsServer : public ServerInterface {
   UdsServer& auto_start(bool manage = true) override;
   UdsServer& idle_timeout(std::chrono::milliseconds timeout);
   UdsServer& max_clients(size_t max);
+  /**
+   * @brief Restrict local access to the socket file after bind.
+   *
+   * @param mode POSIX permission bits (e.g. 0660). Ignored on Windows.
+   *   Must be set before start() to take effect.
+   */
+  UdsServer& socket_permissions(int mode);
   UdsServer& backpressure_threshold(size_t threshold);
   UdsServer& backpressure_strategy(base::constants::BackpressureStrategy strategy);
   UdsServer& manage_external_context(bool manage);

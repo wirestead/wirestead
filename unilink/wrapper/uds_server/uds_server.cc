@@ -42,6 +42,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
   std::atomic<int> idle_timeout_ms_{static_cast<int>(base::constants::DEFAULT_IDLE_TIMEOUT_MS)};
   std::atomic<size_t> max_clients_{0};
   std::atomic<bool> client_limit_enabled_{false};
+  std::atomic<int> socket_permissions_{-1};
   std::atomic<size_t> backpressure_threshold_{base::constants::DEFAULT_BACKPRESSURE_THRESHOLD};
   std::atomic<base::constants::BackpressureStrategy> backpressure_strategy_{
       base::constants::BackpressureStrategy::Reliable};
@@ -199,6 +200,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
           static_cast<int>(std::min(max_clients_.load(), static_cast<size_t>(base::constants::MAX_MAX_CONNECTIONS)));
       config.backpressure_threshold = backpressure_threshold_.load();
       config.backpressure_strategy = backpressure_strategy_.load();
+      config.socket_permissions = socket_permissions_.load();
       server_ = factory::ChannelFactory::create(config, external_ioc_);
       setup_internal_handlers();
     }
@@ -590,6 +592,11 @@ UdsServer& UdsServer::max_clients(size_t max) {
   }
   auto ts = std::dynamic_pointer_cast<transport::UdsServer>(impl_->server_);
   if (ts) ts->set_client_limit(max);
+  return *this;
+}
+
+UdsServer& UdsServer::socket_permissions(int mode) {
+  impl_->socket_permissions_.store(mode);
   return *this;
 }
 

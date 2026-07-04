@@ -88,13 +88,19 @@ struct UdsServerConfig {
   // unlimited for callers who explicitly opt into it.
   int max_connections = static_cast<int>(base::constants::DEFAULT_MAX_CONNECTIONS);
   int idle_timeout_ms = static_cast<int>(base::constants::DEFAULT_IDLE_TIMEOUT_MS);  // 0 = disabled
+  // #438: POSIX file permission bits (e.g. 0660) applied to the socket file
+  // after bind, restricting which local users/groups can connect. -1 (the
+  // default) leaves the socket at whatever the process umask produces,
+  // matching prior behavior. Ignored on Windows.
+  int socket_permissions = -1;
 
   bool is_valid() const {
     return util::InputValidator::is_valid_uds_path(socket_path) &&
            backpressure_threshold >= base::constants::MIN_BACKPRESSURE_THRESHOLD &&
            backpressure_threshold <= base::constants::MAX_BACKPRESSURE_THRESHOLD && max_connections >= 0 &&
            (idle_timeout_ms == 0 || (idle_timeout_ms >= static_cast<int>(base::constants::MIN_IDLE_TIMEOUT_MS) &&
-                                     idle_timeout_ms <= static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS)));
+                                     idle_timeout_ms <= static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS))) &&
+           (socket_permissions == -1 || (socket_permissions >= 0 && socket_permissions <= 0777));
   }
 
   void validate_and_clamp() {
@@ -118,6 +124,10 @@ struct UdsServerConfig {
       } else if (idle_timeout_ms > static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS)) {
         idle_timeout_ms = static_cast<int>(base::constants::MAX_IDLE_TIMEOUT_MS);
       }
+    }
+
+    if (socket_permissions != -1 && (socket_permissions < 0 || socket_permissions > 0777)) {
+      socket_permissions = -1;
     }
   }
 };

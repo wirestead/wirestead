@@ -21,7 +21,9 @@
 #include <algorithm>
 #include <atomic>
 #include <boost/asio.hpp>
+#include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <future>
 #include <mutex>
 #include <stop_token>
@@ -29,6 +31,7 @@
 #include <thread>
 #include <unordered_map>
 
+#include "unilink/base/platform.hpp"
 #include "unilink/builder/auto_initializer.hpp"
 #include "unilink/concurrency/io_context_manager.hpp"
 #include "unilink/concurrency/thread_safe_state.hpp"
@@ -39,11 +42,58 @@
 #include "unilink/transport/uds/boost_uds_acceptor.hpp"
 #include "unilink/transport/uds/uds_server_session.hpp"
 
+#if !defined(UNILINK_PLATFORM_WINDOWS)
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/un.h>
+#include <unistd.h>
+#endif
+
 namespace unilink {
 namespace transport {
 
 namespace net = boost::asio;
 using uds = net::local::stream_protocol;
+
+namespace {
+
+// #438: an existing path at the configured socket location should only ever
+// be silently removed if it's a genuinely stale (no longer listened-on)
+// socket file - not a regular file/directory (misconfiguration) and not a
+// socket another live process is still listening on (which would otherwise
+// be silently hijacked instead of failing with a clear error). Returns a
+// non-empty reason string if bind should be refused; empty if it's safe to
+// remove the path (or there's nothing there) and proceed.
+std::string existing_uds_path_blocks_bind(const std::string& path) {
+#if defined(UNILINK_PLATFORM_WINDOWS)
+  (void)path;
+  return {};
+#else
+  struct stat st {};
+  if (::stat(path.c_str(), &st) != 0) {
+    return {};  // nothing exists at this path - nothing to check
+  }
+  if (!S_ISSOCK(st.st_mode)) {
+    return "existing path is not a socket file";
+  }
+
+  int probe_fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+  if (probe_fd < 0) {
+    return {};  // can't probe - fall back to prior (remove-and-proceed) behavior
+  }
+  struct sockaddr_un addr {};
+  addr.sun_family = AF_UNIX;
+  std::strncpy(addr.sun_path, path.c_str(), sizeof(addr.sun_path) - 1);
+  int rc = ::connect(probe_fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
+  ::close(probe_fd);
+  if (rc == 0) {
+    return "another process is already listening on this socket path";
+  }
+  return {};  // stale socket (nothing accepted the probe connect) - safe to remove
+#endif
+}
+
+}  // namespace
 
 struct UdsServer::Impl {
   std::unique_ptr<net::io_context> owned_ioc_;
@@ -54,6 +104,13 @@ struct UdsServer::Impl {
 
   std::atomic<bool> stopping_{false};
   std::atomic<ClientId> next_client_id_{0};
+  // #438: only this instance's own successful bind() may remove the socket
+  // file on cleanup. Without this, a second UdsServer pointed at the same
+  // path whose start() failed before ever binding (e.g. because a live
+  // listener already owns that path) would still delete the first server's
+  // socket file the moment stop()/the destructor ran - the exact hijack
+  // #438 is about, just reached via stop() instead of start().
+  std::atomic<bool> bound_{false};
 
   std::unique_ptr<interface::UdsAcceptorInterface> acceptor_;
   config::UdsServerConfig cfg_;
@@ -95,8 +152,11 @@ struct UdsServer::Impl {
         }
       }
     }
-    // UDS Cleanup: socket file should be removed.
-    std::remove(cfg_.socket_path.c_str());
+    // UDS Cleanup: socket file should be removed, but only if this instance
+    // actually bound it (#438).
+    if (bound_.load()) {
+      std::remove(cfg_.socket_path.c_str());
+    }
   }
   void do_accept(std::shared_ptr<UdsServer> self);
   void notify_state();
@@ -123,7 +183,9 @@ struct UdsServer::Impl {
         }
       }
 
-      std::remove(cfg_.socket_path.c_str());
+      if (bound_.exchange(false)) {
+        std::remove(cfg_.socket_path.c_str());
+      }
 
       state_.set(base::LinkState::Idle);
       notify_state();
@@ -233,7 +295,21 @@ void UdsServer::start() {
     return;
   }
 
-  // Cleanup old socket file if exists
+  // #438: only remove an existing path at this location if it's actually a
+  // stale socket - never a regular file/directory (misconfiguration), and
+  // never a socket another live process is still listening on (that would
+  // otherwise be silently hijacked instead of failing loudly).
+  std::string block_reason = existing_uds_path_blocks_bind(impl_->cfg_.socket_path);
+  if (!block_reason.empty()) {
+    std::string msg = fmt::format("Refusing to bind {}: {}", impl_->cfg_.socket_path, block_reason);
+    UNILINK_LOG_ERROR("uds_server", "start", msg);
+    impl_->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION,
+                                           "start", make_error_code(boost::system::errc::address_in_use), msg, false,
+                                           0);
+    impl_->state_.set(base::LinkState::Error);
+    impl_->notify_state();
+    return;
+  }
   std::remove(impl_->cfg_.socket_path.c_str());
 
   boost::system::error_code ec;
@@ -272,6 +348,7 @@ void UdsServer::start() {
     impl_->notify_state();
     return;
   }
+  impl_->bound_.store(true);
 
   impl_->acceptor_->listen(net::socket_base::max_listen_connections, ec);
   if (ec) {
@@ -282,6 +359,20 @@ void UdsServer::start() {
     impl_->state_.set(base::LinkState::Error);
     impl_->notify_state();
     return;
+  }
+
+  // #438: restrict local access to the socket file if requested. Best-effort
+  // - a chmod failure is logged but does not fail startup, since the socket
+  // is already bound and listening at this point.
+  if (impl_->cfg_.socket_permissions != -1) {
+#if !defined(UNILINK_PLATFORM_WINDOWS)
+    if (::chmod(impl_->cfg_.socket_path.c_str(), static_cast<mode_t>(impl_->cfg_.socket_permissions)) != 0) {
+      UNILINK_LOG_WARNING("uds_server", "start",
+                          fmt::format("Failed to chmod socket {}: {}", impl_->cfg_.socket_path, strerror(errno)));
+    }
+#else
+    UNILINK_LOG_WARNING("uds_server", "start", "socket_permissions is ignored on Windows");
+#endif
   }
 
   impl_->state_.set(base::LinkState::Listening);
