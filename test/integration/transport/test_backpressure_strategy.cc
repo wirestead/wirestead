@@ -610,9 +610,8 @@ TEST(BackpressureStrategyTest, Reliable_ConcurrentPlainWritesNeverDropAcceptedMe
 
   auto stats = session->stats();
   EXPECT_EQ(stats.messages_accepted, static_cast<uint64_t>(accepted_count.load()));
-  EXPECT_EQ(stats.dropped_messages, 0u)
-      << stats.dropped_messages << " of " << accepted_count.load()
-      << " accepted messages were dropped after routing (jwsung91/unilink#517)";
+  EXPECT_EQ(stats.dropped_messages, 0u) << stats.dropped_messages << " of " << accepted_count.load()
+                                        << " accepted messages were dropped after routing (jwsung91/unilink#517)";
 
   work.reset();
   drain_and_stop(sock, session, ioc);
