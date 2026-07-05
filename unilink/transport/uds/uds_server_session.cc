@@ -90,7 +90,7 @@ bool UdsServerSession::async_write_copy(memory::ConstByteSpan data) {
     memory::PooledBuffer pooled(size, pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
-      if (!queue_util::try_reserve_limit_bytes(queue_bytes_, pending_bytes_, inflight_bytes_, size, bp_limit_)) {
+      if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, size, bp_limit_)) {
         stats_.record_failed_send();
         return false;
       }
@@ -98,7 +98,7 @@ bool UdsServerSession::async_write_copy(memory::ConstByteSpan data) {
       net::post(strand_, [this, self = shared_from_this(), buf = std::move(pooled)]() mutable {
         size_t added = buf.size();
         if (!alive_) {
-          queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+          queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
           stats_.record_failed_send();
           return;
         }
@@ -122,14 +122,14 @@ bool UdsServerSession::async_write_move(std::vector<uint8_t>&& data) {
     return false;
   }
   const auto added = data.size();
-  if (!queue_util::try_reserve_limit_bytes(queue_bytes_, pending_bytes_, inflight_bytes_, added, bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, added, bp_limit_)) {
     stats_.record_failed_send();
     return false;
   }
   stats_.record_accepted(added);
   net::post(strand_, [this, self = shared_from_this(), data = std::move(data), added]() mutable {
     if (!alive_) {
-      queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+      queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
       stats_.record_failed_send();
       return;
     }
@@ -144,14 +144,14 @@ bool UdsServerSession::async_write_shared(std::shared_ptr<const std::vector<uint
     return false;
   }
   const auto added = data->size();
-  if (!queue_util::try_reserve_limit_bytes(queue_bytes_, pending_bytes_, inflight_bytes_, added, bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, added, bp_limit_)) {
     stats_.record_failed_send();
     return false;
   }
   stats_.record_accepted(added);
   net::post(strand_, [this, self = shared_from_this(), data = std::move(data), added]() mutable {
     if (!alive_) {
-      queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+      queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
       stats_.record_failed_send();
       return;
     }
@@ -389,19 +389,17 @@ void UdsServerSession::route_enqueued_buffer(BufferVariant&& buf, size_t added) 
     // #448: record as dropped so it's reflected in RuntimeStats instead of
     // silently vanishing after being counted as accepted.
     stats_.record_dropped(1, added);
-    queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+    queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
     report_backpressure(queue_bytes_ + added);
     return;
   }
   if (decision == queue_util::EnqueueDecision::Pending) {
-    pending_bytes_ += added;
-    queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+    queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, pending_bytes_, inflight_bytes_, added);
     pending_.emplace_back(std::move(buf));
     observe_queue();
     return;
   }
-  queue_bytes_ += added;
-  queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+  queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, queue_bytes_, inflight_bytes_, added);
   tx_.emplace_back(std::move(buf));
   observe_queue();
   report_backpressure(queue_bytes_);

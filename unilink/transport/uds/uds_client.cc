@@ -89,8 +89,11 @@ struct UdsClient::Impl {
   std::atomic<size_t> queue_bytes_{0};
   // Bytes accepted by a plain async_write_* call but not yet routed onto the
   // strand - reserved via try_reserve_limit_bytes() to close the
-  // accept-then-drop race (jwsung91/unilink#517).
+  // accept-then-drop race (jwsung91/unilink#517). inflight_bytes_ mutations
+  // and the queue_bytes_/pending_bytes_ increments that promote a
+  // reservation both go through write_reserve_mtx_ - see bp_utils.hpp.
   std::atomic<size_t> inflight_bytes_{0};
+  std::mutex write_reserve_mtx_;
   // Atomic rather than mutex-guarded: read both from the strand and from
   // arbitrary caller threads (async_try_write_* fast-fail prechecks) (#436).
   std::atomic<base::constants::BackpressureStrategy> bp_strategy_{base::constants::BackpressureStrategy::Reliable};
@@ -309,7 +312,7 @@ bool UdsClient::async_write_copy(memory::ConstByteSpan data) {
     memory::PooledBuffer pooled(size, impl_->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
-      if (!queue_util::try_reserve_limit_bytes(impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_,
+      if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_,
                                                size, impl_->bp_limit_)) {
         impl_->stats_.record_failed_send();
         return false;
@@ -337,7 +340,7 @@ bool UdsClient::async_write_move(std::vector<uint8_t>&& data) {
     return false;
   }
   const auto added = data.size();
-  if (!queue_util::try_reserve_limit_bytes(impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_, added,
+  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_, added,
                                            impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
@@ -355,7 +358,7 @@ bool UdsClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> d
     return false;
   }
   const auto added = data->size();
-  if (!queue_util::try_reserve_limit_bytes(impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_, added,
+  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_, added,
                                            impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
@@ -762,19 +765,17 @@ void UdsClient::Impl::route_enqueued_buffer(std::shared_ptr<UdsClient> self, Buf
     // #448: record as dropped so it's reflected in RuntimeStats instead of
     // silently vanishing after being counted as accepted.
     stats_.record_dropped(1, added);
-    queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+    queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
     report_backpressure(self, queue_bytes_ + added);
     return;
   }
   if (decision == queue_util::EnqueueDecision::Pending) {
-    pending_bytes_ += added;
-    queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+    queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, pending_bytes_, inflight_bytes_, added);
     pending_.emplace_back(std::move(buf));
     observe_queue();
     return;
   }
-  queue_bytes_ += added;
-  queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+  queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, queue_bytes_, inflight_bytes_, added);
   tx_.emplace_back(std::move(buf));
   observe_queue();
   report_backpressure(self, queue_bytes_);

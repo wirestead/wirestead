@@ -31,6 +31,7 @@
 #include <deque>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stop_token>
 #include <string>
@@ -113,8 +114,11 @@ struct TcpClient::Impl {
   std::atomic<size_t> queue_bytes_{0};
   // Bytes accepted by a plain async_write_* call but not yet routed onto the
   // strand - reserved via try_reserve_limit_bytes() to close the
-  // accept-then-drop race (jwsung91/unilink#517).
+  // accept-then-drop race (jwsung91/unilink#517). inflight_bytes_ mutations
+  // and the queue_bytes_/pending_bytes_ increments that promote a
+  // reservation both go through write_reserve_mtx_ - see bp_utils.hpp.
   std::atomic<size_t> inflight_bytes_{0};
+  std::mutex write_reserve_mtx_;
   // Atomic rather than mutex-guarded: read both from the strand and from
   // arbitrary caller threads (async_try_write_* fast-fail prechecks) (#436).
   std::atomic<base::constants::BackpressureStrategy> bp_strategy_{base::constants::BackpressureStrategy::Reliable};
@@ -346,7 +350,7 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
         base::safe_memory::safe_memcpy(pooled_buffer.data(), data.data(), size);
         const auto added = pooled_buffer.size();
         const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-        if (reliable && !queue_util::try_reserve_limit_bytes(impl_->queue_bytes_, impl_->pending_bytes_,
+        if (reliable && !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                                               impl_->inflight_bytes_, added, impl_->bp_limit_)) {
           impl_->stats_.record_failed_send();
           return false;
@@ -366,7 +370,7 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
   std::vector<uint8_t> fallback(data.begin(), data.end());
   const auto added = fallback.size();
   const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-  if (reliable && !queue_util::try_reserve_limit_bytes(impl_->queue_bytes_, impl_->pending_bytes_,
+  if (reliable && !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                                         impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
@@ -400,7 +404,7 @@ bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
 
   const auto added = size;
   const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-  if (reliable && !queue_util::try_reserve_limit_bytes(impl_->queue_bytes_, impl_->pending_bytes_,
+  if (reliable && !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                                         impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
@@ -433,7 +437,7 @@ bool TcpClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> d
 
   const auto added = size;
   const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-  if (reliable && !queue_util::try_reserve_limit_bytes(impl_->queue_bytes_, impl_->pending_bytes_,
+  if (reliable && !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                                         impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
@@ -1061,7 +1065,7 @@ queue_util::BackpressureFields TcpClient::Impl::bp_fields() {
 void TcpClient::Impl::route_enqueued_buffer(std::shared_ptr<TcpClient> self, BufferVariant&& buf, size_t added,
                                             bool reserved) {
   if (stop_requested_.load() || state_.is_state(LinkState::Closed) || state_.is_state(LinkState::Error)) {
-    if (reserved) queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+    if (reserved) queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
     stats_.record_failed_send();
     return;
   }
@@ -1080,19 +1084,25 @@ void TcpClient::Impl::route_enqueued_buffer(std::shared_ptr<TcpClient> self, Buf
     // sent/dropped/queued accounting - record it as dropped so it's at
     // least observable.
     stats_.record_dropped(1, added);
-    if (reserved) queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+    if (reserved) queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
     report_backpressure(self, queue_bytes_ + added);
     return;
   }
   if (decision == queue_util::EnqueueDecision::Pending) {
-    pending_bytes_ += added;
-    if (reserved) queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+    if (reserved) {
+      queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, pending_bytes_, inflight_bytes_, added);
+    } else {
+      queue_util::commit_unreserved_limit_bytes(write_reserve_mtx_, pending_bytes_, added);
+    }
     pending_.emplace_back(std::move(buf));
     observe_queue();
     return;
   }
-  queue_bytes_ += added;
-  if (reserved) queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
+  if (reserved) {
+    queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, queue_bytes_, inflight_bytes_, added);
+  } else {
+    queue_util::commit_unreserved_limit_bytes(write_reserve_mtx_, queue_bytes_, added);
+  }
   tx_.emplace_back(std::move(buf));
   observe_queue();
   report_backpressure(self, queue_bytes_);

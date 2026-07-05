@@ -19,6 +19,7 @@
 #include <atomic>
 #include <cstddef>
 #include <memory>
+#include <mutex>
 #include <type_traits>
 #include <variant>
 #include <vector>
@@ -62,50 +63,82 @@ inline void release_reserved_write_bytes(std::atomic<size_t>& queue_bytes, size_
   }
 }
 
-// Atomically reserves `added` bytes against bp_limit for the plain
-// (blocking-capable) async_write_* entry points, accounting for bytes
-// already reserved-but-not-yet-routed via `inflight_bytes` in addition to
+// Reserves `added` bytes against bp_limit for the plain (blocking-capable)
+// async_write_* entry points, accounting for bytes already
+// reserved-but-not-yet-routed via `inflight_bytes` in addition to
 // `queue_bytes`/`pending_bytes`. Closes an accept-then-drop race where the
 // caller-thread precheck used to only read queue_bytes+pending_bytes
 // non-atomically without reserving space: concurrent callers could all pass
 // the check, then get rejected once actually routed onto the strand, where
 // the real combined total exceeded bp_limit (jwsung91/unilink#517).
-// Deliberately omits the bp_high/backpressure_active gate that
-// try_reserve_write_bytes() applies above - a plain write is allowed to land
-// in pending_ while backpressure is active, unlike the non-blocking
-// try_write path.
-inline bool try_reserve_limit_bytes(const std::atomic<size_t>& queue_bytes, const std::atomic<size_t>& pending_bytes,
-                                    std::atomic<size_t>& inflight_bytes, size_t added, size_t bp_limit) {
+//
+// Guarded by `mtx` rather than a lock-free CAS on `inflight_bytes` alone:
+// queue_bytes/pending_bytes/inflight_bytes are three independently-atomic
+// counters, so no CAS retry loop touching only one of them can make a
+// check spanning all three race-free - the strand's commit_reserved_limit_bytes()
+// promoting inflight_bytes into queue_bytes/pending_bytes is itself two
+// separate atomic ops, and a concurrent reservation's queue_bytes/pending_bytes
+// reads can land in the gap between them while its CAS against a stale
+// inflight_bytes snapshot still spuriously succeeds. This was caught by a
+// CI run reproducing a 1-in-~10000 dropped message under this exact
+// window. `mtx` must be the same mutex passed to commit_reserved_limit_bytes()
+// for a given transport instance. Deliberately omits the
+// bp_high/backpressure_active gate that try_reserve_write_bytes() applies
+// above - a plain write is allowed to land in pending_ while backpressure
+// is active, unlike the non-blocking try_write path.
+inline bool try_reserve_limit_bytes(std::mutex& mtx, const std::atomic<size_t>& queue_bytes,
+                                    const std::atomic<size_t>& pending_bytes, std::atomic<size_t>& inflight_bytes,
+                                    size_t added, size_t bp_limit) {
   if (added == 0 || added > bp_limit) return false;
 
-  size_t current_inflight = inflight_bytes.load(std::memory_order_relaxed);
-  for (;;) {
-    const size_t queue = queue_bytes.load(std::memory_order_relaxed);
-    const size_t pending = pending_bytes.load(std::memory_order_relaxed);
-    if (queue > bp_limit || pending > bp_limit - queue || current_inflight > bp_limit - queue - pending ||
-        added > bp_limit - queue - pending - current_inflight) {
-      return false;
-    }
-
-    if (inflight_bytes.compare_exchange_weak(current_inflight, current_inflight + added, std::memory_order_acq_rel,
-                                             std::memory_order_relaxed)) {
-      return true;
-    }
+  std::lock_guard<std::mutex> lock(mtx);
+  const size_t queue = queue_bytes.load(std::memory_order_relaxed);
+  const size_t pending = pending_bytes.load(std::memory_order_relaxed);
+  const size_t inflight = inflight_bytes.load(std::memory_order_relaxed);
+  if (queue > bp_limit || pending > bp_limit - queue || inflight > bp_limit - queue - pending ||
+      added > bp_limit - queue - pending - inflight) {
+    return false;
   }
+  inflight_bytes.fetch_add(added, std::memory_order_relaxed);
+  return true;
 }
 
-// Releases a reservation made by try_reserve_limit_bytes(). Callers that
-// route the message into queue_bytes_/pending_bytes_ must increment that
-// counter *before* calling this, so a concurrent try_reserve_limit_bytes()
-// on another thread never observes a transient total lower than what's
-// truly reserved (which would let it over-admit past bp_limit).
-inline void release_reserved_limit_bytes(std::atomic<size_t>& inflight_bytes, size_t bytes) {
-  size_t current = inflight_bytes.load(std::memory_order_relaxed);
-  for (;;) {
-    const size_t next = current > bytes ? current - bytes : 0;
-    if (inflight_bytes.compare_exchange_weak(current, next, std::memory_order_acq_rel, std::memory_order_relaxed))
-      return;
-  }
+// Releases a reservation made by try_reserve_limit_bytes(), for the case
+// where the message never gets promoted into queue_bytes_/pending_bytes_
+// (route_enqueued_buffer's Rejected branch - expected to be effectively
+// unreachable given the reservation above, but kept as a safety net).
+inline void release_reserved_limit_bytes(std::mutex& mtx, std::atomic<size_t>& inflight_bytes, size_t bytes) {
+  std::lock_guard<std::mutex> lock(mtx);
+  const size_t current = inflight_bytes.load(std::memory_order_relaxed);
+  inflight_bytes.store(current > bytes ? current - bytes : 0, std::memory_order_relaxed);
+}
+
+// Promotes a reservation made by try_reserve_limit_bytes() into `counter`
+// (queue_bytes_ or pending_bytes_) once route_enqueued_buffer() has decided
+// where the message lands. Must run under the same `mtx` as
+// try_reserve_limit_bytes() and perform both the increment and the
+// inflight_bytes release as one critical section - doing them as two
+// separately-locked steps would reopen the exact gap described above.
+inline void commit_reserved_limit_bytes(std::mutex& mtx, std::atomic<size_t>& counter,
+                                        std::atomic<size_t>& inflight_bytes, size_t bytes) {
+  std::lock_guard<std::mutex> lock(mtx);
+  counter.fetch_add(bytes, std::memory_order_relaxed);
+  const size_t current = inflight_bytes.load(std::memory_order_relaxed);
+  inflight_bytes.store(current > bytes ? current - bytes : 0, std::memory_order_relaxed);
+}
+
+// Locked increment for the rare plain-write path that skips
+// try_reserve_limit_bytes() entirely (tcp_client's BestEffort fallback,
+// which - unlike every other transport's plain path - has no precheck at
+// all, matching its pre-existing behavior). Still must go through the same
+// `mtx` as try_reserve_limit_bytes()/commit_reserved_limit_bytes() for this
+// transport instance: an increment landing outside the lock could let a
+// concurrent Reliable reservation's already-approved check get silently
+// invalidated by bytes it never accounted for, reopening the same race for
+// Reliable messages that this whole reservation scheme exists to close.
+inline void commit_unreserved_limit_bytes(std::mutex& mtx, std::atomic<size_t>& counter, size_t bytes) {
+  std::lock_guard<std::mutex> lock(mtx);
+  counter.fetch_add(bytes, std::memory_order_relaxed);
 }
 
 // Returns the byte size of a buffer held in a transport BufferVariant alternative.
