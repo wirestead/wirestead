@@ -100,7 +100,8 @@ bool TcpServerSession::async_write_copy(memory::ConstByteSpan data) {
     if (pooled_buffer.valid()) {
       // Copy data to pooled buffer safely
       base::safe_memory::safe_memcpy(pooled_buffer.data(), data.data(), size);
-      if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, size, bp_limit_)) {
+      if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, size,
+                                               bp_limit_)) {
         stats_.record_failed_send();
         return false;
       }
@@ -119,7 +120,8 @@ bool TcpServerSession::async_write_copy(memory::ConstByteSpan data) {
   }
 
   // Fallback to regular allocation for large buffers or pool exhaustion
-  if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, size, bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, size,
+                                           bp_limit_)) {
     stats_.record_failed_send();
     return false;
   }
@@ -152,7 +154,8 @@ bool TcpServerSession::async_write_move(std::vector<uint8_t>&& data) {
     stats_.record_failed_send();
     return false;
   }
-  if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, added, bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, added,
+                                           bp_limit_)) {
     stats_.record_failed_send();
     return false;
   }
@@ -179,7 +182,8 @@ bool TcpServerSession::async_write_shared(std::shared_ptr<const std::vector<uint
     stats_.record_failed_send();
     return false;
   }
-  if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, added, bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, added,
+                                           bp_limit_)) {
     stats_.record_failed_send();
     return false;
   }

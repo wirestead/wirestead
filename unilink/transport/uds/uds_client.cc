@@ -312,8 +312,8 @@ bool UdsClient::async_write_copy(memory::ConstByteSpan data) {
     memory::PooledBuffer pooled(size, impl_->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
-      if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_,
-                                               size, impl_->bp_limit_)) {
+      if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
+                                               impl_->inflight_bytes_, size, impl_->bp_limit_)) {
         impl_->stats_.record_failed_send();
         return false;
       }
@@ -340,8 +340,8 @@ bool UdsClient::async_write_move(std::vector<uint8_t>&& data) {
     return false;
   }
   const auto added = data.size();
-  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_, added,
-                                           impl_->bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
+                                           impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
   }
@@ -358,8 +358,8 @@ bool UdsClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> d
     return false;
   }
   const auto added = data->size();
-  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_, added,
-                                           impl_->bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
+                                           impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
   }

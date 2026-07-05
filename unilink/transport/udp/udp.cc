@@ -827,8 +827,8 @@ bool UdpChannel::async_write_copy(memory::ConstByteSpan data) {
     memory::PooledBuffer pooled(size, impl->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
-      if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_, impl->inflight_bytes_, size,
-                                               impl->bp_limit_)) {
+      if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                               impl->inflight_bytes_, size, impl->bp_limit_)) {
         impl->stats_.record_failed_send();
         return false;
       }
@@ -842,8 +842,8 @@ bool UdpChannel::async_write_copy(memory::ConstByteSpan data) {
     }
   }
 
-  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_, impl->inflight_bytes_, size,
-                                           impl->bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                           impl->inflight_bytes_, size, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }
@@ -883,8 +883,8 @@ bool UdpChannel::async_write_move(std::vector<uint8_t>&& data) {
     impl->stats_.record_failed_send();
     return false;
   }
-  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_, impl->inflight_bytes_, size,
-                                           impl->bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                           impl->inflight_bytes_, size, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }
@@ -924,8 +924,8 @@ bool UdpChannel::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> 
     impl->stats_.record_failed_send();
     return false;
   }
-  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_, impl->inflight_bytes_, size,
-                                           impl->bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                           impl->inflight_bytes_, size, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }
@@ -1086,8 +1086,8 @@ bool UdpChannel::async_write_to(memory::ConstByteSpan data, const boost::asio::i
     memory::PooledBuffer pooled(size, impl->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
-      if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_, impl->inflight_bytes_, size,
-                                               impl->bp_limit_)) {
+      if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                               impl->inflight_bytes_, size, impl->bp_limit_)) {
         impl->stats_.record_failed_send();
         return false;
       }
@@ -1101,8 +1101,8 @@ bool UdpChannel::async_write_to(memory::ConstByteSpan data, const boost::asio::i
     }
   }
 
-  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_, impl->inflight_bytes_, size,
-                                           impl->bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                           impl->inflight_bytes_, size, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }

@@ -350,8 +350,9 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
         base::safe_memory::safe_memcpy(pooled_buffer.data(), data.data(), size);
         const auto added = pooled_buffer.size();
         const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-        if (reliable && !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
-                                                              impl_->inflight_bytes_, added, impl_->bp_limit_)) {
+        if (reliable &&
+            !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
+                                                 impl_->inflight_bytes_, added, impl_->bp_limit_)) {
           impl_->stats_.record_failed_send();
           return false;
         }
@@ -370,8 +371,9 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
   std::vector<uint8_t> fallback(data.begin(), data.end());
   const auto added = fallback.size();
   const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-  if (reliable && !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
-                                                        impl_->inflight_bytes_, added, impl_->bp_limit_)) {
+  if (reliable &&
+      !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
+                                           impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
   }
@@ -404,8 +406,9 @@ bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
 
   const auto added = size;
   const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-  if (reliable && !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
-                                                        impl_->inflight_bytes_, added, impl_->bp_limit_)) {
+  if (reliable &&
+      !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
+                                           impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
   }
@@ -437,8 +440,9 @@ bool TcpClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> d
 
   const auto added = size;
   const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-  if (reliable && !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
-                                                        impl_->inflight_bytes_, added, impl_->bp_limit_)) {
+  if (reliable &&
+      !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
+                                           impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
   }

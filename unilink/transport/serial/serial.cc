@@ -669,8 +669,8 @@ bool Serial::async_write_copy(memory::ConstByteSpan data) {
     memory::PooledBuffer pooled(n, impl->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), n);
-      if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_, impl->inflight_bytes_, n,
-                                               impl->bp_limit_)) {
+      if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_,
+                                               impl->inflight_bytes_, n, impl->bp_limit_)) {
         impl->stats_.record_failed_send();
         return false;
       }
@@ -684,8 +684,8 @@ bool Serial::async_write_copy(memory::ConstByteSpan data) {
     }
   }
 
-  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_, impl->inflight_bytes_, n,
-                                           impl->bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_,
+                                           impl->inflight_bytes_, n, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }
@@ -710,8 +710,8 @@ bool Serial::async_write_move(std::vector<uint8_t>&& data) {
     impl->stats_.record_failed_send();
     return false;
   }
-  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_, impl->inflight_bytes_, added,
-                                           impl->bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_,
+                                           impl->inflight_bytes_, added, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }
@@ -734,8 +734,8 @@ bool Serial::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data
     return false;
   }
   const auto added = data->size();
-  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_, impl->inflight_bytes_, added,
-                                           impl->bp_limit_)) {
+  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_,
+                                           impl->inflight_bytes_, added, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }
