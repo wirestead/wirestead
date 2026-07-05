@@ -197,20 +197,22 @@ TEST_F(TransportTcpClientTest, QueueLimitDropsMessage) {
 
   // bp_limit_ = max(backpressure_threshold * 4, DEFAULT_BACKPRESSURE_THRESHOLD) = 1MB here
   // (backpressure_threshold=1024 * 4 = 4KB is below the 1MB default floor).
-  // A 2MB write exceeds it outright: message dropped, backpressure fires,
-  // connection stays alive.
+  // A 2MB write exceeds it outright and is now rejected synchronously via
+  // try_reserve_limit_bytes() (jwsung91/unilink#517) instead of being
+  // accepted and only discovered too-large once routed onto the strand -
+  // matching every other transport's existing fallback-path precheck (see
+  // e.g. TransportTcpServerSessionTest.QueueLimitDropsMessage). Backpressure
+  // does not fire since the write is never queued.
   std::vector<uint8_t> huge(2 * 1024 * 1024, 0xEF);
-  client_->async_write_copy(memory::ConstByteSpan(huge.data(), huge.size()));
+  EXPECT_FALSE(client_->async_write_copy(memory::ConstByteSpan(huge.data(), huge.size())));
 
   ioc.run_for(std::chrono::milliseconds(50));
 
-  EXPECT_TRUE(backpressure_seen.load());
-  // #448: this rejection path used to leave RuntimeStats showing the
-  // message as accepted with no corresponding dropped/sent/queued
-  // accounting - confirm it now shows up as a recorded drop.
+  EXPECT_FALSE(backpressure_seen.load());
   auto stats = client_->stats();
-  EXPECT_GE(stats.dropped_messages, 1u);
-  EXPECT_GE(stats.dropped_bytes, huge.size());
+  EXPECT_GE(stats.failed_sends, 1u);
+  EXPECT_EQ(stats.dropped_messages, 0u);
+  EXPECT_EQ(stats.dropped_bytes, 0u);
 
   client_->stop();
   client_.reset();

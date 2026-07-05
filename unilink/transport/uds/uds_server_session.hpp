@@ -23,6 +23,7 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <variant>
 #include <vector>
@@ -113,6 +114,13 @@ class UNILINK_API UdsServerSession : public std::enable_shared_from_this<UdsServ
   std::optional<BufferVariant> current_write_buffer_;
   bool writing_ = false;
   std::atomic<size_t> queue_bytes_{0};
+  // Bytes accepted by a plain async_write_* call but not yet routed onto the
+  // strand - reserved via try_reserve_limit_bytes() to close the
+  // accept-then-drop race (jwsung91/unilink#517). inflight_bytes_ mutations
+  // and the queue_bytes_/pending_bytes_ increments that promote a
+  // reservation both go through write_reserve_mtx_ - see bp_utils.hpp.
+  std::atomic<size_t> inflight_bytes_{0};
+  std::mutex write_reserve_mtx_;
   base::constants::BackpressureStrategy bp_strategy_{base::constants::BackpressureStrategy::Reliable};
   size_t bp_high_;
   size_t bp_low_;

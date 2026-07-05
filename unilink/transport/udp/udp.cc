@@ -24,6 +24,7 @@
 #include <cstddef>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <stop_token>
@@ -77,6 +78,13 @@ struct UdpChannel::Impl {
   std::atomic<size_t> pending_bytes_{0};
   bool writing_{false};
   std::atomic<size_t> queue_bytes_{0};
+  // Bytes accepted by a plain async_write_* call but not yet routed onto the
+  // strand - reserved via try_reserve_limit_bytes() to close the
+  // accept-then-drop race (jwsung91/unilink#517). inflight_bytes_ mutations
+  // and the queue_bytes_/pending_bytes_ increments that promote a
+  // reservation both go through write_reserve_mtx_ - see bp_utils.hpp.
+  std::atomic<size_t> inflight_bytes_{0};
+  std::mutex write_reserve_mtx_;
   config::UdpConfig cfg_;
   // #443: per-channel pool instead of the process-wide GlobalMemoryPool
   // singleton - avoids cross-channel contention on the singleton's bucket
@@ -534,6 +542,8 @@ struct UdpChannel::Impl {
                       std::optional<udp::endpoint> dest = std::nullopt) {
     if (stopping_.load() || stop_requested_.load() || state_.is_state(LinkState::Closed) ||
         state_.is_state(LinkState::Error)) {
+      queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, size);
+      stats_.record_failed_send();
       return false;
     }
 
@@ -559,18 +569,19 @@ struct UdpChannel::Impl {
       // #448: record as dropped so it's reflected in RuntimeStats instead of
       // silently vanishing after being counted as accepted.
       stats_.record_dropped(1, size);
+      queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, size);
       report_backpressure(self, queue_bytes_ + size);
       return false;
     }
 
     if (decision == queue_util::EnqueueDecision::Pending) {
-      pending_bytes_ += size;
+      queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, pending_bytes_, inflight_bytes_, size);
       pending_.push_back({std::move(buffer), dest});
       observe_queue();
       return true;
     }
 
-    queue_bytes_ += size;
+    queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, queue_bytes_, inflight_bytes_, size);
     tx_.push_back({std::move(buffer), dest});
     observe_queue();
     report_backpressure(self, queue_bytes_);
@@ -816,7 +827,8 @@ bool UdpChannel::async_write_copy(memory::ConstByteSpan data) {
     memory::PooledBuffer pooled(size, impl->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
-      if (impl->queue_bytes_ + impl->pending_bytes_ + size > impl->bp_limit_) {
+      if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                               impl->inflight_bytes_, size, impl->bp_limit_)) {
         impl->stats_.record_failed_send();
         return false;
       }
@@ -830,6 +842,11 @@ bool UdpChannel::async_write_copy(memory::ConstByteSpan data) {
     }
   }
 
+  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                           impl->inflight_bytes_, size, impl->bp_limit_)) {
+    impl->stats_.record_failed_send();
+    return false;
+  }
   std::vector<uint8_t> copy(data.begin(), data.end());
   impl->stats_.record_accepted(size);
   net::post(impl->strand_, [self = shared_from_this(), buf = std::move(copy), size]() mutable {
@@ -866,7 +883,8 @@ bool UdpChannel::async_write_move(std::vector<uint8_t>&& data) {
     impl->stats_.record_failed_send();
     return false;
   }
-  if (impl->queue_bytes_ + impl->pending_bytes_ + size > impl->bp_limit_) {
+  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                           impl->inflight_bytes_, size, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }
@@ -906,7 +924,8 @@ bool UdpChannel::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> 
     impl->stats_.record_failed_send();
     return false;
   }
-  if (impl->queue_bytes_ + impl->pending_bytes_ + size > impl->bp_limit_) {
+  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                           impl->inflight_bytes_, size, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }
@@ -1067,7 +1086,8 @@ bool UdpChannel::async_write_to(memory::ConstByteSpan data, const boost::asio::i
     memory::PooledBuffer pooled(size, impl->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
-      if (impl->queue_bytes_ + impl->pending_bytes_ + size > impl->bp_limit_) {
+      if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                               impl->inflight_bytes_, size, impl->bp_limit_)) {
         impl->stats_.record_failed_send();
         return false;
       }
@@ -1081,6 +1101,11 @@ bool UdpChannel::async_write_to(memory::ConstByteSpan data, const boost::asio::i
     }
   }
 
+  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
+                                           impl->inflight_bytes_, size, impl->bp_limit_)) {
+    impl->stats_.record_failed_send();
+    return false;
+  }
   std::vector<uint8_t> copy(data.begin(), data.end());
   impl->stats_.record_accepted(size);
   net::post(impl->strand_, [self = shared_from_this(), buf = std::move(copy), size, destination]() mutable {
