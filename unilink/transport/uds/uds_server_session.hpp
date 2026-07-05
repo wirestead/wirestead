@@ -113,6 +113,10 @@ class UNILINK_API UdsServerSession : public std::enable_shared_from_this<UdsServ
   std::optional<BufferVariant> current_write_buffer_;
   bool writing_ = false;
   std::atomic<size_t> queue_bytes_{0};
+  // Bytes accepted by a plain async_write_* call but not yet routed onto the
+  // strand - reserved via try_reserve_limit_bytes() to close the
+  // accept-then-drop race (jwsung91/unilink#517).
+  std::atomic<size_t> inflight_bytes_{0};
   base::constants::BackpressureStrategy bp_strategy_{base::constants::BackpressureStrategy::Reliable};
   size_t bp_high_;
   size_t bp_low_;

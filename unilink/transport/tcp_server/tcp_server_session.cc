@@ -100,14 +100,18 @@ bool TcpServerSession::async_write_copy(memory::ConstByteSpan data) {
     if (pooled_buffer.valid()) {
       // Copy data to pooled buffer safely
       base::safe_memory::safe_memcpy(pooled_buffer.data(), data.data(), size);
-      if (queue_bytes_ + pending_bytes_ + size > bp_limit_) {
+      if (!queue_util::try_reserve_limit_bytes(queue_bytes_, pending_bytes_, inflight_bytes_, size, bp_limit_)) {
         stats_.record_failed_send();
         return false;
       }
       stats_.record_accepted(size);
       net::post(strand_, [self = shared_from_this(), buf = std::move(pooled_buffer)]() mutable {
-        if (!self->alive_ || self->closing_) return;  // Double-check in case session was closed
         const auto added = buf.size();
+        if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
+          queue_util::release_reserved_limit_bytes(self->inflight_bytes_, added);
+          self->stats_.record_failed_send();
+          return;
+        }
         self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
       });
       return true;
@@ -115,17 +119,20 @@ bool TcpServerSession::async_write_copy(memory::ConstByteSpan data) {
   }
 
   // Fallback to regular allocation for large buffers or pool exhaustion
-  if (queue_bytes_ + pending_bytes_ + size > bp_limit_) {
+  if (!queue_util::try_reserve_limit_bytes(queue_bytes_, pending_bytes_, inflight_bytes_, size, bp_limit_)) {
     stats_.record_failed_send();
     return false;
   }
   std::vector<uint8_t> fallback(data.begin(), data.end());
   stats_.record_accepted(size);
 
-  net::post(strand_, [self = shared_from_this(), buf = std::move(fallback)]() mutable {
-    if (!self->alive_ || self->closing_) return;  // Double-check in case session was closed
-    const auto added = buf.size();
-    self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
+  net::post(strand_, [self = shared_from_this(), buf = std::move(fallback), size]() mutable {
+    if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
+      queue_util::release_reserved_limit_bytes(self->inflight_bytes_, size);
+      self->stats_.record_failed_send();
+      return;
+    }
+    self->route_enqueued_buffer(BufferVariant{std::move(buf)}, size);
   });
   return true;
 }
@@ -145,13 +152,17 @@ bool TcpServerSession::async_write_move(std::vector<uint8_t>&& data) {
     stats_.record_failed_send();
     return false;
   }
-  if (queue_bytes_ + pending_bytes_ + added > bp_limit_) {
+  if (!queue_util::try_reserve_limit_bytes(queue_bytes_, pending_bytes_, inflight_bytes_, added, bp_limit_)) {
     stats_.record_failed_send();
     return false;
   }
   stats_.record_accepted(added);
   net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (!self->alive_ || self->closing_) return;
+    if (!self->alive_ || self->closing_) {
+      queue_util::release_reserved_limit_bytes(self->inflight_bytes_, added);
+      self->stats_.record_failed_send();
+      return;
+    }
     self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
   });
   return true;
@@ -168,13 +179,17 @@ bool TcpServerSession::async_write_shared(std::shared_ptr<const std::vector<uint
     stats_.record_failed_send();
     return false;
   }
-  if (queue_bytes_ + pending_bytes_ + added > bp_limit_) {
+  if (!queue_util::try_reserve_limit_bytes(queue_bytes_, pending_bytes_, inflight_bytes_, added, bp_limit_)) {
     stats_.record_failed_send();
     return false;
   }
   stats_.record_accepted(added);
   net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (!self->alive_ || self->closing_) return;
+    if (!self->alive_ || self->closing_) {
+      queue_util::release_reserved_limit_bytes(self->inflight_bytes_, added);
+      self->stats_.record_failed_send();
+      return;
+    }
     self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
   });
   return true;
@@ -477,16 +492,19 @@ void TcpServerSession::route_enqueued_buffer(BufferVariant&& buf, size_t added) 
     // #448: record as dropped so it's reflected in RuntimeStats instead of
     // silently vanishing after being counted as accepted.
     stats_.record_dropped(1, added);
+    queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
     report_backpressure(queue_bytes_ + added);
     return;
   }
   if (decision == queue_util::EnqueueDecision::Pending) {
     pending_bytes_ += added;
+    queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
     pending_.emplace_back(std::move(buf));
     observe_queue();
     return;
   }
   queue_bytes_ += added;
+  queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
   tx_.emplace_back(std::move(buf));
   observe_queue();
   report_backpressure(queue_bytes_);

@@ -81,6 +81,10 @@ struct Serial::Impl {
   std::optional<BufferVariant> current_write_buffer_;
   bool writing_ = false;
   std::atomic<size_t> queued_bytes_{0};
+  // Bytes accepted by a plain async_write_* call but not yet routed onto the
+  // strand - reserved via try_reserve_limit_bytes() to close the
+  // accept-then-drop race (jwsung91/unilink#517).
+  std::atomic<size_t> inflight_bytes_{0};
   // Atomic rather than mutex-guarded: read both from the strand and from
   // arbitrary caller threads (async_try_write_* fast-fail prechecks) - a
   // strand-post/dispatch here would only protect the former (#436).
@@ -157,6 +161,7 @@ struct Serial::Impl {
       // #448: record as dropped so it's reflected in RuntimeStats instead of
       // silently vanishing after being counted as accepted.
       stats_.record_dropped(1, added);
+      queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
       if (reliable_pending_active) {
         return;
       }
@@ -171,11 +176,13 @@ struct Serial::Impl {
     }
     if (decision == queue_util::EnqueueDecision::Pending) {
       pending_bytes_ += added;
+      queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
       pending_.emplace_back(std::move(buf));
       observe_queue();
       return;
     }
     queued_bytes_ += added;
+    queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
     tx_.emplace_back(std::move(buf));
     observe_queue();
     report_backpressure(queued_bytes_);
@@ -660,7 +667,8 @@ bool Serial::async_write_copy(memory::ConstByteSpan data) {
     memory::PooledBuffer pooled(n, impl->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), n);
-      if (impl->queued_bytes_ + impl->pending_bytes_ + n > impl->bp_limit_) {
+      if (!queue_util::try_reserve_limit_bytes(impl->queued_bytes_, impl->pending_bytes_, impl->inflight_bytes_, n,
+                                               impl->bp_limit_)) {
         impl->stats_.record_failed_send();
         return false;
       }
@@ -674,7 +682,8 @@ bool Serial::async_write_copy(memory::ConstByteSpan data) {
     }
   }
 
-  if (impl->queued_bytes_ + impl->pending_bytes_ + n > impl->bp_limit_) {
+  if (!queue_util::try_reserve_limit_bytes(impl->queued_bytes_, impl->pending_bytes_, impl->inflight_bytes_, n,
+                                           impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }
@@ -699,7 +708,8 @@ bool Serial::async_write_move(std::vector<uint8_t>&& data) {
     impl->stats_.record_failed_send();
     return false;
   }
-  if (impl->queued_bytes_ + impl->pending_bytes_ + added > impl->bp_limit_) {
+  if (!queue_util::try_reserve_limit_bytes(impl->queued_bytes_, impl->pending_bytes_, impl->inflight_bytes_, added,
+                                           impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }
@@ -722,7 +732,8 @@ bool Serial::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data
     return false;
   }
   const auto added = data->size();
-  if (impl->queued_bytes_ + impl->pending_bytes_ + added > impl->bp_limit_) {
+  if (!queue_util::try_reserve_limit_bytes(impl->queued_bytes_, impl->pending_bytes_, impl->inflight_bytes_, added,
+                                           impl->bp_limit_)) {
     impl->stats_.record_failed_send();
     return false;
   }

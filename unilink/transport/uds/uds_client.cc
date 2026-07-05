@@ -87,6 +87,10 @@ struct UdsClient::Impl {
   std::optional<BufferVariant> current_write_buffer_;
   bool writing_ = false;
   std::atomic<size_t> queue_bytes_{0};
+  // Bytes accepted by a plain async_write_* call but not yet routed onto the
+  // strand - reserved via try_reserve_limit_bytes() to close the
+  // accept-then-drop race (jwsung91/unilink#517).
+  std::atomic<size_t> inflight_bytes_{0};
   // Atomic rather than mutex-guarded: read both from the strand and from
   // arbitrary caller threads (async_try_write_* fast-fail prechecks) (#436).
   std::atomic<base::constants::BackpressureStrategy> bp_strategy_{base::constants::BackpressureStrategy::Reliable};
@@ -305,7 +309,8 @@ bool UdsClient::async_write_copy(memory::ConstByteSpan data) {
     memory::PooledBuffer pooled(size, impl_->pool_);
     if (pooled.valid()) {
       base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
-      if (impl_->queue_bytes_ + impl_->pending_bytes_ + size > impl_->bp_limit_) {
+      if (!queue_util::try_reserve_limit_bytes(impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_,
+                                               size, impl_->bp_limit_)) {
         impl_->stats_.record_failed_send();
         return false;
       }
@@ -331,13 +336,14 @@ bool UdsClient::async_write_move(std::vector<uint8_t>&& data) {
     impl_->stats_.record_failed_send();
     return false;
   }
-  if (impl_->queue_bytes_ + impl_->pending_bytes_ + data.size() > impl_->bp_limit_) {
+  const auto added = data.size();
+  if (!queue_util::try_reserve_limit_bytes(impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_, added,
+                                           impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
   }
-  impl_->stats_.record_accepted(data.size());
-  net::post(impl_->strand_, [this, self = shared_from_this(), data = std::move(data)]() mutable {
-    size_t added = data.size();
+  impl_->stats_.record_accepted(added);
+  net::post(impl_->strand_, [this, self = shared_from_this(), data = std::move(data), added]() mutable {
     impl_->route_enqueued_buffer(self, BufferVariant{std::move(data)}, added);
   });
   return true;
@@ -348,13 +354,14 @@ bool UdsClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> d
     impl_->stats_.record_failed_send();
     return false;
   }
-  if (impl_->queue_bytes_ + impl_->pending_bytes_ + data->size() > impl_->bp_limit_) {
+  const auto added = data->size();
+  if (!queue_util::try_reserve_limit_bytes(impl_->queue_bytes_, impl_->pending_bytes_, impl_->inflight_bytes_, added,
+                                           impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return false;
   }
-  impl_->stats_.record_accepted(data->size());
-  net::post(impl_->strand_, [this, self = shared_from_this(), data = std::move(data)]() mutable {
-    size_t added = data->size();
+  impl_->stats_.record_accepted(added);
+  net::post(impl_->strand_, [this, self = shared_from_this(), data = std::move(data), added]() mutable {
     impl_->route_enqueued_buffer(self, BufferVariant{std::move(data)}, added);
   });
   return true;
@@ -755,16 +762,19 @@ void UdsClient::Impl::route_enqueued_buffer(std::shared_ptr<UdsClient> self, Buf
     // #448: record as dropped so it's reflected in RuntimeStats instead of
     // silently vanishing after being counted as accepted.
     stats_.record_dropped(1, added);
+    queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
     report_backpressure(self, queue_bytes_ + added);
     return;
   }
   if (decision == queue_util::EnqueueDecision::Pending) {
     pending_bytes_ += added;
+    queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
     pending_.emplace_back(std::move(buf));
     observe_queue();
     return;
   }
   queue_bytes_ += added;
+  queue_util::release_reserved_limit_bytes(inflight_bytes_, added);
   tx_.emplace_back(std::move(buf));
   observe_queue();
   report_backpressure(self, queue_bytes_);

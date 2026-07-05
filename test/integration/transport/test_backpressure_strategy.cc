@@ -546,6 +546,80 @@ TEST(BackpressureStrategyTest, Reliable_CombinedLimit_LargeWriteRejected) {
   drain_and_stop(sock, session, ioc);
 }
 
+// Reproduces jwsung91/unilink#517: the plain (blocking-capable) async_write_*
+// path used to precheck queue_bytes_+pending_bytes_+added>bp_limit_ on the
+// caller's own thread without reserving the bytes, then re-decide on the
+// strand once the write was actually routed. Concurrent callers could all
+// pass the precheck, and once routed the real combined total exceeded
+// bp_limit_, so some already-`accepted` messages got silently reclassified
+// as `dropped` - a real-world 0.05%-0.7% loss confirmed on Jetson benchmark
+// data for Reliable strategy, which must never drop. try_reserve_limit_bytes()
+// closes this by reserving atomically at accept time; this test drives many
+// concurrent writers through a real io_context/strand (not manual ioc.poll()
+// stepping) so the accept-time precheck and the strand's routing genuinely
+// overlap across threads, and asserts every message the precheck accepted
+// survives routing.
+TEST(BackpressureStrategyTest, Reliable_ConcurrentPlainWritesNeverDropAcceptedMessages) {
+  constexpr size_t kBpHigh = 1024;
+  constexpr int kThreadCount = 8;
+  constexpr int kMessagesPerThread = 3000;
+  constexpr size_t kPayload = 100;  // 8*3000*100 = 2.4 MB requested, ~2.4x bp_limit_ (1 MiB)
+
+  net::io_context ioc;
+  auto work = net::make_work_guard(ioc);
+  std::thread io_thread([&] { ioc.run(); });
+
+  auto socket = std::make_unique<StallingTcpSocket>(ioc);
+  auto* sock = socket.get();
+  auto session =
+      std::make_shared<transport::TcpServerSession>(ioc, std::move(socket), kBpHigh, 0, BackpressureStrategy::Reliable);
+  session->on_backpressure([](size_t) {});
+  session->start();
+
+  std::atomic<int> accepted_count{0};
+  std::vector<std::thread> writers;
+  writers.reserve(kThreadCount);
+  for (int t = 0; t < kThreadCount; ++t) {
+    writers.emplace_back([&] {
+      for (int i = 0; i < kMessagesPerThread; ++i) {
+        if (session->async_write_move(std::vector<uint8_t>(kPayload, 0xAB))) {
+          accepted_count.fetch_add(1, std::memory_order_relaxed);
+        }
+      }
+    });
+  }
+  for (auto& th : writers) th.join();
+
+  // route_enqueued_buffer() runs on the session's strand inside io_thread;
+  // wait for the posted-write backlog to fully drain (queued_bytes_ +
+  // pending_bytes_ + dropped_bytes stops changing) before reading final
+  // stats, rather than a single fixed sleep.
+  size_t stable_bytes = 0;
+  int stable_iterations = 0;
+  for (int i = 0; i < 500 && stable_iterations < 5; ++i) {
+    std::this_thread::sleep_for(2ms);
+    auto s = session->stats();
+    const size_t current = s.queued_bytes + s.pending_bytes + s.dropped_bytes;
+    if (current == stable_bytes) {
+      ++stable_iterations;
+    } else {
+      stable_bytes = current;
+      stable_iterations = 0;
+    }
+  }
+
+  auto stats = session->stats();
+  EXPECT_EQ(stats.messages_accepted, static_cast<uint64_t>(accepted_count.load()));
+  EXPECT_EQ(stats.dropped_messages, 0u)
+      << stats.dropped_messages << " of " << accepted_count.load()
+      << " accepted messages were dropped after routing (jwsung91/unilink#517)";
+
+  work.reset();
+  drain_and_stop(sock, session, ioc);
+  ioc.stop();
+  io_thread.join();
+}
+
 // When OFF fires and the flushed pending_ bytes push queue above bp_high_,
 // the ON callback is re-fired immediately in the same report_backpressure call.
 TEST(BackpressureStrategyTest, Reliable_BurstOnOFF_ImmediateOnReactivation) {
