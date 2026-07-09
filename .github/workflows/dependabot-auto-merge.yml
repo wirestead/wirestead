@@ -24,10 +24,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable auto-merge for Dependabot PRs
-        # GITHUB_TOKEN can never merge a PR that touches .github/workflows/*
-        # (GitHub blocks it to prevent workflow privilege escalation), so
-        # PRs bumping action versions need a PAT with the `workflow` scope.
+        # Note: GITHUB_TOKEN cannot auto-merge PRs that modify files under
+        # .github/workflows/ (GitHub blocks this to prevent workflows from
+        # escalating their own permissions). Those PRs -- i.e. GitHub Actions
+        # version bumps -- must be merged manually. All other Dependabot PRs
+        # auto-merge fine.
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GITHUB_TOKEN: ${{ secrets.DEPENDABOT_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
