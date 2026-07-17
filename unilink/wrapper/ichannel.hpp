@@ -240,7 +240,7 @@ class UNILINK_API ChannelInterface {
   virtual ChannelInterface& on_backpressure(std::function<void(size_t)> handler) {
     if (handler) {
       UNILINK_LOG_WARNING("channel_interface", "on_backpressure",
-                           "Backpressure reporting is not supported by this channel; handler is discarded.");
+                          "Backpressure reporting is not supported by this channel; handler is discarded.");
     }
     return *this;
   }

@@ -202,7 +202,7 @@ class UNILINK_API ServerInterface {
   virtual ServerInterface& on_backpressure(std::function<void(size_t)> handler) {
     if (handler) {
       UNILINK_LOG_WARNING("server_interface", "on_backpressure",
-                           "Backpressure reporting is not supported by this server; handler is discarded.");
+                          "Backpressure reporting is not supported by this server; handler is discarded.");
     }
     return *this;
   }
