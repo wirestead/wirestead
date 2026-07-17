@@ -182,8 +182,12 @@ jobs:
         run: |
           BUILD_ARGS="--config Release --verbose"
           if [ "${{ runner.os }}" = "macOS" ]; then
-            CORES=$(sysctl -n hw.ncpu)
-            BUILD_ARGS="$BUILD_ARGS --parallel $CORES"
+            # Capped (not sysctl -n hw.ncpu) to match ci.yml's macOS Unit Tests
+            # job: full parallelism let ninja's gtest_discover_tests POST_BUILD
+            # step race other link/discovery jobs for CPU time, intermittently
+            # failing to produce its test-list JSON on a different test binary
+            # each run (observed across 3 consecutive release.yml runs for v0.8.9).
+            BUILD_ARGS="$BUILD_ARGS --parallel 4"
           else
             BUILD_ARGS="$BUILD_ARGS --parallel"
           fi
