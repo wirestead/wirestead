@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "unilink/base/visibility.hpp"
+#include "unilink/diagnostics/logger.hpp"
 #include "unilink/framer/iframer.hpp"
 #include "unilink/wrapper/context.hpp"
 #include "unilink/wrapper/runtime_stats.hpp"
@@ -237,7 +238,10 @@ class UNILINK_API ChannelInterface {
    * is silently discarded.
    */
   virtual ChannelInterface& on_backpressure(std::function<void(size_t)> handler) {
-    (void)handler;
+    if (handler) {
+      UNILINK_LOG_WARNING("channel_interface", "on_backpressure",
+                          "Backpressure reporting is not supported by this channel; handler is discarded.");
+    }
     return *this;
   }
 

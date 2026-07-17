@@ -60,6 +60,8 @@ The setup script installs Boost and spdlog through an untracked, repository-loca
 CMake remains the version gate and rejects Boost versions older than 1.83.0.
 The preset-based contributor workflow uses `CMakePresets.json` schema version 3, so those `cmake --preset ...` commands require CMake 3.21+.
 
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contributor workflow: running tests, `scripts/verify.sh`, commit conventions, and PR expectations.
+
 ## 📚 Documentation
 
 Full documentation is maintained in the unilink documentation repository:
