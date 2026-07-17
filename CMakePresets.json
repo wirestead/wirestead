@@ -131,6 +131,36 @@
       "execution": {
         "jobs": 0
       }
+    },
+    {
+      "name": "dev-macos-arm64",
+      "configurePreset": "dev-macos-arm64",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 0
+      }
+    },
+    {
+      "name": "dev-macos-x64",
+      "configurePreset": "dev-macos-x64",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 0
+      }
+    },
+    {
+      "name": "dev-windows-x64",
+      "configurePreset": "dev-windows-x64",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "jobs": 0
+      }
     }
   ]
 }

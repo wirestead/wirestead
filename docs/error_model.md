@@ -14,6 +14,21 @@ and exceptions. The expected path depends on when the failure is detected.
 `stop()` is idempotent and blocks until pending async operations are cancelled.
 After `stop()` returns, no further callbacks should fire.
 
+## Choosing a send method
+
+| Method | Blocks? | Payload ownership | Use when |
+| --- | --- | --- | --- |
+| `send(data)` / `send_line(line)` | Strategy-dependent (Reliable blocks, BestEffort doesn't) | Borrows (`string_view`) | Default choice; respects the channel's configured `BackpressureStrategy` |
+| `send_blocking(data)` / `send_line_blocking(line)` | Always blocks | Borrows | Need guaranteed delivery for this one call, regardless of strategy |
+| `try_send(data)` / `try_send_line(line)` | Never blocks | Borrows | Producer loops, or any call that must never stall the caller (never call from inside a callback while backpressured - see [Callback data lifetime](callbacks.md)) |
+| `send_move(data)` / `try_send_move(data)` | Strategy-dependent / never blocks | Transfers (`vector<uint8_t>&&`) | Avoid a copy when you already own the buffer and don't need it back |
+| `send_shared(data)` / `try_send_shared(data)` | Strategy-dependent / never blocks | Shared (`shared_ptr<const vector<uint8_t>>`) | Same payload fanned out to multiple channels without copying |
+
+Rule of thumb: start with `send()`. Switch to a `try_*` variant for producer
+loops or callback-driven sends where blocking is unacceptable. Switch to a
+`_blocking` variant only when a specific call must guarantee delivery
+regardless of the configured strategy.
+
 ## Send errors
 
 `send(...)` follows the configured `BackpressureStrategy`.
