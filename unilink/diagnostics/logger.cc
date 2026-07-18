@@ -279,15 +279,28 @@ struct Logger::Impl {
   }
 
   void apply_environment_settings() {
-    const char* env_level = std::getenv("UNILINK_LOG_LEVEL");
+    // WIRESTEAD_LOG_LEVEL takes priority over UNILINK_LOG_LEVEL when both are
+    // set (docs/migration-from-unilink.md compatibility policy), with a
+    // startup log line so the choice is discoverable rather than silent.
+    const char* wirestead_env = std::getenv("WIRESTEAD_LOG_LEVEL");
+    const char* unilink_env = std::getenv("UNILINK_LOG_LEVEL");
+    const bool has_wirestead_env = wirestead_env && *wirestead_env != '\0';
+    const bool has_unilink_env = unilink_env && *unilink_env != '\0';
+
+    const char* env_level = has_wirestead_env ? wirestead_env : unilink_env;
+    const char* env_name = has_wirestead_env ? "WIRESTEAD_LOG_LEVEL" : "UNILINK_LOG_LEVEL";
     if (!env_level || *env_level == '\0') {
       return;
+    }
+
+    if (has_wirestead_env && has_unilink_env && spd_logger_) {
+      spd_logger_->info("WIRESTEAD_LOG_LEVEL is set alongside UNILINK_LOG_LEVEL; WIRESTEAD_LOG_LEVEL takes precedence");
     }
 
     LogLevel parsed_level = current_level_.load();
     bool disable_logging = false;
     if (!parse_log_level(env_level, parsed_level, disable_logging)) {
-      set_error("Invalid UNILINK_LOG_LEVEL: " + std::string(env_level));
+      set_error("Invalid " + std::string(env_name) + ": " + std::string(env_level));
       return;
     }
 
