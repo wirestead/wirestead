@@ -1,7 +1,7 @@
-prefix=@CMAKE_INSTALL_PREFIX@
+prefix=${pcfiledir}/@WIRESTEAD_PKGCONFIG_PREFIX_FROM_PCFILEDIR@
 exec_prefix=${prefix}
-libdir=@CMAKE_INSTALL_FULL_LIBDIR@
-includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
+libdir=${pcfiledir}/..
+includedir=${prefix}/@WIRESTEAD_PKGCONFIG_INCLUDEDIR_FROM_PREFIX@
 
 Name: unilink
 Description: Legacy UniLink compatibility package for Wirestead
