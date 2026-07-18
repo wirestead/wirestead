@@ -19,12 +19,12 @@
 #include <string>
 #include <vector>
 
-#include "unilink/framer/line_framer.hpp"
+#include "wirestead/framer/line_framer.hpp"
 
-using namespace unilink;
-using namespace unilink::framer;
+using namespace wirestead;
+using namespace wirestead::framer;
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 class LineFramerTest : public ::testing::Test {
@@ -167,4 +167,4 @@ TEST_F(LineFramerTest, SplitDelimiter) {
 }
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

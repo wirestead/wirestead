@@ -16,15 +16,5 @@
 
 #pragma once
 
-#if defined(_MSC_VER)
-#define UNILINK_DEPRECATED_MSG(msg) __declspec(deprecated(msg))
-#elif defined(__GNUC__) || defined(__clang__)
-#define UNILINK_DEPRECATED_MSG(msg) __attribute__((deprecated(msg)))
-#else
-#define UNILINK_DEPRECATED_MSG(msg)
-#endif
-
-// Fallback or alias if desired, but prioritize safety
-#ifndef UNILINK_DEPRECATED
-#define UNILINK_DEPRECATED(msg) UNILINK_DEPRECATED_MSG(msg)
-#endif
+#include <wirestead/base/deprecated.hpp>
+#include <wirestead/compat/unilink.hpp>

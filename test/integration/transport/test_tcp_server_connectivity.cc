@@ -23,12 +23,12 @@
 #include <thread>
 
 #include "test_utils.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/wirestead.hpp"
 
 namespace {
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 
 class TcpServerConnectivityTest : public ::testing::Test {
  protected:

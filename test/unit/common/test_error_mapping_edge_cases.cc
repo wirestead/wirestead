@@ -18,31 +18,31 @@
 
 #include <boost/asio/error.hpp>
 
-#include "unilink/diagnostics/error_mapping.hpp"
+#include "wirestead/diagnostics/error_mapping.hpp"
 
-using namespace unilink;
-using namespace unilink::diagnostics;
+using namespace wirestead;
+using namespace wirestead::diagnostics;
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
-TEST(ErrorMappingEdgeCaseTest, ToUnilinkErrorCodeBranches) {
+TEST(ErrorMappingEdgeCaseTest, ToWiresteadErrorCodeBranches) {
   // Success case
-  EXPECT_EQ(to_unilink_error_code(boost::system::error_code()), ErrorCode::Success);
+  EXPECT_EQ(to_wirestead_error_code(boost::system::error_code()), ErrorCode::Success);
 
   // Each specific mapping branch
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::connection_refused), ErrorCode::ConnectionRefused);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::timed_out), ErrorCode::TimedOut);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::connection_reset), ErrorCode::ConnectionReset);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::connection_aborted), ErrorCode::ConnectionAborted);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::network_unreachable), ErrorCode::NotConnected);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::host_unreachable), ErrorCode::NotConnected);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::already_connected), ErrorCode::AlreadyConnected);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::address_in_use), ErrorCode::PortInUse);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::access_denied), ErrorCode::AccessDenied);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::connection_refused), ErrorCode::ConnectionRefused);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::timed_out), ErrorCode::TimedOut);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::connection_reset), ErrorCode::ConnectionReset);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::connection_aborted), ErrorCode::ConnectionAborted);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::network_unreachable), ErrorCode::NotConnected);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::host_unreachable), ErrorCode::NotConnected);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::already_connected), ErrorCode::AlreadyConnected);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::address_in_use), ErrorCode::PortInUse);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::access_denied), ErrorCode::AccessDenied);
 
   // Fallback branch
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::not_found), ErrorCode::IoError);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::not_found), ErrorCode::IoError);
 }
 
 TEST(ErrorMappingEdgeCaseTest, IsRetryableTcpConnectErrorBranches) {
@@ -93,4 +93,4 @@ TEST(ErrorMappingEdgeCaseTest, ToErrorContextBranches) {
 }
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

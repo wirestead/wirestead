@@ -22,13 +22,13 @@
 #include <thread>
 
 #include "test_utils.hpp"
-#include "unilink/builder/auto_initializer.hpp"
-#include "unilink/concurrency/io_context_manager.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/builder/auto_initializer.hpp"
+#include "wirestead/concurrency/io_context_manager.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 using namespace std::chrono_literals;
-using unilink::test::TestUtils;
+using wirestead::test::TestUtils;
 
 // ============================================================================
 // IMPROVED ARCHITECTURE TESTS
@@ -38,9 +38,9 @@ class ImprovedArchitectureTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Stop IoContextManager for auto-init test
-    if (unilink::concurrency::IoContextManager::instance().is_running()) {
+    if (wirestead::concurrency::IoContextManager::instance().is_running()) {
       std::cout << "Stopping IoContextManager for auto-init test..." << std::endl;
-      unilink::concurrency::IoContextManager::instance().stop();
+      wirestead::concurrency::IoContextManager::instance().stop();
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   }
@@ -84,13 +84,13 @@ TEST_F(ImprovedArchitectureTest, CurrentResourceSharingIssue) {
   uint16_t test_port = TestUtils::getAvailableTestPort();
 
   // Create server
-  server_ = unilink::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   ASSERT_NE(server_, nullptr);
   std::cout << "Server created successfully" << std::endl;
 
   // Create client
-  client_ = unilink::tcp_client("127.0.0.1", test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  client_ = wirestead::tcp_client("127.0.0.1", test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   ASSERT_NE(client_, nullptr);
   std::cout << "Client created successfully" << std::endl;
@@ -138,19 +138,19 @@ TEST_F(ImprovedArchitectureTest, UpperAPIAutoInitialization) {
   uint16_t test_port = TestUtils::getAvailableTestPort();
 
   // Builder auto-initializes even if IoContextManager is not running
-  if (unilink::concurrency::IoContextManager::instance().is_running()) {
-    unilink::concurrency::IoContextManager::instance().stop();
+  if (wirestead::concurrency::IoContextManager::instance().is_running()) {
+    wirestead::concurrency::IoContextManager::instance().stop();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 
   // The *builder constructor* starts IoContextManager (AutoInitializer),
   // regardless of whether build()'s resulting server ends up using it.
-  server_ = unilink::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   ASSERT_NE(server_, nullptr);
 
   // Check if IoContextManager started automatically
-  EXPECT_TRUE(unilink::concurrency::IoContextManager::instance().is_running());
+  EXPECT_TRUE(wirestead::concurrency::IoContextManager::instance().is_running());
 
   std::cout << "Upper API auto-initialization test completed" << std::endl;
 }
@@ -163,7 +163,7 @@ TEST_F(ImprovedArchitectureTest, UpperAPIAutoInitialization) {
 TEST_F(ImprovedArchitectureTest, TcpServerIndependentOfIoContextManager) {
   uint16_t test_port = TestUtils::getAvailableTestPort();
 
-  server_ = unilink::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_NE(server_, nullptr);
 
   auto f = server_->start();
@@ -172,14 +172,14 @@ TEST_F(ImprovedArchitectureTest, TcpServerIndependentOfIoContextManager) {
   // Stopping the global singleton (started as an AutoInitializer side effect
   // of building the *builder*, not because this server needs it) must not
   // affect this server's own dedicated io_context/thread at all.
-  if (unilink::concurrency::IoContextManager::instance().is_running()) {
-    unilink::concurrency::IoContextManager::instance().stop();
+  if (wirestead::concurrency::IoContextManager::instance().is_running()) {
+    wirestead::concurrency::IoContextManager::instance().stop();
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   EXPECT_TRUE(server_->listening());
 
-  client_ = unilink::tcp_client("127.0.0.1", test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  client_ = wirestead::tcp_client("127.0.0.1", test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   client_->start();
   EXPECT_TRUE(TestUtils::waitForCondition([&] { return client_->connected(); }, 2000));
 }
@@ -191,7 +191,7 @@ TEST_F(ImprovedArchitectureTest, ResourceSharingAnalysis) {
   std::cout << "Analyzing resource sharing..." << std::endl;
 
   // Resource management test through IoContextManager
-  unilink::concurrency::IoContextManager::instance().get_context();
+  wirestead::concurrency::IoContextManager::instance().get_context();
 
   std::cout << "Resource sharing analysis completed" << std::endl;
 }

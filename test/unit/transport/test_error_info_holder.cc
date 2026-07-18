@@ -16,10 +16,10 @@
 
 #include <gtest/gtest.h>
 
-#include "unilink/transport/base/error_info_holder.hpp"
+#include "wirestead/transport/base/error_info_holder.hpp"
 
-using namespace unilink::transport;
-using namespace unilink::diagnostics;
+using namespace wirestead::transport;
+using namespace wirestead::diagnostics;
 
 TEST(ErrorInfoHolderTest, StartsWithNoError) {
   ErrorInfoHolder holder("test_component");

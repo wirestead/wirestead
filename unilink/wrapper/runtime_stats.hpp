@@ -16,35 +16,5 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-
-namespace unilink {
-namespace wrapper {
-
-struct RuntimeStats {
-  uint64_t bytes_accepted = 0;
-  uint64_t messages_accepted = 0;
-
-  uint64_t bytes_sent = 0;
-  uint64_t messages_sent = 0;
-
-  uint64_t bytes_received = 0;
-  uint64_t messages_received = 0;
-
-  uint64_t failed_sends = 0;
-
-  uint64_t dropped_messages = 0;
-  uint64_t dropped_bytes = 0;
-
-  uint64_t backpressure_events = 0;
-
-  size_t queued_bytes = 0;
-  size_t pending_bytes = 0;
-  size_t max_queued_bytes = 0;
-
-  bool backpressure_active = false;
-};
-
-}  // namespace wrapper
-}  // namespace unilink
+#include <wirestead/compat/unilink.hpp>
+#include <wirestead/wrapper/runtime_stats.hpp>

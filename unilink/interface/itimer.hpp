@@ -16,29 +16,5 @@
 
 #pragma once
 
-#include <boost/asio.hpp>
-#include <functional>
-
-#include "unilink/base/platform.hpp"
-#include "unilink/base/visibility.hpp"
-
-namespace unilink {
-namespace interface {
-
-namespace net = boost::asio;
-
-/**
- * @brief An interface abstracting Boost.Asio's steady_timer for testability.
- * This is an internal interface used for dependency injection and mocking.
- */
-class UNILINK_API TimerInterface {
- public:
-  virtual ~TimerInterface() = default;
-
-  virtual void expires_after(std::chrono::milliseconds expiry_time) = 0;
-  virtual void async_wait(std::function<void(const boost::system::error_code&)> handler) = 0;
-  virtual void cancel() = 0;
-};
-
-}  // namespace interface
-}  // namespace unilink
+#include <wirestead/compat/unilink.hpp>
+#include <wirestead/interface/itimer.hpp>

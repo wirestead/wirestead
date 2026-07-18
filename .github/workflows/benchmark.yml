@@ -32,8 +32,8 @@ jobs:
         run: |
           cmake -S . -B build-benchmark -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DUNILINK_BUILD_TESTS=ON \
-            -DUNILINK_ENABLE_INSTALL=ON \
+            -DWIRESTEAD_BUILD_TESTS=ON \
+            -DWIRESTEAD_ENABLE_INSTALL=ON \
             -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
             -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET
 

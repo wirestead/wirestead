@@ -25,11 +25,11 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/diagnostics/error_handler.hpp"
-#include "unilink/diagnostics/logger.hpp"
+#include "wirestead/diagnostics/error_handler.hpp"
+#include "wirestead/diagnostics/logger.hpp"
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 using namespace std::chrono_literals;
 
 /**

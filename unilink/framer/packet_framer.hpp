@@ -16,55 +16,5 @@
 
 #pragma once
 
-#include <vector>
-
-#include "unilink/base/visibility.hpp"
-#include "unilink/framer/iframer.hpp"
-
-namespace unilink {
-namespace framer {
-
-/**
- * @brief Framer for binary packet protocols.
- *
- * Handles protocols with start and end patterns.
- * Syncs by searching for start pattern, then collects data until end pattern is found.
- */
-class UNILINK_API PacketFramer : public IFramer {
- public:
-  /**
-   * @brief Construct a new Packet Framer
-   *
-   * @param start_pattern The start pattern bytes
-   * @param end_pattern The end pattern bytes
-   * @param max_length Maximum packet length (including patterns) before reset
-   */
-  PacketFramer(const std::vector<uint8_t>& start_pattern, const std::vector<uint8_t>& end_pattern, size_t max_length);
-
-  ~PacketFramer() override = default;
-
-  void push_bytes(memory::ConstByteSpan data) override;
-  void on_message(MessageCallback cb) override;
-  void reset() override;
-
- private:
-  enum class State {
-    Sync,    // Waiting for start pattern
-    Collect  // Collecting data until end pattern
-  };
-
-  std::vector<uint8_t> start_pattern_;
-  std::vector<uint8_t> end_pattern_;
-  size_t max_length_;
-
-  State state_;
-  std::vector<uint8_t> buffer_;
-  MessageCallback on_message_;
-
-  // Optimization: Track where we stopped scanning for end pattern
-  // to avoid re-scanning the entire buffer on each push.
-  size_t scanned_idx_ = 0;
-};
-
-}  // namespace framer
-}  // namespace unilink
+#include <wirestead/compat/unilink.hpp>
+#include <wirestead/framer/packet_framer.hpp>

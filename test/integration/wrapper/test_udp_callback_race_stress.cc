@@ -21,16 +21,16 @@
 #include <thread>
 
 #include "test_utils.hpp"
-#include "unilink/config/udp_config.hpp"
-#include "unilink/transport/udp/udp.hpp"
+#include "wirestead/config/udp_config.hpp"
+#include "wirestead/transport/udp/udp.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
-using namespace unilink::config;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::transport;
+using namespace wirestead::config;
+using namespace wirestead::test;
 using namespace std::chrono_literals;
 
-// Regression/stress test for jwsung91/unilink#436: UdpChannel's on_bytes_/
+// Regression/stress test for jwsung91/wirestead#436: UdpChannel's on_bytes_/
 // on_state_/on_bp_ callback slots used to be assigned directly with no
 // synchronization at all, while the io thread concurrently read the same
 // members on every received datagram. Uses a separate sender/receiver pair

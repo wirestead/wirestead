@@ -29,11 +29,11 @@
 #include <variant>
 #include <vector>
 
-#include "unilink/base/common.hpp"
-#include "unilink/interface/channel.hpp"
-#include "unilink/memory/safe_span.hpp"
+#include "wirestead/base/common.hpp"
+#include "wirestead/interface/channel.hpp"
+#include "wirestead/memory/safe_span.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 // Event types for recording
@@ -162,4 +162,4 @@ class IoContextRunner {
 };
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

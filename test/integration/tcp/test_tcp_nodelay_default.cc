@@ -22,12 +22,12 @@
 #include <string>
 
 #include "test_utils.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 
-// unilink::tcp_client()/tcp_server() go through three separate layers that
+// wirestead::tcp_client()/tcp_server() go through three separate layers that
 // each used to carry their own tcp_no_delay default (config struct, wrapper
 // impl, and the fluent builder that actually constructs those wrappers). A
 // prior fix updated the first two but missed the builder layer, so real
@@ -46,7 +46,7 @@ using namespace unilink::test;
 TEST(TcpNoDelayDefaultTest, LargePayloadRoundTripSucceedsByDefault) {
   uint16_t test_port = TestUtils::getAvailableTestPort();
 
-  auto server = unilink::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto server = wirestead::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_NE(server, nullptr);
 
   std::atomic<ClientId> server_client_id{0};
@@ -58,7 +58,7 @@ TEST(TcpNoDelayDefaultTest, LargePayloadRoundTripSucceedsByDefault) {
   std::mutex received_mutex;
   std::string received;
 
-  auto client = unilink::tcp_client("127.0.0.1", test_port)
+  auto client = wirestead::tcp_client("127.0.0.1", test_port)
                     .on_connect([&](const wrapper::ConnectionContext&) { client_connected = true; })
                     .on_data([&](const wrapper::MessageContext& ctx) {
                       std::lock_guard<std::mutex> lock(received_mutex);

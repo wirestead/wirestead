@@ -16,32 +16,5 @@
 
 #pragma once
 
-// #449: a blocking send (Reliable-mode send()/send_blocking()/send_move()/
-// send_shared()) called from inside a data/message callback deadlocks -
-// clearing backpressure requires progress on the same io thread that a
-// blocking wait would now be stuck on. This thread_local flag, set for the
-// duration of any data/message callback dispatch, lets the blocking-send
-// path detect that scenario and fail fast (return false) instead of
-// blocking forever. It intentionally isn't scoped per-channel: if the
-// current thread is inside ANY callback dispatch, that thread can't make
-// progress on I/O regardless of which channel triggered the callback -
-// including a second channel sharing the same io_context/thread.
-namespace unilink {
-namespace wrapper {
-namespace detail {
-
-inline thread_local bool g_in_data_callback = false;
-
-class CallbackGuard {
- public:
-  CallbackGuard() { g_in_data_callback = true; }
-  ~CallbackGuard() { g_in_data_callback = false; }
-  CallbackGuard(const CallbackGuard&) = delete;
-  CallbackGuard& operator=(const CallbackGuard&) = delete;
-};
-
-inline bool in_data_callback() { return g_in_data_callback; }
-
-}  // namespace detail
-}  // namespace wrapper
-}  // namespace unilink
+#include <wirestead/compat/unilink.hpp>
+#include <wirestead/wrapper/callback_guard.hpp>

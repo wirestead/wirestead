@@ -16,46 +16,5 @@
 
 #pragma once
 
-#include <mutex>
-
-#include "unilink/base/visibility.hpp"
-#include "unilink/concurrency/io_context_manager.hpp"
-
-namespace unilink {
-namespace builder {
-
-/**
- * @brief Helper class that automatically initializes IoContextManager in Builder pattern
- *
- * This class automatically starts IoContextManager when using Builder pattern,
- * eliminating the need for manual initialization by users.
- */
-class UNILINK_API AutoInitializer {
- public:
-  /**
-   * @brief Automatically start IoContextManager if not running
-   *
-   * This method is thread-safe and can be called multiple times safely.
-   * If already running, it does nothing.
-   */
-  static void ensure_io_context_running() {
-    if (!concurrency::IoContextManager::instance().is_running()) {
-      std::lock_guard<std::mutex> lock(init_mutex());
-      // Double-check locking
-      if (!concurrency::IoContextManager::instance().is_running()) {
-        concurrency::IoContextManager::instance().start();
-      }
-    }
-  }
-
-  /**
-   * @brief Check if IoContextManager is running
-   */
-  static bool io_context_running() { return concurrency::IoContextManager::instance().is_running(); }
-
- private:
-  static std::mutex& init_mutex();
-};
-
-}  // namespace builder
-}  // namespace unilink
+#include <wirestead/builder/auto_initializer.hpp>
+#include <wirestead/compat/unilink.hpp>

@@ -23,11 +23,11 @@
 #include <thread>
 
 #include "test_utils.hpp"
-#include "unilink/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/transport/tcp_client/tcp_client.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::transport;
+using namespace wirestead::test;
 
 namespace net = boost::asio;
 using tcp = net::ip::tcp;

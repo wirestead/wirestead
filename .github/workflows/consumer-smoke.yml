@@ -10,6 +10,7 @@ on:
     paths:
       - 'CMakeLists.txt'
       - 'cmake/**'
+      - 'wirestead/**'
       - 'unilink/**'
       - 'scripts/verify_installed_consumer.sh'
       - '.github/workflows/consumer-smoke.yml'
@@ -19,6 +20,7 @@ on:
     paths:
       - 'CMakeLists.txt'
       - 'cmake/**'
+      - 'wirestead/**'
       - 'unilink/**'
       - 'scripts/verify_installed_consumer.sh'
       - '.github/workflows/consumer-smoke.yml'

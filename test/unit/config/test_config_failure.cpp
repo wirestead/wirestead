@@ -21,10 +21,10 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/config/config_manager.hpp"
+#include "wirestead/config/config_manager.hpp"
 
-using namespace unilink::config;
-using namespace unilink::test;
+using namespace wirestead::config;
+using namespace wirestead::test;
 
 namespace {
 

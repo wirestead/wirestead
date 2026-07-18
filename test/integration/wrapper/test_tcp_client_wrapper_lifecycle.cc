@@ -29,15 +29,15 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/framer/line_framer.hpp"
-#include "unilink/interface/channel.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/framer/line_framer.hpp"
+#include "wirestead/interface/channel.hpp"
+#include "wirestead/wirestead.hpp"
 #include "wrapper_contract_test_utils.hpp"
 
 namespace {
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 using namespace std::chrono_literals;
 
 class ControlledChannel : public interface::Channel {
@@ -147,7 +147,7 @@ class TcpClientWrapperLifecycleTest : public ::testing::Test {
 };
 
 TEST_F(TcpClientWrapperLifecycleTest, ClientStartStopMultipleTimes) {
-  client_ = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  client_ = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   for (int i = 0; i < 3; ++i) {
     auto f = client_->start();
     EXPECT_TRUE(f.get());
@@ -284,7 +284,7 @@ TEST_F(TcpClientWrapperLifecycleTest, ManagedExternalContextRestartsStoppedIoCon
 
 TEST_F(TcpClientWrapperLifecycleTest, AutoManageStartsClientAndInvokesCallback) {
   std::atomic<bool> connected{false};
-  client_ = unilink::tcp_client("127.0.0.1", test_port_)
+  client_ = wirestead::tcp_client("127.0.0.1", test_port_)
                 .auto_start(true)
                 .on_connect([&](const wrapper::ConnectionContext&) { connected = true; })
                 .on_data([](auto&&) {})
@@ -299,7 +299,7 @@ TEST_F(TcpClientWrapperLifecycleTest, SendMultipleMessages) {
   // Ensure handler is registered BEFORE anything starts
   server_->on_data([&](const wrapper::MessageContext&) { received++; });
 
-  client_ = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  client_ = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   client_->start();
 
   ASSERT_TRUE(TestUtils::waitForCondition([&]() { return client_->connected(); }, 5000));
@@ -317,7 +317,7 @@ TEST_F(TcpClientWrapperLifecycleTest, SendMultipleMessages) {
 
 TEST_F(TcpClientWrapperLifecycleTest, IdleTimeoutReconnectsByDefault) {
   std::atomic<int> connected{0};
-  client_ = unilink::tcp_client("127.0.0.1", test_port_)
+  client_ = wirestead::tcp_client("127.0.0.1", test_port_)
                 .retry_interval(100ms)
                 .idle_timeout(100ms)
                 .on_connect([&](const wrapper::ConnectionContext&) { connected++; })
@@ -334,7 +334,7 @@ TEST_F(TcpClientWrapperLifecycleTest, IdleTimeoutReconnectsByDefault) {
 TEST_F(TcpClientWrapperLifecycleTest, IdleTimeoutCloseActionClosesWithoutReconnect) {
   std::atomic<int> connected{0};
   std::atomic<int> disconnected{0};
-  client_ = unilink::tcp_client("127.0.0.1", test_port_)
+  client_ = wirestead::tcp_client("127.0.0.1", test_port_)
                 .idle_timeout(100ms)
                 .idle_timeout_action(IdleTimeoutAction::Close)
                 .on_connect([&](const wrapper::ConnectionContext&) { connected++; })
@@ -358,7 +358,7 @@ TEST_F(TcpClientWrapperLifecycleTest, IdleTimeoutResetsOnInboundData) {
   std::atomic<int> disconnected{0};
   std::atomic<size_t> received_bytes{0};
 
-  client_ = unilink::tcp_client("127.0.0.1", test_port_)
+  client_ = wirestead::tcp_client("127.0.0.1", test_port_)
                 .idle_timeout(1000ms)
                 .idle_timeout_action(IdleTimeoutAction::Close)
                 .on_connect([&](const wrapper::ConnectionContext&) { connected++; })

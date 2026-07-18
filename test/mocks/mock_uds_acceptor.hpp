@@ -21,9 +21,9 @@
 #include <boost/asio.hpp>
 #include <functional>
 
-#include "unilink/interface/iuds_acceptor.hpp"
+#include "wirestead/interface/iuds_acceptor.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 namespace mocks {
 
@@ -42,4 +42,4 @@ class MockUdsAcceptor : public interface::UdsAcceptorInterface {
 
 }  // namespace mocks
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

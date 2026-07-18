@@ -18,10 +18,10 @@
 
 #include <string>
 
-#include "unilink/config/serial_config.hpp"
-#include "unilink/wrapper/serial/serial.hpp"
+#include "wirestead/config/serial_config.hpp"
+#include "wirestead/wrapper/serial/serial.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 
 // Thin subclass that re-exposes the protected build_config() method.
 class TestableSerial : public wrapper::Serial {

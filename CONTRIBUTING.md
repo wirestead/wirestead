@@ -1,4 +1,4 @@
-# Contributing to unilink
+# Contributing to Wirestead
 
 Thanks for your interest in contributing. This guide covers the human
 contributor workflow: environment setup, local verification, commit/PR
@@ -33,7 +33,7 @@ See `test/README.md` for the full test layout (unit/integration/e2e) and the
 CTest label taxonomy for running subsets. The short version:
 
 ```bash
-cmake -S . -B build -DUNILINK_BUILD_TESTS=ON
+cmake -S . -B build -DWIRESTEAD_BUILD_TESTS=ON
 cmake --build build -j2
 ctest --test-dir build --output-on-failure
 ```
@@ -91,7 +91,8 @@ lowercase, imperative mood, no trailing period.
 
 - In-repo docs (`docs/`) cover repository-local topics: quickstart, error
   model, callback lifetime, API stability, security model. Full tutorials
-  and runnable examples live in separate repositories:
+  and runnable examples still live in legacy locations until those
+  repositories are moved:
   [unilink-docs](https://github.com/unilink-lab/unilink-docs) and
   [unilink-examples](https://github.com/unilink-lab/unilink-examples).
 - Bug reports and feature requests: open a GitHub issue in this repository.

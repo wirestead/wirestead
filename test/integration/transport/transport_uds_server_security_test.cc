@@ -27,11 +27,11 @@
 #include <thread>
 
 #include "test/utils/test_utils.hpp"
-#include "unilink/config/uds_config.hpp"
-#include "unilink/transport/uds/uds_server.hpp"
+#include "wirestead/config/uds_config.hpp"
+#include "wirestead/transport/uds/uds_server.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
+using namespace wirestead;
+using namespace wirestead::transport;
 namespace net = boost::asio;
 using uds_socket = net::local::stream_protocol::socket;
 using uds_endpoint = net::local::stream_protocol::endpoint;
@@ -62,8 +62,8 @@ TEST_F(TransportUdsServerSecurityTest, NoIdleTimeoutByDefault) {
   server_ = UdsServer::create(cfg);
   server_->start();
 
-  ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Listening; }, 5000))
+  ASSERT_TRUE(test::TestUtils::waitForCondition(
+      [&] { return server_->state() == wirestead::base::LinkState::Listening; }, 5000))
       << "Server failed to enter listening state";
 
   net::io_context client_ioc;
@@ -93,8 +93,8 @@ TEST_F(TransportUdsServerSecurityTest, IdleConnectionTimeout) {
   server_ = UdsServer::create(cfg);
   server_->start();
 
-  ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Listening; }, 5000))
+  ASSERT_TRUE(test::TestUtils::waitForCondition(
+      [&] { return server_->state() == wirestead::base::LinkState::Listening; }, 5000))
       << "Server failed to enter listening state";
 
   net::io_context client_ioc;
@@ -131,8 +131,8 @@ TEST_F(TransportUdsServerSecurityTest, IdleTimeoutResetOnMessage) {
   server_ = UdsServer::create(cfg);
   server_->start();
 
-  ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Listening; }, 5000))
+  ASSERT_TRUE(test::TestUtils::waitForCondition(
+      [&] { return server_->state() == wirestead::base::LinkState::Listening; }, 5000))
       << "Server failed to enter listening state";
 
   net::io_context client_ioc;
@@ -171,7 +171,7 @@ TEST_F(TransportUdsServerSecurityTest, RegularFileAtSocketPathBlocksBind) {
   server_->start();
 
   ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Error; }, 5000))
+      test::TestUtils::waitForCondition([&] { return server_->state() == wirestead::base::LinkState::Error; }, 5000))
       << "Server should have entered Error state instead of deleting the regular file";
   EXPECT_TRUE(std::filesystem::exists(socket_path_)) << "The pre-existing regular file must not have been deleted";
 }
@@ -184,13 +184,13 @@ TEST_F(TransportUdsServerSecurityTest, LiveListenerAtSocketPathBlocksSecondBind)
   cfg.socket_path = socket_path_.string();
   server_ = UdsServer::create(cfg);
   server_->start();
-  ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Listening; }, 5000));
+  ASSERT_TRUE(test::TestUtils::waitForCondition(
+      [&] { return server_->state() == wirestead::base::LinkState::Listening; }, 5000));
 
   auto second_server = UdsServer::create(cfg);
   second_server->start();
   EXPECT_TRUE(test::TestUtils::waitForCondition(
-      [&] { return second_server->state() == unilink::base::LinkState::Error; }, 5000))
+      [&] { return second_server->state() == wirestead::base::LinkState::Error; }, 5000))
       << "Second server should fail to bind instead of hijacking the live listener's socket";
   second_server->stop();
 
@@ -230,8 +230,8 @@ TEST_F(TransportUdsServerSecurityTest, StaleSocketFileDoesNotBlockBind) {
   server_ = UdsServer::create(cfg);
   server_->start();
 
-  EXPECT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Listening; }, 5000))
+  EXPECT_TRUE(test::TestUtils::waitForCondition(
+      [&] { return server_->state() == wirestead::base::LinkState::Listening; }, 5000))
       << "A stale (unlistened) socket file must not block a fresh bind";
 }
 
@@ -242,8 +242,8 @@ TEST_F(TransportUdsServerSecurityTest, SocketPermissionsAreAppliedAfterBind) {
 
   server_ = UdsServer::create(cfg);
   server_->start();
-  ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Listening; }, 5000));
+  ASSERT_TRUE(test::TestUtils::waitForCondition(
+      [&] { return server_->state() == wirestead::base::LinkState::Listening; }, 5000));
 
   struct stat st {};
   ASSERT_EQ(::stat(socket_path_.string().c_str(), &st), 0);
@@ -257,8 +257,8 @@ TEST_F(TransportUdsServerSecurityTest, NoSocketPermissionsChangeByDefault) {
 
   server_ = UdsServer::create(cfg);
   server_->start();
-  ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Listening; }, 5000));
+  ASSERT_TRUE(test::TestUtils::waitForCondition(
+      [&] { return server_->state() == wirestead::base::LinkState::Listening; }, 5000));
 
   struct stat st {};
   ASSERT_EQ(::stat(socket_path_.string().c_str(), &st), 0);

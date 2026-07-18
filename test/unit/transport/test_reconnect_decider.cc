@@ -7,14 +7,14 @@
 #include <variant>
 #include <vector>
 
-#include "unilink/config/tcp_client_config.hpp"
-#include "unilink/diagnostics/error_types.hpp"
-#include "unilink/transport/base/bp_utils.hpp"
-#include "unilink/transport/base/reconnect_policy.hpp"
-#include "unilink/transport/tcp_client/detail/reconnect_decider.hpp"
+#include "wirestead/config/tcp_client_config.hpp"
+#include "wirestead/diagnostics/error_types.hpp"
+#include "wirestead/transport/base/bp_utils.hpp"
+#include "wirestead/transport/base/reconnect_policy.hpp"
+#include "wirestead/transport/tcp_client/detail/reconnect_decider.hpp"
 
-using namespace unilink;
-using namespace unilink::transport::detail;
+using namespace wirestead;
+using namespace wirestead::transport::detail;
 using namespace std::chrono_literals;
 
 namespace {
@@ -187,7 +187,7 @@ TEST(ReconnectPolicyTest, ExponentialBackoffWithJitterStaysWithinCurrentCap) {
 }
 
 TEST(BackpressureQueueUtilTest, VariantBufferSizeHandlesVectorAndSharedPointer) {
-  using unilink::transport::queue_util::variant_buffer_size;
+  using wirestead::transport::queue_util::variant_buffer_size;
 
   std::vector<uint8_t> vector_buffer{1, 2, 3};
   auto shared_buffer = std::make_shared<const std::vector<uint8_t>>(std::vector<uint8_t>{1, 2, 3, 4});
@@ -200,7 +200,7 @@ TEST(BackpressureQueueUtilTest, VariantBufferSizeHandlesVectorAndSharedPointer) 
 
 TEST(BackpressureQueueUtilTest, ReliableStrategyDoesNotTrimQueue) {
   using Buffer = std::variant<std::vector<uint8_t>, std::shared_ptr<const std::vector<uint8_t>>>;
-  using unilink::transport::queue_util::maybe_flush_for_keep_latest;
+  using wirestead::transport::queue_util::maybe_flush_for_keep_latest;
 
   std::deque<Buffer> tx;
   tx.emplace_back(std::vector<uint8_t>{1, 2, 3});
@@ -219,7 +219,7 @@ TEST(BackpressureQueueUtilTest, ReliableStrategyDoesNotTrimQueue) {
 
 TEST(BackpressureQueueUtilTest, BestEffortDoesNotDropBelowHighWatermark) {
   using Buffer = std::variant<std::vector<uint8_t>, std::shared_ptr<const std::vector<uint8_t>>>;
-  using unilink::transport::queue_util::maybe_flush_for_keep_latest;
+  using wirestead::transport::queue_util::maybe_flush_for_keep_latest;
 
   std::deque<Buffer> tx;
   tx.emplace_back(std::vector<uint8_t>{1, 2, 3});
@@ -238,7 +238,7 @@ TEST(BackpressureQueueUtilTest, BestEffortDoesNotDropBelowHighWatermark) {
 
 TEST(BackpressureQueueUtilTest, BestEffortDropsQueueWhenAddedBufferExceedsHighWatermark) {
   using Buffer = std::variant<std::vector<uint8_t>, std::shared_ptr<const std::vector<uint8_t>>>;
-  using unilink::transport::queue_util::maybe_flush_for_keep_latest;
+  using wirestead::transport::queue_util::maybe_flush_for_keep_latest;
 
   std::deque<Buffer> tx;
   tx.emplace_back(std::vector<uint8_t>{1, 2, 3, 4});
@@ -257,7 +257,7 @@ TEST(BackpressureQueueUtilTest, BestEffortDropsQueueWhenAddedBufferExceedsHighWa
 
 TEST(BackpressureQueueUtilTest, BestEffortTrimsOldestBuffersUntilAddedBufferFits) {
   using Buffer = std::variant<std::vector<uint8_t>, std::shared_ptr<const std::vector<uint8_t>>>;
-  using unilink::transport::queue_util::maybe_flush_for_keep_latest;
+  using wirestead::transport::queue_util::maybe_flush_for_keep_latest;
 
   std::deque<Buffer> tx;
   tx.emplace_back(std::vector<uint8_t>{1, 2, 3, 4});
@@ -277,7 +277,7 @@ TEST(BackpressureQueueUtilTest, BestEffortTrimsOldestBuffersUntilAddedBufferFits
 
 TEST(BackpressureQueueUtilTest, BestEffortOnlyCountsBuffersStillQueued) {
   using Buffer = std::variant<std::vector<uint8_t>, std::shared_ptr<const std::vector<uint8_t>>>;
-  using unilink::transport::queue_util::maybe_flush_for_keep_latest;
+  using wirestead::transport::queue_util::maybe_flush_for_keep_latest;
 
   const size_t in_flight_bytes = 6;
   std::deque<Buffer> tx;

@@ -21,12 +21,12 @@
 #include <thread>
 
 #include "test_utils.hpp"
-#include "unilink/config/udp_config.hpp"
-#include "unilink/wrapper/udp/udp.hpp"
+#include "wirestead/config/udp_config.hpp"
+#include "wirestead/wrapper/udp/udp.hpp"
 
-using namespace unilink::wrapper;
-using namespace unilink::config;
-using namespace unilink::test;
+using namespace wirestead::wrapper;
+using namespace wirestead::config;
+using namespace wirestead::test;
 
 namespace {
 

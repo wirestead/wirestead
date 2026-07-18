@@ -18,7 +18,7 @@
 
 #include <gtest/gtest.h>
 
-#include "unilink/base/platform.hpp"
+#include "wirestead/base/platform.hpp"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -42,13 +42,13 @@
 #include <thread>
 #include <vector>
 
-#include "unilink/memory/memory_pool.hpp"
+#include "wirestead/memory/memory_pool.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 /**
- * @brief Common test utilities for unilink tests
+ * @brief Common test utilities for wirestead tests
  */
 class TestUtils {
  public:
@@ -197,7 +197,7 @@ class TestUtils {
    * @return std::filesystem::path Temporary directory path
    */
   static std::filesystem::path getTempDirectory() {
-    auto base = std::filesystem::temp_directory_path() / "unilink_tests";
+    auto base = std::filesystem::temp_directory_path() / "wirestead_tests";
     std::error_code ec;
     std::filesystem::create_directories(base, ec);
     return base;
@@ -365,4 +365,4 @@ class IntegrationTest : public NetworkTest {
 };
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

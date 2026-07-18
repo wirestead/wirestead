@@ -25,10 +25,10 @@
 #include <thread>
 
 #include "test_utils.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 
 class SerialTimeoutTest : public ::testing::Test {
  protected:
@@ -90,7 +90,7 @@ TEST_F(SerialTimeoutTest, ReadTimeoutWhenNoData) {
     GTEST_SKIP() << "Virtual serial ports not found (socat failed?)";
   }
 
-  // Open port V0 with Unilink::Serial
+  // Open port V0 with Wirestead::Serial
   auto serial = std::make_shared<wrapper::Serial>("/tmp/ttyV0", 9600);
 
   std::promise<std::string> read_promise;

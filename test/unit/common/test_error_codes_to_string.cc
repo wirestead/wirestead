@@ -16,9 +16,9 @@
 
 #include <gtest/gtest.h>
 
-#include "unilink/base/error_codes.hpp"
+#include "wirestead/base/error_codes.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 TEST(ErrorCodesToStringTest, ToStringAllCodes) {
@@ -43,4 +43,4 @@ TEST(ErrorCodesToStringTest, ToStringAllCodes) {
 }
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

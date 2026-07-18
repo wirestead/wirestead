@@ -4,11 +4,11 @@ libdir=@CMAKE_INSTALL_FULL_LIBDIR@
 includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
 
 Name: unilink
-Description: A cross-platform asynchronous C++ communication library providing a unified API for Serial, TCP, UDP, and UDS transports
+Description: Legacy UniLink compatibility package for Wirestead
 URL: https://github.com/wirestead/wirestead
 Version: @PROJECT_VERSION@
 Requires: @PKGCONFIG_REQUIRES@
 Requires.private: @PKGCONFIG_REQUIRES_PRIVATE@
-Libs: -L${libdir} -lunilink
+Libs: -L${libdir} -lwirestead
 Libs.private: @PKGCONFIG_LIBS_PRIVATE@
 Cflags: -I${includedir} @PKGCONFIG_CFLAGS@

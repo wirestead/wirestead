@@ -72,36 +72,36 @@ jobs:
         run: |
           & "${env:VCPKG_ROOT}\bootstrap-vcpkg.bat"
 
-      - name: Check unilink port availability (Unix)
+      - name: Check wirestead port availability (Unix)
         if: runner.os != 'Windows'
         run: |
           set -euo pipefail
-          if ! "${VCPKG_ROOT}/vcpkg" search unilink | grep -q "^unilink"; then
-            echo "unilink port not found in vcpkg registry yet. Skipping package test."
+          if ! "${VCPKG_ROOT}/vcpkg" search wirestead | grep -q "^wirestead"; then
+            echo "wirestead port not found in vcpkg registry yet. Skipping package test."
             echo "VCPKG_SKIP_PACKAGE_TEST=1" >> "$GITHUB_ENV"
           fi
 
-      - name: Check unilink port availability (Windows)
+      - name: Check wirestead port availability (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $searchOutput = & "${env:VCPKG_ROOT}\vcpkg.exe" search unilink
-          if (-not ($searchOutput -match "^unilink")) {
-            Write-Host "unilink port not found in vcpkg registry yet. Skipping package test."
+          $searchOutput = & "${env:VCPKG_ROOT}\vcpkg.exe" search wirestead
+          if (-not ($searchOutput -match "^wirestead")) {
+            Write-Host "wirestead port not found in vcpkg registry yet. Skipping package test."
             "VCPKG_SKIP_PACKAGE_TEST=1" | Out-File -FilePath $Env:GITHUB_ENV -Encoding utf8 -Append
           }
 
-      - name: Install unilink via vcpkg (Unix)
+      - name: Install wirestead via vcpkg (Unix)
         if: runner.os != 'Windows' && env.VCPKG_SKIP_PACKAGE_TEST != '1'
         run: |
-          "${VCPKG_ROOT}/vcpkg" install "unilink:${{ matrix.triplet }}" \
+          "${VCPKG_ROOT}/vcpkg" install "wirestead:${{ matrix.triplet }}" \
             --clean-after-build
 
-      - name: Install unilink via vcpkg (Windows)
+      - name: Install wirestead via vcpkg (Windows)
         if: runner.os == 'Windows' && env.VCPKG_SKIP_PACKAGE_TEST != '1'
         shell: pwsh
         run: |
-          & "${env:VCPKG_ROOT}\vcpkg.exe" install "unilink:${{ matrix.triplet }}" `
+          & "${env:VCPKG_ROOT}\vcpkg.exe" install "wirestead:${{ matrix.triplet }}" `
             --clean-after-build
 
       - name: Verify installation layout (Unix)
@@ -111,26 +111,37 @@ jobs:
           INSTALL_ROOT="${VCPKG_ROOT}/installed/${{ matrix.triplet }}"
 
           echo "Checking headers..."
+          test -d "${INSTALL_ROOT}/include/wirestead"
           test -d "${INSTALL_ROOT}/include/unilink"
 
           echo "Checking CMake package config..."
+          test -f "${INSTALL_ROOT}/share/wirestead/wiresteadConfig.cmake"
           test -f "${INSTALL_ROOT}/share/unilink/unilinkConfig.cmake"
 
           echo "Checking pkg-config file..."
+          test -f "${INSTALL_ROOT}/lib/pkgconfig/wirestead.pc"
           test -f "${INSTALL_ROOT}/lib/pkgconfig/unilink.pc"
 
           echo "Checking libraries (release + debug)..."
           LIB_FILES=$(find "${INSTALL_ROOT}" -type f \
             \( -path "*/lib/*" -o -path "*/lib64/*" -o -path "*/debug/lib/*" -o -path "*/bin/*" \) \
-            \( -name "libunilink*.a" -o -name "libunilink*.so*" -o -name "libunilink*.dylib" -o -name "unilink*.dll" -o -name "unilink*.lib" \) \
+            \( -name "libwirestead*.a" -o -name "libwirestead*.so*" -o -name "libwirestead*.dylib" -o -name "wirestead*.dll" -o -name "wirestead*.lib" \) \
             | sort || true)
           if [ -z "${LIB_FILES}" ]; then
-            echo "No unilink libraries found in ${INSTALL_ROOT}"
+            echo "No wirestead libraries found in ${INSTALL_ROOT}"
             echo "Listing tree for debugging:"
             find "${INSTALL_ROOT}" -maxdepth 3 -type d -print
             exit 1
           fi
           echo "${LIB_FILES}"
+
+          if find "${INSTALL_ROOT}" -type f \
+            \( -path "*/lib/*" -o -path "*/lib64/*" -o -path "*/debug/lib/*" -o -path "*/bin/*" \) \
+            \( -name "libunilink*.a" -o -name "libunilink*.so*" -o -name "libunilink*.dylib" -o -name "unilink*.dll" -o -name "unilink*.lib" \) \
+            | grep -q .; then
+            echo "Unexpected legacy libunilink binary compatibility artifact found"
+            exit 1
+          fi
 
       - name: Verify installation layout (Windows)
         if: runner.os == 'Windows' && env.VCPKG_SKIP_PACKAGE_TEST != '1'
@@ -139,16 +150,23 @@ jobs:
           $installRoot = "$env:VCPKG_ROOT\installed\${{ matrix.triplet }}"
 
           Write-Host "Checking headers..."
-          if (-not (Test-Path "$installRoot\include\unilink")) { throw "Headers not found" }
+          if (-not (Test-Path "$installRoot\include\wirestead")) { throw "Wirestead headers not found" }
+          if (-not (Test-Path "$installRoot\include\unilink")) { throw "Legacy headers not found" }
 
           Write-Host "Checking CMake package config..."
+          if (-not (Test-Path "$installRoot\share\wirestead\wiresteadConfig.cmake")) { throw "wiresteadConfig.cmake not found" }
           if (-not (Test-Path "$installRoot\share\unilink\unilinkConfig.cmake")) { throw "unilinkConfig.cmake not found" }
 
           Write-Host "Collecting libraries..."
-          $libs = @(Get-ChildItem -Path "$installRoot\lib" -Recurse -Include *unilink*.lib -ErrorAction SilentlyContinue)
-          $dlls = @(Get-ChildItem -Path "$installRoot\bin" -Recurse -Include *unilink*.dll -ErrorAction SilentlyContinue)
+          $libs = @(Get-ChildItem -Path "$installRoot\lib" -Recurse -Include *wirestead*.lib -ErrorAction SilentlyContinue)
+          $dlls = @(Get-ChildItem -Path "$installRoot\bin" -Recurse -Include *wirestead*.dll -ErrorAction SilentlyContinue)
           if ($libs.Count -eq 0 -and $dlls.Count -eq 0) {
-            throw "No unilink libraries or DLLs found under $installRoot"
+            throw "No wirestead libraries or DLLs found under $installRoot"
+          }
+          $legacyLibs = @(Get-ChildItem -Path "$installRoot\lib" -Recurse -Include *unilink*.lib -ErrorAction SilentlyContinue)
+          $legacyDlls = @(Get-ChildItem -Path "$installRoot\bin" -Recurse -Include *unilink*.dll -ErrorAction SilentlyContinue)
+          if ($legacyLibs.Count -ne 0 -or $legacyDlls.Count -ne 0) {
+            throw "Unexpected legacy libunilink binary compatibility artifact found under $installRoot"
           }
           $libs + $dlls | ForEach-Object { Write-Host "  $_" }
 
@@ -160,29 +178,29 @@ jobs:
 
           cat > "${WORKDIR}/CMakeLists.txt" <<'EOF'
           cmake_minimum_required(VERSION 3.15)
-          project(unilink_consumer LANGUAGES CXX)
+          project(wirestead_consumer LANGUAGES CXX)
           set(CMAKE_CXX_STANDARD 20)
-          find_package(unilink CONFIG REQUIRED)
+          find_package(wirestead CONFIG REQUIRED)
 
           add_executable(vcpkg_consumer main.cpp)
-          if(NOT TARGET unilink::unilink)
-            message(FATAL_ERROR "Expected vcpkg package to provide unilink::unilink")
+          if(NOT TARGET wirestead::wirestead)
+            message(FATAL_ERROR "Expected vcpkg package to provide wirestead::wirestead")
           endif()
-          target_link_libraries(vcpkg_consumer PRIVATE unilink::unilink)
+          target_link_libraries(vcpkg_consumer PRIVATE wirestead::wirestead)
           EOF
 
           cat > "${WORKDIR}/main.cpp" <<'EOF'
-          #include <unilink/unilink.hpp>
+          #include <wirestead/wirestead.hpp>
           #include <chrono>
           #include <iostream>
 
           int main() {
-            auto client = unilink::tcp_client("127.0.0.1", 9000)
+            auto client = wirestead::tcp_client("127.0.0.1", 9000)
                 .retry_interval(std::chrono::milliseconds(250))
                 .max_retries(1)
                 .auto_start(false)
                 .build();
-            std::cout << "unilink vcpkg package loaded" << std::endl;
+            std::cout << "wirestead vcpkg package loaded" << std::endl;
             return client ? 0 : 1;
           }
           EOF
@@ -199,34 +217,34 @@ jobs:
         if: runner.os == 'Windows' && env.VCPKG_SKIP_PACKAGE_TEST != '1'
         shell: pwsh
         run: |
-          $workDir = Join-Path $env:RUNNER_TEMP "unilink-consumer"
+          $workDir = Join-Path $env:RUNNER_TEMP "wirestead-consumer"
           New-Item -ItemType Directory -Force -Path $workDir | Out-Null
 
           @"
           cmake_minimum_required(VERSION 3.15)
-          project(unilink_consumer LANGUAGES CXX)
+          project(wirestead_consumer LANGUAGES CXX)
           set(CMAKE_CXX_STANDARD 20)
-          find_package(unilink CONFIG REQUIRED)
+          find_package(wirestead CONFIG REQUIRED)
 
           add_executable(vcpkg_consumer main.cpp)
-          if(NOT TARGET unilink::unilink)
-            message(FATAL_ERROR "Expected vcpkg package to provide unilink::unilink")
+          if(NOT TARGET wirestead::wirestead)
+            message(FATAL_ERROR "Expected vcpkg package to provide wirestead::wirestead")
           endif()
-          target_link_libraries(vcpkg_consumer PRIVATE unilink::unilink)
+          target_link_libraries(vcpkg_consumer PRIVATE wirestead::wirestead)
           "@ | Set-Content -Path (Join-Path $workDir "CMakeLists.txt")
 
           @"
-          #include <unilink/unilink.hpp>
+          #include <wirestead/wirestead.hpp>
           #include <chrono>
           #include <iostream>
 
           int main() {
-            auto client = unilink::tcp_client("127.0.0.1", 9000)
+            auto client = wirestead::tcp_client("127.0.0.1", 9000)
                 .retry_interval(std::chrono::milliseconds(250))
                 .max_retries(1)
                 .auto_start(false)
                 .build();
-            std::cout << "unilink vcpkg package loaded" << std::endl;
+            std::cout << "wirestead vcpkg package loaded" << std::endl;
             return client ? 0 : 1;
           }
           "@ | Set-Content -Path (Join-Path $workDir "main.cpp")

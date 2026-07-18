@@ -1,19 +1,15 @@
 # API Stability Summary
 
-Full policy:
-
-https://github.com/unilink-lab/unilink-docs/blob/main/docs/user/api_stability.md
-
 ## Summary
 
-`unilink` is currently pre-1.0.
+`wirestead` is currently pre-1.0.
 
 ## Stable user-facing surface
 
 Prefer:
 
 ```cpp
-#include <unilink/unilink.hpp>
+#include <wirestead/wirestead.hpp>
 ```
 
 User-facing APIs include:
@@ -37,7 +33,9 @@ These APIs are available, but may still change before v1.0:
 
 ## ABI
 
-C++ ABI stability is not guaranteed before v1.0.
+C++ ABI stability is not guaranteed before v1.0. The v0.9.0 Wirestead rename
+changes C++ symbols, library filenames, and SONAMEs; consumers moving from
+v0.8.x must rebuild.
 
 ## Diagnostics
 
@@ -64,5 +62,5 @@ Compatibility is not guaranteed for deep includes under:
 - `factory/*`
 
 These headers are installed for implementation and advanced integration needs,
-but application code should include `<unilink/unilink.hpp>` unless a documented
+but application code should include `<wirestead/wirestead.hpp>` unless a documented
 advanced API requires otherwise.

@@ -24,14 +24,14 @@
 #include "mock_tcp_socket.hpp"
 #include "mock_test_helpers.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 namespace mocks {
 
 /**
  * @brief Dependency injection system for mock objects
  *
- * This system allows injecting mock objects into the unilink library
+ * This system allows injecting mock objects into the wirestead library
  * for testing purposes, enabling network-independent testing.
  */
 class DependencyInjector {
@@ -229,4 +229,4 @@ class MockScenarioBuilder {
 
 }  // namespace mocks
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

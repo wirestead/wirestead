@@ -32,11 +32,11 @@ jobs:
         run: |
           cmake -S . -B build-tsan -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DUNILINK_BUILD_TESTS=ON \
-            -DUNILINK_ENABLE_SANITIZERS=ON \
-            -DUNILINK_ENABLE_TSAN=ON \
-            -DUNILINK_ENABLE_ASAN=OFF \
-            -DUNILINK_ENABLE_UBSAN=OFF \
+            -DWIRESTEAD_BUILD_TESTS=ON \
+            -DWIRESTEAD_ENABLE_SANITIZERS=ON \
+            -DWIRESTEAD_ENABLE_TSAN=ON \
+            -DWIRESTEAD_ENABLE_ASAN=OFF \
+            -DWIRESTEAD_ENABLE_UBSAN=OFF \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \

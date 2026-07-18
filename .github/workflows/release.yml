@@ -149,32 +149,32 @@ jobs:
             cmake -S . -B build -G "${{ matrix.cmake_generator }}" -A "${{ matrix.cmake_arch }}" \
               -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
               -DVCPKG_TARGET_TRIPLET="${{ matrix.triplet }}" \
-              -DUNILINK_ENABLE_INSTALL=ON \
-              -DUNILINK_ENABLE_PKGCONFIG=ON \
-              -DUNILINK_ENABLE_EXPORT_HEADER=ON \
-              -DUNILINK_OS_LABEL="${{ matrix.os_label }}"
+              -DWIRESTEAD_ENABLE_INSTALL=ON \
+              -DWIRESTEAD_ENABLE_PKGCONFIG=ON \
+              -DWIRESTEAD_ENABLE_EXPORT_HEADER=ON \
+              -DWIRESTEAD_OS_LABEL="${{ matrix.os_label }}"
           elif [ "${{ runner.os }}" = "macOS" ]; then
             SDK_VER=$(xcrun --sdk macosx --show-sdk-version)
             cmake -S . -B build -G "${{ matrix.cmake_generator }}" \
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_OSX_DEPLOYMENT_TARGET="$SDK_VER" \
-              -DUNILINK_ENABLE_INSTALL=ON \
-              -DUNILINK_ENABLE_PKGCONFIG=ON \
-              -DUNILINK_ENABLE_EXPORT_HEADER=ON \
+              -DWIRESTEAD_ENABLE_INSTALL=ON \
+              -DWIRESTEAD_ENABLE_PKGCONFIG=ON \
+              -DWIRESTEAD_ENABLE_EXPORT_HEADER=ON \
               -DCMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE}" \
               -DVCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET}" \
-              -DUNILINK_OS_LABEL="${{ matrix.os_label }}"
+              -DWIRESTEAD_OS_LABEL="${{ matrix.os_label }}"
           else
             cmake -S . -B build -G "${{ matrix.cmake_generator }}" \
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_C_COMPILER="${CC}" \
               -DCMAKE_CXX_COMPILER="${CXX}" \
-              -DUNILINK_ENABLE_INSTALL=ON \
-              -DUNILINK_ENABLE_PKGCONFIG=ON \
-              -DUNILINK_ENABLE_EXPORT_HEADER=ON \
+              -DWIRESTEAD_ENABLE_INSTALL=ON \
+              -DWIRESTEAD_ENABLE_PKGCONFIG=ON \
+              -DWIRESTEAD_ENABLE_EXPORT_HEADER=ON \
               -DCMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE}" \
               -DVCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET}" \
-              -DUNILINK_OS_LABEL="${{ matrix.os_label }}"
+              -DWIRESTEAD_OS_LABEL="${{ matrix.os_label }}"
           fi
 
       - name: Build
@@ -243,15 +243,22 @@ jobs:
           echo "Checking package: $pkg"
           tar -tzf "$pkg" | tee package-files.txt | sed -n '1,80p'
 
+          grep -E '/include/wirestead/wirestead.hpp$' package-files.txt
           grep -E '/include/unilink/unilink.hpp$' package-files.txt
-          grep -E '/lib/(lib)?unilink[^/]*\.(a|so|dylib)(\.[0-9.]+)?$|/bin/unilink[^/]*\.(dll|exe)$' package-files.txt
+          grep -E '/lib/(lib)?wirestead[^/]*\.(a|so|dylib)(\.[0-9.]+)?$|/bin/wirestead[^/]*\.(dll|exe)$' package-files.txt
           grep -E '/unilinkConfig\.cmake$' package-files.txt
-          grep -E '/unilinkTargets\.cmake$' package-files.txt
-          grep -E '/include/wirestead/unilink.hpp$' package-files.txt
           grep -E '/wiresteadConfig\.cmake$' package-files.txt
+          grep -E '/wiresteadTargets\.cmake$' package-files.txt
+          grep -E '/unilink\.pc$' package-files.txt
+          grep -E '/wirestead\.pc$' package-files.txt
           grep -E '/LICENSE$' package-files.txt
           grep -E '/NOTICE$' package-files.txt
           grep -E '/README\.md$' package-files.txt
+
+          if grep -E '/lib/(lib)?unilink[^/]*\.(a|so|dylib)(\.[0-9.]+)?$|/bin/unilink[^/]*\.(dll|exe)$' package-files.txt; then
+            echo "Unexpected legacy libunilink binary compatibility artifact found"
+            exit 1
+          fi
 
       - name: Verify package contents (ZIP)
         if: runner.os == 'Windows'
@@ -273,30 +280,37 @@ jobs:
           Get-ChildItem -Recurse $dest | Select-Object -First 80 | ForEach-Object { $_.FullName }
 
           $libraryFiles = Get-ChildItem -Recurse $dest | Where-Object {
-            $_.FullName -match '[\\/](lib|bin)[\\/]' -and $_.Name -match '^(unilink|libunilink).*\.(dll|lib|a)$'
+            $_.FullName -match '[\\/](lib|bin)[\\/]' -and $_.Name -match '^(wirestead|libwirestead).*\.(dll|lib|a)$'
           }
           if (-not $libraryFiles) {
-            Write-Error "Missing unilink library output under lib/ or bin/"
+            Write-Error "Missing wirestead library output under lib/ or bin/"
             exit 1
           }
-          if (-not (Get-ChildItem -Recurse $dest -Filter "unilink.hpp")) {
-            Write-Error "Missing unilink.hpp"
+          $legacyLibraryFiles = Get-ChildItem -Recurse $dest | Where-Object {
+            $_.FullName -match '[\\/](lib|bin)[\\/]' -and $_.Name -match '^(unilink|libunilink).*\.(dll|lib|a)$'
+          }
+          if ($legacyLibraryFiles) {
+            Write-Error "Unexpected legacy libunilink binary compatibility artifact found"
+            exit 1
+          }
+          if (-not (Get-ChildItem -Recurse $dest -Filter "wirestead.hpp")) {
+            Write-Error "Missing wirestead.hpp"
+            exit 1
+          }
+          if (-not (Get-ChildItem -Recurse $dest -Filter "unilink.hpp" | Where-Object { $_.FullName -match '[\\/]unilink[\\/]' })) {
+            Write-Error "Missing legacy unilink.hpp"
             exit 1
           }
           if (-not (Get-ChildItem -Recurse $dest -Filter "unilinkConfig.cmake")) {
             Write-Error "Missing unilinkConfig.cmake"
             exit 1
           }
-          if (-not (Get-ChildItem -Recurse $dest -Filter "unilinkTargets.cmake")) {
-            Write-Error "Missing unilinkTargets.cmake"
-            exit 1
-          }
-          if (-not (Get-ChildItem -Recurse $dest -Filter "unilink.hpp" | Where-Object { $_.FullName -match '[\\/]wirestead[\\/]' })) {
-            Write-Error "Missing wirestead/unilink.hpp"
-            exit 1
-          }
           if (-not (Get-ChildItem -Recurse $dest -Filter "wiresteadConfig.cmake")) {
             Write-Error "Missing wiresteadConfig.cmake"
+            exit 1
+          }
+          if (-not (Get-ChildItem -Recurse $dest -Filter "wiresteadTargets.cmake")) {
+            Write-Error "Missing wiresteadTargets.cmake"
             exit 1
           }
           if (-not (Get-ChildItem -Recurse $dest -Filter "LICENSE")) {

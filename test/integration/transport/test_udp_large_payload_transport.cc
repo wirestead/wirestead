@@ -30,16 +30,16 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/base/constants.hpp"
-#include "unilink/config/udp_config.hpp"
-#include "unilink/memory/safe_span.hpp"
-#include "unilink/transport/udp/udp.hpp"
+#include "wirestead/base/constants.hpp"
+#include "wirestead/config/udp_config.hpp"
+#include "wirestead/memory/safe_span.hpp"
+#include "wirestead/transport/udp/udp.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 namespace {
 
-using unilink::base::constants::BackpressureStrategy;
+using wirestead::base::constants::BackpressureStrategy;
 using namespace std::chrono_literals;
 namespace net = boost::asio;
 using udp = net::ip::udp;
@@ -83,7 +83,7 @@ bool wait_for_receive(ReceiveState& state, std::chrono::milliseconds timeout) {
 }
 
 bool large_payload_diagnostics_enabled() {
-  const char* value = std::getenv("UNILINK_RUN_UDP_LARGE_PAYLOAD_DIAGNOSTICS");
+  const char* value = std::getenv("WIRESTEAD_RUN_UDP_LARGE_PAYLOAD_DIAGNOSTICS");
   return value != nullptr && std::string_view(value) == "1";
 }
 
@@ -129,7 +129,7 @@ class UdpLargePayloadTransportTest : public ::testing::TestWithParam<UdpLargePay
 TEST_P(UdpLargePayloadTransportTest, RawDatagramReachesUdpChannel) {
   const auto param = GetParam();
   if (param.payload_size > kControlPayloadSize && !large_payload_diagnostics_enabled()) {
-    GTEST_SKIP() << "set UNILINK_RUN_UDP_LARGE_PAYLOAD_DIAGNOSTICS=1 to run large UDP payload diagnostics";
+    GTEST_SKIP() << "set WIRESTEAD_RUN_UDP_LARGE_PAYLOAD_DIAGNOSTICS=1 to run large UDP payload diagnostics";
   }
 
   const auto payload = make_payload(param.payload_size, 7);
@@ -189,4 +189,4 @@ INSTANTIATE_TEST_SUITE_P(
     test_param_name);
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

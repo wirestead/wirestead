@@ -16,15 +16,16 @@
 # executable
 
 # Scenario tests
-get_property(_unilink_test_lib GLOBAL PROPERTY UNILINK_TEST_LIB)
+get_property(_wirestead_test_lib GLOBAL PROPERTY WIRESTEAD_TEST_LIB)
 
 foreach(test_file test_architecture.cc test_error_recovery.cc)
   get_filename_component(test_name ${test_file} NAME_WE)
   add_executable(run_e2e_${test_name} scenarios/${test_file})
   target_link_libraries(
-    run_e2e_${test_name} PRIVATE ${_unilink_test_lib} GTest::gtest GTest::gmock
+    run_e2e_${test_name} PRIVATE ${_wirestead_test_lib} GTest::gtest
+                                 GTest::gmock
   )
-  unilink_set_test_warning_options(run_e2e_${test_name})
+  wirestead_set_test_warning_options(run_e2e_${test_name})
   target_include_directories(
     run_e2e_${test_name} PRIVATE ${CMAKE_SOURCE_DIR}/test/utils
                                  ${CMAKE_SOURCE_DIR}/test/fixtures
@@ -39,10 +40,10 @@ endforeach()
 # Stress tests
 add_executable(run_e2e_test_stress stress/test_stress.cc)
 target_link_libraries(
-  run_e2e_test_stress PRIVATE ${_unilink_test_lib} GTest::gtest
+  run_e2e_test_stress PRIVATE ${_wirestead_test_lib} GTest::gtest
                               GTest::gtest_main GTest::gmock
 )
-unilink_set_test_warning_options(run_e2e_test_stress)
+wirestead_set_test_warning_options(run_e2e_test_stress)
 target_include_directories(
   run_e2e_test_stress PRIVATE ${CMAKE_SOURCE_DIR}/test/utils
                               ${CMAKE_SOURCE_DIR}/test/fixtures

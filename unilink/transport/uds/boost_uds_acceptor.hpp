@@ -16,38 +16,5 @@
 
 #pragma once
 
-#include <boost/asio.hpp>
-#include <memory>
-
-#include "unilink/base/platform.hpp"
-#include "unilink/base/visibility.hpp"
-#include "unilink/interface/iuds_acceptor.hpp"
-
-namespace unilink {
-namespace transport {
-
-namespace net = boost::asio;
-using uds = net::local::stream_protocol;
-
-/**
- * @brief Boost.Asio implementation of UdsAcceptorInterface interface.
- */
-class UNILINK_API BoostUdsAcceptor : public interface::UdsAcceptorInterface {
- public:
-  explicit BoostUdsAcceptor(boost::asio::io_context& ioc);
-  ~BoostUdsAcceptor() override = default;
-
-  void open(const uds& protocol, boost::system::error_code& ec) override;
-  void bind(const uds::endpoint& endpoint, boost::system::error_code& ec) override;
-  void listen(int backlog, boost::system::error_code& ec) override;
-  bool is_open() const override;
-  void close(boost::system::error_code& ec) override;
-
-  void async_accept(std::function<void(const boost::system::error_code&, uds::socket)> handler) override;
-
- private:
-  uds::acceptor acceptor_;
-};
-
-}  // namespace transport
-}  // namespace unilink
+#include <wirestead/compat/unilink.hpp>
+#include <wirestead/transport/uds/boost_uds_acceptor.hpp>

@@ -23,15 +23,15 @@
 #include <string>
 #include <vector>
 
-#include "unilink/interface/channel.hpp"
-#include "unilink/wrapper/serial/serial.hpp"
-#include "unilink/wrapper/tcp_client/tcp_client.hpp"
-#include "unilink/wrapper/udp/udp.hpp"
-#include "unilink/wrapper/uds_client/uds_client.hpp"
+#include "wirestead/interface/channel.hpp"
+#include "wirestead/wrapper/serial/serial.hpp"
+#include "wirestead/wrapper/tcp_client/tcp_client.hpp"
+#include "wirestead/wrapper/udp/udp.hpp"
+#include "wirestead/wrapper/uds_client/uds_client.hpp"
 
 namespace {
 
-class CountingChannel : public unilink::interface::Channel {
+class CountingChannel : public wirestead::interface::Channel {
  public:
   void start() override { connected_ = true; }
   void stop() override { connected_ = false; }
@@ -40,7 +40,7 @@ class CountingChannel : public unilink::interface::Channel {
 
   boost::asio::any_io_executor get_executor() override { return ioc_.get_executor(); }
 
-  bool async_write_copy(unilink::memory::ConstByteSpan data) override {
+  bool async_write_copy(wirestead::memory::ConstByteSpan data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++copy_calls_;
     last_payload_.assign(data.begin(), data.end());
@@ -65,7 +65,7 @@ class CountingChannel : public unilink::interface::Channel {
     return write_result_ && data && !data->empty();
   }
 
-  bool async_try_write_copy(unilink::memory::ConstByteSpan data) override { return async_write_copy(data); }
+  bool async_try_write_copy(wirestead::memory::ConstByteSpan data) override { return async_write_copy(data); }
 
   bool async_try_write_move(std::vector<uint8_t>&& data) override { return async_write_move(std::move(data)); }
 
@@ -156,7 +156,7 @@ template <typename Wrapper>
 void expect_strategy_send_uses_move_and_shared_paths() {
   auto channel = std::make_shared<CountingChannel>();
   Wrapper wrapper(channel);
-  wrapper.backpressure_strategy(unilink::base::constants::BackpressureStrategy::BestEffort);
+  wrapper.backpressure_strategy(wirestead::base::constants::BackpressureStrategy::BestEffort);
 
   EXPECT_TRUE(wrapper.send_move(std::vector<uint8_t>{8, 9}));
   auto shared = std::make_shared<const std::vector<uint8_t>>(std::vector<uint8_t>{10, 11});
@@ -170,29 +170,29 @@ void expect_strategy_send_uses_move_and_shared_paths() {
 }  // namespace
 
 TEST(WrapperSendBufferApis, TcpClientRoutesMoveAndSharedToTransportPaths) {
-  expect_try_send_move_uses_move_path<unilink::wrapper::TcpClient>();
-  expect_try_send_shared_uses_shared_path<unilink::wrapper::TcpClient>();
-  expect_empty_or_null_shared_is_rejected_before_transport<unilink::wrapper::TcpClient>();
-  expect_strategy_send_uses_move_and_shared_paths<unilink::wrapper::TcpClient>();
+  expect_try_send_move_uses_move_path<wirestead::wrapper::TcpClient>();
+  expect_try_send_shared_uses_shared_path<wirestead::wrapper::TcpClient>();
+  expect_empty_or_null_shared_is_rejected_before_transport<wirestead::wrapper::TcpClient>();
+  expect_strategy_send_uses_move_and_shared_paths<wirestead::wrapper::TcpClient>();
 }
 
 TEST(WrapperSendBufferApis, UdpClientRoutesMoveAndSharedToTransportPaths) {
-  expect_try_send_move_uses_move_path<unilink::wrapper::UdpClient>();
-  expect_try_send_shared_uses_shared_path<unilink::wrapper::UdpClient>();
-  expect_empty_or_null_shared_is_rejected_before_transport<unilink::wrapper::UdpClient>();
-  expect_strategy_send_uses_move_and_shared_paths<unilink::wrapper::UdpClient>();
+  expect_try_send_move_uses_move_path<wirestead::wrapper::UdpClient>();
+  expect_try_send_shared_uses_shared_path<wirestead::wrapper::UdpClient>();
+  expect_empty_or_null_shared_is_rejected_before_transport<wirestead::wrapper::UdpClient>();
+  expect_strategy_send_uses_move_and_shared_paths<wirestead::wrapper::UdpClient>();
 }
 
 TEST(WrapperSendBufferApis, SerialRoutesMoveAndSharedToTransportPaths) {
-  expect_try_send_move_uses_move_path<unilink::wrapper::Serial>();
-  expect_try_send_shared_uses_shared_path<unilink::wrapper::Serial>();
-  expect_empty_or_null_shared_is_rejected_before_transport<unilink::wrapper::Serial>();
-  expect_strategy_send_uses_move_and_shared_paths<unilink::wrapper::Serial>();
+  expect_try_send_move_uses_move_path<wirestead::wrapper::Serial>();
+  expect_try_send_shared_uses_shared_path<wirestead::wrapper::Serial>();
+  expect_empty_or_null_shared_is_rejected_before_transport<wirestead::wrapper::Serial>();
+  expect_strategy_send_uses_move_and_shared_paths<wirestead::wrapper::Serial>();
 }
 
 TEST(WrapperSendBufferApis, UdsClientRoutesMoveAndSharedToTransportPaths) {
-  expect_try_send_move_uses_move_path<unilink::wrapper::UdsClient>();
-  expect_try_send_shared_uses_shared_path<unilink::wrapper::UdsClient>();
-  expect_empty_or_null_shared_is_rejected_before_transport<unilink::wrapper::UdsClient>();
-  expect_strategy_send_uses_move_and_shared_paths<unilink::wrapper::UdsClient>();
+  expect_try_send_move_uses_move_path<wirestead::wrapper::UdsClient>();
+  expect_try_send_shared_uses_shared_path<wirestead::wrapper::UdsClient>();
+  expect_empty_or_null_shared_is_rejected_before_transport<wirestead::wrapper::UdsClient>();
+  expect_strategy_send_uses_move_and_shared_paths<wirestead::wrapper::UdsClient>();
 }

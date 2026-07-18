@@ -1,0 +1,778 @@
+/*
+ * Copyright 2025 Jinwoo Sung
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "wirestead/wrapper/serial/serial.hpp"
+
+#include <algorithm>
+#include <atomic>
+#include <boost/asio/executor_work_guard.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/steady_timer.hpp>
+#include <cctype>
+#include <iostream>
+#include <mutex>
+#include <shared_mutex>
+#include <stdexcept>
+#include <thread>
+#include <vector>
+
+#include "wirestead/base/common.hpp"
+#include "wirestead/base/constants.hpp"
+#include "wirestead/factory/channel_factory.hpp"
+#include "wirestead/transport/serial/serial.hpp"
+#include "wirestead/wrapper/callback_guard.hpp"
+#include "wirestead/wrapper/error_context_builder.hpp"
+
+namespace wirestead {
+namespace wrapper {
+
+namespace {
+std::string to_lower(std::string s) {
+  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
+  return s;
+}
+}  // namespace
+
+struct Serial::Impl : public std::enable_shared_from_this<Impl> {
+  mutable std::shared_mutex mutex_;
+  std::mutex bp_mutex_;
+  std::condition_variable bp_cv_;
+  std::string device;
+  uint32_t baud_rate;
+  std::shared_ptr<interface::Channel> channel;
+  std::shared_ptr<boost::asio::io_context> external_ioc;
+  std::atomic<bool> use_external_context{false};
+  std::atomic<bool> manage_external_context{false};
+  std::thread external_thread;
+  std::unique_ptr<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>> work_guard_;
+
+  std::vector<std::promise<bool>> pending_promises_;
+  std::atomic<bool> started_{false};
+  std::shared_ptr<bool> alive_marker_{std::make_shared<bool>(true)};
+
+  // Event handlers (Context based)
+  MessageHandler data_handler{nullptr};
+  BatchMessageHandler data_batch_handler_{nullptr};
+  ConnectionHandler connect_handler{nullptr};
+  ConnectionHandler disconnect_handler{nullptr};
+  ErrorHandler error_handler{nullptr};
+  std::function<void(size_t)> bp_handler{nullptr};
+  MessageHandler message_handler{nullptr};
+  BatchMessageHandler message_batch_handler_{nullptr};
+
+  std::shared_ptr<framer::IFramer> framer{nullptr};
+
+  // Batching logic
+  std::vector<MessageContext> data_batch_queue_;
+  std::vector<MessageContext> message_batch_queue_;
+  std::unique_ptr<boost::asio::steady_timer> batch_timer_;
+  size_t max_batch_size_ = 100;
+  std::chrono::milliseconds max_batch_latency_{1};
+
+  // Configuration
+  std::atomic<bool> auto_start_ = false;
+  std::atomic<bool> shared_context_{false};
+  int data_bits = 8;
+  int stop_bits = 1;
+  std::string parity = "none";
+  std::string flow_control = "none";
+  bool reopen_on_error = true;
+  std::chrono::milliseconds retry_interval{base::constants::DEFAULT_RETRY_INTERVAL_MS};
+  size_t backpressure_threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD;
+  base::constants::BackpressureStrategy backpressure_strategy = base::constants::BackpressureStrategy::Reliable;
+
+  // False only for the dependency-injected-channel constructor below, where
+  // the caller owns the channel's identity and lifecycle (e.g. tests
+  // injecting a fake channel) - stop() must not discard and factory-rebuild
+  // a channel it didn't create itself.
+  bool factory_managed_channel_ = true;
+
+  Impl(const std::string& dev, uint32_t baud) : device(dev), baud_rate(baud) {}
+  Impl(const std::string& dev, uint32_t baud, std::shared_ptr<boost::asio::io_context> ioc)
+      : device(dev), baud_rate(baud), external_ioc(std::move(ioc)), use_external_context(external_ioc != nullptr) {}
+  explicit Impl(std::shared_ptr<interface::Channel> ch) : channel(std::move(ch)), factory_managed_channel_(false) {
+    // #450: setup_internal_handlers() captures weak_from_this() - calling it
+    // from inside this constructor would capture an empty weak_ptr, since
+    // enable_shared_from_this isn't wired up until make_shared() finishes
+    // constructing the object. Deferred to Serial's own constructor, which
+    // runs after impl_ is a fully-formed shared_ptr<Impl> (already called
+    // there for this constructor, so nothing to add there).
+  }
+
+  ~Impl() {
+    try {
+      stop();
+    } catch (...) {
+    }
+  }
+
+  void fulfill_all_locked(bool value) {
+    for (auto& promise : pending_promises_) {
+      try {
+        promise.set_value(value);
+      } catch (...) {
+      }
+    }
+    pending_promises_.clear();
+  }
+
+  void flush_batches() {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    if (!data_batch_queue_.empty()) {
+      auto handler = data_batch_handler_;
+      auto batch = std::move(data_batch_queue_);
+      data_batch_queue_.clear();
+      if (handler) {
+        lock.unlock();
+        handler(batch);
+        lock.lock();
+      }
+    }
+    if (!message_batch_queue_.empty()) {
+      auto handler = message_batch_handler_;
+      auto batch = std::move(message_batch_queue_);
+      message_batch_queue_.clear();
+      if (handler) {
+        lock.unlock();
+        handler(batch);
+        lock.lock();
+      }
+    }
+    if (batch_timer_) {
+      batch_timer_->cancel();
+    }
+  }
+
+  void schedule_batch_timer() {
+    if (!batch_timer_) return;
+    batch_timer_->expires_after(max_batch_latency_);
+    batch_timer_->async_wait([this, weak_impl = weak_from_this(),
+                              weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
+      if (ec) return;
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
+      auto alive = weak_alive.lock();
+      if (!alive) return;
+      flush_batches();
+    });
+  }
+
+  std::future<bool> start() {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    if (channel && channel->is_connected()) {
+      started_.store(true);
+      std::promise<bool> p;
+      p.set_value(true);
+      return p.get_future();
+    }
+
+    std::promise<bool> p;
+    auto future = p.get_future();
+    pending_promises_.emplace_back(std::move(p));
+
+    if (started_.load()) {
+      return future;
+    }
+
+    if (!channel) {
+      channel = factory::ChannelFactory::create(build_config_locked(), external_ioc);
+      setup_internal_handlers();
+    }
+    started_.store(true);
+
+    lock.unlock();
+    channel->start();
+    if (use_external_context && manage_external_context && !external_thread.joinable()) {
+      if (external_ioc && external_ioc->stopped()) {
+        external_ioc->restart();
+      }
+      work_guard_ = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
+          boost::asio::make_work_guard(*external_ioc));
+      external_thread = std::thread([ioc = external_ioc]() {
+        try {
+          ioc->run();
+        } catch (...) {
+        }
+      });
+    }
+
+    return future;
+  }
+
+  void stop() {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    if (!started_.load()) {
+      fulfill_all_locked(false);
+      return;
+    }
+    started_.store(false);
+    bp_cv_.notify_all();
+
+    if (batch_timer_) {
+      batch_timer_->cancel();
+      batch_timer_.reset();
+    }
+
+    if (channel) {
+      lock.unlock();
+      channel->stop();
+      // Clear callbacks after stop() rather than before: the transport-level
+      // fix (#436) already synchronizes callback reads against these
+      // setters, but clearing after stop() means no in-flight handler can
+      // observe a null callback mid-shutdown in the first place - belt and
+      // braces once the underlying race is fixed at the source.
+      channel->on_bytes(nullptr);
+      channel->on_state(nullptr);
+      channel->on_backpressure(nullptr);
+      lock.lock();
+      if (factory_managed_channel_) {
+        // Fully release the channel rather than reusing it: start()'s
+        // `if (!channel)` guard is what re-runs setup_internal_handlers() and
+        // rebuilds config from the (possibly changed) staged fields. Reusing
+        // a stopped channel left every handler nulled forever - including
+        // the one that fulfills the start() future - so a restart would
+        // hang (jwsung91/wirestead#444). Injected channels (factory_managed_
+        // channel_ == false) are exempt: the caller owns that channel's
+        // identity, so we must not discard and factory-rebuild it.
+        channel.reset();
+      }
+    }
+
+    if (work_guard_) {
+      work_guard_.reset();
+    }
+
+    if (use_external_context && manage_external_context && external_thread.joinable()) {
+      if (external_ioc) external_ioc->stop();
+      if (std::this_thread::get_id() != external_thread.get_id()) {
+        lock.unlock();
+        external_thread.join();
+        lock.lock();
+      } else {
+        external_thread.detach();
+      }
+    }
+
+    fulfill_all_locked(false);
+
+    if (framer) framer->reset();
+  }
+
+  bool try_send(std::string_view data) {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (channel && channel->is_connected()) {
+      auto binary_view = base::safe_convert::string_to_bytes(data);
+      return channel->async_try_write_copy(memory::ConstByteSpan(binary_view.first, binary_view.second));
+    }
+    return false;
+  }
+
+  bool try_send_move(std::vector<uint8_t>&& data) {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (channel && channel->is_connected()) {
+      return channel->async_try_write_move(std::move(data));
+    }
+    return false;
+  }
+
+  bool try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+    if (!data || data->empty()) return false;
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (channel && channel->is_connected()) {
+      return channel->async_try_write_shared(std::move(data));
+    }
+    return false;
+  }
+
+  bool send(std::string_view data) {
+    if (backpressure_strategy == base::constants::BackpressureStrategy::Reliable) return send_blocking(data);
+    return try_send(data);
+  }
+
+  // channel->on_backpressure() calls bp_cv_.notify_all() from the transport's io_context
+  // thread without holding bp_mutex_ (backpressure_active_ is a plain atomic on the transport
+  // side, not guarded by bp_mutex_ at all). That makes a classic lost-wakeup race possible: a
+  // waiter can check the predicate, find it still blocking, and be in the process of
+  // registering to wait when the notify fires - in the rare case that race is lost, an
+  // unbounded wait() would block forever. Poll with a bounded timeout instead so a missed
+  // notify only costs a short delay rather than a permanent hang (see #427, #431).
+  // Returns false instead of waiting if called from the channel's own io
+  // thread while backpressure is active - e.g. a blocking send() called
+  // from inside an on_data/on_message callback. Clearing backpressure
+  // requires that same io thread to make progress, so blocking here would
+  // deadlock forever rather than eventually clear (#449).
+  bool wait_for_backpressure_clear(std::unique_lock<std::mutex>& bp_lock) {
+    auto predicate = [this] {
+      std::shared_lock<std::shared_mutex> lock(mutex_);
+      return !started_.load() || !channel || !channel->is_connected() || !channel->is_backpressure_active();
+    };
+    if (predicate()) return true;
+    if (detail::in_data_callback()) return false;
+    while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), predicate)) {
+    }
+    return true;
+  }
+
+  // #509: wait_for_backpressure_clear()'s condition and the transport's own
+  // hard queue-byte cap are different thresholds observed at different
+  // times, so a single write attempt can spuriously fail right after the
+  // wait exits. Bounded retry rather than unbounded, so a payload that can
+  // never fit still fails in bounded time.
+  static constexpr int kMaxBlockingSendAttempts = 5;
+
+  bool send_move(std::vector<uint8_t>&& data) {
+    if (backpressure_strategy == base::constants::BackpressureStrategy::Reliable) {
+      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+        if (!wait_for_backpressure_clear(bp_lock)) return false;
+        bp_lock.unlock();
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        if (!started_.load() || !channel || !channel->is_connected()) return false;
+        if (channel->async_write_move(std::move(data))) return true;
+      }
+      return false;
+    }
+    return try_send_move(std::move(data));
+  }
+
+  bool send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+    if (!data || data->empty()) return false;
+    if (backpressure_strategy == base::constants::BackpressureStrategy::Reliable) {
+      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+        if (!wait_for_backpressure_clear(bp_lock)) return false;
+        bp_lock.unlock();
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        if (!started_.load() || !channel || !channel->is_connected()) return false;
+        if (channel->async_write_shared(data)) return true;
+      }
+      return false;
+    }
+    return try_send_shared(std::move(data));
+  }
+
+  bool send_line(std::string_view line) {
+    if (backpressure_strategy == base::constants::BackpressureStrategy::Reliable) return send_line_blocking(line);
+    return try_send_line(line);
+  }
+
+  bool try_send_line(std::string_view line) { return try_send(std::string(line) + "\n"); }
+
+  bool send_blocking(std::string_view data) {
+    auto binary_view = base::safe_convert::string_to_bytes(data);
+    memory::ConstByteSpan span(binary_view.first, binary_view.second);
+    for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+      if (!wait_for_backpressure_clear(bp_lock)) return false;
+      bp_lock.unlock();
+      std::shared_lock<std::shared_mutex> lock(mutex_);
+      if (!started_.load() || !channel || !channel->is_connected()) return false;
+      // #509: previously discarded async_write_copy()'s result and always
+      // returned true here, silently reporting success even when the write
+      // was actually rejected - now correctly forwards/retries like the
+      // other transports.
+      if (channel->async_write_copy(span)) return true;
+    }
+    return false;
+  }
+
+  bool send_line_blocking(std::string_view line) { return send_blocking(std::string(line) + "\n"); }
+
+  RuntimeStats stats() const {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    return channel ? channel->stats() : RuntimeStats{};
+  }
+
+  void reset_stats() {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (channel) channel->reset_stats();
+  }
+
+  void setup_internal_handlers() {
+    if (!channel) return;
+
+    batch_timer_ = std::make_unique<boost::asio::steady_timer>(channel->get_executor());
+
+    std::weak_ptr<bool> weak_alive = alive_marker_;
+    std::weak_ptr<Impl> weak_impl = weak_from_this();
+
+    channel->on_bytes([this, weak_impl, weak_alive](memory::ConstByteSpan data) {
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
+      auto alive = weak_alive.lock();
+      if (!alive) return;
+
+      // #449: everything below runs synchronously on this io thread - mark
+      // it so a blocking send() called from within one of these callbacks
+      // fails fast instead of deadlocking.
+      detail::CallbackGuard callback_guard;
+
+      // #441: snapshot the handler/framer pointers under a shared_lock (not
+      // unique_lock) - this is a pure read, matching try_send's locking
+      // level so it no longer blocks concurrent sends even briefly.
+      bool batch_mode;
+      MessageHandler handler;
+      std::shared_ptr<framer::IFramer> framer_to_push;
+      {
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        batch_mode = static_cast<bool>(data_batch_handler_);
+        handler = data_handler;
+        framer_to_push = framer;
+      }
+
+      if (batch_mode) {
+        // #441: build the copy before taking the exclusive lock, so the
+        // lock is only held for the queue mutation itself, not the
+        // allocation.
+        MessageContext ctx(0, memory::SafeDataBuffer(data));
+        BatchMessageHandler flush_handler;
+        std::vector<MessageContext> batch;
+        {
+          std::unique_lock<std::shared_mutex> lock(mutex_);
+          data_batch_queue_.emplace_back(std::move(ctx));
+          if (data_batch_queue_.size() >= max_batch_size_) {
+            flush_handler = data_batch_handler_;
+            batch = std::move(data_batch_queue_);
+            data_batch_queue_.clear();
+          } else if (data_batch_queue_.size() == 1) {
+            schedule_batch_timer();
+          }
+        }
+        if (flush_handler) flush_handler(batch);
+      } else if (handler) {
+        handler(MessageContext(0, memory::SafeDataBuffer(data)));
+      }
+
+      if (framer_to_push) framer_to_push->push_bytes(data);
+    });
+
+    channel->on_backpressure([this, weak_impl, weak_alive](size_t queued) {
+      bp_cv_.notify_all();
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
+      auto alive = weak_alive.lock();
+      if (!alive) return;
+      std::function<void(size_t)> handler;
+      {
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        handler = bp_handler;
+      }
+      if (handler) handler(queued);
+    });
+
+    channel->on_state([this, weak_impl, weak_alive](base::LinkState state) {
+      auto impl_keepalive = weak_impl.lock();
+      if (!impl_keepalive) return;
+      auto alive = weak_alive.lock();
+      if (!alive) return;
+
+      switch (state) {
+        case base::LinkState::Connected: {
+          ConnectionHandler handler;
+          {
+            std::unique_lock<std::shared_mutex> lock(mutex_);
+            fulfill_all_locked(true);
+            handler = connect_handler;
+          }
+          if (handler) handler(ConnectionContext(0));
+          break;
+        }
+        case base::LinkState::Closed:
+        case base::LinkState::Error:
+        case base::LinkState::Idle: {
+          ConnectionHandler disconnect_handler_snapshot;
+          ErrorHandler error_handler_snapshot;
+          {
+            std::unique_lock<std::shared_mutex> lock(mutex_);
+            fulfill_all_locked(false);
+            if (state == base::LinkState::Error) {
+              error_handler_snapshot = error_handler;
+            } else {
+              disconnect_handler_snapshot = disconnect_handler;
+            }
+          }
+          if (disconnect_handler_snapshot) {
+            disconnect_handler_snapshot(ConnectionContext(0));
+          }
+          if (error_handler_snapshot) {
+            error_handler_snapshot(channel ? detail::build_error_context(*channel, "Connection error")
+                                           : ErrorContext(ErrorCode::IoError, "Connection error"));
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    });
+  }
+
+  void attach_framer_callback() {
+    if (!framer) return;
+    framer->on_message([this](memory::ConstByteSpan msg) {
+      // #441: snapshot under a shared_lock (pure read), build the copy
+      // before taking the exclusive lock for queue mutation.
+      bool batch_mode;
+      MessageHandler handler;
+      {
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        batch_mode = static_cast<bool>(message_batch_handler_);
+        handler = message_handler;
+      }
+
+      if (batch_mode) {
+        MessageContext ctx(0, memory::SafeDataBuffer(msg));
+        BatchMessageHandler flush_handler;
+        std::vector<MessageContext> batch;
+        {
+          std::unique_lock<std::shared_mutex> lock(mutex_);
+          message_batch_queue_.emplace_back(std::move(ctx));
+          if (message_batch_queue_.size() >= max_batch_size_) {
+            flush_handler = message_batch_handler_;
+            batch = std::move(message_batch_queue_);
+            message_batch_queue_.clear();
+          } else if (message_batch_queue_.size() == 1) {
+            schedule_batch_timer();
+          }
+        }
+        if (flush_handler) flush_handler(batch);
+        return;
+      }
+
+      if (handler) {
+        handler(MessageContext(0, memory::SafeDataBuffer(msg)));
+      }
+    });
+  }
+
+  void set_framer(std::unique_ptr<framer::IFramer> f) {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    framer = std::shared_ptr<framer::IFramer>(std::move(f));
+    if (framer && (message_handler || message_batch_handler_)) attach_framer_callback();
+  }
+
+  void on_message(MessageHandler handler) {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    message_handler = std::move(handler);
+    if (framer) attach_framer_callback();
+  }
+
+  void on_message_batch(BatchMessageHandler handler) {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    message_batch_handler_ = std::move(handler);
+    if (framer) attach_framer_callback();
+  }
+
+  config::SerialConfig build_config_locked() const {
+    config::SerialConfig config;
+    config.device = device;
+    config.baud_rate = baud_rate;
+    config.char_size = static_cast<unsigned int>(data_bits);
+    config.stop_bits = static_cast<unsigned int>(stop_bits);
+    std::string p = to_lower(parity);
+    if (p == "even")
+      config.parity = config::SerialConfig::Parity::Even;
+    else if (p == "odd")
+      config.parity = config::SerialConfig::Parity::Odd;
+    else
+      config.parity = config::SerialConfig::Parity::None;
+
+    std::string f = to_lower(flow_control);
+    if (f == "software")
+      config.flow = config::SerialConfig::Flow::Software;
+    else if (f == "hardware")
+      config.flow = config::SerialConfig::Flow::Hardware;
+    else
+      config.flow = config::SerialConfig::Flow::None;
+
+    config.retry_interval_ms = static_cast<unsigned int>(retry_interval.count());
+    config.reopen_on_error = reopen_on_error;
+    config.backpressure_threshold = backpressure_threshold;
+    config.backpressure_strategy = backpressure_strategy;
+    config.use_shared_context = shared_context_.load();
+    return config;
+  }
+};
+
+Serial::Serial(const std::string& d, uint32_t b) : impl_(std::make_shared<Impl>(d, b)) {}
+Serial::Serial(const std::string& d, uint32_t b, std::shared_ptr<boost::asio::io_context> i)
+    : impl_(std::make_shared<Impl>(d, b, i)) {}
+Serial::Serial(std::shared_ptr<interface::Channel> ch) : impl_(std::make_shared<Impl>(ch)) {
+  impl_->setup_internal_handlers();
+}
+Serial::~Serial() = default;
+
+Serial::Serial(Serial&&) noexcept = default;
+Serial& Serial::operator=(Serial&&) noexcept = default;
+
+std::future<bool> Serial::start() { return impl_->start(); }
+void Serial::stop() { impl_->stop(); }
+bool Serial::send(std::string_view data) { return impl_->send(data); }
+bool Serial::try_send(std::string_view data) { return impl_->try_send(data); }
+bool Serial::send_line(std::string_view line) { return impl_->send_line(line); }
+bool Serial::try_send_line(std::string_view line) { return impl_->try_send_line(line); }
+bool Serial::send_move(std::vector<uint8_t>&& data) { return impl_->send_move(std::move(data)); }
+bool Serial::try_send_move(std::vector<uint8_t>&& data) { return impl_->try_send_move(std::move(data)); }
+bool Serial::send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  return impl_->send_shared(std::move(data));
+}
+bool Serial::try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  return impl_->try_send_shared(std::move(data));
+}
+bool Serial::send_blocking(std::string_view data) { return impl_->send_blocking(data); }
+bool Serial::send_line_blocking(std::string_view line) { return impl_->send_line_blocking(line); }
+bool Serial::connected() const {
+  std::shared_lock<std::shared_mutex> lock(impl_->mutex_);
+  return impl_->channel && impl_->channel->is_connected();
+}
+RuntimeStats Serial::stats() const { return impl_->stats(); }
+void Serial::reset_stats() { impl_->reset_stats(); }
+
+Serial& Serial::on_data(MessageHandler h) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->data_handler = std::move(h);
+  return *this;
+}
+Serial& Serial::on_data_batch(BatchMessageHandler h) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->data_batch_handler_ = std::move(h);
+  return *this;
+}
+Serial& Serial::on_connect(ConnectionHandler h) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->connect_handler = std::move(h);
+  return *this;
+}
+Serial& Serial::on_disconnect(ConnectionHandler h) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->disconnect_handler = std::move(h);
+  return *this;
+}
+Serial& Serial::on_error(ErrorHandler h) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->error_handler = std::move(h);
+  return *this;
+}
+
+Serial& Serial::on_backpressure(std::function<void(size_t)> h) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->bp_handler = std::move(h);
+  return *this;
+}
+
+Serial& Serial::framer(std::unique_ptr<framer::IFramer> f) {
+  impl_->set_framer(std::move(f));
+  return *this;
+}
+Serial& Serial::on_message(MessageHandler h) {
+  impl_->on_message(std::move(h));
+  return *this;
+}
+Serial& Serial::on_message_batch(BatchMessageHandler h) {
+  impl_->on_message_batch(std::move(h));
+  return *this;
+}
+
+Serial& Serial::auto_start(bool m) {
+  impl_->auto_start_.store(m);
+  if (impl_->auto_start_.load() && !impl_->started_.load()) start();
+  return *this;
+}
+
+Serial& Serial::shared_context(bool use_shared) {
+  impl_->shared_context_.store(use_shared);
+  return *this;
+}
+
+Serial& Serial::baud_rate(uint32_t b) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->baud_rate = b;
+  return *this;
+}
+Serial& Serial::data_bits(int d) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->data_bits = d;
+  return *this;
+}
+Serial& Serial::stop_bits(int s) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->stop_bits = s;
+  return *this;
+}
+Serial& Serial::parity(const std::string& p) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->parity = p;
+  return *this;
+}
+Serial& Serial::flow_control(const std::string& f) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->flow_control = f;
+  return *this;
+}
+Serial& Serial::reopen_on_error(bool enable) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->reopen_on_error = enable;
+  return *this;
+}
+Serial& Serial::retry_interval(std::chrono::milliseconds i) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->retry_interval = i;
+  if (impl_->channel) {
+    auto ts = std::dynamic_pointer_cast<transport::Serial>(impl_->channel);
+    if (ts) ts->set_retry_interval(static_cast<unsigned int>(i.count()));
+  }
+  return *this;
+}
+
+Serial& Serial::backpressure_threshold(size_t threshold) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->backpressure_threshold = threshold;
+  return *this;
+}
+
+Serial& Serial::backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->backpressure_strategy = strategy;
+  if (impl_->channel) {
+    auto ts = std::dynamic_pointer_cast<transport::Serial>(impl_->channel);
+    if (ts) ts->set_backpressure_strategy(strategy);
+  }
+  return *this;
+}
+
+config::SerialConfig Serial::build_config() const {
+  std::shared_lock<std::shared_mutex> lock(impl_->mutex_);
+  return impl_->build_config_locked();
+}
+
+Serial& Serial::manage_external_context(bool m) {
+  impl_->manage_external_context.store(m);
+  return *this;
+}
+
+Serial& Serial::batch_size(size_t size) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->max_batch_size_ = size;
+  return *this;
+}
+
+Serial& Serial::batch_latency(std::chrono::milliseconds latency) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->max_batch_latency_ = latency;
+  return *this;
+}
+
+}  // namespace wrapper
+}  // namespace wirestead

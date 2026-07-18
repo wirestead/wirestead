@@ -21,9 +21,9 @@
 #include <boost/asio.hpp>
 #include <functional>
 
-#include "unilink/interface/iuds_socket.hpp"
+#include "wirestead/interface/iuds_socket.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 namespace mocks {
 
@@ -47,4 +47,4 @@ class MockUdsSocket : public interface::UdsSocketInterface {
 
 }  // namespace mocks
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

@@ -4,9 +4,9 @@
 #include <cstdio>
 #include <fstream>
 
-#include "unilink/config/config_manager.hpp"
+#include "wirestead/config/config_manager.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace config {
 namespace test {
 
@@ -47,4 +47,4 @@ TEST(ConfigSecurityTest, LoadFromFile_TypeConfusion) {
 
 }  // namespace test
 }  // namespace config
-}  // namespace unilink
+}  // namespace wirestead

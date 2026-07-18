@@ -1,8 +1,7 @@
 # Quick Start
 
-Full quickstart and tutorials:
-
-https://github.com/unilink-lab/unilink-docs
+This repository contains the minimal Wirestead quickstart. Extended tutorials
+remain in the external documentation repository until that repository is moved.
 
 ## Minimal CMake
 
@@ -10,20 +9,20 @@ Create `CMakeLists.txt` next to `main.cpp`:
 
 ```cmake
 cmake_minimum_required(VERSION 3.12)
-project(unilink_quickstart LANGUAGES CXX)
+project(wirestead_quickstart LANGUAGES CXX)
 
-find_package(unilink CONFIG REQUIRED)
+find_package(wirestead CONFIG REQUIRED)
 
-add_executable(unilink_quickstart main.cpp)
-target_link_libraries(unilink_quickstart PRIVATE unilink::unilink)
-target_compile_features(unilink_quickstart PRIVATE cxx_std_20)
+add_executable(wirestead_quickstart main.cpp)
+target_link_libraries(wirestead_quickstart PRIVATE wirestead::wirestead)
+target_compile_features(wirestead_quickstart PRIVATE cxx_std_20)
 ```
 
 ## Minimal TCP client
 
 This client expects a TCP server to be listening on `127.0.0.1:8080`.
 For a runnable client/server pair, see the full tutorials in
-`unilink-docs`.
+the external documentation repository.
 
 `max_retries` defaults to unlimited, so `start_sync()` blocks until a
 connection actually succeeds or fails outright - it never returns `false`
@@ -36,16 +35,16 @@ one-shot script.
 ```cpp
 #include <chrono>
 #include <iostream>
-#include <unilink/unilink.hpp>
+#include <wirestead/wirestead.hpp>
 
 int main() {
-    auto client = unilink::tcp_client("127.0.0.1", 8080)
+    auto client = wirestead::tcp_client("127.0.0.1", 8080)
         .max_retries(3)
         .connection_timeout(std::chrono::seconds(2))
-        .on_data([](const unilink::MessageContext& ctx) {
+        .on_data([](const wirestead::MessageContext& ctx) {
             std::cout << "received " << ctx.data().size() << " bytes\n";
         })
-        .on_error([](const unilink::ErrorContext& ctx) {
+        .on_error([](const wirestead::ErrorContext& ctx) {
             std::cerr << "error: " << ctx.message() << "\n";
         })
         .build();

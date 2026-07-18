@@ -175,8 +175,8 @@ jobs:
             -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
             -DCMAKE_C_COMPILER="${{ matrix.cc }}" \
             -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" \
-            -DUNILINK_BUILD_DOCS=OFF \
-            -DUNILINK_BUILD_TESTS=ON \
+            -DWIRESTEAD_BUILD_DOCS=OFF \
+            -DWIRESTEAD_BUILD_TESTS=ON \
             -DCMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE}" \
             -DVCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET}"
 
@@ -193,8 +193,8 @@ jobs:
             -DCMAKE_C_COMPILER="${{ matrix.cc }}" \
             -DCMAKE_CXX_COMPILER="${{ matrix.cxx }}" \
             -DCMAKE_OSX_DEPLOYMENT_TARGET="$SDK_VER" \
-            -DUNILINK_BUILD_DOCS=OFF \
-            -DUNILINK_BUILD_TESTS=ON \
+            -DWIRESTEAD_BUILD_DOCS=OFF \
+            -DWIRESTEAD_BUILD_TESTS=ON \
             -DCMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE}" \
             -DVCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET}"
 
@@ -207,15 +207,15 @@ jobs:
             -DCMAKE_BUILD_TYPE="${env:BUILD_TYPE}" `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET="${{ matrix.triplet }}" `
-            -DUNILINK_BUILD_DOCS=OFF `
-            -DUNILINK_BUILD_TESTS=ON
+            -DWIRESTEAD_BUILD_DOCS=OFF `
+            -DWIRESTEAD_BUILD_TESTS=ON
 
       - name: Build
         run: cmake --build build --config "${BUILD_TYPE}" --parallel
 
       - name: Build unit tests
         if: runner.os == 'Windows'
-        run: cmake --build build --target unilink_unit_tests --config "${BUILD_TYPE}"
+        run: cmake --build build --target wirestead_unit_tests --config "${BUILD_TYPE}"
 
       - name: Test (Windows, Full C++)
         if: runner.os == 'Windows'

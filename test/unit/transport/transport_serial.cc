@@ -23,13 +23,13 @@
 #include <memory>
 #include <optional>
 
-#include "unilink/config/serial_config.hpp"
-#include "unilink/interface/iserial_port.hpp"
-#include "unilink/memory/safe_span.hpp"
-#include "unilink/transport/serial/serial.hpp"
+#include "wirestead/config/serial_config.hpp"
+#include "wirestead/interface/iserial_port.hpp"
+#include "wirestead/memory/safe_span.hpp"
+#include "wirestead/transport/serial/serial.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
+using namespace wirestead;
+using namespace wirestead::transport;
 using namespace std::chrono_literals;
 
 namespace {

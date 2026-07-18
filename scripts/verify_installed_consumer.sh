@@ -17,7 +17,7 @@ usage() {
 Usage: scripts/verify_installed_consumer.sh [options]
 
 Options:
-  --build-dir PATH          Build directory for unilink
+  --build-dir PATH          Build directory for wirestead
   --install-prefix PATH     Temporary install prefix
   --consumer-dir PATH       External consumer project directory
   --library-mode MODE       shared, static, or both
@@ -88,16 +88,16 @@ done
 
 case "$LIBRARY_MODE" in
   shared)
-    UNILINK_BUILD_SHARED=ON
-    UNILINK_BUILD_STATIC=OFF
+    WIRESTEAD_BUILD_SHARED=ON
+    WIRESTEAD_BUILD_STATIC=OFF
     ;;
   static)
-    UNILINK_BUILD_SHARED=OFF
-    UNILINK_BUILD_STATIC=ON
+    WIRESTEAD_BUILD_SHARED=OFF
+    WIRESTEAD_BUILD_STATIC=ON
     ;;
   both)
-    UNILINK_BUILD_SHARED=ON
-    UNILINK_BUILD_STATIC=ON
+    WIRESTEAD_BUILD_SHARED=ON
+    WIRESTEAD_BUILD_STATIC=ON
     ;;
   *)
     die "invalid --library-mode: $LIBRARY_MODE (expected shared, static, or both)"
@@ -126,13 +126,13 @@ configure_args=(
   -G "$CMAKE_GENERATOR"
   -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE"
   -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX"
-  -DUNILINK_BUILD_SHARED="$UNILINK_BUILD_SHARED"
-  -DUNILINK_BUILD_STATIC="$UNILINK_BUILD_STATIC"
-  -DUNILINK_BUILD_TESTS=OFF
-  -DUNILINK_BUILD_DOCS=OFF
-  -DUNILINK_ENABLE_INSTALL=ON
-  -DUNILINK_ENABLE_PKGCONFIG=ON
-  -DUNILINK_ENABLE_EXPORT_HEADER=ON
+  -DWIRESTEAD_BUILD_SHARED="$WIRESTEAD_BUILD_SHARED"
+  -DWIRESTEAD_BUILD_STATIC="$WIRESTEAD_BUILD_STATIC"
+  -DWIRESTEAD_BUILD_TESTS=OFF
+  -DWIRESTEAD_BUILD_DOCS=OFF
+  -DWIRESTEAD_ENABLE_INSTALL=ON
+  -DWIRESTEAD_ENABLE_PKGCONFIG=ON
+  -DWIRESTEAD_ENABLE_EXPORT_HEADER=ON
 )
 
 if [[ -n "${CMAKE_TOOLCHAIN_FILE:-}" ]]; then
@@ -143,25 +143,25 @@ if [[ -n "${VCPKG_TARGET_TRIPLET:-}" ]]; then
   configure_args+=("-DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}")
 fi
 
-log_step "Configuring unilink"
+log_step "Configuring wirestead"
 cmake "${configure_args[@]}"
 
-log_step "Building unilink"
+log_step "Building wirestead"
 cmake --build "$BUILD_DIR" --parallel
 
-log_step "Installing unilink"
+log_step "Installing wirestead"
 cmake --install "$BUILD_DIR"
 
 log_step "Generating external consumer project"
 cat > "$CONSUMER_DIR/CMakeLists.txt" <<'EOF'
 cmake_minimum_required(VERSION 3.12)
-project(unilink_consumer_smoke LANGUAGES CXX)
+project(wirestead_consumer_smoke LANGUAGES CXX)
 
-find_package(unilink CONFIG REQUIRED)
+find_package(wirestead CONFIG REQUIRED)
 
-add_executable(unilink_consumer_smoke main.cpp)
-target_link_libraries(unilink_consumer_smoke PRIVATE unilink::unilink)
-target_compile_features(unilink_consumer_smoke PRIVATE cxx_std_20)
+add_executable(wirestead_consumer_smoke main.cpp)
+target_link_libraries(wirestead_consumer_smoke PRIVATE wirestead::wirestead)
+target_compile_features(wirestead_consumer_smoke PRIVATE cxx_std_20)
 EOF
 
 cat > "$CONSUMER_DIR/main.cpp" <<'EOF'
@@ -181,7 +181,7 @@ cat > "$CONSUMER_DIR/main.cpp" <<'EOF'
 #include <unistd.h>
 #endif
 
-#include <unilink/unilink.hpp>
+#include <wirestead/wirestead.hpp>
 
 #ifndef _WIN32
 uint16_t reserve_tcp_port() {
@@ -234,24 +234,24 @@ int main() {
     std::atomic<int> server_received{0};
     std::atomic<int> client_received{0};
 
-    std::shared_ptr<unilink::TcpServer> tcp_server;
-    tcp_server = unilink::tcp_server(port)
+    std::shared_ptr<wirestead::TcpServer> tcp_server;
+    tcp_server = wirestead::tcp_server(port)
         .auto_start(false)
-        .on_data([&](const unilink::MessageContext& ctx) {
+        .on_data([&](const wirestead::MessageContext& ctx) {
             server_received.fetch_add(1);
             if (tcp_server) tcp_server->send_to(ctx.client_id(), "pong");
         })
-        .on_error([](const unilink::ErrorContext&) {})
+        .on_error([](const wirestead::ErrorContext&) {})
         .build();
     if (!tcp_server || !tcp_server->start_sync()) {
         std::cerr << "failed to start installed TCP server\n";
         return 3;
     }
 
-    auto tcp_client = unilink::tcp_client("127.0.0.1", port)
+    auto tcp_client = wirestead::tcp_client("127.0.0.1", port)
         .auto_start(false)
-        .on_data([&](const unilink::MessageContext&) { client_received.fetch_add(1); })
-        .on_error([](const unilink::ErrorContext&) {})
+        .on_data([&](const wirestead::MessageContext&) { client_received.fetch_add(1); })
+        .on_error([](const wirestead::ErrorContext&) {})
         .build();
     if (!tcp_client || !tcp_client->start_sync()) {
         std::cerr << "failed to start installed TCP client\n";
@@ -308,17 +308,17 @@ int main() {
         return 10;
     }
 
-    auto udp_client = unilink::udp_client(0)
+    auto udp_client = wirestead::udp_client(0)
         .remote("127.0.0.1", 9000)
         .auto_start(false)
         .build();
 
-    auto udp_server = unilink::udp_server(9000).auto_start(false).build();
+    auto udp_server = wirestead::udp_server(9000).auto_start(false).build();
 
 #ifndef _WIN32
-    auto serial = unilink::serial("/dev/null", 115200).auto_start(false).build();
-    auto uds_client = unilink::uds_client("/tmp/unilink-consumer-smoke.sock").auto_start(false).build();
-    auto uds_server = unilink::uds_server("/tmp/unilink-consumer-smoke.sock").auto_start(false).build();
+    auto serial = wirestead::serial("/dev/null", 115200).auto_start(false).build();
+    auto uds_client = wirestead::uds_client("/tmp/wirestead-consumer-smoke.sock").auto_start(false).build();
+    auto uds_server = wirestead::uds_server("/tmp/wirestead-consumer-smoke.sock").auto_start(false).build();
 
     return (tcp_client && tcp_server && udp_client && udp_server &&
             serial && uds_client && uds_server) ? 0 : 1;
@@ -358,31 +358,28 @@ if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
 else
   export LD_LIBRARY_PATH="$INSTALL_PREFIX/lib"
 fi
-"$consumer_build_dir/unilink_consumer_smoke"
+"$consumer_build_dir/wirestead_consumer_smoke"
 
 echo
 echo "Installed consumer smoke passed for library mode: $LIBRARY_MODE"
 
-wirestead_consumer_dir="${CONSUMER_DIR}-wirestead"
-rm -rf "$wirestead_consumer_dir"
-mkdir -p "$wirestead_consumer_dir"
+legacy_consumer_dir="${CONSUMER_DIR}-legacy-unilink"
+rm -rf "$legacy_consumer_dir"
+mkdir -p "$legacy_consumer_dir"
 
-log_step "Generating find_package(wirestead) consumer project"
-cat > "$wirestead_consumer_dir/CMakeLists.txt" <<'EOF'
+log_step "Generating find_package(unilink) legacy consumer project"
+cat > "$legacy_consumer_dir/CMakeLists.txt" <<'EOF'
 cmake_minimum_required(VERSION 3.12)
-project(wirestead_consumer_smoke LANGUAGES CXX)
+project(unilink_consumer_smoke LANGUAGES CXX)
 
-find_package(wirestead CONFIG REQUIRED)
+find_package(unilink CONFIG REQUIRED)
 
-add_executable(wirestead_consumer_smoke main.cpp)
-target_link_libraries(wirestead_consumer_smoke PRIVATE wirestead::wirestead)
-target_compile_features(wirestead_consumer_smoke PRIVATE cxx_std_20)
+add_executable(unilink_consumer_smoke main.cpp)
+target_link_libraries(unilink_consumer_smoke PRIVATE unilink::unilink)
+target_compile_features(unilink_consumer_smoke PRIVATE cxx_std_20)
 EOF
 
-# Headers still live under <unilink/...> at this stage of the migration (see
-# docs/migration-from-unilink.md) - this only proves the wirestead::wirestead
-# target resolves to the real library and links, not the header story.
-cat > "$wirestead_consumer_dir/main.cpp" <<'EOF'
+cat > "$legacy_consumer_dir/main.cpp" <<'EOF'
 #include <unilink/unilink.hpp>
 
 int main() {
@@ -393,32 +390,32 @@ int main() {
 }
 EOF
 
-wirestead_consumer_build_dir="$wirestead_consumer_dir/build"
+legacy_consumer_build_dir="$legacy_consumer_dir/build"
 
-wirestead_consumer_args=(
-  -S "$wirestead_consumer_dir"
-  -B "$wirestead_consumer_build_dir"
+legacy_consumer_args=(
+  -S "$legacy_consumer_dir"
+  -B "$legacy_consumer_build_dir"
   -G "$CMAKE_GENERATOR"
   -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE"
   -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX"
 )
 
 if [[ -n "${CMAKE_TOOLCHAIN_FILE:-}" ]]; then
-  wirestead_consumer_args+=("-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}")
+  legacy_consumer_args+=("-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}")
 fi
 
 if [[ -n "${VCPKG_TARGET_TRIPLET:-}" ]]; then
-  wirestead_consumer_args+=("-DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}")
+  legacy_consumer_args+=("-DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}")
 fi
 
-log_step "Configuring find_package(wirestead) consumer"
-cmake "${wirestead_consumer_args[@]}"
+log_step "Configuring find_package(unilink) legacy consumer"
+cmake "${legacy_consumer_args[@]}"
 
-log_step "Building find_package(wirestead) consumer"
-cmake --build "$wirestead_consumer_build_dir" --parallel
+log_step "Building find_package(unilink) legacy consumer"
+cmake --build "$legacy_consumer_build_dir" --parallel
 
-log_step "Running find_package(wirestead) consumer runtime smoke"
-"$wirestead_consumer_build_dir/wirestead_consumer_smoke"
+log_step "Running find_package(unilink) legacy consumer runtime smoke"
+"$legacy_consumer_build_dir/unilink_consumer_smoke"
 
 echo
-echo "Installed find_package(wirestead) consumer smoke passed for library mode: $LIBRARY_MODE"
+echo "Installed find_package(unilink) legacy consumer smoke passed for library mode: $LIBRARY_MODE"

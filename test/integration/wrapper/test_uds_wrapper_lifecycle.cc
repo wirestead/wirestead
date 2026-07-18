@@ -28,11 +28,11 @@
 #include "test/mocks/mock_uds_acceptor.hpp"
 #include "test/mocks/mock_uds_socket.hpp"
 #include "test_utils.hpp"
-#include "unilink/framer/line_framer.hpp"
-#include "unilink/transport/uds/uds_client.hpp"
-#include "unilink/transport/uds/uds_server.hpp"
-#include "unilink/wrapper/uds_client/uds_client.hpp"
-#include "unilink/wrapper/uds_server/uds_server.hpp"
+#include "wirestead/framer/line_framer.hpp"
+#include "wirestead/transport/uds/uds_client.hpp"
+#include "wirestead/transport/uds/uds_server.hpp"
+#include "wirestead/wrapper/uds_client/uds_client.hpp"
+#include "wirestead/wrapper/uds_server/uds_server.hpp"
 #include "wrapper_contract_test_utils.hpp"
 
 using ::testing::_;
@@ -40,7 +40,7 @@ using ::testing::Invoke;
 using ::testing::Return;
 using namespace std::chrono_literals;
 
-namespace unilink::wrapper {
+namespace wirestead::wrapper {
 namespace {
 
 class ControlledUdsChannel : public interface::Channel {
@@ -203,7 +203,7 @@ TEST(UdsClientWrapperLifecycleTest, ManagedExternalContextStopsOnShutdown) {
   ASSERT_EQ(started.wait_for(1s), std::future_status::ready);
   EXPECT_TRUE(started.get());
 
-  EXPECT_TRUE(unilink::test::TestUtils::waitForCondition([&]() { return client.connected(); }, 2000));
+  EXPECT_TRUE(wirestead::test::TestUtils::waitForCondition([&]() { return client.connected(); }, 2000));
 
   client.stop();
   EXPECT_TRUE(ioc->stopped());
@@ -283,7 +283,7 @@ TEST(UdsServerWrapperLifecycleTest, ManagedExternalContextStopsOnShutdown) {
   ASSERT_EQ(started.wait_for(1s), std::future_status::ready);
   EXPECT_TRUE(started.get());
 
-  EXPECT_TRUE(unilink::test::TestUtils::waitForCondition([&]() { return server.listening(); }, 2000));
+  EXPECT_TRUE(wirestead::test::TestUtils::waitForCondition([&]() { return server.listening(); }, 2000));
 
   server.stop();
   EXPECT_TRUE(ioc->stopped());
@@ -302,7 +302,7 @@ TEST(UdsServerWrapperLifecycleTest, FramedMessageDoesNotDeadlock) {
   ASSERT_TRUE(harness.wait_for_client_count(1));
   ASSERT_TRUE(client->send_line("hello"));
 
-  EXPECT_TRUE(unilink::test::TestUtils::waitForCondition([&]() { return messages.load() == 1; }, 5000));
+  EXPECT_TRUE(wirestead::test::TestUtils::waitForCondition([&]() { return messages.load() == 1; }, 5000));
 }
 
 TEST(UdsServerWrapperContractTest, InjectedChannelStateAndFallbackOperations) {
@@ -647,7 +647,7 @@ TEST(UdsServerWrapperContractTest, ConnectHandlerReplacementUsesLatestCallback) 
 
   ASSERT_EQ(started.wait_for(0ms), std::future_status::ready);
   ASSERT_TRUE(started.get());
-  ASSERT_TRUE(unilink::test::TestUtils::waitForCondition([&]() { return count.load() > 0; }, 5000));
+  ASSERT_TRUE(wirestead::test::TestUtils::waitForCondition([&]() { return count.load() > 0; }, 5000));
   EXPECT_EQ(count.load(), 2);
 
   server.stop();
@@ -656,4 +656,4 @@ TEST(UdsServerWrapperContractTest, ConnectHandlerReplacementUsesLatestCallback) 
 }
 
 }  // namespace
-}  // namespace unilink::wrapper
+}  // namespace wirestead::wrapper

@@ -25,25 +25,25 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/base/constants.hpp"
-#include "unilink/builder/tcp_client_builder.hpp"
-#include "unilink/builder/udp_builder.hpp"
-#include "unilink/builder/uds_builder.hpp"
-#include "unilink/config/tcp_client_config.hpp"
-#include "unilink/config/tcp_server_config.hpp"
-#include "unilink/config/udp_config.hpp"
-#include "unilink/config/uds_config.hpp"
-#include "unilink/interface/itcp_socket.hpp"
-#include "unilink/transport/tcp_client/tcp_client.hpp"
-#include "unilink/transport/tcp_server/tcp_server.hpp"
-#include "unilink/transport/tcp_server/tcp_server_session.hpp"
-#include "unilink/transport/udp/udp.hpp"
-#include "unilink/transport/uds/uds_client.hpp"
-#include "unilink/transport/uds/uds_server.hpp"
+#include "wirestead/base/constants.hpp"
+#include "wirestead/builder/tcp_client_builder.hpp"
+#include "wirestead/builder/udp_builder.hpp"
+#include "wirestead/builder/uds_builder.hpp"
+#include "wirestead/config/tcp_client_config.hpp"
+#include "wirestead/config/tcp_server_config.hpp"
+#include "wirestead/config/udp_config.hpp"
+#include "wirestead/config/uds_config.hpp"
+#include "wirestead/interface/itcp_socket.hpp"
+#include "wirestead/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/transport/tcp_server/tcp_server.hpp"
+#include "wirestead/transport/tcp_server/tcp_server_session.hpp"
+#include "wirestead/transport/udp/udp.hpp"
+#include "wirestead/transport/uds/uds_client.hpp"
+#include "wirestead/transport/uds/uds_server.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
-using namespace unilink::base::constants;
+using namespace wirestead;
+using namespace wirestead::transport;
+using namespace wirestead::base::constants;
 using namespace std::chrono_literals;
 namespace net = boost::asio;
 
@@ -248,7 +248,7 @@ TEST(BackpressureStrategyTest, UdpChannel_SetBackpressureStrategyRuntime) {
 // subsequent calls to silently skip all posted handlers.
 
 namespace {
-class StallingTcpSocket : public unilink::interface::TcpSocketInterface {
+class StallingTcpSocket : public wirestead::interface::TcpSocketInterface {
  public:
   struct WriteEntry {
     size_t size;
@@ -546,7 +546,7 @@ TEST(BackpressureStrategyTest, Reliable_CombinedLimit_LargeWriteRejected) {
   drain_and_stop(sock, session, ioc);
 }
 
-// Reproduces jwsung91/unilink#517: the plain (blocking-capable) async_write_*
+// Reproduces jwsung91/wirestead#517: the plain (blocking-capable) async_write_*
 // path used to precheck queue_bytes_+pending_bytes_+added>bp_limit_ on the
 // caller's own thread without reserving the bytes, then re-decide on the
 // strand once the write was actually routed. Concurrent callers could all
@@ -611,7 +611,7 @@ TEST(BackpressureStrategyTest, Reliable_ConcurrentPlainWritesNeverDropAcceptedMe
   auto stats = session->stats();
   EXPECT_EQ(stats.messages_accepted, static_cast<uint64_t>(accepted_count.load()));
   EXPECT_EQ(stats.dropped_messages, 0u) << stats.dropped_messages << " of " << accepted_count.load()
-                                        << " accepted messages were dropped after routing (jwsung91/unilink#517)";
+                                        << " accepted messages were dropped after routing (jwsung91/wirestead#517)";
 
   work.reset();
   drain_and_stop(sock, session, ioc);

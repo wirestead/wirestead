@@ -21,13 +21,13 @@
 
 #include "test/utils/contract_utils.hpp"
 #include "test_utils.hpp"
-#include "unilink/config/tcp_client_config.hpp"
-#include "unilink/memory/safe_span.hpp"
-#include "unilink/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/config/tcp_client_config.hpp"
+#include "wirestead/memory/safe_span.hpp"
+#include "wirestead/transport/tcp_client/tcp_client.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::transport;
+using namespace wirestead::test;
 
 class ContractComplianceTest : public ::testing::Test {
  protected:
@@ -109,8 +109,8 @@ TEST_F(ContractComplianceTest, TcpClient_StopSemantics) {
   }
 }
 
-#include "unilink/config/serial_config.hpp"
-#include "unilink/transport/serial/serial.hpp"
+#include "wirestead/config/serial_config.hpp"
+#include "wirestead/transport/serial/serial.hpp"
 
 TEST_F(ContractComplianceTest, Serial_StopSemantics) {
   config::SerialConfig cfg;
@@ -140,8 +140,8 @@ TEST_F(ContractComplianceTest, Serial_StopSemantics) {
       << "Serial: Found events after stop()! This violates the Channel Contract.";
 }
 
-#include "unilink/config/tcp_server_config.hpp"
-#include "unilink/transport/tcp_server/tcp_server.hpp"
+#include "wirestead/config/tcp_server_config.hpp"
+#include "wirestead/transport/tcp_server/tcp_server.hpp"
 
 TEST_F(ContractComplianceTest, TcpServer_StopSemantics) {
   config::TcpServerConfig cfg;

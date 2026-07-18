@@ -15,7 +15,7 @@
 # Unit Tests - Fast, isolated tests Each test file is built as a separate
 # executable due to having its own main()
 
-get_property(_unilink_test_lib GLOBAL PROPERTY UNILINK_TEST_LIB)
+get_property(_wirestead_test_lib GLOBAL PROPERTY WIRESTEAD_TEST_LIB)
 find_package(
   Python3
   COMPONENTS Interpreter
@@ -27,17 +27,17 @@ find_package(
 # discovery on macOS CI, non-deterministically hitting a different target each
 # run and independent of DISCOVERY_TIMEOUT. PRE_TEST defers discovery to
 # ctest-time, after the build has finished.
-set(_UNILINK_GTEST_DISCOVERY_MODE PRE_TEST)
+set(_WIRESTEAD_GTEST_DISCOVERY_MODE PRE_TEST)
 
-set(_unilink_unit_test_targets)
+set(_wirestead_unit_test_targets)
 
-function(unilink_add_unit_gtest target source_path labels timeout)
+function(wirestead_add_unit_gtest target source_path labels timeout)
   add_executable(${target} ${source_path})
   target_link_libraries(
-    ${target} PRIVATE ${_unilink_test_lib} GTest::gtest GTest::gtest_main
+    ${target} PRIVATE ${_wirestead_test_lib} GTest::gtest GTest::gtest_main
                       GTest::gmock
   )
-  unilink_set_test_warning_options(${target})
+  wirestead_set_test_warning_options(${target})
   target_include_directories(
     ${target} PRIVATE ${CMAKE_SOURCE_DIR}/test/utils
                       ${CMAKE_SOURCE_DIR}/test/fixtures
@@ -50,12 +50,12 @@ function(unilink_add_unit_gtest target source_path labels timeout)
 
   gtest_discover_tests(
     ${target} DISCOVERY_TIMEOUT 60 DISCOVERY_MODE
-    ${_UNILINK_GTEST_DISCOVERY_MODE} PROPERTIES ${_test_properties}
+    ${_WIRESTEAD_GTEST_DISCOVERY_MODE} PROPERTIES ${_test_properties}
   )
 
-  list(APPEND _unilink_unit_test_targets ${target})
-  set(_unilink_unit_test_targets
-      "${_unilink_unit_test_targets}"
+  list(APPEND _wirestead_unit_test_targets ${target})
+  set(_wirestead_unit_test_targets
+      "${_wirestead_unit_test_targets}"
       PARENT_SCOPE
   )
 endfunction()
@@ -78,6 +78,7 @@ foreach(
   test_error_codes_to_string.cc
   test_error_mapping_edge_cases.cc
   test_memory_pool_edge_cases.cc
+  test_legacy_compat.cc
 )
   get_filename_component(test_name ${test_file} NAME_WE)
 
@@ -85,9 +86,14 @@ foreach(
   if(test_name STREQUAL "test_core")
     set(resource_lock "log_file_io")
   endif()
-  unilink_add_unit_gtest(
+  if(test_name STREQUAL "test_legacy_compat")
+    set(test_labels "legacy_compat")
+  else()
+    set(test_labels "unit_common_fast")
+  endif()
+  wirestead_add_unit_gtest(
     run_unit_${test_name} ${CMAKE_CURRENT_SOURCE_DIR}/common/${test_file}
-    "unit_common_fast" 30 "${resource_lock}"
+    "${test_labels}" 30 "${resource_lock}"
   )
 endforeach()
 
@@ -96,7 +102,7 @@ foreach(test_file test_builder.cc test_udp_builder_options.cc
                   test_uds_builder_options.cc test_builder_option_wiring.cc
 )
   get_filename_component(test_name ${test_file} NAME_WE)
-  unilink_add_unit_gtest(
+  wirestead_add_unit_gtest(
     run_unit_${test_name} ${CMAKE_CURRENT_SOURCE_DIR}/builder/${test_file}
     "unit_builder_fast" 30
   )
@@ -107,7 +113,7 @@ foreach(test_file test_config.cc test_config_security.cc
                   test_config_failure.cpp
 )
   get_filename_component(test_name ${test_file} NAME_WE)
-  unilink_add_unit_gtest(
+  wirestead_add_unit_gtest(
     run_unit_${test_name} ${CMAKE_CURRENT_SOURCE_DIR}/config/${test_file}
     "unit_config_fast" 30
   )
@@ -116,14 +122,14 @@ endforeach()
 # Memory tests (separate executables)
 foreach(test_file test_pool_limits.cc)
   get_filename_component(test_name ${test_file} NAME_WE)
-  unilink_add_unit_gtest(
+  wirestead_add_unit_gtest(
     run_unit_${test_name} ${CMAKE_CURRENT_SOURCE_DIR}/memory/${test_file}
     "unit_memory_fast" 30
   )
 endforeach()
 
 # Diagnostics tests
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_test_runtime_stats_counter
   ${CMAKE_CURRENT_SOURCE_DIR}/diagnostics/test_runtime_stats_counter.cc
   "unit_diagnostics_fast" 30
@@ -148,14 +154,14 @@ foreach(
     set(test_label "unit_wrapper_serial")
   endif()
 
-  unilink_add_unit_gtest(
+  wirestead_add_unit_gtest(
     run_unit_${test_name} ${CMAKE_CURRENT_SOURCE_DIR}/wrapper/${test_file}
     "${test_label}" 120
   )
 endforeach()
 
 # Wrapper serial config mapping
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_wrapper_serial_config_mapping
   ${CMAKE_CURRENT_SOURCE_DIR}/wrapper/test_serial_config_mapping.cc
   "unit_wrapper_serial" 30
@@ -185,14 +191,14 @@ foreach(test_file transport_uds_client.cc transport_uds_server.cc
     set(test_label "unit_transport_backpressure_fast")
   endif()
 
-  unilink_add_unit_gtest(
+  wirestead_add_unit_gtest(
     run_unit_${test_name} ${CMAKE_CURRENT_SOURCE_DIR}/transport/${test_file}
     "${test_label}" 30
   )
 endforeach()
 
 # Deterministic reconnect decision tests (policy/max-retries/clamp logic)
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_test_reconnect_decider
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_reconnect_decider.cc
   "unit_transport_reconnect_stable" 30
@@ -202,61 +208,61 @@ unilink_add_unit_gtest(
 # clamping - #432). Uses real sockets/timing so it's not in the fast foreach
 # above; was previously written but never wired into the build (added #332,
 # orphaned since).
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_transport_tcp_client_reconnect_test
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/transport_tcp_client_reconnect_test.cc
   "unit_transport_reconnect_stable" 30
 )
 
 # Shared backpressure state machine (#434) - isolated, no sockets/io_context
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_test_bp_state_machine
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_bp_state_machine.cc
   "unit_transport_backpressure_fast" 30
 )
 
 # Shared error-info holder (#445) - isolated, no sockets/io_context
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_test_error_info_holder
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_error_info_holder.cc
   "unit_transport_fast" 30
 )
 
 # New error handling tests
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_test_tcp_abort
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_tcp_abort.cc
   "unit_transport_tcp_error" 30
 )
 
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_test_udp_error
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_udp_error.cc
   "unit_transport_udp_error" 30
 )
 
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_test_serial_fail
   ${CMAKE_CURRENT_SOURCE_DIR}/wrapper/test_serial_fail.cc
   "unit_wrapper_serial_error" 30
 )
 
 # Transport TCP Server Session Test
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_transport_tcp_server_session
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/transport_tcp_server_session.cc
   "unit_transport_tcp_session" 30
 )
 
 # Transport TCP Fuzz Test
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_transport_tcp_fuzz_test
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/transport_tcp_fuzz_test.cc
   "unit_transport_tcp_fuzz" 30
 )
 
 # Transport TCP Timeout Test
-unilink_add_unit_gtest(
+wirestead_add_unit_gtest(
   run_unit_transport_tcp_timeout_test
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/transport_tcp_timeout_test.cc
   "unit_transport_tcp_timeout" 30
@@ -265,11 +271,11 @@ unilink_add_unit_gtest(
 # Framer tests (separate executables)
 foreach(test_file test_line_framer.cc test_packet_framer.cc)
   get_filename_component(test_name ${test_file} NAME_WE)
-  unilink_add_unit_gtest(
+  wirestead_add_unit_gtest(
     run_unit_${test_name} ${CMAKE_CURRENT_SOURCE_DIR}/framer/${test_file}
     "unit_framer" 30
   )
 endforeach()
 
-add_custom_target(unilink_unit_tests)
-add_dependencies(unilink_unit_tests ${_unilink_unit_test_targets})
+add_custom_target(wirestead_unit_tests)
+add_dependencies(wirestead_unit_tests ${_wirestead_unit_test_targets})

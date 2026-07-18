@@ -16,27 +16,5 @@
 
 #pragma once
 
-#include "unilink/config/uds_config.hpp"
-#include "unilink/transport/base/reconnect_decider.hpp"
-
-namespace unilink {
-namespace transport {
-namespace detail {
-
-/**
- * @brief Represents the decision on whether to retry a connection attempt for UDS.
- */
-using UdsReconnectLogicDecision = ReconnectLogicDecision;
-
-/**
- * @brief Determines whether a UDS reconnection attempt should be made.
- */
-inline UdsReconnectLogicDecision decide_reconnect_uds(const config::UdsClientConfig& cfg,
-                                                      const diagnostics::ErrorInfo& error_info, uint32_t attempt_count,
-                                                      const std::optional<ReconnectPolicy>& policy) {
-  return decide_reconnect_common(cfg, error_info, attempt_count, policy);
-}
-
-}  // namespace detail
-}  // namespace transport
-}  // namespace unilink
+#include <wirestead/compat/unilink.hpp>
+#include <wirestead/transport/uds/detail/reconnect_decider.hpp>

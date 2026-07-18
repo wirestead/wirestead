@@ -25,11 +25,11 @@
 #include <thread>
 
 #include "test_utils.hpp"
-#include "unilink/builder/auto_initializer.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/builder/auto_initializer.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 using namespace std::chrono_literals;
 
 // Helper fixture for Integration Tests
@@ -44,10 +44,10 @@ class TcpIntegrationTest : public ::testing::Test {
 // ============================================================================
 
 TEST_F(TcpIntegrationTest, BuilderPatternIntegration) {
-  auto server = unilink::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto server = wirestead::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   EXPECT_NE(server, nullptr);
 
-  auto client = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   EXPECT_NE(client, nullptr);
 }
 
@@ -59,7 +59,7 @@ TEST_F(TcpIntegrationTest, AutoInitialization) {
 
 TEST_F(TcpIntegrationTest, MethodChaining) {
   auto client =
-      unilink::tcp_client("127.0.0.1", test_port_)
+      wirestead::tcp_client("127.0.0.1", test_port_)
           .auto_start(false)
           .on_connect([](const wrapper::ConnectionContext&) { std::cout << "Connected!" << std::endl; })
           .on_disconnect([](const wrapper::ConnectionContext&) { std::cout << "Disconnected!" << std::endl; })
@@ -71,15 +71,18 @@ TEST_F(TcpIntegrationTest, MethodChaining) {
 }
 
 TEST_F(TcpIntegrationTest, IndependentContext) {
-  auto client = unilink::tcp_client("127.0.0.1", test_port_)
+  auto client = wirestead::tcp_client("127.0.0.1", test_port_)
                     .independent_context(true)
                     .on_data([](auto&&) {})
                     .on_error([](auto&&) {})
                     .build();
   EXPECT_NE(client, nullptr);
 
-  auto server =
-      unilink::tcp_server(test_port_).independent_context(false).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto server = wirestead::tcp_server(test_port_)
+                    .independent_context(false)
+                    .on_data([](auto&&) {})
+                    .on_error([](auto&&) {})
+                    .build();
   EXPECT_NE(server, nullptr);
 }
 
@@ -95,7 +98,7 @@ TEST_F(TcpIntegrationTest, BasicCommunication) {
   std::atomic<bool> data_received{false};
   std::string received_data;
 
-  auto server = unilink::tcp_server(comm_port)
+  auto server = wirestead::tcp_server(comm_port)
                     .on_connect([&server_connected](const wrapper::ConnectionContext&) { server_connected = true; })
                     .on_data([&data_received, &received_data](const wrapper::MessageContext& ctx) {
                       received_data = std::string(ctx.data());
@@ -107,7 +110,7 @@ TEST_F(TcpIntegrationTest, BasicCommunication) {
   ASSERT_NE(server, nullptr);
   EXPECT_TRUE(server->start().get());
 
-  auto client = unilink::tcp_client("127.0.0.1", comm_port)
+  auto client = wirestead::tcp_client("127.0.0.1", comm_port)
                     .on_connect([&client_connected](const wrapper::ConnectionContext&) { client_connected = true; })
                     .on_data([](auto&&) {})
                     .on_error([](auto&&) {})
@@ -120,7 +123,7 @@ TEST_F(TcpIntegrationTest, BasicCommunication) {
   ASSERT_TRUE(TestUtils::waitForCondition([&]() { return client_connected.load() && server_connected.load(); }, 2000))
       << "Server or client failed to connect within 2 seconds";
 
-  std::string test_msg = "Hello Unilink!";
+  std::string test_msg = "Hello Wirestead!";
   client->send(test_msg);
 
   // Wait for data with timeout
@@ -134,15 +137,15 @@ TEST_F(TcpIntegrationTest, BasicCommunication) {
 
 TEST_F(TcpIntegrationTest, ErrorHandling) {
   // Test invalid port (now mostly caught by InputValidator if used, but let's test runtime)
-  // unilink::tcp_server(0) might throw or return nullptr depending on version
+  // wirestead::tcp_server(0) might throw or return nullptr depending on version
   try {
-    auto server = unilink::tcp_server(0).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+    auto server = wirestead::tcp_server(0).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
     if (server) server->start();
   } catch (...) {
   }
 
   std::atomic<bool> error_occurred{false};
-  auto client = unilink::tcp_client("127.0.0.1", 1)
+  auto client = wirestead::tcp_client("127.0.0.1", 1)
                     .on_error([&error_occurred](const wrapper::ErrorContext&) { error_occurred = true; })
                     .on_data([](auto&&) {})
                     .build();
@@ -160,7 +163,7 @@ TEST_F(TcpIntegrationTest, ErrorHandling) {
 TEST_F(TcpIntegrationTest, ResourceSharing) {
   std::vector<std::unique_ptr<wrapper::TcpClient>> clients;
   for (int i = 0; i < 3; ++i) {
-    auto client = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+    auto client = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
     EXPECT_NE(client, nullptr);
     clients.push_back(std::move(client));
   }
@@ -171,7 +174,7 @@ TEST_F(TcpIntegrationTest, MultipleClientConnections) {
   uint16_t comm_port = TestUtils::getAvailableTestPort();
   std::atomic<int> connection_count{0};
 
-  auto server = unilink::tcp_server(comm_port)
+  auto server = wirestead::tcp_server(comm_port)
                     .on_connect([&connection_count](const wrapper::ConnectionContext&) { connection_count++; })
                     .on_data([](auto&&) {})
                     .on_error([](auto&&) {})
@@ -182,7 +185,7 @@ TEST_F(TcpIntegrationTest, MultipleClientConnections) {
 
   std::vector<std::unique_ptr<wrapper::TcpClient>> clients;
   for (int i = 0; i < 3; ++i) {
-    auto client = unilink::tcp_client("127.0.0.1", comm_port)
+    auto client = wirestead::tcp_client("127.0.0.1", comm_port)
                       .auto_start(true)
                       .on_data([](auto&&) {})
                       .on_error([](auto&&) {})
@@ -195,7 +198,7 @@ TEST_F(TcpIntegrationTest, MultipleClientConnections) {
 }
 
 TEST_F(TcpIntegrationTest, ComprehensiveBuilderMethodChaining) {
-  auto client = unilink::tcp_client("127.0.0.1", test_port_)
+  auto client = wirestead::tcp_client("127.0.0.1", test_port_)
                     .auto_start(false)
                     .independent_context(true)
                     .on_connect([](const wrapper::ConnectionContext&) {})
@@ -206,7 +209,7 @@ TEST_F(TcpIntegrationTest, ComprehensiveBuilderMethodChaining) {
 
   EXPECT_NE(client, nullptr);
 
-  auto server = unilink::tcp_server(test_port_)
+  auto server = wirestead::tcp_server(test_port_)
                     .auto_start(false)
                     .on_connect([](const wrapper::ConnectionContext&) {})
                     .on_data([](const wrapper::MessageContext&) {})

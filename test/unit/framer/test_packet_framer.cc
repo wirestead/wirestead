@@ -18,12 +18,12 @@
 
 #include <vector>
 
-#include "unilink/framer/packet_framer.hpp"
+#include "wirestead/framer/packet_framer.hpp"
 
-using namespace unilink;
-using namespace unilink::framer;
+using namespace wirestead;
+using namespace wirestead::framer;
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 class PacketFramerTest : public ::testing::Test {
@@ -257,4 +257,4 @@ TEST_F(PacketFramerTest, ResetClearsState) {
 }
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

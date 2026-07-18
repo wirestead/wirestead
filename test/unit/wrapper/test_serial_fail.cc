@@ -22,14 +22,14 @@
 #include <string>
 #include <thread>
 
-#include "unilink/unilink.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 
 // Test wrapper behavior when open fails
 TEST(WrapperSerialFailTest, OpenInvalidPort) {
   // Use a device name that is guaranteed to not exist or fail
-  std::string invalid_device = "/dev/non_existent_device_unilink_test";
+  std::string invalid_device = "/dev/non_existent_device_wirestead_test";
 #ifdef _WIN32
   invalid_device = "COM999";
 #endif

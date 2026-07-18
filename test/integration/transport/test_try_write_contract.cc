@@ -26,23 +26,23 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/base/constants.hpp"
-#include "unilink/config/serial_config.hpp"
-#include "unilink/config/tcp_client_config.hpp"
-#include "unilink/config/udp_config.hpp"
-#include "unilink/config/uds_config.hpp"
-#include "unilink/interface/iserial_port.hpp"
-#include "unilink/interface/iuds_socket.hpp"
-#include "unilink/memory/safe_span.hpp"
-#include "unilink/transport/serial/serial.hpp"
-#include "unilink/transport/tcp_client/tcp_client.hpp"
-#include "unilink/transport/udp/udp.hpp"
-#include "unilink/transport/uds/uds_client.hpp"
-#include "unilink/transport/uds/uds_server_session.hpp"
+#include "wirestead/base/constants.hpp"
+#include "wirestead/config/serial_config.hpp"
+#include "wirestead/config/tcp_client_config.hpp"
+#include "wirestead/config/udp_config.hpp"
+#include "wirestead/config/uds_config.hpp"
+#include "wirestead/interface/iserial_port.hpp"
+#include "wirestead/interface/iuds_socket.hpp"
+#include "wirestead/memory/safe_span.hpp"
+#include "wirestead/transport/serial/serial.hpp"
+#include "wirestead/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/transport/udp/udp.hpp"
+#include "wirestead/transport/uds/uds_client.hpp"
+#include "wirestead/transport/uds/uds_server_session.hpp"
 
-using namespace unilink;
-using namespace unilink::base::constants;
-using namespace unilink::transport;
+using namespace wirestead;
+using namespace wirestead::base::constants;
+using namespace wirestead::transport;
 using namespace std::chrono_literals;
 namespace net = boost::asio;
 using uds = net::local::stream_protocol;
@@ -95,7 +95,7 @@ class StallingUdsSocket : public interface::UdsSocketInterface {
 
   uds::endpoint remote_endpoint(boost::system::error_code& ec) const override {
     ec.clear();
-    return uds::endpoint("/tmp/unilink-test-peer");
+    return uds::endpoint("/tmp/wirestead-test-peer");
   }
 
   bool complete_one(boost::system::error_code ec = {}) {
@@ -264,7 +264,7 @@ std::shared_ptr<UdpChannel> started_udp_channel(net::io_context& ioc, Backpressu
 
 config::UdsClientConfig uds_client_config(BackpressureStrategy strategy) {
   config::UdsClientConfig cfg;
-  cfg.socket_path = "/tmp/unilink-try-write-contract.sock";
+  cfg.socket_path = "/tmp/wirestead-try-write-contract.sock";
   cfg.retry_interval_ms = MIN_RETRY_INTERVAL_MS;
   cfg.backpressure_threshold = kBpHigh;
   cfg.backpressure_strategy = strategy;
@@ -298,7 +298,7 @@ std::shared_ptr<UdsServerSession> started_uds_server_session(net::io_context& io
 
 config::SerialConfig serial_config(BackpressureStrategy strategy) {
   config::SerialConfig cfg;
-  cfg.device = "/dev/unilink-test";
+  cfg.device = "/dev/wirestead-test";
   cfg.retry_interval_ms = MIN_RETRY_INTERVAL_MS;
   cfg.backpressure_threshold = kBpHigh;
   cfg.backpressure_strategy = strategy;

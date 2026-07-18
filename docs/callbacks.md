@@ -7,7 +7,7 @@ Use an ownership-copy helper before sending data to another thread, queue,
 coroutine, or longer-lived object.
 
 ```cpp
-client->on_data([](const unilink::MessageContext& ctx) {
+client->on_data([](const wirestead::MessageContext& ctx) {
     auto owned = ctx.data_as_string();
     post_to_worker([owned = std::move(owned)] {
         process(owned);
@@ -18,7 +18,7 @@ client->on_data([](const unilink::MessageContext& ctx) {
 Do not store `std::string_view` or spans returned from callback context objects.
 
 ```cpp
-client->on_data([](const unilink::MessageContext& ctx) {
+client->on_data([](const wirestead::MessageContext& ctx) {
     auto view = ctx.data();
     post_to_worker([view] {
         process(view);  // dangling risk
@@ -42,7 +42,7 @@ To prevent this, a blocking send called from inside a callback while
 backpressure is active returns `false` immediately instead of blocking:
 
 ```cpp
-client->on_data([&](const unilink::MessageContext& ctx) {
+client->on_data([&](const wirestead::MessageContext& ctx) {
     // If backpressure happens to be active when this fires, send() returns
     // false right away rather than deadlocking - it does not block here.
     client->send("reply");

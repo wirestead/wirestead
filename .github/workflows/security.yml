@@ -44,9 +44,9 @@ jobs:
         cmake -S . -B build-deps \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_CXX_STANDARD=20 \
-          -DUNILINK_ENABLE_CONFIG=ON \
-          -DUNILINK_BUILD_DOCS=OFF \
-          -DUNILINK_BUILD_TESTS=OFF \
+          -DWIRESTEAD_ENABLE_CONFIG=ON \
+          -DWIRESTEAD_BUILD_DOCS=OFF \
+          -DWIRESTEAD_BUILD_TESTS=OFF \
           -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
           -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET
         cmake --build build-deps -j $(nproc)
@@ -90,9 +90,9 @@ jobs:
         cmake -S . -B build-deps \
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_CXX_STANDARD=20 \
-          -DUNILINK_ENABLE_CONFIG=ON \
-          -DUNILINK_BUILD_DOCS=OFF \
-          -DUNILINK_BUILD_TESTS=OFF \
+          -DWIRESTEAD_ENABLE_CONFIG=ON \
+          -DWIRESTEAD_BUILD_DOCS=OFF \
+          -DWIRESTEAD_BUILD_TESTS=OFF \
           -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
           -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET
         cmake --build build-deps -j $(nproc)

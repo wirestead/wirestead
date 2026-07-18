@@ -21,15 +21,15 @@
 #include <memory>
 #include <vector>
 
-#include "unilink/interface/itcp_socket.hpp"
+#include "wirestead/interface/itcp_socket.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
-class FakeTcpSocket : public unilink::interface::TcpSocketInterface {
+class FakeTcpSocket : public wirestead::interface::TcpSocketInterface {
  public:
   explicit FakeTcpSocket(net::io_context& ioc) : ioc_(ioc) {}
   virtual ~FakeTcpSocket() = default;
@@ -77,4 +77,4 @@ class FakeTcpSocket : public unilink::interface::TcpSocketInterface {
 };
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

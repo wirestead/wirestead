@@ -18,18 +18,18 @@
 
 #include <boost/asio.hpp>
 
-#include "unilink/diagnostics/error_mapping.hpp"
-#include "unilink/diagnostics/error_types.hpp"
+#include "wirestead/diagnostics/error_mapping.hpp"
+#include "wirestead/diagnostics/error_types.hpp"
 
-using namespace unilink::diagnostics;
-using namespace unilink;
+using namespace wirestead::diagnostics;
+using namespace wirestead;
 
-TEST(ErrorMappingTest, MapBoostErrorToUnilink) {
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::connection_refused), ErrorCode::ConnectionRefused);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::timed_out), ErrorCode::TimedOut);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::connection_reset), ErrorCode::ConnectionReset);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::network_unreachable), ErrorCode::NotConnected);
-  EXPECT_EQ(to_unilink_error_code(boost::asio::error::fault), ErrorCode::IoError);  // Fallback
+TEST(ErrorMappingTest, MapBoostErrorToWirestead) {
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::connection_refused), ErrorCode::ConnectionRefused);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::timed_out), ErrorCode::TimedOut);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::connection_reset), ErrorCode::ConnectionReset);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::network_unreachable), ErrorCode::NotConnected);
+  EXPECT_EQ(to_wirestead_error_code(boost::asio::error::fault), ErrorCode::IoError);  // Fallback
 }
 
 TEST(ErrorMappingTest, IsRetryableTcpConnectError) {

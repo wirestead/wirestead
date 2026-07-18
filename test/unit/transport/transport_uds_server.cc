@@ -25,12 +25,12 @@
 #include "test/mocks/mock_uds_acceptor.hpp"
 #include "test_constants.hpp"
 #include "test_utils.hpp"
-#include "unilink/transport/uds/uds_server.hpp"
+#include "wirestead/transport/uds/uds_server.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
-using namespace unilink::test::mocks;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::transport;
+using namespace wirestead::test::mocks;
+using namespace wirestead::test;
 using ::testing::_;
 using ::testing::Invoke;
 using ::testing::Return;
@@ -129,7 +129,7 @@ TEST_F(TransportUdsServerTest, BindFailure) {
   EXPECT_EQ(server->last_error_info()->component, "uds_server");
 }
 
-// Regression test for jwsung91/unilink#453: a transient accept() failure
+// Regression test for jwsung91/wirestead#453: a transient accept() failure
 // (e.g. EMFILE) used to be logged and silently swallowed, permanently
 // stopping the server from ever accepting again. It must now surface an
 // Error state transition and keep retrying do_accept().

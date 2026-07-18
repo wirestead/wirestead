@@ -26,11 +26,11 @@
 #include <thread>
 
 #include "test_utils.hpp"
-#include "unilink/builder/auto_initializer.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/builder/auto_initializer.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 using namespace std::chrono_literals;
 
 class UdsIntegrationTest : public ::testing::Test {
@@ -47,10 +47,10 @@ class UdsIntegrationTest : public ::testing::Test {
 };
 
 TEST_F(UdsIntegrationTest, BuilderPatternIntegration) {
-  auto server = unilink::uds_server(socket_path_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto server = wirestead::uds_server(socket_path_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   EXPECT_NE(server, nullptr);
 
-  auto client = unilink::uds_client(socket_path_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client = wirestead::uds_client(socket_path_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   EXPECT_NE(client, nullptr);
 }
 
@@ -62,7 +62,7 @@ TEST_F(UdsIntegrationTest, BasicCommunication) {
   std::mutex mtx;
   std::condition_variable cv;
 
-  auto server = unilink::uds_server(socket_path_)
+  auto server = wirestead::uds_server(socket_path_)
                     .independent_context(true)
                     .on_connect([&server_connected](const wrapper::ConnectionContext&) { server_connected = true; })
                     .on_data([&](const wrapper::MessageContext& ctx) {
@@ -80,7 +80,7 @@ TEST_F(UdsIntegrationTest, BasicCommunication) {
   bool listening = TestUtils::waitForCondition([&]() { return server->listening(); }, 2000);
   ASSERT_TRUE(listening) << "Server failed to start listening";
 
-  auto client = unilink::uds_client(socket_path_)
+  auto client = wirestead::uds_client(socket_path_)
                     .independent_context(true)
                     .on_connect([&client_connected](const wrapper::ConnectionContext&) { client_connected = true; })
                     .on_data([](auto&&) {})
@@ -114,7 +114,7 @@ TEST_F(UdsIntegrationTest, MultiClientCommunication) {
   std::mutex mtx;
   std::condition_variable cv;
 
-  auto server = unilink::uds_server(socket_path_)
+  auto server = wirestead::uds_server(socket_path_)
                     .independent_context(true)
                     .on_connect([&connections](const wrapper::ConnectionContext&) { connections++; })
                     .on_data([&](const wrapper::MessageContext& ctx) { messages_received++; })
@@ -124,12 +124,12 @@ TEST_F(UdsIntegrationTest, MultiClientCommunication) {
   server->start();
   TestUtils::waitForCondition([&]() { return server->listening(); }, 2000);
 
-  auto client1 = unilink::uds_client(socket_path_)
+  auto client1 = wirestead::uds_client(socket_path_)
                      .independent_context(true)
                      .on_data([](auto&&) {})
                      .on_error([](auto&&) {})
                      .build();
-  auto client2 = unilink::uds_client(socket_path_)
+  auto client2 = wirestead::uds_client(socket_path_)
                      .independent_context(true)
                      .on_data([](auto&&) {})
                      .on_error([](auto&&) {})

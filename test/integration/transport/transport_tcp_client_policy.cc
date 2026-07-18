@@ -35,13 +35,13 @@
 #endif
 
 #include "test/utils/test_utils.hpp"
-#include "unilink/config/tcp_client_config.hpp"
-#include "unilink/transport/base/reconnect_policy.hpp"
-#include "unilink/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/config/tcp_client_config.hpp"
+#include "wirestead/transport/base/reconnect_policy.hpp"
+#include "wirestead/transport/tcp_client/tcp_client.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::transport;
+using namespace wirestead::test;
 using namespace std::chrono_literals;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;

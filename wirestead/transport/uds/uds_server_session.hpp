@@ -1,0 +1,139 @@
+/*
+ * Copyright 2025 Jinwoo Sung
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#pragma once
+
+#include <array>
+#include <atomic>
+#include <boost/asio.hpp>
+#include <cstdint>
+#include <deque>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <variant>
+#include <vector>
+
+#include "wirestead/base/constants.hpp"
+#include "wirestead/base/platform.hpp"
+#include "wirestead/base/visibility.hpp"
+#include "wirestead/diagnostics/error_handler.hpp"
+#include "wirestead/diagnostics/logger.hpp"
+#include "wirestead/diagnostics/runtime_stats_counter.hpp"
+#include "wirestead/interface/channel.hpp"
+#include "wirestead/interface/iuds_socket.hpp"
+#include "wirestead/memory/memory_pool.hpp"
+#include "wirestead/memory/safe_span.hpp"
+#include "wirestead/transport/base/bp_state_machine.hpp"
+
+namespace wirestead {
+namespace transport {
+
+namespace net = boost::asio;
+
+using base::LinkState;
+using interface::UdsSocketInterface;
+using uds = net::local::stream_protocol;
+
+class WIRESTEAD_API UdsServerSession : public std::enable_shared_from_this<UdsServerSession> {
+ public:
+  using OnBytes = interface::Channel::OnBytes;
+  using OnBackpressure = interface::Channel::OnBackpressure;
+  using OnClose = std::function<void()>;
+  using BufferVariant =
+      std::variant<memory::PooledBuffer, std::vector<uint8_t>, std::shared_ptr<const std::vector<uint8_t>>>;
+
+  UdsServerSession(net::io_context& ioc, uds::socket sock,
+                   size_t backpressure_threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD,
+                   int idle_timeout_ms = 0,
+                   base::constants::BackpressureStrategy strategy = base::constants::BackpressureStrategy::Reliable,
+                   bool enable_memory_pool = true);
+
+  UdsServerSession(net::io_context& ioc, std::unique_ptr<interface::UdsSocketInterface> socket,
+                   size_t backpressure_threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD,
+                   int idle_timeout_ms = 0,
+                   base::constants::BackpressureStrategy strategy = base::constants::BackpressureStrategy::Reliable,
+                   bool enable_memory_pool = true);
+
+  void start();
+  bool async_write_copy(memory::ConstByteSpan data);
+  bool async_write_move(std::vector<uint8_t>&& data);
+  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data);
+  bool async_try_write_copy(memory::ConstByteSpan data);
+  bool async_try_write_move(std::vector<uint8_t>&& data);
+  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data);
+  void on_bytes(OnBytes cb);
+  void on_backpressure(OnBackpressure cb);
+  void on_close(OnClose cb);
+  bool alive() const;
+  bool is_backpressure_active() const { return backpressure_active_.load(); }
+  wrapper::RuntimeStats stats() const;
+  void reset_stats();
+  void stop();
+
+ private:
+  void start_read();
+  void do_write();
+  void do_close();
+  void report_backpressure(size_t queued_bytes);
+  // Shared decide_enqueue()/route dispatch used by both async_write_* variants (#434).
+  void route_enqueued_buffer(BufferVariant&& buf, size_t added);
+  queue_util::BackpressureFields bp_fields();
+  void reset_idle_timer();
+  void observe_queue();
+
+ private:
+  net::io_context& ioc_;
+  net::strand<net::io_context::executor_type> strand_;
+  net::steady_timer idle_timer_;
+  std::unique_ptr<interface::UdsSocketInterface> socket_;
+  // #443: per-session pool instead of the process-wide GlobalMemoryPool
+  // singleton - avoids cross-channel contention on the singleton's bucket
+  // mutexes. Also fixes UDS never actually pooling at all (async_write_copy
+  // used to always heap-allocate a fresh std::vector).
+  memory::MemoryPool pool_{50, 200};
+  bool enable_memory_pool_ = true;
+  std::array<uint8_t, base::constants::DEFAULT_READ_BUFFER_SIZE> rx_{};
+  std::deque<BufferVariant> tx_;
+  std::deque<BufferVariant> pending_;
+  std::atomic<size_t> pending_bytes_{0};
+  std::optional<BufferVariant> current_write_buffer_;
+  bool writing_ = false;
+  std::atomic<size_t> queue_bytes_{0};
+  // Bytes accepted by a plain async_write_* call but not yet routed onto the
+  // strand - reserved via try_reserve_limit_bytes() to close the
+  // accept-then-drop race (jwsung91/wirestead#517). inflight_bytes_ mutations
+  // and the queue_bytes_/pending_bytes_ increments that promote a
+  // reservation both go through write_reserve_mtx_ - see bp_utils.hpp.
+  std::atomic<size_t> inflight_bytes_{0};
+  std::mutex write_reserve_mtx_;
+  base::constants::BackpressureStrategy bp_strategy_{base::constants::BackpressureStrategy::Reliable};
+  size_t bp_high_;
+  size_t bp_low_;
+  size_t bp_limit_;
+  std::atomic<bool> backpressure_active_{false};
+  diagnostics::RuntimeStatsCounters stats_;
+  int idle_timeout_ms_ = 0;
+
+  OnBytes on_bytes_;
+  OnBackpressure on_bp_;
+  OnClose on_close_;
+  std::atomic<bool> alive_{false};
+  std::atomic<bool> closing_{false};
+};
+}  // namespace transport
+}  // namespace wirestead

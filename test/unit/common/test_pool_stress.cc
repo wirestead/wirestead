@@ -22,9 +22,9 @@
 #include <thread>
 #include <vector>
 
-#include "unilink/memory/memory_pool.hpp"
+#include "wirestead/memory/memory_pool.hpp"
 
-using namespace unilink::memory;
+using namespace wirestead::memory;
 
 class MemoryPoolStressTest : public ::testing::Test {
  protected:

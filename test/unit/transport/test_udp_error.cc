@@ -22,13 +22,13 @@
 #include <thread>
 #include <vector>
 
-#include "unilink/base/common.hpp"
-#include "unilink/config/udp_config.hpp"
-#include "unilink/memory/safe_span.hpp"
-#include "unilink/transport/udp/udp.hpp"
+#include "wirestead/base/common.hpp"
+#include "wirestead/config/udp_config.hpp"
+#include "wirestead/memory/safe_span.hpp"
+#include "wirestead/transport/udp/udp.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
+using namespace wirestead;
+using namespace wirestead::transport;
 namespace net = boost::asio;
 using namespace std::chrono_literals;
 
@@ -115,7 +115,7 @@ TEST(TransportUdpErrorTest, BackpressureClearsAfterWriteErrorWithQueuedWrites) {
 
   EXPECT_FALSE(channel->is_backpressure_active())
       << "Backpressure must clear once the channel errors out, otherwise a Reliable-mode "
-         "sender blocked waiting on it deadlocks forever (see unilink#427)";
+         "sender blocked waiting on it deadlocks forever (see wirestead#427)";
 
   channel->stop();
 }
@@ -148,7 +148,7 @@ TEST(TransportUdpErrorTest, BackpressureClearsAfterWriteErrorWithPendingOverflow
   // first write's failure is delivered, report_backpressure()'s internal cleanup path flushes
   // pending_ back into tx_ and can re-arm backpressure_active_ on its own if that flush alone
   // exceeds the high watermark again - reproducing the real-world hang seen on a Jetson Orin
-  // Nano Super (unilink#427), where enough Reliable-mode sends had queued up that the naive fix
+  // Nano Super (wirestead#427), where enough Reliable-mode sends had queued up that the naive fix
   // (clearing only tx_) still left backpressure stuck active.
   std::vector<uint8_t> huge_packet(100000, 0xDD);
   for (int i = 0; i < 20; ++i) {
@@ -166,7 +166,7 @@ TEST(TransportUdpErrorTest, BackpressureClearsAfterWriteErrorWithPendingOverflow
 
   EXPECT_FALSE(channel->is_backpressure_active())
       << "Backpressure must clear once the channel errors out even when many Reliable-mode "
-         "writes had overflowed into the pending_ queue (see unilink#427)";
+         "writes had overflowed into the pending_ queue (see wirestead#427)";
 
   channel->stop();
 }

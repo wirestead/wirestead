@@ -24,13 +24,13 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/base/common.hpp"
-#include "unilink/config/tcp_server_config.hpp"
-#include "unilink/transport/tcp_server/tcp_server.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/base/common.hpp"
+#include "wirestead/config/tcp_server_config.hpp"
+#include "wirestead/transport/tcp_server/tcp_server.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 
 /**
  * @brief Integration tests verifying "No Callbacks after Stop" contract.
@@ -39,19 +39,19 @@ class StopContractTest : public BaseTest {
  protected:
   void SetUp() override {
     BaseTest::SetUp();
-    auto& logger = unilink::diagnostics::Logger::instance();
+    auto& logger = wirestead::diagnostics::Logger::instance();
     previous_log_level_ = logger.level();
     // Enable debug logging for detailed trace
-    logger.set_level(unilink::diagnostics::LogLevel::DEBUG);
+    logger.set_level(wirestead::diagnostics::LogLevel::DEBUG);
   }
 
   void TearDown() override {
-    unilink::diagnostics::Logger::instance().set_level(previous_log_level_);
+    wirestead::diagnostics::Logger::instance().set_level(previous_log_level_);
     BaseTest::TearDown();
   }
 
  private:
-  unilink::diagnostics::LogLevel previous_log_level_{unilink::diagnostics::LogLevel::INFO};
+  wirestead::diagnostics::LogLevel previous_log_level_{wirestead::diagnostics::LogLevel::INFO};
 };
 
 /**

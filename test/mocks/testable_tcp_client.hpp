@@ -20,9 +20,9 @@
 
 #include "dependency_injection.hpp"
 #include "mock_tcp_socket.hpp"
-#include "unilink/wrapper/tcp_client/tcp_client.hpp"
+#include "wirestead/wrapper/tcp_client/tcp_client.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 namespace mocks {
 
@@ -163,4 +163,4 @@ class TestableTcpServer : public wrapper::TcpServer {
 
 }  // namespace mocks
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

@@ -14,7 +14,7 @@ Usage: scripts/run_benchmarks.sh [options]
 Options:
   --output-json PATH       JSON output path
   --output-summary PATH    Markdown summary output path
-  --cmake-prefix PATH      Installed unilink CMake package prefix
+  --cmake-prefix PATH      Installed wirestead CMake package prefix
   --help                   Show this help message
 EOF
 }
@@ -73,13 +73,13 @@ mkdir -p "$SRC_DIR" "$BUILD_DIR" "$(dirname "$OUTPUT_SUMMARY")"
 
 cat > "$SRC_DIR/CMakeLists.txt" <<'EOF'
 cmake_minimum_required(VERSION 3.12)
-project(unilink_benchmark_smoke LANGUAGES CXX)
+project(wirestead_benchmark_smoke LANGUAGES CXX)
 
-find_package(unilink CONFIG REQUIRED)
+find_package(wirestead CONFIG REQUIRED)
 
-add_executable(unilink_benchmark_smoke main.cpp)
-target_link_libraries(unilink_benchmark_smoke PRIVATE unilink::unilink)
-target_compile_features(unilink_benchmark_smoke PRIVATE cxx_std_20)
+add_executable(wirestead_benchmark_smoke main.cpp)
+target_link_libraries(wirestead_benchmark_smoke PRIVATE wirestead::wirestead)
+target_compile_features(wirestead_benchmark_smoke PRIVATE cxx_std_20)
 EOF
 
 cat > "$SRC_DIR/main.cpp" <<'EOF'
@@ -100,7 +100,7 @@ cat > "$SRC_DIR/main.cpp" <<'EOF'
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <unilink/unilink.hpp>
+#include <wirestead/wirestead.hpp>
 
 using Clock = std::chrono::steady_clock;
 
@@ -150,7 +150,7 @@ struct ThroughputMetric {
 
 int main(int argc, char** argv) {
   if (argc != 3) {
-    std::cerr << "usage: unilink_benchmark_smoke result.json summary.md\n";
+    std::cerr << "usage: wirestead_benchmark_smoke result.json summary.md\n";
     return 2;
   }
 
@@ -163,23 +163,23 @@ int main(int argc, char** argv) {
   std::atomic<uint64_t> server_received{0};
   std::atomic<uint64_t> server_received_bytes{0};
   std::atomic<uint64_t> client_received{0};
-  std::shared_ptr<unilink::TcpServer> server;
+  std::shared_ptr<wirestead::TcpServer> server;
 
-  server = unilink::tcp_server(port)
+  server = wirestead::tcp_server(port)
                .auto_start(false)
-               .on_data([&](const unilink::MessageContext& ctx) {
+               .on_data([&](const wirestead::MessageContext& ctx) {
                  server_received.fetch_add(1, std::memory_order_relaxed);
                  server_received_bytes.fetch_add(ctx.data().size(), std::memory_order_relaxed);
                  if (server) server->send_to(ctx.client_id(), "ack");
                })
-               .on_error([](const unilink::ErrorContext&) {})
+               .on_error([](const wirestead::ErrorContext&) {})
                .build();
-  auto client = unilink::tcp_client("127.0.0.1", port)
+  auto client = wirestead::tcp_client("127.0.0.1", port)
                     .auto_start(false)
-                    .on_data([&](const unilink::MessageContext&) {
+                    .on_data([&](const wirestead::MessageContext&) {
                       client_received.fetch_add(1, std::memory_order_relaxed);
                     })
-                    .on_error([](const unilink::ErrorContext&) {})
+                    .on_error([](const wirestead::ErrorContext&) {})
                     .build();
 
   if (!server || !server->start_sync() || !client || !client->start_sync()) {
@@ -296,4 +296,4 @@ cmake -S "$SRC_DIR" -B "$BUILD_DIR" -G "$CMAKE_GENERATOR" \
   -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE" \
   -DCMAKE_PREFIX_PATH="$CMAKE_PREFIX_PATH_VALUE"
 cmake --build "$BUILD_DIR" --parallel
-"$BUILD_DIR/unilink_benchmark_smoke" "$OUTPUT_JSON" "$OUTPUT_SUMMARY"
+"$BUILD_DIR/wirestead_benchmark_smoke" "$OUTPUT_JSON" "$OUTPUT_SUMMARY"

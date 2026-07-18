@@ -20,28 +20,28 @@
 #include <memory>
 #include <string>
 
-#include "unilink/config/serial_config.hpp"
-#include "unilink/unilink.hpp"
-#include "unilink/wrapper/serial/serial.hpp"
+#include "wirestead/config/serial_config.hpp"
+#include "wirestead/wirestead.hpp"
+#include "wirestead/wrapper/serial/serial.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 using namespace std::chrono_literals;
 
-// unilink::serial()'s builder used to silently drop explicit char_size()/
+// wirestead::serial()'s builder used to silently drop explicit char_size()/
 // stop_bits()/reopen_on_error() calls: it captured them into its own fields
 // but build() never forwarded them to the constructed wrapper::Serial at
 // all (unlike parity()/flow_control(), which were correctly wired). This
 // fixture is a declared friend of wrapper::Serial (see the forward
-// declaration and friend statement in unilink/wrapper/serial/serial.hpp) so
+// declaration and friend statement in wirestead/wrapper/serial/serial.hpp) so
 // it can read back the config actually produced via the public
-// unilink::serial() factory, the same path real callers use.
+// wirestead::serial() factory, the same path real callers use.
 class SerialBuilderConfigTest : public ::testing::Test {
  protected:
   static config::SerialConfig BuildConfig(std::unique_ptr<wrapper::Serial>& out) { return out->build_config(); }
 };
 
 TEST_F(SerialBuilderConfigTest, ExplicitOptionsArePropagatedToTheWrapper) {
-  auto serial = unilink::serial("/dev/ttyUSB0", 115200)
+  auto serial = wirestead::serial("/dev/ttyUSB0", 115200)
                     .char_size(7)
                     .stop_bits(2)
                     .reopen_on_error(false)
@@ -62,7 +62,7 @@ TEST_F(SerialBuilderConfigTest, UnsetOptionsFallBackToConfigDefaultsNotBuilderDe
   // No .char_size()/.stop_bits()/.reopen_on_error()/.retry_interval() calls:
   // the resulting config must match config::SerialConfig{}'s own defaults,
   // not some separately-hardcoded value inside the builder.
-  auto serial = unilink::serial("/dev/ttyUSB0", 115200).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto serial = wirestead::serial("/dev/ttyUSB0", 115200).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_NE(serial, nullptr);
 
   config::SerialConfig expected;
