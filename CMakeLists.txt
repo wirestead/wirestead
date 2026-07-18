@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 
 project(
   unilink
-  VERSION 0.8.9
+  VERSION 0.9.0
   DESCRIPTION
     "Unified, cross-platform async C++ library for Serial, TCP, UDP, and UDS"
   HOMEPAGE_URL "https://github.com/wirestead/wirestead"

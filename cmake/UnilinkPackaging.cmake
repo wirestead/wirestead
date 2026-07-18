@@ -1,8 +1,11 @@
 # Unilink packaging configuration This file handles all packaging-related
 # settings
 
-# Basic package information
-set(CPACK_PACKAGE_NAME "unilink")
+# Basic package information. CPACK_PACKAGE_NAME drives the release archive
+# filename (wirestead-<version>-<os>-<arch>.tar.gz/.zip) - it does not rename
+# the installed library, unilink:: CMake package, or unilink.pc, which stay
+# unilink-named per docs/migration-from-unilink.md's compatibility policy.
+set(CPACK_PACKAGE_NAME "wirestead")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
     "Cross-platform async C++ communication library for Serial, TCP, UDP, and UDS"
@@ -55,8 +58,8 @@ set(CPACK_SOURCE_PACKAGE_FILE_NAME
 # Platform-specific settings
 if(WIN32)
   set(CPACK_GENERATOR "ZIP;NSIS;WIX")
-  set(CPACK_NSIS_DISPLAY_NAME "Unilink ${PROJECT_VERSION}")
-  set(CPACK_NSIS_PACKAGE_NAME "Unilink")
+  set(CPACK_NSIS_DISPLAY_NAME "Wirestead ${PROJECT_VERSION}")
+  set(CPACK_NSIS_PACKAGE_NAME "Wirestead")
   set(CPACK_NSIS_CONTACT "${CPACK_PACKAGE_CONTACT}")
   set(CPACK_NSIS_URL_INFO_ABOUT "${CPACK_PACKAGE_HOMEPAGE_URL}")
   set(CPACK_NSIS_MODIFY_PATH ON)
@@ -67,7 +70,7 @@ if(WIN32)
 
 elseif(APPLE)
   set(CPACK_GENERATOR "TGZ;DragNDrop")
-  set(CPACK_DMG_VOLUME_NAME "Unilink ${PROJECT_VERSION}")
+  set(CPACK_DMG_VOLUME_NAME "Wirestead ${PROJECT_VERSION}")
   set(CPACK_DMG_FORMAT "UDZO")
 
 elseif(UNIX)
@@ -151,11 +154,11 @@ set(CPACK_COMPONENTS_ALL libraries headers cmake pkgconfig documentation)
 
 # Component descriptions
 set(CPACK_COMPONENT_LIBRARIES_DISPLAY_NAME "Libraries")
-set(CPACK_COMPONENT_LIBRARIES_DESCRIPTION "Unilink shared and static libraries")
+set(CPACK_COMPONENT_LIBRARIES_DESCRIPTION "Wirestead shared and static libraries")
 set(CPACK_COMPONENT_LIBRARIES_REQUIRED TRUE)
 
 set(CPACK_COMPONENT_HEADERS_DISPLAY_NAME "Header Files")
-set(CPACK_COMPONENT_HEADERS_DESCRIPTION "Unilink C++ header files")
+set(CPACK_COMPONENT_HEADERS_DESCRIPTION "Wirestead C++ header files")
 set(CPACK_COMPONENT_HEADERS_REQUIRED TRUE)
 
 set(CPACK_COMPONENT_CMAKE_DISPLAY_NAME "CMake Files")
