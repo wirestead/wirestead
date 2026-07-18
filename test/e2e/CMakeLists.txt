@@ -30,8 +30,7 @@ foreach(test_file test_architecture.cc test_error_recovery.cc)
                                  ${CMAKE_SOURCE_DIR}/test/fixtures
   )
   gtest_discover_tests(
-    run_e2e_${test_name}
-    DISCOVERY_TIMEOUT 60
+    run_e2e_${test_name} DISCOVERY_TIMEOUT 60 DISCOVERY_MODE PRE_TEST
     PROPERTIES LABELS "e2e_scenario_slow"
     TIMEOUT 90 RESOURCE_LOCK "tcp_port_allocation"
   )
@@ -49,8 +48,7 @@ target_include_directories(
                               ${CMAKE_SOURCE_DIR}/test/fixtures
 )
 gtest_discover_tests(
-  run_e2e_test_stress
-  DISCOVERY_TIMEOUT 60
+  run_e2e_test_stress DISCOVERY_TIMEOUT 60 DISCOVERY_MODE PRE_TEST
   PROPERTIES LABELS "e2e_stress_slow"
   TIMEOUT 120 RESOURCE_LOCK "tcp_port_allocation"
 )
