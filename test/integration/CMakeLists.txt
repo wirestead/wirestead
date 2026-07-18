@@ -37,7 +37,8 @@ function(unilink_add_integration_gtest target source_path labels timeout)
   endif()
 
   gtest_discover_tests(
-    ${target} DISCOVERY_TIMEOUT 60 PROPERTIES ${_test_properties}
+    ${target} DISCOVERY_TIMEOUT 60 DISCOVERY_MODE PRE_TEST
+    PROPERTIES ${_test_properties}
   )
 endfunction()
 

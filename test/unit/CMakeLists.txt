@@ -22,8 +22,12 @@ find_package(
   REQUIRED
 )
 
-# Default: discover after build so test executables exist
-set(_UNILINK_GTEST_DISCOVERY_MODE POST_BUILD)
+# PRE_TEST (not the default POST_BUILD): running --gtest_list_tests for many
+# targets concurrently as part of the parallel build intermittently crashed
+# discovery on macOS CI, non-deterministically hitting a different target each
+# run and independent of DISCOVERY_TIMEOUT. PRE_TEST defers discovery to
+# ctest-time, after the build has finished.
+set(_UNILINK_GTEST_DISCOVERY_MODE PRE_TEST)
 
 set(_unilink_unit_test_targets)
 
@@ -45,7 +49,8 @@ function(unilink_add_unit_gtest target source_path labels timeout)
   endif()
 
   gtest_discover_tests(
-    ${target} DISCOVERY_TIMEOUT 60 PROPERTIES ${_test_properties}
+    ${target} DISCOVERY_TIMEOUT 60 DISCOVERY_MODE
+    ${_UNILINK_GTEST_DISCOVERY_MODE} PROPERTIES ${_test_properties}
   )
 
   list(APPEND _unilink_unit_test_targets ${target})

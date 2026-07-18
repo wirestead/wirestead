@@ -109,8 +109,8 @@ if(REMAINING_TESTS)
                                      GTest::gmock
     )
     gtest_discover_tests(
-      run_architecture_tests DISCOVERY_TIMEOUT 60 PROPERTIES LABELS
-                                                             "legacy_e2e"
+      run_architecture_tests DISCOVERY_TIMEOUT 60 DISCOVERY_MODE PRE_TEST
+      PROPERTIES LABELS "legacy_e2e"
     )
     unilink_copy_runtime_dependency(run_architecture_tests)
   endif()
@@ -123,7 +123,8 @@ if(REMAINING_TESTS)
                                 GTest::gmock
     )
     gtest_discover_tests(
-      run_builder_tests DISCOVERY_TIMEOUT 60 PROPERTIES LABELS "legacy_unit"
+      run_builder_tests DISCOVERY_TIMEOUT 60 DISCOVERY_MODE PRE_TEST
+      PROPERTIES LABELS "legacy_unit"
     )
     unilink_copy_runtime_dependency(run_builder_tests)
   endif()
@@ -136,7 +137,8 @@ if(REMAINING_TESTS)
                                GTest::gmock
     )
     gtest_discover_tests(
-      run_common_tests DISCOVERY_TIMEOUT 60 PROPERTIES LABELS "legacy_unit"
+      run_common_tests DISCOVERY_TIMEOUT 60 DISCOVERY_MODE PRE_TEST
+      PROPERTIES LABELS "legacy_unit"
     )
     unilink_copy_runtime_dependency(run_common_tests)
   endif()
@@ -149,7 +151,7 @@ if(REMAINING_TESTS)
                                       GTest::gmock
     )
     gtest_discover_tests(
-      run_communication_tests DISCOVERY_TIMEOUT 60
+      run_communication_tests DISCOVERY_TIMEOUT 60 DISCOVERY_MODE PRE_TEST
       PROPERTIES LABELS "legacy_integration"
     )
     unilink_copy_runtime_dependency(run_communication_tests)
