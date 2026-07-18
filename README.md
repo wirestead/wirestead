@@ -1,15 +1,17 @@
 ![unilink](assets/logo/unilink-logo-light.png#gh-light-mode-only)
 ![unilink](assets/logo/unilink-logo-dark.png#gh-dark-mode-only)
 
-# unilink
+# Wirestead™
 
-**Unified async communication for modern C++20.**
+_Wirestead is the successor to UniLink._
+
+**Robust, simple async communication for modern C++20.**
 
 Serial · TCP · UDP · UDS
 
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-informational)
 ![vcpkg](https://img.shields.io/badge/vcpkg-jwsung91--unilink-0078D6)
-[![Coverage](https://img.shields.io/endpoint?url=https://jwsung91.github.io/unilink/coverage/badges/coverage.json)](https://jwsung91.github.io/unilink/coverage/)
+[![Coverage](https://img.shields.io/endpoint?url=https://wirestead.github.io/wirestead/coverage/badges/coverage.json)](https://wirestead.github.io/wirestead/coverage/)
 
 ## Description
 
@@ -19,7 +21,7 @@ Simple async C++ communication library for Serial, TCP, UDP, and Unix Domain Soc
 
 The project prioritizes **API clarity, predictable runtime behavior, and stability** over rapid feature expansion.
 
-> **Security note**: all transports send data in plaintext - there is no built-in TLS/DTLS support. See [Security and Threat Model](https://github.com/jwsung91/unilink/blob/main/docs/security.md) before using `unilink` over an untrusted network.
+> **Security note**: all transports send data in plaintext - there is no built-in TLS/DTLS support. See [Security and Threat Model](https://github.com/wirestead/wirestead/blob/main/docs/security.md) before using `unilink` over an untrusted network.
 
 ## Feature Highlights
 
@@ -70,14 +72,14 @@ https://github.com/unilink-lab/unilink-docs
 
 Core repository entrypoints:
 
-- [Quick Start](https://github.com/jwsung91/unilink/blob/main/docs/quickstart.md)
-- [Installation](https://github.com/jwsung91/unilink/blob/main/docs/installation.md)
-- [API Stability Summary](https://github.com/jwsung91/unilink/blob/main/docs/api_stability.md)
-- [Error Model](https://github.com/jwsung91/unilink/blob/main/docs/error_model.md)
-- [Security and Threat Model](https://github.com/jwsung91/unilink/blob/main/docs/security.md)
-- [Callback Data Lifetime](https://github.com/jwsung91/unilink/blob/main/docs/callbacks.md)
-- [Performance Validation](https://github.com/jwsung91/unilink/blob/main/docs/performance_validation.md)
-- [Release Checklist](https://github.com/jwsung91/unilink/blob/main/docs/release_checklist.md)
+- [Quick Start](https://github.com/wirestead/wirestead/blob/main/docs/quickstart.md)
+- [Installation](https://github.com/wirestead/wirestead/blob/main/docs/installation.md)
+- [API Stability Summary](https://github.com/wirestead/wirestead/blob/main/docs/api_stability.md)
+- [Error Model](https://github.com/wirestead/wirestead/blob/main/docs/error_model.md)
+- [Security and Threat Model](https://github.com/wirestead/wirestead/blob/main/docs/security.md)
+- [Callback Data Lifetime](https://github.com/wirestead/wirestead/blob/main/docs/callbacks.md)
+- [Performance Validation](https://github.com/wirestead/wirestead/blob/main/docs/performance_validation.md)
+- [Release Checklist](https://github.com/wirestead/wirestead/blob/main/docs/release_checklist.md)
 
 Useful external repositories:
 
@@ -88,7 +90,7 @@ Useful external repositories:
 
 ## 📄 License
 
-**unilink** is released under the Apache License, Version 2.0.
+**Wirestead** is released under the Apache License, Version 2.0.
 
 Commercial use, modification, and redistribution are permitted.
 For details, see the [LICENSE](./LICENSE) and [NOTICE](./NOTICE) files.

@@ -119,7 +119,7 @@ jobs:
 
           # Generate HTML report
           genhtml coverage_filtered.info --output-directory coverage_html \
-            --title "unilink Coverage Report" \
+            --title "Wirestead Coverage Report" \
             --legend --show-details \
             --branch-coverage \
             --rc lcov_branch_coverage=1
@@ -285,7 +285,7 @@ jobs:
           <html>
           <head>
             <meta charset="UTF-8">
-            <title>unilink Coverage Report</title>
+            <title>Wirestead Coverage Report</title>
             <style>
               body {
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -321,16 +321,16 @@ jobs:
           </head>
           <body>
             <div class="container">
-              <h1>🎯 unilink Code Coverage</h1>
+              <h1>🎯 Wirestead Code Coverage</h1>
               <p class="timestamp">Generated: $(date '+%Y-%m-%d %H:%M:%S UTC')</p>
               <div class="coverage">Coverage: ${COVERAGE}</div>
               <div class="grade">Grade: ${GRADE}</div>
               <div class="badge">
-                <img src="https://img.shields.io/endpoint?url=https://jwsung91.github.io/unilink/coverage/badges/coverage.json" alt="Coverage Badge">
+                <img src="https://img.shields.io/endpoint?url=https://wirestead.github.io/wirestead/coverage/badges/coverage.json" alt="Coverage Badge">
               </div>
               <div class="links">
                 <a href="index-original.html" class="link">📊 Detailed Report</a>
-                <a href="https://github.com/jwsung91/unilink" class="link">📦 Repository</a>
+                <a href="https://github.com/wirestead/wirestead" class="link">📦 Repository</a>
               </div>
             </div>
           </body>
