@@ -386,7 +386,9 @@ cat > "$wirestead_consumer_dir/main.cpp" <<'EOF'
 #include <unilink/unilink.hpp>
 
 int main() {
-    auto tcp_server = unilink::tcp_server(0).auto_start(false).build();
+    // Port is never bound (auto_start(false), never start_sync()'d) - any
+    // valid port number satisfies this build()-only smoke check.
+    auto tcp_server = unilink::tcp_server(45678).auto_start(false).build();
     return tcp_server ? 0 : 1;
 }
 EOF
