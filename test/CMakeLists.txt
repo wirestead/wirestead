@@ -110,7 +110,7 @@ if(REMAINING_TESTS)
     )
     gtest_discover_tests(
       run_architecture_tests DISCOVERY_TIMEOUT 60 PROPERTIES LABELS
-      "legacy_e2e"
+                                                             "legacy_e2e"
     )
     unilink_copy_runtime_dependency(run_architecture_tests)
   endif()
@@ -149,8 +149,8 @@ if(REMAINING_TESTS)
                                       GTest::gmock
     )
     gtest_discover_tests(
-      run_communication_tests DISCOVERY_TIMEOUT 60 PROPERTIES LABELS
-      "legacy_integration"
+      run_communication_tests DISCOVERY_TIMEOUT 60
+      PROPERTIES LABELS "legacy_integration"
     )
     unilink_copy_runtime_dependency(run_communication_tests)
   endif()
