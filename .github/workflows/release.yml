@@ -35,7 +35,7 @@ jobs:
             cmake_generator: "Ninja"
             cpack_generator: "TGZ"
             release_files: |
-              build/package/unilink-*.tar.gz
+              build/package/wirestead-*.tar.gz
 
           - os: ubuntu-22.04-arm
             label: Linux ARM64 (Ubuntu 22.04)
@@ -44,7 +44,7 @@ jobs:
             cmake_generator: "Ninja"
             cpack_generator: "TGZ"
             release_files: |
-              build/package/unilink-*.tar.gz
+              build/package/wirestead-*.tar.gz
 
           - os: ubuntu-24.04
             label: Linux (Ubuntu 24.04)
@@ -53,7 +53,7 @@ jobs:
             cmake_generator: "Ninja"
             cpack_generator: "TGZ"
             release_files: |
-              build/package/unilink-*.tar.gz
+              build/package/wirestead-*.tar.gz
 
           - os: ubuntu-24.04-arm
             label: Linux ARM64 (Ubuntu 24.04)
@@ -62,7 +62,7 @@ jobs:
             cmake_generator: "Ninja"
             cpack_generator: "TGZ"
             release_files: |
-              build/package/unilink-*.tar.gz
+              build/package/wirestead-*.tar.gz
 
           - os: macos-15
             label: macOS 15
@@ -71,8 +71,8 @@ jobs:
             cmake_generator: "Ninja"
             cpack_generator: "TGZ;DragNDrop"
             release_files: |
-              build/package/unilink-*.tar.gz
-              build/package/unilink-*.dmg
+              build/package/wirestead-*.tar.gz
+              build/package/wirestead-*.dmg
 
           - os: windows-2022
             label: Windows (VS 2022)
@@ -82,7 +82,7 @@ jobs:
             triplet: x64-windows
             cpack_generator: "ZIP"
             release_files: |
-              build/package/unilink-*.zip
+              build/package/wirestead-*.zip
 
           - os: windows-11-arm
             label: Windows ARM64
@@ -92,7 +92,7 @@ jobs:
             triplet: arm64-windows
             cpack_generator: "ZIP"
             release_files: |
-              build/package/unilink-*.zip
+              build/package/wirestead-*.zip
 
     steps:
       - uses: actions/checkout@v7
@@ -221,20 +221,20 @@ jobs:
           echo "Package directory:"
           ls -la build/package
 
-          count=$(find build/package -maxdepth 1 -type f \( -name "unilink-*.tar.gz" -o -name "unilink-*.zip" -o -name "unilink-*.dmg" \) | wc -l | tr -d ' ')
+          count=$(find build/package -maxdepth 1 -type f \( -name "wirestead-*.tar.gz" -o -name "wirestead-*.zip" -o -name "wirestead-*.dmg" \) | wc -l | tr -d ' ')
           if [ "$count" -eq 0 ]; then
             echo "No release package files found"
             exit 1
           fi
 
           echo "Release package files:"
-          find build/package -maxdepth 1 -type f \( -name "unilink-*.tar.gz" -o -name "unilink-*.zip" -o -name "unilink-*.dmg" \) -print | sort
+          find build/package -maxdepth 1 -type f \( -name "wirestead-*.tar.gz" -o -name "wirestead-*.zip" -o -name "wirestead-*.dmg" \) -print | sort
 
       - name: Verify package contents (TGZ)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          pkg=$(find build/package -maxdepth 1 -name 'unilink-*.tar.gz' | head -n1)
+          pkg=$(find build/package -maxdepth 1 -name 'wirestead-*.tar.gz' | head -n1)
           if [ -z "$pkg" ]; then
             echo "No TGZ package found"
             exit 1
@@ -247,6 +247,8 @@ jobs:
           grep -E '/lib/(lib)?unilink[^/]*\.(a|so|dylib)(\.[0-9.]+)?$|/bin/unilink[^/]*\.(dll|exe)$' package-files.txt
           grep -E '/unilinkConfig\.cmake$' package-files.txt
           grep -E '/unilinkTargets\.cmake$' package-files.txt
+          grep -E '/include/wirestead/unilink.hpp$' package-files.txt
+          grep -E '/wiresteadConfig\.cmake$' package-files.txt
           grep -E '/LICENSE$' package-files.txt
           grep -E '/NOTICE$' package-files.txt
           grep -E '/README\.md$' package-files.txt
@@ -255,7 +257,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $pkg = Get-ChildItem build/package -Filter "unilink-*.zip" | Select-Object -First 1
+          $pkg = Get-ChildItem build/package -Filter "wirestead-*.zip" | Select-Object -First 1
           if (-not $pkg) {
             Write-Error "No ZIP package found"
             exit 1
@@ -289,6 +291,14 @@ jobs:
             Write-Error "Missing unilinkTargets.cmake"
             exit 1
           }
+          if (-not (Get-ChildItem -Recurse $dest -Filter "unilink.hpp" | Where-Object { $_.FullName -match '[\\/]wirestead[\\/]' })) {
+            Write-Error "Missing wirestead/unilink.hpp"
+            exit 1
+          }
+          if (-not (Get-ChildItem -Recurse $dest -Filter "wiresteadConfig.cmake")) {
+            Write-Error "Missing wiresteadConfig.cmake"
+            exit 1
+          }
           if (-not (Get-ChildItem -Recurse $dest -Filter "LICENSE")) {
             Write-Error "Missing LICENSE"
             exit 1
@@ -312,7 +322,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Package files" >> $GITHUB_STEP_SUMMARY
           echo '```text' >> $GITHUB_STEP_SUMMARY
-          find build/package -maxdepth 1 -type f -name "unilink-*" -print | sort >> $GITHUB_STEP_SUMMARY
+          find build/package -maxdepth 1 -type f -name "wirestead-*" -print | sort >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Release Asset
