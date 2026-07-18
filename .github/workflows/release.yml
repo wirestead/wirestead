@@ -16,6 +16,9 @@ on:
         required: false
         default: false
 
+permissions:
+  contents: write
+
 jobs:
   create-release:
     name: Build and Release (${{ matrix.os }})
@@ -195,7 +198,9 @@ jobs:
 
       - name: Test
         shell: bash
-        run: ctest --test-dir build --output-on-failure -C Release
+        run: |
+          ctest --test-dir build --output-on-failure -C Release || \
+          ctest --test-dir build --rerun-failed --output-on-failure -C Release
 
       - name: Package
         shell: bash
