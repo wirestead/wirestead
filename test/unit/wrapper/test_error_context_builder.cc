@@ -16,11 +16,11 @@
 
 #include <gtest/gtest.h>
 
-#include "unilink/wrapper/error_context_builder.hpp"
+#include "wirestead/wrapper/error_context_builder.hpp"
 
-using namespace unilink;
-using namespace unilink::wrapper;
-using namespace unilink::diagnostics;
+using namespace wirestead;
+using namespace wirestead::wrapper;
+using namespace wirestead::diagnostics;
 
 namespace {
 

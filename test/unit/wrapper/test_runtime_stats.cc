@@ -21,13 +21,13 @@
 #include <string_view>
 #include <vector>
 
-#include "unilink/interface/channel.hpp"
-#include "unilink/unilink.hpp"
-#include "unilink/wrapper/tcp_client/tcp_client.hpp"
+#include "wirestead/interface/channel.hpp"
+#include "wirestead/wirestead.hpp"
+#include "wirestead/wrapper/tcp_client/tcp_client.hpp"
 
 namespace {
 
-class StatsChannel : public unilink::interface::Channel {
+class StatsChannel : public wirestead::interface::Channel {
  public:
   void start() override { connected_ = true; }
   void stop() override { connected_ = false; }
@@ -36,7 +36,7 @@ class StatsChannel : public unilink::interface::Channel {
 
   boost::asio::any_io_executor get_executor() override { return ioc_.get_executor(); }
 
-  bool async_write_copy(unilink::memory::ConstByteSpan data) override {
+  bool async_write_copy(wirestead::memory::ConstByteSpan data) override {
     if (fail_next_write_) {
       fail_next_write_ = false;
       ++stats_.failed_sends;
@@ -50,14 +50,14 @@ class StatsChannel : public unilink::interface::Channel {
   }
 
   bool async_write_move(std::vector<uint8_t>&& data) override {
-    return async_write_copy(unilink::memory::ConstByteSpan(data.data(), data.size()));
+    return async_write_copy(wirestead::memory::ConstByteSpan(data.data(), data.size()));
   }
 
   bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override {
-    return data ? async_write_copy(unilink::memory::ConstByteSpan(data->data(), data->size())) : false;
+    return data ? async_write_copy(wirestead::memory::ConstByteSpan(data->data(), data->size())) : false;
   }
 
-  bool async_try_write_copy(unilink::memory::ConstByteSpan data) override { return async_write_copy(data); }
+  bool async_try_write_copy(wirestead::memory::ConstByteSpan data) override { return async_write_copy(data); }
 
   bool async_try_write_move(std::vector<uint8_t>&& data) override { return async_write_move(std::move(data)); }
 
@@ -69,7 +69,7 @@ class StatsChannel : public unilink::interface::Channel {
   void on_state(OnState cb) override { on_state_ = std::move(cb); }
   void on_backpressure(OnBackpressure cb) override { on_backpressure_ = std::move(cb); }
 
-  unilink::wrapper::RuntimeStats stats() const override { return stats_; }
+  wirestead::wrapper::RuntimeStats stats() const override { return stats_; }
 
   void reset_stats() override {
     const auto queued = stats_.queued_bytes;
@@ -88,7 +88,7 @@ class StatsChannel : public unilink::interface::Channel {
     ++stats_.messages_received;
     stats_.bytes_received += data.size();
     if (on_bytes_) {
-      on_bytes_(unilink::memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(data.data()), data.size()));
+      on_bytes_(wirestead::memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(data.data()), data.size()));
     }
   }
 
@@ -96,7 +96,7 @@ class StatsChannel : public unilink::interface::Channel {
   boost::asio::io_context ioc_;
   bool connected_{true};
   bool fail_next_write_{false};
-  unilink::wrapper::RuntimeStats stats_;
+  wirestead::wrapper::RuntimeStats stats_;
   OnBytes on_bytes_;
   OnState on_state_;
   OnBackpressure on_backpressure_;
@@ -105,7 +105,7 @@ class StatsChannel : public unilink::interface::Channel {
 }  // namespace
 
 TEST(RuntimeStats, PublicAliasIsDefaultZero) {
-  unilink::RuntimeStats stats;
+  wirestead::RuntimeStats stats;
 
   EXPECT_EQ(stats.messages_accepted, 0u);
   EXPECT_EQ(stats.bytes_accepted, 0u);
@@ -125,7 +125,7 @@ TEST(RuntimeStats, PublicAliasIsDefaultZero) {
 
 TEST(RuntimeStats, TcpClientWrapperForwardsStatsSnapshot) {
   auto channel = std::make_shared<StatsChannel>();
-  unilink::wrapper::TcpClient client(channel);
+  wirestead::wrapper::TcpClient client(channel);
 
   ASSERT_TRUE(client.try_send("abc"));
   auto stats = client.stats();
@@ -140,7 +140,7 @@ TEST(RuntimeStats, TcpClientWrapperForwardsStatsSnapshot) {
   EXPECT_EQ(stats.failed_sends, 1u);
 
   bool received = false;
-  client.on_data([&](const unilink::wrapper::MessageContext& ctx) {
+  client.on_data([&](const wirestead::wrapper::MessageContext& ctx) {
     received = true;
     EXPECT_EQ(ctx.data(), "rx");
   });
@@ -153,7 +153,7 @@ TEST(RuntimeStats, TcpClientWrapperForwardsStatsSnapshot) {
 
 TEST(RuntimeStats, ResetClearsCountersButKeepsGauges) {
   auto channel = std::make_shared<StatsChannel>();
-  unilink::wrapper::TcpClient client(channel);
+  wirestead::wrapper::TcpClient client(channel);
 
   ASSERT_TRUE(client.try_send("abcd"));
   channel->emit_bytes("rx");

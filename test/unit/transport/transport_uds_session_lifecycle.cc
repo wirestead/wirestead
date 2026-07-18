@@ -23,15 +23,15 @@
 
 #include "../../mocks/mock_uds_socket.hpp"
 #include "test_utils.hpp"
-#include "unilink/transport/uds/boost_uds_socket.hpp"
-#include "unilink/transport/uds/uds_server_session.hpp"
+#include "wirestead/transport/uds/boost_uds_socket.hpp"
+#include "wirestead/transport/uds/uds_server_session.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 using namespace transport;
 using namespace testing;
 using namespace std::chrono_literals;
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 class UdsServerSessionLifecycleTest : public Test {
@@ -40,7 +40,7 @@ class UdsServerSessionLifecycleTest : public Test {
 };
 
 TEST_F(UdsServerSessionLifecycleTest, RedundantStop) {
-  auto mock_socket = std::make_unique<unilink::test::mocks::MockUdsSocket>();
+  auto mock_socket = std::make_unique<wirestead::test::mocks::MockUdsSocket>();
   EXPECT_CALL(*mock_socket, close(_)).Times(1);
 
   auto session = std::make_shared<UdsServerSession>(ioc, std::move(mock_socket), 1024, 0);
@@ -52,7 +52,7 @@ TEST_F(UdsServerSessionLifecycleTest, RedundantStop) {
 }
 
 TEST_F(UdsServerSessionLifecycleTest, BackpressureLimitEnforced) {
-  auto mock_socket = std::make_unique<unilink::test::mocks::MockUdsSocket>();
+  auto mock_socket = std::make_unique<wirestead::test::mocks::MockUdsSocket>();
   auto session = std::make_shared<UdsServerSession>(ioc, std::move(mock_socket), 100, 0);
 
   std::vector<uint8_t> large_data(base::constants::DEFAULT_BACKPRESSURE_THRESHOLD + 1, 'A');
@@ -65,7 +65,7 @@ TEST_F(UdsServerSessionLifecycleTest, BackpressureLimitEnforced) {
 }
 
 TEST_F(UdsServerSessionLifecycleTest, IdleTimeoutExpiration) {
-  auto mock_socket = std::make_unique<unilink::test::mocks::MockUdsSocket>();
+  auto mock_socket = std::make_unique<wirestead::test::mocks::MockUdsSocket>();
   EXPECT_CALL(*mock_socket, async_read_some(_, _)).Times(AtLeast(1));
   EXPECT_CALL(*mock_socket, close(_)).Times(1);
 
@@ -84,7 +84,7 @@ TEST_F(UdsServerSessionLifecycleTest, IdleTimeoutExpiration) {
 }
 
 TEST_F(UdsServerSessionLifecycleTest, ReadErrorClosesSession) {
-  auto mock_socket = std::make_unique<unilink::test::mocks::MockUdsSocket>();
+  auto mock_socket = std::make_unique<wirestead::test::mocks::MockUdsSocket>();
   EXPECT_CALL(*mock_socket, async_read_some(_, _))
       .WillOnce(Invoke([](const boost::asio::mutable_buffer&,
                           std::function<void(const boost::system::error_code&, std::size_t)> handler) {
@@ -104,7 +104,7 @@ TEST_F(UdsServerSessionLifecycleTest, ReadErrorClosesSession) {
 }
 
 TEST_F(UdsServerSessionLifecycleTest, WriteErrorClosesSession) {
-  auto mock_socket = std::make_unique<unilink::test::mocks::MockUdsSocket>();
+  auto mock_socket = std::make_unique<wirestead::test::mocks::MockUdsSocket>();
   EXPECT_CALL(*mock_socket, async_read_some(_, _)).Times(AtLeast(1));
   EXPECT_CALL(*mock_socket, async_write(_, _))
       .WillOnce(Invoke([](const boost::asio::const_buffer& buffer,
@@ -128,7 +128,7 @@ TEST_F(UdsServerSessionLifecycleTest, WriteErrorClosesSession) {
 }
 
 TEST_F(UdsServerSessionLifecycleTest, SharedWritePendingFlushesAfterBackpressureRelief) {
-  auto mock_socket = std::make_unique<unilink::test::mocks::MockUdsSocket>();
+  auto mock_socket = std::make_unique<wirestead::test::mocks::MockUdsSocket>();
   std::function<void(const boost::system::error_code&, std::size_t)> first_write_handler;
   int write_calls = 0;
 
@@ -172,7 +172,7 @@ TEST_F(UdsServerSessionLifecycleTest, SharedWritePendingFlushesAfterBackpressure
   ioc.run();
 }
 
-// Regression test for jwsung91/unilink#452: if a client disconnects (read
+// Regression test for jwsung91/wirestead#452: if a client disconnects (read
 // error) while backpressure is active for its session, do_close() must
 // unconditionally clear it and fire on_backpressure - otherwise a caller
 // blocked in send_to_blocking() for this client would never wake up, since
@@ -181,7 +181,7 @@ TEST_F(UdsServerSessionLifecycleTest, SharedWritePendingFlushesAfterBackpressure
 // that has stopped reading, so nothing but do_close() can ever clear
 // backpressure here.
 TEST_F(UdsServerSessionLifecycleTest, BackpressureClearsOnDisconnectWhileActive) {
-  auto mock_socket = std::make_unique<unilink::test::mocks::MockUdsSocket>();
+  auto mock_socket = std::make_unique<wirestead::test::mocks::MockUdsSocket>();
   std::function<void(const boost::system::error_code&, std::size_t)> read_handler;
 
   EXPECT_CALL(*mock_socket, async_read_some(_, _))
@@ -221,7 +221,7 @@ TEST_F(UdsServerSessionLifecycleTest, BackpressureClearsOnDisconnectWhileActive)
 }
 
 TEST_F(UdsServerSessionLifecycleTest, SharedWriteRejectsNullAndClosedSession) {
-  auto mock_socket = std::make_unique<unilink::test::mocks::MockUdsSocket>();
+  auto mock_socket = std::make_unique<wirestead::test::mocks::MockUdsSocket>();
   EXPECT_CALL(*mock_socket, close(_)).Times(1);
 
   auto session = std::make_shared<UdsServerSession>(ioc, std::move(mock_socket), 1024, 0);
@@ -235,4 +235,4 @@ TEST_F(UdsServerSessionLifecycleTest, SharedWriteRejectsNullAndClosedSession) {
 }
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

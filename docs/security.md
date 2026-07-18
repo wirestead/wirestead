@@ -2,7 +2,7 @@
 
 ## No transport encryption
 
-`unilink` does not implement TLS, DTLS, or any other transport-level
+`wirestead` does not implement TLS, DTLS, or any other transport-level
 encryption. Every transport (TCP, UDP, Serial, UDS) sends and receives data
 in plaintext. There is currently no pluggable hook (e.g. an
 `ssl::stream<tcp::socket>`-compatible interface) for adding encryption
@@ -10,7 +10,7 @@ without patching the library.
 
 ## Intended trust model
 
-`unilink` is designed for use over networks and channels you already trust:
+`wirestead` is designed for use over networks and channels you already trust:
 a local machine, a private LAN, a point-to-point serial/UDS link, or inside
 a network perimeter secured by other means (VPN, SSH tunnel, physical
 access control). It is **not** designed to be used directly over the public
@@ -27,9 +27,9 @@ internet or any other untrusted network, since:
   `UdsServer::socket_permissions(mode)`).
 
 If you need confidentiality, integrity, or peer authentication over an
-untrusted network, terminate TLS (or an equivalent) outside `unilink` -
+untrusted network, terminate TLS (or an equivalent) outside `wirestead` -
 for example, a reverse proxy/stunnel in front of a TCP server, or an SSH/VPN
-tunnel wrapping the connection - and point `unilink` at the resulting local,
+tunnel wrapping the connection - and point `wirestead` at the resulting local,
 trusted endpoint.
 
 ## Reporting a vulnerability

@@ -26,12 +26,12 @@
 #include <thread>
 #include <vector>
 
-#include "unilink/interface/channel.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/interface/channel.hpp"
+#include "wirestead/wirestead.hpp"
 
 namespace {
 
-class ContractChannel : public unilink::interface::Channel {
+class ContractChannel : public wirestead::interface::Channel {
  public:
   void start() override { connected_ = true; }
   void stop() override { connected_ = false; }
@@ -39,7 +39,7 @@ class ContractChannel : public unilink::interface::Channel {
   bool is_backpressure_active() const override { return backpressure_active_.load(); }
   boost::asio::any_io_executor get_executor() override { return ioc_.get_executor(); }
 
-  bool async_write_copy(unilink::memory::ConstByteSpan data) override {
+  bool async_write_copy(wirestead::memory::ConstByteSpan data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++write_copy_count_;
     if (fail_next_writes_ > 0) {
@@ -79,7 +79,7 @@ class ContractChannel : public unilink::interface::Channel {
     return true;
   }
 
-  bool async_try_write_copy(unilink::memory::ConstByteSpan data) override {
+  bool async_try_write_copy(wirestead::memory::ConstByteSpan data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++try_copy_count_;
     return record_try_result(data.size());
@@ -102,7 +102,7 @@ class ContractChannel : public unilink::interface::Channel {
   void on_state(OnState cb) override { on_state_ = std::move(cb); }
   void on_backpressure(OnBackpressure cb) override { on_backpressure_ = std::move(cb); }
 
-  unilink::wrapper::RuntimeStats stats() const override {
+  wirestead::wrapper::RuntimeStats stats() const override {
     std::lock_guard<std::mutex> lock(mutex_);
     return stats_;
   }
@@ -171,7 +171,7 @@ class ContractChannel : public unilink::interface::Channel {
   int try_copy_count_{0};
   int try_move_count_{0};
   int try_shared_count_{0};
-  unilink::wrapper::RuntimeStats stats_{};
+  wirestead::wrapper::RuntimeStats stats_{};
   OnBytes on_bytes_;
   OnState on_state_;
   OnBackpressure on_backpressure_;
@@ -223,7 +223,7 @@ void verify_reliable_send_uses_strategy_aware_write(std::string_view name) {
   EXPECT_EQ(channel->try_shared_count(), 0);
 }
 
-// Regression test for jwsung91/unilink#431: the blocking Reliable-mode send
+// Regression test for jwsung91/wirestead#431: the blocking Reliable-mode send
 // path used to wait on a condition variable unbounded. Since the transport
 // clears backpressure_active_ and calls notify_all() without holding the
 // wrapper's bp_mutex_, a notification can race a waiter that's mid-way
@@ -269,7 +269,7 @@ void verify_blocking_send_recovers_without_notify(std::string_view name) {
   EXPECT_TRUE(sent_future.get());
 }
 
-// Regression test for jwsung91/unilink#509: wait_for_backpressure_clear()'s
+// Regression test for jwsung91/wirestead#509: wait_for_backpressure_clear()'s
 // condition (is_backpressure_active(), tied to bp_high) and the transport's
 // own hard queue-byte cap (bp_limit) are different thresholds checked at
 // different times, so a write attempt can still be rejected immediately
@@ -295,29 +295,29 @@ void verify_blocking_send_retries_after_transient_write_rejection(std::string_vi
 }  // namespace
 
 TEST(WrapperSendContractTest, BlockingSendRecoversWithoutBackpressureNotification) {
-  verify_blocking_send_recovers_without_notify<unilink::wrapper::TcpClient>("TcpClient");
-  verify_blocking_send_recovers_without_notify<unilink::wrapper::UdpClient>("UdpClient");
-  verify_blocking_send_recovers_without_notify<unilink::wrapper::UdsClient>("UdsClient");
-  verify_blocking_send_recovers_without_notify<unilink::wrapper::Serial>("Serial");
+  verify_blocking_send_recovers_without_notify<wirestead::wrapper::TcpClient>("TcpClient");
+  verify_blocking_send_recovers_without_notify<wirestead::wrapper::UdpClient>("UdpClient");
+  verify_blocking_send_recovers_without_notify<wirestead::wrapper::UdsClient>("UdsClient");
+  verify_blocking_send_recovers_without_notify<wirestead::wrapper::Serial>("Serial");
 }
 
 TEST(WrapperSendContractTest, TrySendVariantsUseExplicitTryWritePath) {
-  verify_try_send_is_drop_if_full_escape_hatch<unilink::wrapper::TcpClient>("TcpClient");
-  verify_try_send_is_drop_if_full_escape_hatch<unilink::wrapper::UdpClient>("UdpClient");
-  verify_try_send_is_drop_if_full_escape_hatch<unilink::wrapper::UdsClient>("UdsClient");
-  verify_try_send_is_drop_if_full_escape_hatch<unilink::wrapper::Serial>("Serial");
+  verify_try_send_is_drop_if_full_escape_hatch<wirestead::wrapper::TcpClient>("TcpClient");
+  verify_try_send_is_drop_if_full_escape_hatch<wirestead::wrapper::UdpClient>("UdpClient");
+  verify_try_send_is_drop_if_full_escape_hatch<wirestead::wrapper::UdsClient>("UdsClient");
+  verify_try_send_is_drop_if_full_escape_hatch<wirestead::wrapper::Serial>("Serial");
 }
 
 TEST(WrapperSendContractTest, ReliableSendVariantsDoNotUseTryWritePath) {
-  verify_reliable_send_uses_strategy_aware_write<unilink::wrapper::TcpClient>("TcpClient");
-  verify_reliable_send_uses_strategy_aware_write<unilink::wrapper::UdpClient>("UdpClient");
-  verify_reliable_send_uses_strategy_aware_write<unilink::wrapper::UdsClient>("UdsClient");
-  verify_reliable_send_uses_strategy_aware_write<unilink::wrapper::Serial>("Serial");
+  verify_reliable_send_uses_strategy_aware_write<wirestead::wrapper::TcpClient>("TcpClient");
+  verify_reliable_send_uses_strategy_aware_write<wirestead::wrapper::UdpClient>("UdpClient");
+  verify_reliable_send_uses_strategy_aware_write<wirestead::wrapper::UdsClient>("UdsClient");
+  verify_reliable_send_uses_strategy_aware_write<wirestead::wrapper::Serial>("Serial");
 }
 
 TEST(WrapperSendContractTest, BlockingSendRetriesAfterTransientWriteRejection) {
-  verify_blocking_send_retries_after_transient_write_rejection<unilink::wrapper::TcpClient>("TcpClient");
-  verify_blocking_send_retries_after_transient_write_rejection<unilink::wrapper::UdpClient>("UdpClient");
-  verify_blocking_send_retries_after_transient_write_rejection<unilink::wrapper::UdsClient>("UdsClient");
-  verify_blocking_send_retries_after_transient_write_rejection<unilink::wrapper::Serial>("Serial");
+  verify_blocking_send_retries_after_transient_write_rejection<wirestead::wrapper::TcpClient>("TcpClient");
+  verify_blocking_send_retries_after_transient_write_rejection<wirestead::wrapper::UdpClient>("UdpClient");
+  verify_blocking_send_retries_after_transient_write_rejection<wirestead::wrapper::UdsClient>("UdsClient");
+  verify_blocking_send_retries_after_transient_write_rejection<wirestead::wrapper::Serial>("Serial");
 }

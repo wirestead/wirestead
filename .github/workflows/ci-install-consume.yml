@@ -52,10 +52,10 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER=$CC \
             -DCMAKE_CXX_COMPILER=$CXX \
-            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/unilink-install" \
-            -DUNILINK_ENABLE_INSTALL=ON \
-            -DUNILINK_ENABLE_PKGCONFIG=ON \
-            -DUNILINK_ENABLE_EXPORT_HEADER=ON \
+            -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/wirestead-install" \
+            -DWIRESTEAD_ENABLE_INSTALL=ON \
+            -DWIRESTEAD_ENABLE_PKGCONFIG=ON \
+            -DWIRESTEAD_ENABLE_EXPORT_HEADER=ON \
             -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
             -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET
 
@@ -63,31 +63,31 @@ jobs:
         run: cmake --build build --config Release -- -v
 
       - name: Install
-        run: cmake --install build --prefix "$RUNNER_TEMP/unilink-install"
+        run: cmake --install build --prefix "$RUNNER_TEMP/wirestead-install"
 
-      - name: Consume as package (find_package)
+      - name: Consume canonical package (find_package)
         run: |
-          install_prefix="$RUNNER_TEMP/unilink-install"
+          install_prefix="$RUNNER_TEMP/wirestead-install"
           mkdir -p "$RUNNER_TEMP/consumer" && cd "$RUNNER_TEMP/consumer"
           cat > CMakeLists.txt <<'EOF'
           cmake_minimum_required(VERSION 3.12)
           project(consumer CXX)
           set(CMAKE_CXX_STANDARD 20)
-          find_package(unilink CONFIG REQUIRED)
-          if(NOT TARGET unilink::unilink)
-            message(FATAL_ERROR "Expected installed package to provide unilink::unilink")
+          find_package(wirestead CONFIG REQUIRED)
+          if(NOT TARGET wirestead::wirestead)
+            message(FATAL_ERROR "Expected installed package to provide wirestead::wirestead")
           endif()
           add_executable(consumer main.cpp)
-          target_link_libraries(consumer PRIVATE unilink::unilink)
+          target_link_libraries(consumer PRIVATE wirestead::wirestead)
           EOF
           cat > main.cpp <<'EOF'
-          #include <unilink/unilink.hpp>
+          #include <wirestead/wirestead.hpp>
           #include <iostream>
-          int main(){ 
-            unilink::diagnostics::Logger::instance().set_console_output(false);
-            unilink::diagnostics::Logger::instance().set_level(unilink::diagnostics::LogLevel::INFO);
-            std::cout << "unilink package consumed successfully!\n"; 
-            return 0; 
+          int main(){
+            wirestead::diagnostics::Logger::instance().set_console_output(false);
+            wirestead::diagnostics::Logger::instance().set_level(wirestead::diagnostics::LogLevel::INFO);
+            std::cout << "wirestead package consumed successfully!\n";
+            return 0;
           }
           EOF
           cmake -S . -B build -G Ninja \
@@ -97,13 +97,44 @@ jobs:
           cmake --build build --config Release
           ./build/consumer
 
+      - name: Consume legacy package (find_package)
+        run: |
+          install_prefix="$RUNNER_TEMP/wirestead-install"
+          mkdir -p "$RUNNER_TEMP/consumer-legacy" && cd "$RUNNER_TEMP/consumer-legacy"
+          cat > CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.12)
+          project(legacy_consumer CXX)
+          set(CMAKE_CXX_STANDARD 20)
+          find_package(unilink CONFIG REQUIRED)
+          if(NOT TARGET unilink::unilink)
+            message(FATAL_ERROR "Expected installed package to provide unilink::unilink")
+          endif()
+          add_executable(legacy_consumer main.cpp)
+          target_link_libraries(legacy_consumer PRIVATE unilink::unilink)
+          EOF
+          cat > main.cpp <<'EOF'
+          #include <unilink/unilink.hpp>
+          #include <iostream>
+          int main(){
+            unilink::diagnostics::Logger::instance().set_console_output(false);
+            unilink::diagnostics::Logger::instance().set_level(unilink::diagnostics::LogLevel::INFO);
+            std::cout << "unilink compatibility package consumed successfully!\n";
+            return 0;
+          }
+          EOF
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_PREFIX_PATH="$install_prefix" \
+            -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
+            -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET
+          cmake --build build --config Release
+          ./build/legacy_consumer
+
       - name: Test pkg-config
         run: |
-          # unilink.pc's Requires.private now names spdlog's own .pc module
-          # (jwsung91/unilink#514) when spdlog is external, as vcpkg's spdlog
-          # port always is here - pkg-config needs that module's directory on
-          # the search path too, not just unilink's own install prefix.
-          export PKG_CONFIG_PATH="$RUNNER_TEMP/unilink-install/lib/pkgconfig:$VCPKG_ROOT/installed/$VCPKG_TARGET_TRIPLET/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+          # wirestead.pc and unilink.pc both need vcpkg's pkg-config modules
+          # when dependencies such as spdlog are external.
+          export PKG_CONFIG_PATH="$RUNNER_TEMP/wirestead-install/lib/pkgconfig:$VCPKG_ROOT/installed/$VCPKG_TARGET_TRIPLET/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
           echo "Testing pkg-config integration..."
+          pkg-config --cflags --libs wirestead
           pkg-config --cflags --libs unilink
           echo "pkg-config test completed successfully!"

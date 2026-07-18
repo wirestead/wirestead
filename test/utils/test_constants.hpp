@@ -2,7 +2,7 @@
 
 #include <chrono>
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 namespace constants {
 
@@ -19,4 +19,4 @@ constexpr std::chrono::milliseconds kRetryInterval{10};
 
 }  // namespace constants
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

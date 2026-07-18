@@ -12,11 +12,11 @@
 #include <thread>
 
 #include "test/utils/test_utils.hpp"
-#include "unilink/config/tcp_server_config.hpp"
-#include "unilink/transport/tcp_server/tcp_server.hpp"
+#include "wirestead/config/tcp_server_config.hpp"
+#include "wirestead/transport/tcp_server/tcp_server.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
+using namespace wirestead;
+using namespace wirestead::transport;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
@@ -47,8 +47,8 @@ TEST_F(TransportTcpServerSecurityTest, NoIdleTimeoutByDefault) {
   server_->start();
 
   // Wait for server to start listening (up to 5 seconds)
-  ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Listening; }, 5000))
+  ASSERT_TRUE(test::TestUtils::waitForCondition(
+      [&] { return server_->state() == wirestead::base::LinkState::Listening; }, 5000))
       << "Server failed to enter listening state";
 
   net::io_context client_ioc;
@@ -97,8 +97,8 @@ TEST_F(TransportTcpServerSecurityTest, IdleConnectionTimeout) {
   server_->start();
 
   // Wait for server to start listening (up to 5 seconds)
-  ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Listening; }, 5000))
+  ASSERT_TRUE(test::TestUtils::waitForCondition(
+      [&] { return server_->state() == wirestead::base::LinkState::Listening; }, 5000))
       << "Server failed to enter listening state";
 
   net::io_context client_ioc;
@@ -157,8 +157,8 @@ TEST_F(TransportTcpServerSecurityTest, BindToLocalhostOnly) {
   server_ = TcpServer::create(cfg);
   server_->start();
 
-  ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Listening; }, 5000))
+  ASSERT_TRUE(test::TestUtils::waitForCondition(
+      [&] { return server_->state() == wirestead::base::LinkState::Listening; }, 5000))
       << "Server failed to enter listening state";
 
   net::io_context client_ioc;
@@ -184,6 +184,6 @@ TEST_F(TransportTcpServerSecurityTest, InvalidBindAddress) {
 
   // Should transition to Error state
   ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == unilink::base::LinkState::Error; }, 1000))
+      test::TestUtils::waitForCondition([&] { return server_->state() == wirestead::base::LinkState::Error; }, 1000))
       << "Server should be in Error state due to invalid address";
 }

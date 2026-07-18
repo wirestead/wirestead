@@ -26,19 +26,19 @@
 #include <string_view>
 
 #include "test_utils.hpp"
-#include "unilink/base/constants.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/base/constants.hpp"
+#include "wirestead/wirestead.hpp"
 
 namespace {
 
 using namespace std::chrono_literals;
-using unilink::test::TestUtils;
+using wirestead::test::TestUtils;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 using udp = net::ip::udp;
 using uds = net::local::stream_protocol;
 
-constexpr size_t kThreshold = unilink::base::constants::MIN_BACKPRESSURE_THRESHOLD;
+constexpr size_t kThreshold = wirestead::base::constants::MIN_BACKPRESSURE_THRESHOLD;
 
 bool is_port_allocation_failure(const std::exception& ex) {
   return std::string_view(ex.what()).find("Unable to find available test port") != std::string_view::npos;
@@ -79,14 +79,14 @@ TEST(ServerBroadcastSlowConsumerContractTest, TcpBroadcastDoesNotBlockOnSingleSl
     throw;
   }
 
-  auto server = std::make_shared<unilink::wrapper::TcpServer>(port);
+  auto server = std::make_shared<wirestead::wrapper::TcpServer>(port);
   server->backpressure_threshold(kThreshold).send_buffer_size(kThreshold);
   ASSERT_TRUE(server->start().get());
   ASSERT_TRUE(TestUtils::waitForCondition([&] { return server->listening(); }, 5000));
 
   std::atomic<size_t> healthy_bytes{0};
-  auto healthy = std::make_shared<unilink::wrapper::TcpClient>("127.0.0.1", port);
-  healthy->on_data([&](const unilink::MessageContext& msg) { healthy_bytes.fetch_add(msg.data().size()); });
+  auto healthy = std::make_shared<wirestead::wrapper::TcpClient>("127.0.0.1", port);
+  healthy->on_data([&](const wirestead::MessageContext& msg) { healthy_bytes.fetch_add(msg.data().size()); });
   ASSERT_TRUE(healthy->start().get());
   ASSERT_TRUE(TestUtils::waitForCondition([&] { return healthy->connected(); }, 5000));
 
@@ -125,13 +125,13 @@ TEST(ServerBroadcastSlowConsumerContractTest, TcpBroadcastContinuesDeliveringToH
     throw;
   }
 
-  auto server = std::make_shared<unilink::wrapper::TcpServer>(port);
+  auto server = std::make_shared<wirestead::wrapper::TcpServer>(port);
   server->backpressure_threshold(kThreshold);
   ASSERT_TRUE(server->start().get());
 
   std::atomic<int> healthy_callbacks{0};
-  auto healthy = std::make_shared<unilink::wrapper::TcpClient>("127.0.0.1", port);
-  healthy->on_data([&](const unilink::MessageContext&) { healthy_callbacks.fetch_add(1); });
+  auto healthy = std::make_shared<wirestead::wrapper::TcpClient>("127.0.0.1", port);
+  healthy->on_data([&](const wirestead::MessageContext&) { healthy_callbacks.fetch_add(1); });
   ASSERT_TRUE(healthy->start().get());
 
   net::io_context slow_ioc;
@@ -163,23 +163,23 @@ TEST(ServerBroadcastSlowConsumerContractTest, UdpBroadcastDoesNotBlockOnSlowVirt
     throw;
   }
 
-  unilink::config::UdpConfig server_cfg;
+  wirestead::config::UdpConfig server_cfg;
   server_cfg.bind_address = "127.0.0.1";
   server_cfg.local_port = port;
   server_cfg.backpressure_threshold = kThreshold;
 
-  auto server = std::make_shared<unilink::wrapper::UdpServer>(server_cfg);
+  auto server = std::make_shared<wirestead::wrapper::UdpServer>(server_cfg);
   ASSERT_TRUE(server->start().get());
 
-  unilink::config::UdpConfig healthy_cfg;
+  wirestead::config::UdpConfig healthy_cfg;
   healthy_cfg.bind_address = "127.0.0.1";
   healthy_cfg.local_port = 0;
   healthy_cfg.remote_address = "127.0.0.1";
   healthy_cfg.remote_port = port;
-  auto healthy = std::make_shared<unilink::wrapper::UdpClient>(healthy_cfg);
+  auto healthy = std::make_shared<wirestead::wrapper::UdpClient>(healthy_cfg);
 
   std::atomic<int> healthy_callbacks{0};
-  healthy->on_data([&](const unilink::MessageContext&) { healthy_callbacks.fetch_add(1); });
+  healthy->on_data([&](const wirestead::MessageContext&) { healthy_callbacks.fetch_add(1); });
   ASSERT_TRUE(healthy->start().get());
   healthy->send("register-healthy");
 
@@ -207,14 +207,14 @@ TEST(ServerBroadcastSlowConsumerContractTest, UdsBroadcastDoesNotBlockOnSingleSl
   auto socket_path = TestUtils::makeUniqueUdsSocketPath("slow-broadcast-contract").string();
   TestUtils::removeFileIfExists(socket_path);
 
-  auto server = std::make_shared<unilink::wrapper::UdsServer>(socket_path);
+  auto server = std::make_shared<wirestead::wrapper::UdsServer>(socket_path);
   server->backpressure_threshold(kThreshold);
   ASSERT_TRUE(server->start().get());
   ASSERT_TRUE(TestUtils::waitForCondition([&] { return server->listening(); }, 5000));
 
   std::atomic<int> healthy_callbacks{0};
-  auto healthy = std::make_shared<unilink::wrapper::UdsClient>(socket_path);
-  healthy->on_data([&](const unilink::MessageContext&) { healthy_callbacks.fetch_add(1); });
+  auto healthy = std::make_shared<wirestead::wrapper::UdsClient>(socket_path);
+  healthy->on_data([&](const wirestead::MessageContext&) { healthy_callbacks.fetch_add(1); });
   ASSERT_TRUE(healthy->start().get());
 
   net::io_context slow_ioc;

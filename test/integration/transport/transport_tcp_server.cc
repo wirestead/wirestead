@@ -26,15 +26,15 @@
 
 #include "test_constants.hpp"
 #include "test_utils.hpp"
-#include "unilink/config/tcp_server_config.hpp"
-#include "unilink/diagnostics/exceptions.hpp"
-#include "unilink/interface/itcp_acceptor.hpp"
-#include "unilink/memory/safe_span.hpp"
-#include "unilink/transport/tcp_server/tcp_server.hpp"
+#include "wirestead/config/tcp_server_config.hpp"
+#include "wirestead/diagnostics/exceptions.hpp"
+#include "wirestead/interface/itcp_acceptor.hpp"
+#include "wirestead/memory/safe_span.hpp"
+#include "wirestead/transport/tcp_server/tcp_server.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::transport;
+using namespace wirestead::test;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
 
@@ -249,7 +249,7 @@ TEST_F(TransportTcpServerTest, MaxClientsLimit) {
   client1.connect(tcp::endpoint(net::ip::make_address("127.0.0.1"), port));
 
   // Client 2 connects - should be accepted but then disconnected or rejected depending on implementation
-  // Unilink implementation usually accepts and then immediately closes if limit reached,
+  // Wirestead implementation usually accepts and then immediately closes if limit reached,
   // or logic might handle it differently.
   // Let's verify behavior.
 

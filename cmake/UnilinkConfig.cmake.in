@@ -1,68 +1,27 @@
 @PACKAGE_INIT@
 
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.31" AND POLICY CMP0167)
-  cmake_policy(PUSH)
-  cmake_policy(SET CMP0167 OLD)
-endif()
-
 include(CMakeFindDependencyMacro)
+find_dependency(
+  wirestead CONFIG REQUIRED HINTS "${CMAKE_CURRENT_LIST_DIR}/../wirestead"
+)
 
-set(_UNILINK_CONFIG_REQUIRES_THREADS "@UNILINK_CONFIG_REQUIRES_THREADS@")
-set(_UNILINK_CONFIG_REQUIRES_BOOST "@UNILINK_CONFIG_REQUIRES_BOOST@")
-set(_UNILINK_CONFIG_REQUIRES_SPDLOG "@UNILINK_CONFIG_REQUIRES_SPDLOG@")
-
-if(_UNILINK_CONFIG_REQUIRES_THREADS)
-  find_dependency(Threads REQUIRED)
+if(TARGET wirestead::wirestead_shared AND NOT TARGET unilink::unilink_shared)
+  add_library(unilink::unilink_shared INTERFACE IMPORTED)
+  target_link_libraries(
+    unilink::unilink_shared INTERFACE wirestead::wirestead_shared
+  )
 endif()
 
-if(_UNILINK_CONFIG_REQUIRES_BOOST)
-  find_dependency(Boost @UNILINK_MIN_BOOST_VERSION@ REQUIRED COMPONENTS system)
+if(TARGET wirestead::wirestead_static AND NOT TARGET unilink::unilink_static)
+  add_library(unilink::unilink_static INTERFACE IMPORTED)
+  target_link_libraries(
+    unilink::unilink_static INTERFACE wirestead::wirestead_static
+  )
 endif()
-
-if(_UNILINK_CONFIG_REQUIRES_SPDLOG)
-  find_dependency(spdlog @UNILINK_MIN_SPDLOG_VERSION@ CONFIG REQUIRED)
-endif()
-
-# Define proxy targets for compatibility with FetchContent builds.
-if(_UNILINK_CONFIG_REQUIRES_BOOST AND NOT TARGET unilink_boost_system_proxy)
-  add_library(unilink_boost_system_proxy INTERFACE IMPORTED)
-  if(TARGET Boost::system)
-    target_link_libraries(unilink_boost_system_proxy INTERFACE Boost::system)
-  endif()
-endif()
-
-if(_UNILINK_CONFIG_REQUIRES_BOOST AND NOT TARGET unilink_boost_asio_proxy)
-  add_library(unilink_boost_asio_proxy INTERFACE IMPORTED)
-  if(TARGET Boost::asio)
-    target_link_libraries(unilink_boost_asio_proxy INTERFACE Boost::asio)
-  elseif(TARGET Boost::system)
-    target_link_libraries(unilink_boost_asio_proxy INTERFACE Boost::system)
-  endif()
-endif()
-
-if(_UNILINK_CONFIG_REQUIRES_SPDLOG AND NOT TARGET unilink_spdlog_proxy)
-  add_library(unilink_spdlog_proxy INTERFACE IMPORTED)
-  if(TARGET spdlog::spdlog)
-    target_link_libraries(unilink_spdlog_proxy INTERFACE spdlog::spdlog)
-  elseif(TARGET spdlog)
-    target_link_libraries(unilink_spdlog_proxy INTERFACE spdlog)
-  endif()
-endif()
-
-include("${CMAKE_CURRENT_LIST_DIR}/unilinkTargets.cmake")
 
 if(NOT TARGET unilink::unilink)
-  if(TARGET unilink::unilink_shared)
-    add_library(unilink::unilink INTERFACE IMPORTED)
-    target_link_libraries(unilink::unilink INTERFACE unilink::unilink_shared)
-  elseif(TARGET unilink::unilink_static)
-    add_library(unilink::unilink INTERFACE IMPORTED)
-    target_link_libraries(unilink::unilink INTERFACE unilink::unilink_static)
-  endif()
+  add_library(unilink::unilink INTERFACE IMPORTED)
+  target_link_libraries(unilink::unilink INTERFACE wirestead::wirestead)
 endif()
 
 check_required_components(unilink)
-
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.31" AND POLICY CMP0167)
-  cmake_policy(POP)
-endif()

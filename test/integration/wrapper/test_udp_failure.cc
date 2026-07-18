@@ -21,11 +21,11 @@
 #include <memory>
 #include <vector>
 
-#include "unilink/memory/safe_span.hpp"
-#include "unilink/transport/udp/udp.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/memory/safe_span.hpp"
+#include "wirestead/transport/udp/udp.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 
 // Test wrapper behavior when not started
 TEST(UdpFailureTest, WrapperSendWithoutStart) {

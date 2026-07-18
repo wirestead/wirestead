@@ -18,11 +18,11 @@
 
 #include <boost/asio.hpp>
 
-#include "unilink/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/transport/tcp_client/tcp_client.hpp"
 
-using namespace unilink::transport;
+using namespace wirestead::transport;
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 TEST(TcpClientLifecycleTest, StopBeforeStart) {
@@ -59,4 +59,4 @@ TEST(TcpClientLifecycleTest, WriteZeroLength) {
 }
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

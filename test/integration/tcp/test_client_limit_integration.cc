@@ -26,11 +26,11 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/diagnostics/exceptions.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/diagnostics/exceptions.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
-using unilink::test::TestUtils;
+using namespace wirestead;
+using wirestead::test::TestUtils;
 using namespace std::chrono_literals;
 
 class ClientLimitIntegrationTest : public ::testing::Test {
@@ -83,7 +83,7 @@ class ClientLimitIntegrationTest : public ::testing::Test {
 
 TEST_F(ClientLimitIntegrationTest, SingleClientLimitTest) {
   uint16_t test_port = getTestPort();
-  server_ = unilink::tcp_server(test_port).max_clients(1).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).max_clients(1).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_NE(server_, nullptr);
   ASSERT_TRUE(server_->start().get());
 
@@ -102,7 +102,7 @@ TEST_F(ClientLimitIntegrationTest, SingleClientLimitTest) {
 
 TEST_F(ClientLimitIntegrationTest, MultiClientLimitTest) {
   uint16_t test_port = getTestPort();
-  server_ = unilink::tcp_server(test_port).max_clients(2).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).max_clients(2).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_NE(server_, nullptr);
   ASSERT_TRUE(server_->start().get());
 
@@ -120,7 +120,7 @@ TEST_F(ClientLimitIntegrationTest, MultiClientLimitTest) {
 
 TEST_F(ClientLimitIntegrationTest, DefaultClientLimitAllowsTypicalLoad) {
   uint16_t test_port = getTestPort();
-  server_ = unilink::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_NE(server_, nullptr);
   ASSERT_TRUE(server_->start().get());
 
@@ -135,7 +135,7 @@ TEST_F(ClientLimitIntegrationTest, DefaultClientLimitAllowsTypicalLoad) {
 
 TEST_F(ClientLimitIntegrationTest, MaxClientsZeroAllowsServerCreation) {
   uint16_t test_port = getTestPort();
-  server_ = unilink::tcp_server(test_port).max_clients(0).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).max_clients(0).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   ASSERT_NE(server_, nullptr);
   EXPECT_TRUE(server_->start().get());

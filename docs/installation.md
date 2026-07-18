@@ -1,8 +1,7 @@
 # Installation
 
-Full installation guide:
-
-https://github.com/unilink-lab/unilink-docs/blob/main/docs/user/installation.md
+This repository contains the canonical source-build and package-consumer
+installation notes for Wirestead.
 
 ## Requirements
 
@@ -21,23 +20,26 @@ gate and rejects Boost versions older than the configured minimum.
 vcpkg install jwsung91-unilink
 ```
 
+The `wirestead` vcpkg port is planned after the v0.9.0 release. Until then,
+`jwsung91-unilink` is the legacy/current port.
+
 ## Minimal CMake find_package consumer
 
 ```cmake
 cmake_minimum_required(VERSION 3.12)
 project(my_app LANGUAGES CXX)
 
-find_package(unilink CONFIG REQUIRED)
+find_package(wirestead CONFIG REQUIRED)
 
 add_executable(my_app main.cpp)
-target_link_libraries(my_app PRIVATE unilink::unilink)
+target_link_libraries(my_app PRIVATE wirestead::wirestead)
 target_compile_features(my_app PRIVATE cxx_std_20)
 ```
 
 ## Include
 
 ```cpp
-#include <unilink/unilink.hpp>
+#include <wirestead/wirestead.hpp>
 ```
 
 ## Source build example

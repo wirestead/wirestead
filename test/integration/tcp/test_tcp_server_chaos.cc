@@ -26,10 +26,10 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 using namespace std::chrono_literals;
 
 class TcpServerChaosTest : public ::testing::Test {

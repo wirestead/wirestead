@@ -16,40 +16,5 @@
 
 #pragma once
 
-#include <boost/asio.hpp>
-#include <memory>
-
-#include "unilink/base/platform.hpp"
-#include "unilink/base/visibility.hpp"
-#include "unilink/interface/iuds_socket.hpp"
-
-namespace unilink {
-namespace transport {
-
-namespace net = boost::asio;
-using uds = net::local::stream_protocol;
-
-/**
- * @brief Boost.Asio implementation of UdsSocketInterface interface.
- */
-class UNILINK_API BoostUdsSocket : public interface::UdsSocketInterface {
- public:
-  explicit BoostUdsSocket(uds::socket sock);
-  ~BoostUdsSocket() override = default;
-
-  void async_read_some(const net::mutable_buffer& buffer,
-                       std::function<void(const boost::system::error_code&, std::size_t)> handler) override;
-  void async_write(const net::const_buffer& buffer,
-                   std::function<void(const boost::system::error_code&, std::size_t)> handler) override;
-  void async_connect(const uds::endpoint& endpoint,
-                     std::function<void(const boost::system::error_code&)> handler) override;
-  void shutdown(uds::socket::shutdown_type what, boost::system::error_code& ec) override;
-  void close(boost::system::error_code& ec) override;
-  uds::endpoint remote_endpoint(boost::system::error_code& ec) const override;
-
- private:
-  uds::socket socket_;
-};
-
-}  // namespace transport
-}  // namespace unilink
+#include <wirestead/compat/unilink.hpp>
+#include <wirestead/transport/uds/boost_uds_socket.hpp>

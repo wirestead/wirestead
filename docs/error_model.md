@@ -1,6 +1,6 @@
 # Error Model
 
-`unilink` reports runtime failures through explicit return values, callbacks,
+`wirestead` reports runtime failures through explicit return values, callbacks,
 and exceptions. The expected path depends on when the failure is detected.
 
 ## Lifecycle errors
@@ -122,7 +122,7 @@ Transport callbacks may also log internal diagnostic details.
 ## Validation and configuration errors
 
 Builder and config validation errors may throw `diagnostics::ValidationException`
-or related `diagnostics::UnilinkException` types when invalid input is detected
+or related `diagnostics::WiresteadException` types when invalid input is detected
 synchronously.
 
 Configuration APIs can also return validation results or boolean status where
@@ -130,7 +130,7 @@ the API is designed as a query/update operation.
 
 ## Exceptions
 
-Public-facing exceptions should prefer the `diagnostics::UnilinkException`
+Public-facing exceptions should prefer the `diagnostics::WiresteadException`
 hierarchy. Some lower-level utility APIs intentionally preserve standard C++
 exception behavior, such as `std::out_of_range` for bounds-checked access or
 `std::invalid_argument` for invalid memory helper arguments.

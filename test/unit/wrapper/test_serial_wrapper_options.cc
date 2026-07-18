@@ -20,13 +20,13 @@
 #include <chrono>
 #include <thread>
 
-#include "unilink/framer/line_framer.hpp"
-#include "unilink/wrapper/serial/serial.hpp"
+#include "wirestead/framer/line_framer.hpp"
+#include "wirestead/wrapper/serial/serial.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 using namespace std::chrono_literals;
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 TEST(SerialWrapperOptionsTest, StartMultipleTimes) {
@@ -83,4 +83,4 @@ TEST(SerialWrapperOptionsTest, StopWithoutStart) {
 }
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

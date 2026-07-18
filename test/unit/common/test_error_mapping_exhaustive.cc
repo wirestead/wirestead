@@ -4,9 +4,9 @@
 #include <iostream>
 #include <vector>
 
-#include "unilink/diagnostics/error_types.hpp"
+#include "wirestead/diagnostics/error_types.hpp"
 
-using namespace unilink::diagnostics;
+using namespace wirestead::diagnostics;
 
 TEST(ErrorMappingExhaustiveTest, ErrorInfoFormatting) {
   // Test basic construction and string conversion

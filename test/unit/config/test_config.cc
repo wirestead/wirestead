@@ -29,20 +29,20 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/builder/unified_builder.hpp"
-#include "unilink/config/config_factory.hpp"
-#include "unilink/config/config_manager.hpp"
-#include "unilink/config/serial_config.hpp"
-#include "unilink/config/tcp_client_config.hpp"
-#include "unilink/config/tcp_server_config.hpp"
-#include "unilink/config/udp_config.hpp"
-#include "unilink/config/uds_config.hpp"
-#include "unilink/diagnostics/exceptions.hpp"
+#include "wirestead/builder/unified_builder.hpp"
+#include "wirestead/config/config_factory.hpp"
+#include "wirestead/config/config_manager.hpp"
+#include "wirestead/config/serial_config.hpp"
+#include "wirestead/config/tcp_client_config.hpp"
+#include "wirestead/config/tcp_server_config.hpp"
+#include "wirestead/config/udp_config.hpp"
+#include "wirestead/config/uds_config.hpp"
+#include "wirestead/diagnostics/exceptions.hpp"
 
-using namespace unilink;
-using namespace unilink::test;
-using namespace unilink::config;
-using namespace unilink::builder;
+using namespace wirestead;
+using namespace wirestead::test;
+using namespace wirestead::config;
+using namespace wirestead::builder;
 using namespace std::chrono_literals;
 
 /**
@@ -67,7 +67,7 @@ class ConfigTest : public ::testing::Test {
         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
             .count();
     test_file_path_ =
-        temp_dir / ("unilink_test_config_" + std::to_string(now_ns) + "_" + std::to_string(test_port_) + ".json");
+        temp_dir / ("wirestead_test_config_" + std::to_string(now_ns) + "_" + std::to_string(test_port_) + ".json");
 
     // Clean up any existing test file
     TestUtils::removeFileIfExists(test_file_path_);
@@ -656,7 +656,7 @@ TEST_F(ConfigTest, ConfigPersistenceComplexData) {
   // Set up complex configuration
   config_manager_->set("database.host", std::string("localhost"));
   config_manager_->set("database.port", 5432);
-  config_manager_->set("database.name", std::string("unilink_db"));
+  config_manager_->set("database.name", std::string("wirestead_db"));
   config_manager_->set("database.ssl_enabled", true);
   config_manager_->set("database.connection_pool_size", 10);
   config_manager_->set("database.timeout_ms", 5000);

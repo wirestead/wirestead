@@ -27,16 +27,16 @@
 #include <thread>
 
 #include "test_utils.hpp"
-#include "unilink/base/common.hpp"
-#include "unilink/concurrency/io_context_manager.hpp"
-#include "unilink/config/config_manager.hpp"
-#include "unilink/memory/memory_pool.hpp"
+#include "wirestead/base/common.hpp"
+#include "wirestead/concurrency/io_context_manager.hpp"
+#include "wirestead/config/config_manager.hpp"
+#include "wirestead/memory/memory_pool.hpp"
 
-using namespace unilink;
-using namespace unilink::test;
-using namespace unilink::diagnostics;
-using namespace unilink::concurrency;
-using namespace unilink::memory;
+using namespace wirestead;
+using namespace wirestead::test;
+using namespace wirestead::diagnostics;
+using namespace wirestead::concurrency;
+using namespace wirestead::memory;
 using namespace std::chrono_literals;
 
 // ============================================================================
@@ -76,7 +76,7 @@ TEST_F(BaseTest, ConfigManager) {
  * @brief IoContextManager basic functionality tests
  */
 TEST_F(BaseTest, IoContextManagerBasicFunctionality) {
-  auto& manager = unilink::concurrency::IoContextManager::instance();
+  auto& manager = wirestead::concurrency::IoContextManager::instance();
 
   // Test basic operations
   EXPECT_FALSE(manager.is_running());
@@ -95,7 +95,7 @@ TEST_F(BaseTest, IoContextManagerBasicFunctionality) {
  * @brief IoContextManager duplicate start/stop tests
  */
 TEST_F(BaseTest, IoContextManagerDuplicateStartStop) {
-  auto& manager = unilink::concurrency::IoContextManager::instance();
+  auto& manager = wirestead::concurrency::IoContextManager::instance();
 
   // Start twice
   manager.start();
@@ -112,7 +112,7 @@ TEST_F(BaseTest, IoContextManagerDuplicateStartStop) {
  * @brief IoContextManager thread safety tests
  */
 TEST_F(BaseTest, IoContextManagerThreadSafety) {
-  auto& manager = unilink::concurrency::IoContextManager::instance();
+  auto& manager = wirestead::concurrency::IoContextManager::instance();
 
   // Reduce concurrency load for Windows/CI stability
   const int num_threads = 4;
@@ -143,13 +143,13 @@ TEST_F(BaseTest, IoContextManagerThreadSafety) {
  * @brief IoContextManager exception handling tests
  */
 TEST_F(BaseTest, IoContextManagerExceptionHandling) {
-  auto& manager = unilink::concurrency::IoContextManager::instance();
+  auto& manager = wirestead::concurrency::IoContextManager::instance();
   manager.start();
 
   auto& ioc = manager.get_context();
 
   // Post a task that throws an exception
-  // Unilink's IoContextManager wraps run() in a try-catch block inside the thread.
+  // Wirestead's IoContextManager wraps run() in a try-catch block inside the thread.
   // So this should log an error but NOT crash the process.
   // And the thread loop should exit (running_ becomes false).
 
@@ -167,7 +167,7 @@ TEST_F(BaseTest, IoContextManagerExceptionHandling) {
  * @brief Independent context creation tests
  */
 TEST_F(BaseTest, IndependentContextCreation) {
-  auto& manager = unilink::concurrency::IoContextManager::instance();
+  auto& manager = wirestead::concurrency::IoContextManager::instance();
 
   // Create independent context
   auto independent_context = manager.create_independent_context();
@@ -362,9 +362,9 @@ TEST_F(LogRotationTest, FileSizeBasedRotation) {
 
   // Generate enough log data to trigger rotation
   for (int i = 0; i < 20; ++i) {
-    UNILINK_LOG_INFO("test", "rotation",
-                     "Test message " + std::to_string(i) +
-                         " - This is a longer message to help reach the rotation threshold quickly.");
+    WIRESTEAD_LOG_INFO("test", "rotation",
+                       "Test message " + std::to_string(i) +
+                           " - This is a longer message to help reach the rotation threshold quickly.");
   }
 
   // Flush to ensure all data is written
@@ -392,9 +392,9 @@ TEST_F(LogRotationTest, FileCountLimit) {
 
   // Generate lots of log data to trigger multiple rotations
   for (int i = 0; i < 50; ++i) {
-    UNILINK_LOG_INFO("test", "count_limit",
-                     "Message " + std::to_string(i) +
-                         " - Generating enough data to trigger multiple rotations and test file count limits.");
+    WIRESTEAD_LOG_INFO("test", "count_limit",
+                       "Message " + std::to_string(i) +
+                           " - Generating enough data to trigger multiple rotations and test file count limits.");
   }
 
   diagnostics::Logger::instance().flush();
@@ -414,7 +414,7 @@ TEST_F(LogRotationTest, LogRotationWithoutRotation) {
 
   // Generate small amount of log data
   for (int i = 0; i < 5; ++i) {
-    UNILINK_LOG_INFO("test", "no_rotation", "Small message " + std::to_string(i));
+    WIRESTEAD_LOG_INFO("test", "no_rotation", "Small message " + std::to_string(i));
   }
 
   diagnostics::Logger::instance().flush();
@@ -510,7 +510,7 @@ TEST_F(AsyncLoggingTest, AsyncLoggingEnabled) {
 
   // Generate some log messages
   for (int i = 0; i < 5; ++i) {
-    UNILINK_LOG_INFO("async_test", "enabled", "Async logging test message " + std::to_string(i));
+    WIRESTEAD_LOG_INFO("async_test", "enabled", "Async logging test message " + std::to_string(i));
   }
 
   // Wait for async processing
@@ -534,7 +534,7 @@ TEST_F(AsyncLoggingTest, AsyncLoggingWithFileOutput) {
 
   // Generate log messages
   for (int i = 0; i < 10; ++i) {
-    UNILINK_LOG_INFO("async_test", "file_output", "Async file logging test message " + std::to_string(i));
+    WIRESTEAD_LOG_INFO("async_test", "file_output", "Async file logging test message " + std::to_string(i));
   }
 
   // Disable async logging to clean up (flushes pending logs)
@@ -558,7 +558,7 @@ TEST_F(AsyncLoggingTest, AsyncLoggingPerformance) {
 
   // Generate many log messages
   for (int i = 0; i < num_messages; ++i) {
-    UNILINK_LOG_DEBUG("async_test", "performance", "Performance test message " + std::to_string(i));
+    WIRESTEAD_LOG_DEBUG("async_test", "performance", "Performance test message " + std::to_string(i));
   }
 
   auto end_time = std::chrono::high_resolution_clock::now();
@@ -597,7 +597,7 @@ TEST_F(AsyncLoggingTest, AsyncLoggingDisable) {
 
   // Generate some log messages (should use synchronous logging)
   for (int i = 0; i < 10; ++i) {
-    UNILINK_LOG_INFO("async_test", "disable", "Synchronous logging test message " + std::to_string(i));
+    WIRESTEAD_LOG_INFO("async_test", "disable", "Synchronous logging test message " + std::to_string(i));
   }
 }
 

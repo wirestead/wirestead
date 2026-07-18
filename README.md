@@ -1,5 +1,5 @@
-![unilink](assets/logo/unilink-logo-light.png#gh-light-mode-only)
-![unilink](assets/logo/unilink-logo-dark.png#gh-dark-mode-only)
+![Wirestead](assets/wirestead-logo-horizontal.svg#gh-light-mode-only)
+![Wirestead](assets/wirestead-logo-dark.svg#gh-dark-mode-only)
 
 # Wirestead™
 
@@ -10,18 +10,18 @@ _Wirestead is the successor to UniLink._
 Serial · TCP · UDP · UDS
 
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-informational)
-![vcpkg](https://img.shields.io/badge/vcpkg-jwsung91--unilink-0078D6)
+![vcpkg](https://img.shields.io/badge/vcpkg-jwsung91--unilink%20legacy/current-0078D6)
 [![Coverage](https://img.shields.io/endpoint?url=https://wirestead.github.io/wirestead/coverage/badges/coverage.json)](https://wirestead.github.io/wirestead/coverage/)
 
 ## Description
 
 Simple async C++ communication library for Serial, TCP, UDP, and Unix Domain Sockets
 
-`unilink` provides a unified interface for asynchronous communication across different transports, allowing applications to switch between Serial, TCP, UDP, and UDS with minimal code changes. The public C++ API exposes builders and wrappers for all four transport families.
+`wirestead` provides a unified interface for asynchronous communication across different transports, allowing applications to switch between Serial, TCP, UDP, and UDS with minimal code changes. The public C++ API exposes builders and wrappers for all four transport families.
 
 The project prioritizes **API clarity, predictable runtime behavior, and stability** over rapid feature expansion.
 
-> **Security note**: all transports send data in plaintext - there is no built-in TLS/DTLS support. See [Security and Threat Model](https://github.com/wirestead/wirestead/blob/main/docs/security.md) before using `unilink` over an untrusted network.
+> **Security note**: all transports send data in plaintext - there is no built-in TLS/DTLS support. See [Security and Threat Model](https://github.com/wirestead/wirestead/blob/main/docs/security.md) before using `wirestead` over an untrusted network.
 
 ## Feature Highlights
 
@@ -44,11 +44,11 @@ The project prioritizes **API clarity, predictable runtime behavior, and stabili
 vcpkg install jwsung91-unilink
 ```
 
-For CMake usage, source builds, and other installation options, see the
-documentation repository:
-https://github.com/unilink-lab/unilink-docs
+The `wirestead` vcpkg port is planned after the v0.9.0 release. Until then,
+`jwsung91-unilink` is the legacy/current port.
 
-Container images are maintained separately in [unilink-lab/unilink-containers](https://github.com/unilink-lab/unilink-containers).
+External documentation, examples, Python bindings, and container repositories
+are still in their legacy locations until they are moved.
 
 ### Contributor Development Setup
 
@@ -66,10 +66,6 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contributor workflow: runn
 
 ## 📚 Documentation
 
-Full documentation is maintained in the unilink documentation repository:
-
-https://github.com/unilink-lab/unilink-docs
-
 Core repository entrypoints:
 
 - [Quick Start](https://github.com/wirestead/wirestead/blob/main/docs/quickstart.md)
@@ -83,8 +79,9 @@ Core repository entrypoints:
 
 Useful external repositories:
 
-* [Python bindings](https://github.com/unilink-lab/unilink-python)
-* [Examples](https://github.com/unilink-lab/unilink-examples)
+* [Python bindings](https://github.com/unilink-lab/unilink-python) (legacy/current)
+* [Examples](https://github.com/unilink-lab/unilink-examples) (legacy/current)
+* [Containers](https://github.com/unilink-lab/unilink-containers) (legacy/current)
 
 ---
 

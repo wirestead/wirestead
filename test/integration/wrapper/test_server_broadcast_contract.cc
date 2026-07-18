@@ -25,13 +25,13 @@
 #include <string_view>
 
 #include "test_utils.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/wirestead.hpp"
 #include "wrapper_contract_test_utils.hpp"
 
 namespace {
 
 using namespace std::chrono_literals;
-using unilink::test::TestUtils;
+using wirestead::test::TestUtils;
 
 void expect_fast_broadcast(std::string_view transport, const std::function<bool()>& broadcast) {
   SCOPED_TRACE(std::string(transport));
@@ -48,9 +48,9 @@ bool is_port_allocation_failure(const std::exception& ex) {
 }  // namespace
 
 TEST(ServerBroadcastContractTest, TcpBroadcastIsNonBlockingFanoutAndDeliversToConnectedClients) {
-  std::unique_ptr<unilink::test::wrapper_support::TcpServerLoopbackHarness> harness;
+  std::unique_ptr<wirestead::test::wrapper_support::TcpServerLoopbackHarness> harness;
   try {
-    harness = std::make_unique<unilink::test::wrapper_support::TcpServerLoopbackHarness>();
+    harness = std::make_unique<wirestead::test::wrapper_support::TcpServerLoopbackHarness>();
   } catch (const std::exception& ex) {
     if (is_port_allocation_failure(ex)) {
       GTEST_SKIP() << "TCP port allocation unavailable in this environment: " << ex.what();
@@ -62,7 +62,7 @@ TEST(ServerBroadcastContractTest, TcpBroadcastIsNonBlockingFanoutAndDeliversToCo
   std::atomic<int> received{0};
 
   auto client = harness->connect_client();
-  client->on_data([&](const unilink::MessageContext&) { received.fetch_add(1); });
+  client->on_data([&](const wirestead::MessageContext&) { received.fetch_add(1); });
   ASSERT_TRUE(harness->wait_for_client_count(1));
 
   expect_fast_broadcast("tcp", [&]() { return server->broadcast("tcp-broadcast"); });
@@ -73,9 +73,9 @@ TEST(ServerBroadcastContractTest, TcpBroadcastIsNonBlockingFanoutAndDeliversToCo
 }
 
 TEST(ServerBroadcastContractTest, UdpBroadcastIsNonBlockingFanoutAndDeliversToKnownClients) {
-  std::unique_ptr<unilink::test::wrapper_support::UdpServerLoopbackHarness> harness;
+  std::unique_ptr<wirestead::test::wrapper_support::UdpServerLoopbackHarness> harness;
   try {
-    harness = std::make_unique<unilink::test::wrapper_support::UdpServerLoopbackHarness>();
+    harness = std::make_unique<wirestead::test::wrapper_support::UdpServerLoopbackHarness>();
   } catch (const std::exception& ex) {
     if (is_port_allocation_failure(ex)) {
       GTEST_SKIP() << "UDP port allocation unavailable in this environment: " << ex.what();
@@ -87,7 +87,7 @@ TEST(ServerBroadcastContractTest, UdpBroadcastIsNonBlockingFanoutAndDeliversToKn
   std::atomic<int> received{0};
 
   auto client = harness->start_sender();
-  client->on_data([&](const unilink::MessageContext&) { received.fetch_add(1); });
+  client->on_data([&](const wirestead::MessageContext&) { received.fetch_add(1); });
   harness->send_from_client("register");
   ASSERT_TRUE(harness->wait_for_client_count(1));
 
@@ -100,8 +100,8 @@ TEST(ServerBroadcastContractTest, UdpBroadcastIsNonBlockingFanoutAndDeliversToKn
 
 #ifndef _WIN32
 TEST(ServerBroadcastContractTest, UdsBroadcastIsNonBlockingFanoutAndDeliversToConnectedClients) {
-  unilink::test::wrapper_support::UdsServerLoopbackHarness harness("broadcast-contract");
-  std::shared_ptr<unilink::wrapper::UdsServer> server;
+  wirestead::test::wrapper_support::UdsServerLoopbackHarness harness("broadcast-contract");
+  std::shared_ptr<wirestead::wrapper::UdsServer> server;
   try {
     server = harness.start_server();
   } catch (const std::exception& ex) {
@@ -110,7 +110,7 @@ TEST(ServerBroadcastContractTest, UdsBroadcastIsNonBlockingFanoutAndDeliversToCo
 
   std::atomic<int> received{0};
   auto client = harness.connect_client();
-  client->on_data([&](const unilink::MessageContext&) { received.fetch_add(1); });
+  client->on_data([&](const wirestead::MessageContext&) { received.fetch_add(1); });
   ASSERT_TRUE(harness.wait_for_client_count(1));
 
   expect_fast_broadcast("uds", [&]() { return server->broadcast("uds-broadcast"); });

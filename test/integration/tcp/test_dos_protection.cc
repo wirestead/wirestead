@@ -26,11 +26,11 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/base/platform.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/base/platform.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
-using unilink::test::TestUtils;
+using namespace wirestead;
+using wirestead::test::TestUtils;
 using namespace std::chrono_literals;
 
 class DoSProtectionTest : public ::testing::Test {
@@ -69,7 +69,7 @@ TEST_F(DoSProtectionTest, TightLoopPrevention) {
   diagnostics::Logger::instance().set_level(diagnostics::LogLevel::DEBUG);
 
   // Create single client server
-  server_ = unilink::tcp_server(test_port)
+  server_ = wirestead::tcp_server(test_port)
                 .on_data([](const MessageContext&) {})
                 .on_error([](const ErrorContext&) {})
                 .max_clients(1)
@@ -80,7 +80,7 @@ TEST_F(DoSProtectionTest, TightLoopPrevention) {
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
   // 1. Connect first client (Success)
-  auto s1 = unilink::tcp_client("127.0.0.1", test_port)
+  auto s1 = wirestead::tcp_client("127.0.0.1", test_port)
                 .on_data([](const MessageContext&) {})
                 .on_error([](const ErrorContext&) {})
                 .build();
@@ -160,7 +160,7 @@ TEST_F(DoSProtectionTest, TightLoopPrevention) {
   TestUtils::waitForCondition([&]() { return server_->client_count() == 0; }, 2000);
 
   // Try to connect again
-  auto s3 = unilink::tcp_client("127.0.0.1", test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto s3 = wirestead::tcp_client("127.0.0.1", test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   s3->start();
 
   // Wait for connection

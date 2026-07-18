@@ -76,8 +76,8 @@ jobs:
               -DCMAKE_BUILD_TYPE=Release \
               -DCMAKE_OSX_DEPLOYMENT_TARGET="$SDK_VER" \
               -DCMAKE_CXX_STANDARD=$CXX_STANDARD \
-              -DUNILINK_ENABLE_CONFIG=${{ matrix.enable_config }} \
-              -DUNILINK_BUILD_TESTS=OFF \
+              -DWIRESTEAD_ENABLE_CONFIG=${{ matrix.enable_config }} \
+              -DWIRESTEAD_BUILD_TESTS=OFF \
               -DCMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_FILE}" \
               -DVCPKG_TARGET_TRIPLET="${VCPKG_TARGET_TRIPLET}"
           else
@@ -86,8 +86,8 @@ jobs:
               -DCMAKE_C_COMPILER=$CC \
               -DCMAKE_CXX_COMPILER=$CXX \
               -DCMAKE_CXX_STANDARD=$CXX_STANDARD \
-              -DUNILINK_ENABLE_CONFIG=${{ matrix.enable_config }} \
-              -DUNILINK_BUILD_TESTS=OFF \
+              -DWIRESTEAD_ENABLE_CONFIG=${{ matrix.enable_config }} \
+              -DWIRESTEAD_BUILD_TESTS=OFF \
               -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
               -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET
           fi
@@ -169,9 +169,9 @@ jobs:
             -DCMAKE_C_COMPILER=$CC \
             -DCMAKE_CXX_COMPILER=$CXX \
             -DCMAKE_CXX_STANDARD=$CXX_STANDARD \
-            -DUNILINK_ENABLE_CONFIG=ON \
-            -DUNILINK_BUILD_DOCS=OFF \
-            -DUNILINK_BUILD_TESTS=ON \
+            -DWIRESTEAD_ENABLE_CONFIG=ON \
+            -DWIRESTEAD_BUILD_DOCS=OFF \
+            -DWIRESTEAD_BUILD_TESTS=ON \
             -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
             -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -187,9 +187,9 @@ jobs:
             -DCMAKE_CXX_COMPILER=$CXX \
             -DCMAKE_CXX_STANDARD=$CXX_STANDARD \
             -DCMAKE_OSX_DEPLOYMENT_TARGET="$SDK_VER" \
-            -DUNILINK_ENABLE_CONFIG=ON \
-            -DUNILINK_BUILD_DOCS=OFF \
-            -DUNILINK_BUILD_TESTS=ON \
+            -DWIRESTEAD_ENABLE_CONFIG=ON \
+            -DWIRESTEAD_BUILD_DOCS=OFF \
+            -DWIRESTEAD_BUILD_TESTS=ON \
             -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
             -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -253,8 +253,8 @@ jobs:
             -G "Visual Studio 17 2022" -A ${{ matrix.cmake_arch }} `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_CXX_STANDARD=${{ env.CXX_STANDARD }} `
-            -DUNILINK_ENABLE_CONFIG=ON `
-            -DUNILINK_BUILD_TESTS=ON `
+            -DWIRESTEAD_ENABLE_CONFIG=ON `
+            -DWIRESTEAD_BUILD_TESTS=ON `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }}
 
@@ -309,9 +309,9 @@ jobs:
           cmake -S . -B build-integration \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_STANDARD=$CXX_STANDARD \
-            -DUNILINK_ENABLE_CONFIG=ON \
-            -DUNILINK_BUILD_DOCS=OFF \
-            -DUNILINK_BUILD_TESTS=ON \
+            -DWIRESTEAD_ENABLE_CONFIG=ON \
+            -DWIRESTEAD_BUILD_DOCS=OFF \
+            -DWIRESTEAD_BUILD_TESTS=ON \
             -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
             -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -370,9 +370,9 @@ jobs:
           cmake -S . -B build-integration-arm64 \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_STANDARD=$CXX_STANDARD \
-            -DUNILINK_ENABLE_CONFIG=ON \
-            -DUNILINK_BUILD_DOCS=OFF \
-            -DUNILINK_BUILD_TESTS=ON \
+            -DWIRESTEAD_ENABLE_CONFIG=ON \
+            -DWIRESTEAD_BUILD_DOCS=OFF \
+            -DWIRESTEAD_BUILD_TESTS=ON \
             -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
             -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
@@ -425,9 +425,9 @@ jobs:
         run: |
           cmake -S . -B build-sanitizer \
             -DCMAKE_BUILD_TYPE=Debug \
-            -DUNILINK_ENABLE_SANITIZERS=ON \
-            -DUNILINK_ENABLE_MEMORY_TRACKING=ON \
-            -DUNILINK_BUILD_TESTS=ON \
+            -DWIRESTEAD_ENABLE_SANITIZERS=ON \
+            -DWIRESTEAD_ENABLE_MEMORY_TRACKING=ON \
+            -DWIRESTEAD_BUILD_TESTS=ON \
             -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
             -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET \
             -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined,leak -fno-omit-frame-pointer -g" \
@@ -478,8 +478,8 @@ jobs:
           cmake -S . -B build-e2e \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_CXX_STANDARD=$CXX_STANDARD \
-            -DUNILINK_ENABLE_CONFIG=ON \
-            -DUNILINK_BUILD_TESTS=ON \
+            -DWIRESTEAD_ENABLE_CONFIG=ON \
+            -DWIRESTEAD_BUILD_TESTS=ON \
             -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
             -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET
 

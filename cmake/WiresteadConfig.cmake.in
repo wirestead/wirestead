@@ -1,21 +1,73 @@
 @PACKAGE_INIT@
 
-# find_package(wirestead) support. Wirestead does not maintain a separate build
-# of the library - it reuses the unilink package's own config (which owns the
-# real Boost/spdlog/Threads dependency resolution and the actual
-# unilink::unilink_shared / unilink::unilink_static imported targets) and only
-# adds a wirestead::wirestead alias on top. See docs/migration-from-unilink.md
-# for why the underlying library, headers, and binary name stay unilink-named
-# for now.
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.31" AND POLICY CMP0167)
+  cmake_policy(PUSH)
+  cmake_policy(SET CMP0167 OLD)
+endif()
 
 include(CMakeFindDependencyMacro)
-find_dependency(
-  unilink CONFIG REQUIRED HINTS "${CMAKE_CURRENT_LIST_DIR}/../unilink"
-)
+
+set(_WIRESTEAD_CONFIG_REQUIRES_THREADS "@WIRESTEAD_CONFIG_REQUIRES_THREADS@")
+set(_WIRESTEAD_CONFIG_REQUIRES_BOOST "@WIRESTEAD_CONFIG_REQUIRES_BOOST@")
+set(_WIRESTEAD_CONFIG_REQUIRES_SPDLOG "@WIRESTEAD_CONFIG_REQUIRES_SPDLOG@")
+
+if(_WIRESTEAD_CONFIG_REQUIRES_THREADS)
+  find_dependency(Threads REQUIRED)
+endif()
+
+if(_WIRESTEAD_CONFIG_REQUIRES_BOOST)
+  find_dependency(
+    Boost @WIRESTEAD_MIN_BOOST_VERSION@ REQUIRED COMPONENTS system
+  )
+endif()
+
+if(_WIRESTEAD_CONFIG_REQUIRES_SPDLOG)
+  find_dependency(spdlog @WIRESTEAD_MIN_SPDLOG_VERSION@ CONFIG REQUIRED)
+endif()
+
+if(_WIRESTEAD_CONFIG_REQUIRES_BOOST AND NOT TARGET wirestead_boost_system_proxy)
+  add_library(wirestead_boost_system_proxy INTERFACE IMPORTED)
+  if(TARGET Boost::system)
+    target_link_libraries(wirestead_boost_system_proxy INTERFACE Boost::system)
+  endif()
+endif()
+
+if(_WIRESTEAD_CONFIG_REQUIRES_BOOST AND NOT TARGET wirestead_boost_asio_proxy)
+  add_library(wirestead_boost_asio_proxy INTERFACE IMPORTED)
+  if(TARGET Boost::asio)
+    target_link_libraries(wirestead_boost_asio_proxy INTERFACE Boost::asio)
+  elseif(TARGET Boost::system)
+    target_link_libraries(wirestead_boost_asio_proxy INTERFACE Boost::system)
+  endif()
+endif()
+
+if(_WIRESTEAD_CONFIG_REQUIRES_SPDLOG AND NOT TARGET wirestead_spdlog_proxy)
+  add_library(wirestead_spdlog_proxy INTERFACE IMPORTED)
+  if(TARGET spdlog::spdlog)
+    target_link_libraries(wirestead_spdlog_proxy INTERFACE spdlog::spdlog)
+  elseif(TARGET spdlog)
+    target_link_libraries(wirestead_spdlog_proxy INTERFACE spdlog)
+  endif()
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/wiresteadTargets.cmake")
 
 if(NOT TARGET wirestead::wirestead)
-  add_library(wirestead::wirestead INTERFACE IMPORTED)
-  target_link_libraries(wirestead::wirestead INTERFACE unilink::unilink)
+  if(TARGET wirestead::wirestead_shared)
+    add_library(wirestead::wirestead INTERFACE IMPORTED)
+    target_link_libraries(
+      wirestead::wirestead INTERFACE wirestead::wirestead_shared
+    )
+  elseif(TARGET wirestead::wirestead_static)
+    add_library(wirestead::wirestead INTERFACE IMPORTED)
+    target_link_libraries(
+      wirestead::wirestead INTERFACE wirestead::wirestead_static
+    )
+  endif()
 endif()
 
 check_required_components(wirestead)
+
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.31" AND POLICY CMP0167)
+  cmake_policy(POP)
+endif()

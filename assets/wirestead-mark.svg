@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">Wirestead symbol</title>
+  <desc id="desc">Two bold, offset arrows represent independent asynchronous send and receive paths.</desc>
+  <path d="M12 8h46.5c2.2 0 4.3.9 5.8 2.4l26.9 26.9a6.6 6.6 0 0 1 0 9.4L64.3 73.6a8.1 8.1 0 0 1-11.5 0l-6.1-6.1a8.1 8.1 0 0 1 0-11.5l9.9-9.9H12a8 8 0 0 1-8-8V16a8 8 0 0 1 8-8Z" fill="#147AE6"/>
+  <path d="M84 88H37.5c-2.2 0-4.3-.9-5.8-2.4L4.8 58.7a6.6 6.6 0 0 1 0-9.4l26.9-26.9a8.1 8.1 0 0 1 11.5 0l6.1 6.1a8.1 8.1 0 0 1 0 11.5l-9.9 9.9H84a8 8 0 0 1 8 8V80a8 8 0 0 1-8 8Z" fill="#00C98B"/>
+</svg>

@@ -22,10 +22,10 @@
 #include <string>
 #include <vector>
 
-#include "unilink/diagnostics/exceptions.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/diagnostics/exceptions.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 using namespace std::chrono_literals;
 
 class BuilderTest : public ::testing::Test {
@@ -178,7 +178,7 @@ TEST_F(BuilderTest, TcpClientBuilderAllowsMissingCallbacks) {
 }
 
 TEST_F(BuilderTest, SerialBuilderAdvancedOptions) {
-  auto serial = unilink::serial(nullDevice(), 115200)
+  auto serial = wirestead::serial(nullDevice(), 115200)
                     .independent_context(true)
                     .auto_start(false)
                     .char_size(7)
@@ -204,19 +204,19 @@ TEST_F(BuilderTest, SerialBuilderAdvancedOptions) {
 }
 
 TEST_F(BuilderTest, SerialBuilderStringParityAndFlowOptions) {
-  auto even_software = unilink::serial(nullDevice(), 9600)
+  auto even_software = wirestead::serial(nullDevice(), 9600)
                            .parity("EVEN")
                            .flow_control("SOFTWARE")
                            .on_data([](auto&&) {})
                            .on_error([](auto&&) {})
                            .build();
-  auto odd_hardware = unilink::serial(nullDevice(), 9600)
+  auto odd_hardware = wirestead::serial(nullDevice(), 9600)
                           .parity("odd")
                           .flow_control("hardware")
                           .on_data([](auto&&) {})
                           .on_error([](auto&&) {})
                           .build();
-  auto defaulted = unilink::serial(nullDevice(), 9600)
+  auto defaulted = wirestead::serial(nullDevice(), 9600)
                        .parity("unknown")
                        .flow_control("unknown")
                        .on_data([](auto&&) {})
@@ -229,7 +229,7 @@ TEST_F(BuilderTest, SerialBuilderStringParityAndFlowOptions) {
 }
 
 TEST_F(BuilderTest, SerialBuilderRejectsInvalidConfiguration) {
-  EXPECT_THROW(unilink::serial("", 9600), diagnostics::BuilderException);
+  EXPECT_THROW(wirestead::serial("", 9600), diagnostics::BuilderException);
 }
 
 TEST_F(BuilderTest, SerialBuilderAllowsMissingCallbacks) {
@@ -367,14 +367,14 @@ TEST_F(BuilderTest, DynamicBackpressureThreshold) {
 }
 
 TEST_F(BuilderTest, ConvenienceFunctions) {
-  auto server = unilink::tcp_server(test_port_)
+  auto server = wirestead::tcp_server(test_port_)
                     .on_connect([](const wrapper::ConnectionContext& ctx) {})
                     .on_data([](auto&&) {})
                     .on_error([](auto&&) {})
                     .build();
   EXPECT_NE(server, nullptr);
 
-  auto client = unilink::tcp_client("127.0.0.1", test_port_)
+  auto client = wirestead::tcp_client("127.0.0.1", test_port_)
                     .on_connect([](const wrapper::ConnectionContext& ctx) {})
                     .on_data([](const wrapper::MessageContext& ctx) {})
                     .on_data([](auto&&) {})
@@ -382,7 +382,7 @@ TEST_F(BuilderTest, ConvenienceFunctions) {
                     .build();
   EXPECT_NE(client, nullptr);
 
-  auto serial = unilink::serial(nullDevice(), 9600)
+  auto serial = wirestead::serial(nullDevice(), 9600)
                     .on_connect([](const wrapper::ConnectionContext& ctx) {})
                     .on_data([](const wrapper::MessageContext& ctx) {})
                     .on_data([](auto&&) {})
@@ -390,7 +390,7 @@ TEST_F(BuilderTest, ConvenienceFunctions) {
                     .build();
   EXPECT_NE(serial, nullptr);
 
-  auto udp = unilink::udp_client(test_port_)
+  auto udp = wirestead::udp_client(test_port_)
                  .on_connect([](const wrapper::ConnectionContext& ctx) {})
                  .on_data([](auto&&) {})
                  .on_error([](auto&&) {})

@@ -16,50 +16,5 @@
 
 #pragma once
 
-#if __has_include(<unilink_export.hpp>)
-#include <unilink_export.hpp>
-#endif
-
-#if !defined(UNILINK_API)
-#if defined(UNILINK_BUILD_SHARED)
-#if defined(_WIN32) || defined(__CYGWIN__)
-#if defined(UNILINK_BUILDING_LIBRARY)
-#define UNILINK_API __declspec(dllexport)
-#else
-#define UNILINK_API __declspec(dllimport)
-#endif
-#else
-#define UNILINK_API __attribute__((visibility("default")))
-#endif
-#elif defined(UNILINK_EXPORT)
-#define UNILINK_API UNILINK_EXPORT
-#else
-#define UNILINK_API
-#endif
-#endif
-
-#if !defined(UNILINK_LOCAL)
-#if defined(UNILINK_NO_EXPORT)
-#define UNILINK_LOCAL UNILINK_NO_EXPORT
-#elif defined(_WIN32) || defined(__CYGWIN__)
-#define UNILINK_LOCAL
-#else
-#define UNILINK_LOCAL __attribute__((visibility("hidden")))
-#endif
-#endif
-
-#ifndef UNILINK_EXPORT
-#define UNILINK_EXPORT UNILINK_API
-#endif
-
-#ifndef UNILINK_NO_EXPORT
-#define UNILINK_NO_EXPORT UNILINK_LOCAL
-#endif
-
-// Wirestead alias: every symbol is annotated with UNILINK_API, not a
-// separately-tracked macro, so WIRESTEAD_API always mirrors whatever
-// UNILINK_API resolved to above rather than duplicating the dllexport/
-// dllimport/visibility logic. See docs/migration-from-unilink.md.
-#ifndef WIRESTEAD_API
-#define WIRESTEAD_API UNILINK_API
-#endif
+#include <wirestead/base/visibility.hpp>
+#include <wirestead/compat/unilink.hpp>

@@ -21,11 +21,11 @@
 #include <variant>
 #include <vector>
 
-#include "unilink/transport/base/bp_state_machine.hpp"
+#include "wirestead/transport/base/bp_state_machine.hpp"
 
-using namespace unilink::transport::queue_util;
-using unilink::base::constants::BackpressureStrategy;
-using unilink::interface::Channel;
+using namespace wirestead::transport::queue_util;
+using wirestead::base::constants::BackpressureStrategy;
+using wirestead::interface::Channel;
 
 namespace {
 
@@ -44,7 +44,7 @@ struct FakeQueues {
   std::atomic<size_t> queue_bytes{0};
   std::atomic<size_t> pending_bytes{0};
   std::atomic<bool> backpressure_active{false};
-  unilink::diagnostics::RuntimeStatsCounters stats;
+  wirestead::diagnostics::RuntimeStatsCounters stats;
 
   BackpressureFields fields(BackpressureStrategy strategy, size_t bp_high = 100, size_t bp_low = 50,
                             size_t bp_limit = 400) {

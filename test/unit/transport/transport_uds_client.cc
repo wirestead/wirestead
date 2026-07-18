@@ -29,15 +29,15 @@
 #include "test/mocks/mock_uds_socket.hpp"
 #include "test_constants.hpp"
 #include "test_utils.hpp"
-#include "unilink/base/constants.hpp"
-#include "unilink/memory/safe_span.hpp"
-#include "unilink/transport/base/reconnect_policy.hpp"
-#include "unilink/transport/uds/uds_client.hpp"
+#include "wirestead/base/constants.hpp"
+#include "wirestead/memory/safe_span.hpp"
+#include "wirestead/transport/base/reconnect_policy.hpp"
+#include "wirestead/transport/uds/uds_client.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
-using namespace unilink::test::mocks;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::transport;
+using namespace wirestead::test::mocks;
+using namespace wirestead::test;
 using ::testing::_;
 using ::testing::AnyNumber;
 using ::testing::Invoke;
@@ -47,8 +47,8 @@ using ::testing::SaveArg;
 class TransportUdsClientTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    unilink::diagnostics::Logger::instance().set_console_output(true);
-    unilink::diagnostics::Logger::instance().set_level(unilink::diagnostics::LogLevel::DEBUG);
+    wirestead::diagnostics::Logger::instance().set_console_output(true);
+    wirestead::diagnostics::Logger::instance().set_level(wirestead::diagnostics::LogLevel::DEBUG);
 
     auto temp_path = TestUtils::makeUniqueUdsSocketPath("ulc");
     cfg.socket_path = temp_path.string();
@@ -145,7 +145,7 @@ TEST_F(TransportUdsClientTest, ConnectionFailure) {
   EXPECT_TRUE(has_error);
 }
 
-// Regression test for jwsung91/unilink#445: record_error()'s retry_count
+// Regression test for jwsung91/wirestead#445: record_error()'s retry_count
 // parameter used to be silently discarded here (an unnamed uint32_t
 // parameter in the pre-ErrorInfoHolder implementation), so
 // last_error_info()->retry_count always reported 0 regardless of how many

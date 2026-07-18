@@ -28,17 +28,17 @@
 #include <vector>
 
 #include "test/utils/test_utils.hpp"
-#include "unilink/base/constants.hpp"
-#include "unilink/config/tcp_client_config.hpp"
-#include "unilink/config/tcp_server_config.hpp"
-#include "unilink/memory/safe_span.hpp"
-#include "unilink/transport/base/reconnect_policy.hpp"
-#include "unilink/transport/tcp_client/tcp_client.hpp"
-#include "unilink/transport/tcp_server/tcp_server.hpp"
+#include "wirestead/base/constants.hpp"
+#include "wirestead/config/tcp_client_config.hpp"
+#include "wirestead/config/tcp_server_config.hpp"
+#include "wirestead/memory/safe_span.hpp"
+#include "wirestead/transport/base/reconnect_policy.hpp"
+#include "wirestead/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/transport/tcp_server/tcp_server.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::transport;
+using namespace wirestead::test;
 using namespace std::chrono_literals;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
@@ -198,7 +198,7 @@ TEST_F(TransportTcpClientTest, QueueLimitDropsMessage) {
   // bp_limit_ = max(backpressure_threshold * 4, DEFAULT_BACKPRESSURE_THRESHOLD) = 1MB here
   // (backpressure_threshold=1024 * 4 = 4KB is below the 1MB default floor).
   // A 2MB write exceeds it outright and is now rejected synchronously via
-  // try_reserve_limit_bytes() (jwsung91/unilink#517) instead of being
+  // try_reserve_limit_bytes() (jwsung91/wirestead#517) instead of being
   // accepted and only discovered too-large once routed onto the strand -
   // matching every other transport's existing fallback-path precheck (see
   // e.g. TransportTcpServerSessionTest.QueueLimitDropsMessage). Backpressure

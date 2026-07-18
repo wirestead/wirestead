@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12)
 
 project(
-  unilink
+  wirestead
   VERSION 0.9.0
   DESCRIPTION
     "Unified, cross-platform async C++ library for Serial, TCP, UDP, and UDS"
@@ -10,24 +10,24 @@ project(
 )
 
 # Include build options
-include(${CMAKE_CURRENT_LIST_DIR}/cmake/UnilinkOptions.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/WiresteadOptions.cmake)
 
 # Include compiler configuration (must remain before any target definitions)
-include(${CMAKE_CURRENT_LIST_DIR}/cmake/UnilinkCompiler.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/WiresteadCompiler.cmake)
 
 # Include dependencies
-include(${CMAKE_CURRENT_LIST_DIR}/cmake/UnilinkDependencies.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/WiresteadDependencies.cmake)
 
 # Include library sources and target construction
-include(${CMAKE_CURRENT_LIST_DIR}/cmake/UnilinkSources.cmake)
-include(${CMAKE_CURRENT_LIST_DIR}/cmake/UnilinkTargets.cmake)
-unilink_add_library_targets()
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/WiresteadSources.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/WiresteadTargets.cmake)
+wirestead_add_library_targets()
 
-# Disable MSVC LTCG for unilink libraries to avoid link.exe access violations.
+# Disable MSVC LTCG for wirestead libraries to avoid link.exe access violations.
 # This is a known workaround. Future investigation should aim to resolve the
 # underlying conflict that causes these violations when LTCG is enabled.
 if(MSVC)
-  foreach(_target IN LISTS UNILINK_LIBRARY_TARGETS)
+  foreach(_target IN LISTS WIRESTEAD_LIBRARY_TARGETS)
     target_compile_options(
       ${_target}
       PRIVATE "$<$<CONFIG:Release>:/GL->" "$<$<CONFIG:RelWithDebInfo>:/GL->"
@@ -52,23 +52,23 @@ if(MSVC)
 endif()
 
 # Export header generation
-if(UNILINK_ENABLE_EXPORT_HEADER)
+if(WIRESTEAD_ENABLE_EXPORT_HEADER)
   include(GenerateExportHeader)
 
-  if(UNILINK_EXPORT_HEADER_TARGET)
+  if(WIRESTEAD_EXPORT_HEADER_TARGET)
     generate_export_header(
-      ${UNILINK_EXPORT_HEADER_TARGET} EXPORT_FILE_NAME
-      "${CMAKE_CURRENT_BINARY_DIR}/unilink_export.hpp" BASE_NAME UNILINK
+      ${WIRESTEAD_EXPORT_HEADER_TARGET} EXPORT_FILE_NAME
+      "${CMAKE_CURRENT_BINARY_DIR}/wirestead_export.hpp" BASE_NAME WIRESTEAD
     )
     target_include_directories(
-      ${UNILINK_EXPORT_HEADER_TARGET}
+      ${WIRESTEAD_EXPORT_HEADER_TARGET}
       PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     )
   endif()
 endif()
 
 # Testing
-if(UNILINK_BUILD_TESTS)
+if(WIRESTEAD_BUILD_TESTS)
   include(CTest)
   enable_testing()
   add_subdirectory(test)
@@ -78,9 +78,9 @@ add_custom_target(
   docs
   COMMAND
     ${CMAKE_COMMAND} -E echo
-    "Documentation generation moved to https://github.com/unilink-lab/unilink-docs"
-  COMMENT "Documentation generation moved to unilink-docs"
+    "Documentation generation moved to https://github.com/wirestead/wirestead-docs"
+  COMMENT "Documentation generation moved to wirestead-docs"
 )
 
 # Include packaging configuration
-include(cmake/UnilinkPackaging.cmake)
+include(cmake/WiresteadPackaging.cmake)

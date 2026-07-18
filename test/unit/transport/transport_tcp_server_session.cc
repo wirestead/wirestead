@@ -22,12 +22,12 @@
 #include <vector>
 
 #include "fake_tcp_socket.hpp"
-#include "unilink/interface/itcp_socket.hpp"
-#include "unilink/transport/tcp_server/tcp_server_session.hpp"
+#include "wirestead/interface/itcp_socket.hpp"
+#include "wirestead/transport/tcp_server/tcp_server_session.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
-using unilink::test::FakeTcpSocket;
+using namespace wirestead;
+using namespace wirestead::transport;
+using wirestead::test::FakeTcpSocket;
 using namespace std::chrono_literals;
 
 namespace {
@@ -38,7 +38,7 @@ using tcp = net::ip::tcp;
 // Unlike FakeTcpSocket, whose async_write always auto-completes immediately,
 // this stub withholds the write completion indefinitely - modeling a real
 // client that has stopped reading, so the outstanding write never finishes
-// on its own. This is required to reproduce jwsung91/unilink#452: without
+// on its own. This is required to reproduce jwsung91/wirestead#452: without
 // it, the fake socket's own auto-completion would drain the queue through
 // the normal (already-correct) path, masking whether do_close() itself
 // clears backpressure on disconnect.
@@ -194,7 +194,7 @@ TEST(TransportTcpServerSessionTest, BackpressureReliefAfterDrain) {
   EXPECT_LE(events.back(), bp_threshold / 2);
 }
 
-// Regression test for jwsung91/unilink#452: if a client disconnects (read
+// Regression test for jwsung91/wirestead#452: if a client disconnects (read
 // error) while backpressure is active for its session, do_close() must
 // unconditionally clear it and fire on_backpressure - otherwise a caller
 // blocked in send_to_blocking() for this client would never wake up, since

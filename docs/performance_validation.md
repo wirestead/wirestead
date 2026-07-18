@@ -37,10 +37,10 @@ Benchmark runs should preserve:
   and container/VM status when applicable
 
 Release notes and `docs/release_checklist.md` should link the latest relevant
-benchmark artifact or the corresponding `unilink-benchmarks` result.
+benchmark artifact or the corresponding Wirestead benchmark result.
 
 `scripts/run_benchmarks.sh` is the core repository's manual/nightly harness. It
-consumes an installed `unilink` package via `--cmake-prefix`, builds a small
+consumes an installed Wirestead package via `--cmake-prefix`, builds a small
 external benchmark consumer, and records TCP loopback latency, payload-size
 throughput, send variant acceptance, and queue snapshot metrics. The benchmark
 workflow runs this harness as a soft gate; compare the generated JSON against

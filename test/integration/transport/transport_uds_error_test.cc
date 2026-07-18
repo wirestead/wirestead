@@ -4,12 +4,12 @@
 #include <filesystem>
 
 #include "test_utils.hpp"
-#include "unilink/transport/uds/uds_client.hpp"
-#include "unilink/transport/uds/uds_server.hpp"
+#include "wirestead/transport/uds/uds_client.hpp"
+#include "wirestead/transport/uds/uds_server.hpp"
 
-using namespace unilink;
-using namespace unilink::transport;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::transport;
+using namespace wirestead::test;
 
 class UdsErrorTest : public ::testing::Test {
  protected:
@@ -49,7 +49,7 @@ TEST_F(UdsErrorTest, PathPermissionDenied) {
   config::UdsServerConfig cfg;
 
   // Create a temporary directory and remove all permissions
-  std::string restricted_dir = TestUtils::makeUniqueTempFilePath("unilink_restricted").string();
+  std::string restricted_dir = TestUtils::makeUniqueTempFilePath("wirestead_restricted").string();
   std::filesystem::create_directory(restricted_dir);
   std::filesystem::permissions(restricted_dir, std::filesystem::perms::none);
 

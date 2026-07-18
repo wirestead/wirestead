@@ -17,15 +17,15 @@
 
 # TCP integration tests NOTE: test_communication.cc temporarily disabled due to
 # last_error_ issues
-get_property(_unilink_test_lib GLOBAL PROPERTY UNILINK_TEST_LIB)
+get_property(_wirestead_test_lib GLOBAL PROPERTY WIRESTEAD_TEST_LIB)
 
-function(unilink_add_integration_gtest target source_path labels timeout)
+function(wirestead_add_integration_gtest target source_path labels timeout)
   add_executable(${target} ${source_path})
   target_link_libraries(
-    ${target} PRIVATE ${_unilink_test_lib} GTest::gtest GTest::gtest_main
+    ${target} PRIVATE ${_wirestead_test_lib} GTest::gtest GTest::gtest_main
                       GTest::gmock
   )
-  unilink_set_test_warning_options(${target})
+  wirestead_set_test_warning_options(${target})
   target_include_directories(
     ${target} PRIVATE ${CMAKE_SOURCE_DIR}/test/utils
                       ${CMAKE_SOURCE_DIR}/test/fixtures
@@ -65,7 +65,7 @@ foreach(
     set(timeout 600)
   endif()
 
-  unilink_add_integration_gtest(
+  wirestead_add_integration_gtest(
     run_integration_${test_name} ${CMAKE_CURRENT_SOURCE_DIR}/tcp/${test_file}
     "integration_tcp_medium" ${timeout} "tcp_port_allocation"
   )
@@ -106,14 +106,14 @@ foreach(
     set(resource_lock "uds_socket_path_allocation")
   endif()
 
-  unilink_add_integration_gtest(
+  wirestead_add_integration_gtest(
     run_integration_${test_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/wrapper/${test_file} "${test_label}" 300
     "${resource_lock}"
   )
 endforeach()
 
-unilink_add_integration_gtest(
+wirestead_add_integration_gtest(
   run_integration_udp_large_payload_receive
   ${CMAKE_CURRENT_SOURCE_DIR}/wrapper/test_udp_large_payload_receive.cc
   "integration_udp_large_payload_diagnostic" 60 "tcp_port_allocation"
@@ -150,38 +150,38 @@ foreach(
     set(resource_lock "uds_socket_path_allocation")
   endif()
 
-  unilink_add_integration_gtest(
+  wirestead_add_integration_gtest(
     run_integration_${test_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/transport/${test_file} "${test_label}" 300
     "${resource_lock}"
   )
 endforeach()
 
-unilink_add_integration_gtest(
+wirestead_add_integration_gtest(
   run_integration_udp_large_payload_transport
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_udp_large_payload_transport.cc
   "integration_udp_large_payload_diagnostic" 60 "tcp_port_allocation"
 )
 
-unilink_add_integration_gtest(
+wirestead_add_integration_gtest(
   run_integration_test_contract_compliance
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_contract_compliance.cc
   "integration_transport_contract_medium" 300
 )
 
-unilink_add_integration_gtest(
+wirestead_add_integration_gtest(
   run_integration_test_tcp_server_connectivity
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_tcp_server_connectivity.cc
   "integration_transport_tcp_medium" 300
 )
 
-unilink_add_integration_gtest(
+wirestead_add_integration_gtest(
   run_integration_transport_tcp_server_security_test
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/transport_tcp_server_security_test.cc
   "integration_transport_tcp_security_medium" 300
 )
 
-unilink_add_integration_gtest(
+wirestead_add_integration_gtest(
   run_integration_transport_uds_server_security_test
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/transport_uds_server_security_test.cc
   "integration_transport_uds_security_medium" 300 "uds_socket_path_allocation"
@@ -193,7 +193,7 @@ foreach(test_file test_serial_builder_validation.cc test_serial_loopback.cc
                   test_serial_timeout.cc
 )
   get_filename_component(test_name ${test_file} NAME_WE)
-  unilink_add_integration_gtest(
+  wirestead_add_integration_gtest(
     run_integration_${test_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/serial/${test_file} "integration_serial_medium"
     300 "tcp_port_allocation"
@@ -203,7 +203,7 @@ endforeach()
 # Builder integration tests
 foreach(test_file test_builder_integration.cc)
   get_filename_component(test_name ${test_file} NAME_WE)
-  unilink_add_integration_gtest(
+  wirestead_add_integration_gtest(
     run_integration_${test_name}
     ${CMAKE_CURRENT_SOURCE_DIR}/builder/${test_file}
     "integration_builder_medium" 300 "tcp_port_allocation"
@@ -213,7 +213,7 @@ endforeach()
 # UDS integration tests
 foreach(test_file test_uds_integration.cc)
   get_filename_component(test_name ${test_file} NAME_WE)
-  unilink_add_integration_gtest(
+  wirestead_add_integration_gtest(
     run_integration_${test_name} ${CMAKE_CURRENT_SOURCE_DIR}/uds/${test_file}
     "integration_uds_medium" 300 "uds_socket_path_allocation"
   )
@@ -224,7 +224,7 @@ foreach(test_file test_stable_integration.cc test_core_integrated.cc
                   test_safety_integrated.cc
 )
   get_filename_component(test_name ${test_file} NAME_WE)
-  unilink_add_integration_gtest(
+  wirestead_add_integration_gtest(
     run_integration_${test_name} ${CMAKE_CURRENT_SOURCE_DIR}/core/${test_file}
     "integration_core_medium" 600 "tcp_port_allocation"
   )

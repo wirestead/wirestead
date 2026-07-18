@@ -4,11 +4,11 @@
 #include <thread>
 #include <vector>
 
-#include "unilink/diagnostics/logger.hpp"
-#include "unilink/memory/memory_tracker.hpp"
-#include "unilink/memory/safe_data_buffer.hpp"
+#include "wirestead/diagnostics/logger.hpp"
+#include "wirestead/memory/memory_tracker.hpp"
+#include "wirestead/memory/safe_data_buffer.hpp"
 
-using namespace unilink::memory;
+using namespace wirestead::memory;
 
 class MemoryTrackerAndBufferTest : public ::testing::Test {
  protected:
@@ -78,7 +78,7 @@ TEST_F(MemoryTrackerAndBufferTest, ReportingMethods) {
 }
 
 TEST_F(MemoryTrackerAndBufferTest, SafeDataBufferComprehensive) {
-  std::string original = "Unilink Safe Buffer Test";
+  std::string original = "Wirestead Safe Buffer Test";
   SafeDataBuffer buffer(original);
 
   EXPECT_FALSE(buffer.empty());
@@ -86,7 +86,7 @@ TEST_F(MemoryTrackerAndBufferTest, SafeDataBufferComprehensive) {
   EXPECT_EQ(buffer.as_string(), original);
 
   // Access
-  EXPECT_EQ(buffer[0], 'U');
+  EXPECT_EQ(buffer[0], 'W');
   EXPECT_EQ(buffer.at(original.size() - 1), 't');
   EXPECT_THROW(buffer.at(original.size()), std::out_of_range);
   EXPECT_THROW(buffer[original.size()], std::out_of_range);
@@ -151,10 +151,10 @@ TEST_F(MemoryTrackerAndBufferTest, MemoryTrackerLeakDetection) {
 // BASE UTILITY TESTS (For extra coverage)
 // ============================================================================
 
-#include "unilink/base/common.hpp"
+#include "wirestead/base/common.hpp"
 
 TEST(BaseUtilityTest, SafeMemcpy) {
-  using namespace unilink::base::safe_memory;
+  using namespace wirestead::base::safe_memory;
   uint8_t src[] = {1, 2, 3, 4, 5};
   uint8_t dest[5];
 
@@ -163,12 +163,12 @@ TEST(BaseUtilityTest, SafeMemcpy) {
 
   EXPECT_THROW(safe_memcpy(nullptr, src, 5), std::invalid_argument);
   EXPECT_THROW(safe_memcpy(dest, nullptr, 5), std::invalid_argument);
-  EXPECT_THROW(safe_memcpy(dest, src, unilink::base::constants::MAX_BUFFER_SIZE + 1), std::invalid_argument);
+  EXPECT_THROW(safe_memcpy(dest, src, wirestead::base::constants::MAX_BUFFER_SIZE + 1), std::invalid_argument);
   EXPECT_NO_THROW(safe_memcpy(dest, src, 0));
 }
 
 TEST(BaseUtilityTest, SafeConvert) {
-  using namespace unilink::base::safe_convert;
+  using namespace wirestead::base::safe_convert;
   std::string s = "test";
 
   auto vec = string_to_uint8(s);

@@ -27,16 +27,16 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/base/common.hpp"
-#include "unilink/config/udp_config.hpp"
-#include "unilink/framer/line_framer.hpp"
-#include "unilink/wrapper/udp/udp.hpp"
-#include "unilink/wrapper/udp/udp_server.hpp"
+#include "wirestead/base/common.hpp"
+#include "wirestead/config/udp_config.hpp"
+#include "wirestead/framer/line_framer.hpp"
+#include "wirestead/wrapper/udp/udp.hpp"
+#include "wirestead/wrapper/udp/udp_server.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 using namespace std::chrono_literals;
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 TEST(UdpServerWrapperLifecycleTest, ExternalIoContextManagement) {
@@ -351,4 +351,4 @@ TEST(UdpServerWrapperLifecycleTest, BroadcastWithoutChannel) {
 }
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

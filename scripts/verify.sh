@@ -47,7 +47,7 @@ for arg in "$@"; do
       echo "Options:"
       echo "  --tests-only, -t   Skip formatting and doc snippets; run build + tests only"
       echo "  --skip-format      Skip clang-format / cmake-format step"
-      echo "  --skip-docs        Accepted for compatibility; docs validation moved to unilink-docs"
+      echo "  --skip-docs        Accepted for compatibility; docs validation moved to wirestead-docs"
       echo "  --tsan             Enable ThreadSanitizer (TSAN) for compilation and contract testing (matches CI)"
       echo "  --help, -h         Show this help message"
       exit 0
@@ -59,31 +59,31 @@ for arg in "$@"; do
   esac
 done
 
-UNILINK_VERIFY_PRESET_USER_SET=1
-if [[ -z "${UNILINK_VERIFY_PRESET:-}" ]]; then
-  UNILINK_VERIFY_PRESET_USER_SET=0
+WIRESTEAD_VERIFY_PRESET_USER_SET=1
+if [[ -z "${WIRESTEAD_VERIFY_PRESET:-}" ]]; then
+  WIRESTEAD_VERIFY_PRESET_USER_SET=0
   # Detect host platform and suggest a preset
   OS="$(uname -s)"
   ARCH="$(uname -m)"
   case "${OS}:${ARCH}" in
-    Linux:x86_64)  UNILINK_VERIFY_PRESET="dev-linux-x64" ;;
-    Linux:aarch64 | Linux:arm64) UNILINK_VERIFY_PRESET="dev-linux-arm64" ;;
-    Darwin:arm64)  UNILINK_VERIFY_PRESET="dev-macos-arm64" ;;
-    Darwin:x86_64) UNILINK_VERIFY_PRESET="dev-macos-x64" ;;
+    Linux:x86_64)  WIRESTEAD_VERIFY_PRESET="dev-linux-x64" ;;
+    Linux:aarch64 | Linux:arm64) WIRESTEAD_VERIFY_PRESET="dev-linux-arm64" ;;
+    Darwin:arm64)  WIRESTEAD_VERIFY_PRESET="dev-macos-arm64" ;;
+    Darwin:x86_64) WIRESTEAD_VERIFY_PRESET="dev-macos-x64" ;;
   esac
 fi
 
-UNILINK_VERIFY_BUILD_DIR_USER_SET=1
-if [[ -z "${UNILINK_VERIFY_BUILD_DIR:-}" ]]; then
-  UNILINK_VERIFY_BUILD_DIR_USER_SET=0
-  if [[ -n "${UNILINK_VERIFY_PRESET:-}" ]]; then
-    UNILINK_VERIFY_BUILD_DIR="build/${UNILINK_VERIFY_PRESET}"
+WIRESTEAD_VERIFY_BUILD_DIR_USER_SET=1
+if [[ -z "${WIRESTEAD_VERIFY_BUILD_DIR:-}" ]]; then
+  WIRESTEAD_VERIFY_BUILD_DIR_USER_SET=0
+  if [[ -n "${WIRESTEAD_VERIFY_PRESET:-}" ]]; then
+    WIRESTEAD_VERIFY_BUILD_DIR="build/${WIRESTEAD_VERIFY_PRESET}"
   else
-    UNILINK_VERIFY_BUILD_DIR="build"
+    WIRESTEAD_VERIFY_BUILD_DIR="build"
   fi
 fi
 
-if [[ -n "${UNILINK_VERIFY_PRESET:-}" ]]; then
+if [[ -n "${WIRESTEAD_VERIFY_PRESET:-}" ]]; then
   VCPKG_TOOLCHAIN="${PROJECT_ROOT}/vcpkg/scripts/buildsystems/vcpkg.cmake"
   PRESET_UNAVAILABLE_REASON=""
   if [[ ! -f "${VCPKG_TOOLCHAIN}" ]]; then
@@ -93,18 +93,18 @@ if [[ -n "${UNILINK_VERIFY_PRESET:-}" ]]; then
   fi
 
   if [[ -n "${PRESET_UNAVAILABLE_REASON}" ]]; then
-    if [[ "${UNILINK_VERIFY_PRESET_USER_SET}" -eq 1 ]]; then
-      echo "Requested preset '${UNILINK_VERIFY_PRESET}' is unavailable: ${PRESET_UNAVAILABLE_REASON}" >&2
+    if [[ "${WIRESTEAD_VERIFY_PRESET_USER_SET}" -eq 1 ]]; then
+      echo "Requested preset '${WIRESTEAD_VERIFY_PRESET}' is unavailable: ${PRESET_UNAVAILABLE_REASON}" >&2
       echo "Run ./scripts/setup_dev_env.sh or choose a non-preset build directory." >&2
       exit 1
     fi
 
-    echo "Auto-detected preset '${UNILINK_VERIFY_PRESET}' is unavailable: ${PRESET_UNAVAILABLE_REASON}"
-    UNILINK_VERIFY_PRESET=""
-    if [[ "${UNILINK_VERIFY_BUILD_DIR_USER_SET}" -eq 0 ]]; then
-      UNILINK_VERIFY_BUILD_DIR="build/verify"
+    echo "Auto-detected preset '${WIRESTEAD_VERIFY_PRESET}' is unavailable: ${PRESET_UNAVAILABLE_REASON}"
+    WIRESTEAD_VERIFY_PRESET=""
+    if [[ "${WIRESTEAD_VERIFY_BUILD_DIR_USER_SET}" -eq 0 ]]; then
+      WIRESTEAD_VERIFY_BUILD_DIR="build/verify"
     fi
-    echo "Falling back to direct CMake configure in ${UNILINK_VERIFY_BUILD_DIR}."
+    echo "Falling back to direct CMake configure in ${WIRESTEAD_VERIFY_BUILD_DIR}."
   fi
 fi
 
@@ -131,47 +131,47 @@ fi
 section "Step 2: Building project (Debug)"
 EXTRA_CMAKE_ARGS=()
 if [[ "${ENABLE_TSAN}" -eq 1 ]]; then
-  EXTRA_CMAKE_ARGS+=("-DUNILINK_ENABLE_SANITIZERS=ON" "-DUNILINK_ENABLE_TSAN=ON" "-DUNILINK_ENABLE_ASAN=OFF" "-DUNILINK_ENABLE_UBSAN=OFF")
+  EXTRA_CMAKE_ARGS+=("-DWIRESTEAD_ENABLE_SANITIZERS=ON" "-DWIRESTEAD_ENABLE_TSAN=ON" "-DWIRESTEAD_ENABLE_ASAN=OFF" "-DWIRESTEAD_ENABLE_UBSAN=OFF")
 fi
 
-if [[ -n "${UNILINK_VERIFY_PRESET:-}" ]]; then
-  echo "Using preset: ${UNILINK_VERIFY_PRESET}"
-  cmake --preset "${UNILINK_VERIFY_PRESET}" "${EXTRA_CMAKE_ARGS[@]}"
+if [[ -n "${WIRESTEAD_VERIFY_PRESET:-}" ]]; then
+  echo "Using preset: ${WIRESTEAD_VERIFY_PRESET}"
+  cmake --preset "${WIRESTEAD_VERIFY_PRESET}" "${EXTRA_CMAKE_ARGS[@]}"
 else
-  mkdir -p "${UNILINK_VERIFY_BUILD_DIR}"
+  mkdir -p "${WIRESTEAD_VERIFY_BUILD_DIR}"
   # Check if local vcpkg toolchain exists and use it as fallback
   VCPKG_TOOLCHAIN="${PROJECT_ROOT}/vcpkg/scripts/buildsystems/vcpkg.cmake"
   if [[ -f "${VCPKG_TOOLCHAIN}" ]]; then
     echo "Using local vcpkg toolchain: ${VCPKG_TOOLCHAIN}"
-    cmake -S . -B "${UNILINK_VERIFY_BUILD_DIR}" \
+    cmake -S . -B "${WIRESTEAD_VERIFY_BUILD_DIR}" \
       -DCMAKE_BUILD_TYPE=Debug \
       -DCMAKE_CXX_STANDARD=20 \
       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-      -DUNILINK_BUILD_TESTS=ON \
-      -DUNILINK_ENABLE_CONFIG=ON \
+      -DWIRESTEAD_BUILD_TESTS=ON \
+      -DWIRESTEAD_ENABLE_CONFIG=ON \
       -DCMAKE_TOOLCHAIN_FILE="${VCPKG_TOOLCHAIN}" \
       "${EXTRA_CMAKE_ARGS[@]}"
   else
-    cmake -S . -B "${UNILINK_VERIFY_BUILD_DIR}" \
+    cmake -S . -B "${WIRESTEAD_VERIFY_BUILD_DIR}" \
       -DCMAKE_BUILD_TYPE=Debug \
       -DCMAKE_CXX_STANDARD=20 \
       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-      -DUNILINK_BUILD_TESTS=ON \
-      -DUNILINK_ENABLE_CONFIG=ON \
+      -DWIRESTEAD_BUILD_TESTS=ON \
+      -DWIRESTEAD_ENABLE_CONFIG=ON \
       "${EXTRA_CMAKE_ARGS[@]}"
   fi
 fi
 
 if [[ "${ENABLE_TSAN}" -eq 1 ]]; then
-  setarch $(uname -m) -R cmake --build "${UNILINK_VERIFY_BUILD_DIR}" -j"${JOBS}"
+  setarch $(uname -m) -R cmake --build "${WIRESTEAD_VERIFY_BUILD_DIR}" -j"${JOBS}"
 else
-  cmake --build "${UNILINK_VERIFY_BUILD_DIR}" -j"${JOBS}"
+  cmake --build "${WIRESTEAD_VERIFY_BUILD_DIR}" -j"${JOBS}"
 fi
 
 # ---------------------------------------------------------------------------
 # Step 3: Documentation snippets
 # ---------------------------------------------------------------------------
-section "Step 3: Documentation snippets moved to unilink-docs"
+section "Step 3: Documentation snippets moved to wirestead-docs"
 
 # ---------------------------------------------------------------------------
 # Step 4: Full test suite
@@ -181,9 +181,9 @@ if [[ "${ENABLE_TSAN}" -eq 1 ]]; then
   export TSAN_OPTIONS="halt_on_error=1 second_deadlock_stack=1 history_size=7"
   # Run the focused TSAN tests that are run in CI to avoid known races in other components.
   FOCUSED_TESTS="StopContract|StopFromCallback|TcpClientLifecycle|TcpServerWrapperLifecycle|UdsClientWrapperLifecycle|UdsServerWrapperLifecycle|BackpressureStrategyTest|WrapperSendContractTest|ServerBroadcastContractTest"
-  setarch $(uname -m) -R ctest --test-dir "${UNILINK_VERIFY_BUILD_DIR}" -j"${JOBS}" --output-on-failure -R "${FOCUSED_TESTS}"
+  setarch $(uname -m) -R ctest --test-dir "${WIRESTEAD_VERIFY_BUILD_DIR}" -j"${JOBS}" --output-on-failure -R "${FOCUSED_TESTS}"
 else
-  ctest --test-dir "${UNILINK_VERIFY_BUILD_DIR}" -j"${JOBS}" --output-on-failure
+  ctest --test-dir "${WIRESTEAD_VERIFY_BUILD_DIR}" -j"${JOBS}" --output-on-failure
 fi
 
 echo ""

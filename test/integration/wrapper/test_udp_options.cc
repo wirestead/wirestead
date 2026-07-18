@@ -22,14 +22,14 @@
 #include <memory>
 
 #include "test_utils.hpp"
-#include "unilink/builder/udp_builder.hpp"
-#include "unilink/config/udp_config.hpp"
-#include "unilink/transport/udp/udp.hpp"
-#include "unilink/wrapper/udp/udp.hpp"
+#include "wirestead/builder/udp_builder.hpp"
+#include "wirestead/config/udp_config.hpp"
+#include "wirestead/transport/udp/udp.hpp"
+#include "wirestead/wrapper/udp/udp.hpp"
 
-using namespace unilink::wrapper;
-using namespace unilink::config;
-using namespace unilink::test;
+using namespace wirestead::wrapper;
+using namespace wirestead::config;
+using namespace wirestead::test;
 
 class UdpOptionsTest : public ::testing::Test {
  protected:
@@ -85,16 +85,16 @@ TEST_F(UdpOptionsTest, AutoManageStartsInjectedTransport) {
   boost::asio::io_context sender_ioc;
   boost::asio::io_context receiver_ioc;
 
-  auto sender_transport = unilink::transport::UdpChannel::create(sender_cfg, sender_ioc);
-  auto receiver_transport = unilink::transport::UdpChannel::create(receiver_cfg, receiver_ioc);
+  auto sender_transport = wirestead::transport::UdpChannel::create(sender_cfg, sender_ioc);
+  auto receiver_transport = wirestead::transport::UdpChannel::create(receiver_cfg, receiver_ioc);
 
-  UdpClient receiver(std::static_pointer_cast<unilink::interface::Channel>(receiver_transport));
+  UdpClient receiver(std::static_pointer_cast<wirestead::interface::Channel>(receiver_transport));
   auto receiver_started = receiver.start();
   receiver_ioc.run_for(50ms);
   ASSERT_EQ(receiver_started.wait_for(100ms), std::future_status::ready);
   EXPECT_TRUE(receiver_started.get());
 
-  UdpClient sender(std::static_pointer_cast<unilink::interface::Channel>(sender_transport));
+  UdpClient sender(std::static_pointer_cast<wirestead::interface::Channel>(sender_transport));
   sender.auto_start(true);
   sender_ioc.run_for(50ms);
 
@@ -127,9 +127,9 @@ TEST_F(UdpOptionsTest, StartFutureReflectsBindFailure) {
 }
 
 TEST_F(UdpOptionsTest, BuilderCoverageForUdpSocketOptions) {
-  unilink::builder::UdpClientBuilder client_builder;
+  wirestead::builder::UdpClientBuilder client_builder;
   client_builder.broadcast(true).reuse_address(true);
 
-  unilink::builder::UdpServerBuilder server_builder;
+  wirestead::builder::UdpServerBuilder server_builder;
   server_builder.broadcast(true).reuse_address(true);
 }

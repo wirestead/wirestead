@@ -28,16 +28,16 @@
 #include <string_view>
 #include <vector>
 
-#include "unilink/base/constants.hpp"
-#include "unilink/config/udp_config.hpp"
-#include "unilink/wrapper/udp/udp.hpp"
-#include "unilink/wrapper/udp/udp_server.hpp"
+#include "wirestead/base/constants.hpp"
+#include "wirestead/config/udp_config.hpp"
+#include "wirestead/wrapper/udp/udp.hpp"
+#include "wirestead/wrapper/udp/udp_server.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 namespace {
 
-using unilink::base::constants::BackpressureStrategy;
+using wirestead::base::constants::BackpressureStrategy;
 using namespace std::chrono_literals;
 
 constexpr size_t kControlPayloadSize = 1024;
@@ -86,7 +86,7 @@ bool wait_for_start(std::future<bool>& started, std::chrono::milliseconds timeou
 }
 
 bool large_payload_diagnostics_enabled() {
-  const char* value = std::getenv("UNILINK_RUN_UDP_LARGE_PAYLOAD_DIAGNOSTICS");
+  const char* value = std::getenv("WIRESTEAD_RUN_UDP_LARGE_PAYLOAD_DIAGNOSTICS");
   return value != nullptr && std::string_view(value) == "1";
 }
 
@@ -146,7 +146,7 @@ class UdpLargePayloadReceiveTest : public ::testing::TestWithParam<UdpLargePaylo
 TEST_P(UdpLargePayloadReceiveTest, ClientToServerPayloadArrives) {
   const auto param = GetParam();
   if (param.payload_size > kControlPayloadSize && !large_payload_diagnostics_enabled()) {
-    GTEST_SKIP() << "set UNILINK_RUN_UDP_LARGE_PAYLOAD_DIAGNOSTICS=1 to run large UDP payload diagnostics";
+    GTEST_SKIP() << "set WIRESTEAD_RUN_UDP_LARGE_PAYLOAD_DIAGNOSTICS=1 to run large UDP payload diagnostics";
   }
 
   const auto payload = make_payload(param.payload_size, 42);
@@ -209,7 +209,7 @@ class UdpLargePayloadEchoTest : public ::testing::TestWithParam<UdpLargePayloadP
 TEST_P(UdpLargePayloadEchoTest, ServerEchoReturnsPayloadToClient) {
   const auto param = GetParam();
   if (param.payload_size > kControlPayloadSize && !large_payload_diagnostics_enabled()) {
-    GTEST_SKIP() << "set UNILINK_RUN_UDP_LARGE_PAYLOAD_DIAGNOSTICS=1 to run large UDP payload diagnostics";
+    GTEST_SKIP() << "set WIRESTEAD_RUN_UDP_LARGE_PAYLOAD_DIAGNOSTICS=1 to run large UDP payload diagnostics";
   }
 
   const auto payload = make_payload(param.payload_size, 99);
@@ -294,4 +294,4 @@ INSTANTIATE_TEST_SUITE_P(AllStrategiesAndPayloads, UdpLargePayloadEchoTest,
                          test_param_name);
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

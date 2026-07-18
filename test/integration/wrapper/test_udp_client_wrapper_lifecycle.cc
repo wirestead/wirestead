@@ -23,14 +23,14 @@
 #include <string>
 #include <vector>
 
-#include "unilink/framer/line_framer.hpp"
-#include "unilink/interface/channel.hpp"
-#include "unilink/wrapper/udp/udp.hpp"
+#include "wirestead/framer/line_framer.hpp"
+#include "wirestead/interface/channel.hpp"
+#include "wirestead/wrapper/udp/udp.hpp"
 #include "wrapper_contract_test_utils.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 namespace {
@@ -312,7 +312,7 @@ TEST(UdpClientWrapperLifecycleTest, StopWithoutStart) {
   client.stop();
 }
 
-// Regression test for jwsung91/unilink#444: Impl::stop() used to null the
+// Regression test for jwsung91/wirestead#444: Impl::stop() used to null the
 // channel's callbacks (including on_state, which is what fulfills the
 // start() future) without releasing the channel object itself. Since
 // start()'s `if (!channel)` guard is the only place that re-runs
@@ -344,4 +344,4 @@ TEST(UdpClientWrapperLifecycleTest, RestartAfterStopResolvesFutureAndReinstallsH
 }
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

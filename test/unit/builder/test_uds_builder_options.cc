@@ -19,14 +19,14 @@
 #include <chrono>
 #include <vector>
 
-#include "unilink/builder/uds_builder.hpp"
-#include "unilink/diagnostics/exceptions.hpp"
-#include "unilink/framer/line_framer.hpp"
+#include "wirestead/builder/uds_builder.hpp"
+#include "wirestead/diagnostics/exceptions.hpp"
+#include "wirestead/framer/line_framer.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 using namespace std::chrono_literals;
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 TEST(UdsBuilderOptionsTest, UdsClientBuilderSetters) {
@@ -201,4 +201,4 @@ TEST(UdsBuilderOptionsTest, MissingCallbacksAreAllowed) {
 }
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

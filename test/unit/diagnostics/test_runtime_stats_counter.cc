@@ -16,11 +16,11 @@
 
 #include <gtest/gtest.h>
 
-#include "unilink/diagnostics/runtime_stats_counter.hpp"
+#include "wirestead/diagnostics/runtime_stats_counter.hpp"
 
 namespace {
 
-using unilink::diagnostics::RuntimeStatsCounters;
+using wirestead::diagnostics::RuntimeStatsCounters;
 
 TEST(RuntimeStatsCounterTest, DefaultSnapshotIsZero) {
   RuntimeStatsCounters counters;

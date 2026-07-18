@@ -16,34 +16,5 @@
 
 #pragma once
 
-#include <boost/asio.hpp>
-#include <functional>
-
-#include "unilink/base/platform.hpp"
-#include "unilink/base/visibility.hpp"
-
-namespace unilink {
-namespace interface {
-
-namespace net = boost::asio;
-
-/**
- * @brief An interface abstracting Boost.Asio's local::stream_protocol::acceptor for testability.
- * This is an internal interface used for dependency injection and mocking.
- */
-class UNILINK_API UdsAcceptorInterface {
- public:
-  virtual ~UdsAcceptorInterface() = default;
-
-  virtual void open(const net::local::stream_protocol& protocol, boost::system::error_code& ec) = 0;
-  virtual void bind(const net::local::stream_protocol::endpoint& endpoint, boost::system::error_code& ec) = 0;
-  virtual void listen(int backlog, boost::system::error_code& ec) = 0;
-  virtual bool is_open() const = 0;
-  virtual void close(boost::system::error_code& ec) = 0;
-
-  virtual void async_accept(
-      std::function<void(const boost::system::error_code&, net::local::stream_protocol::socket)> handler) = 0;
-};
-
-}  // namespace interface
-}  // namespace unilink
+#include <wirestead/compat/unilink.hpp>
+#include <wirestead/interface/iuds_acceptor.hpp>

@@ -28,12 +28,12 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/diagnostics/logger.hpp"
+#include "wirestead/diagnostics/logger.hpp"
 
-using namespace unilink;
-using namespace unilink::diagnostics;
+using namespace wirestead;
+using namespace wirestead::diagnostics;
 using namespace std::chrono_literals;
-using unilink::test::TestUtils;
+using wirestead::test::TestUtils;
 
 /**
  * @brief Logger behavior tests
@@ -49,7 +49,7 @@ class LoggerBehaviorTest : public ::testing::Test {
     auto now = std::chrono::system_clock::now().time_since_epoch().count();
     static std::atomic<uint64_t> seq{0};
     std::string file_name =
-        "unilink_logger_behavior_test_" + test_name + "_" + std::to_string(now) + "_" + std::to_string(seq++);
+        "wirestead_logger_behavior_test_" + test_name + "_" + std::to_string(now) + "_" + std::to_string(seq++);
     test_log_file_ = TestUtils::makeTempFilePath(file_name);
     TestUtils::removeFileIfExists(test_log_file_);
   }
@@ -64,26 +64,10 @@ class LoggerBehaviorTest : public ::testing::Test {
     Logger::instance().set_callback(nullptr);
     Logger::instance().set_format("{timestamp} [{level}] [{component}] [{operation}] {message}");
     clearLogLevelEnv();
-    clearWiresteadLogLevelEnv();
+    clearUnilinkLogLevelEnv();
   }
 
   void setLogLevelEnv(const std::string& value) {
-#ifdef _WIN32
-    _putenv_s("UNILINK_LOG_LEVEL", value.c_str());
-#else
-    setenv("UNILINK_LOG_LEVEL", value.c_str(), 1);
-#endif
-  }
-
-  void clearLogLevelEnv() {
-#ifdef _WIN32
-    _putenv_s("UNILINK_LOG_LEVEL", "");
-#else
-    unsetenv("UNILINK_LOG_LEVEL");
-#endif
-  }
-
-  void setWiresteadLogLevelEnv(const std::string& value) {
 #ifdef _WIN32
     _putenv_s("WIRESTEAD_LOG_LEVEL", value.c_str());
 #else
@@ -91,11 +75,27 @@ class LoggerBehaviorTest : public ::testing::Test {
 #endif
   }
 
-  void clearWiresteadLogLevelEnv() {
+  void clearLogLevelEnv() {
 #ifdef _WIN32
     _putenv_s("WIRESTEAD_LOG_LEVEL", "");
 #else
     unsetenv("WIRESTEAD_LOG_LEVEL");
+#endif
+  }
+
+  void setUnilinkLogLevelEnv(const std::string& value) {
+#ifdef _WIN32
+    _putenv_s("UNILINK_LOG_LEVEL", value.c_str());
+#else
+    setenv("UNILINK_LOG_LEVEL", value.c_str(), 1);
+#endif
+  }
+
+  void clearUnilinkLogLevelEnv() {
+#ifdef _WIN32
+    _putenv_s("UNILINK_LOG_LEVEL", "");
+#else
+    unsetenv("UNILINK_LOG_LEVEL");
 #endif
   }
 
@@ -111,8 +111,8 @@ TEST_F(LoggerBehaviorTest, FlushWithFileOutput) {
   Logger::instance().set_level(LogLevel::DEBUG);
 
   // Log some messages
-  UNILINK_LOG_DEBUG("test", "operation", "Debug message");
-  UNILINK_LOG_INFO("test", "operation", "Info message");
+  WIRESTEAD_LOG_DEBUG("test", "operation", "Debug message");
+  WIRESTEAD_LOG_INFO("test", "operation", "Info message");
 
   // Flush should work with file output
   Logger::instance().flush();
@@ -141,7 +141,7 @@ TEST_F(LoggerBehaviorTest, WriteToConsoleErrorLevel) {
   Logger::instance().set_level(LogLevel::ERROR);
 
   // Test ERROR level console output
-  UNILINK_LOG_ERROR("test", "operation", "Error message");
+  WIRESTEAD_LOG_ERROR("test", "operation", "Error message");
 
   // Should not crash
 }
@@ -151,7 +151,7 @@ TEST_F(LoggerBehaviorTest, WriteToConsoleCriticalLevel) {
   Logger::instance().set_level(LogLevel::CRITICAL);
 
   // Test CRITICAL level console output
-  UNILINK_LOG_CRITICAL("test", "operation", "Critical message");
+  WIRESTEAD_LOG_CRITICAL("test", "operation", "Critical message");
 
   // Should not crash
 }
@@ -159,10 +159,10 @@ TEST_F(LoggerBehaviorTest, WriteToConsoleCriticalLevel) {
 TEST_F(LoggerBehaviorTest, LogLevelFiltersOutLowerMessages) {
   Logger::instance().set_level(LogLevel::ERROR);
   // These should be filtered
-  UNILINK_LOG_DEBUG("test", "operation", "debug");
-  UNILINK_LOG_INFO("test", "operation", "info");
+  WIRESTEAD_LOG_DEBUG("test", "operation", "debug");
+  WIRESTEAD_LOG_INFO("test", "operation", "info");
   // This should pass
-  UNILINK_LOG_ERROR("test", "operation", "error");
+  WIRESTEAD_LOG_ERROR("test", "operation", "error");
   Logger::instance().flush();
   SUCCEED();
 }
@@ -181,8 +181,8 @@ TEST_F(LoggerBehaviorTest, WriteToFileWithRotation) {
 
   // Generate enough logs to trigger rotation
   for (int i = 0; i < 50; ++i) {
-    UNILINK_LOG_DEBUG("test", "operation",
-                      "Message " + std::to_string(i) + " - " + std::string(50, 'x'));  // Long message
+    WIRESTEAD_LOG_DEBUG("test", "operation",
+                        "Message " + std::to_string(i) + " - " + std::string(50, 'x'));  // Long message
   }
 
   // Flush to ensure all messages are written
@@ -196,7 +196,7 @@ TEST_F(LoggerBehaviorTest, WriteToFileWithoutOpenFile) {
   Logger::instance().set_file_output("");  // Clear file output
   Logger::instance().set_level(LogLevel::DEBUG);
 
-  UNILINK_LOG_DEBUG("test", "operation", "Message without file");
+  WIRESTEAD_LOG_DEBUG("test", "operation", "Message without file");
 
   // Should not crash
 }
@@ -215,7 +215,7 @@ TEST_F(LoggerBehaviorTest, CheckAndRotateLog) {
 
   // Generate logs to trigger rotation
   for (int i = 0; i < 20; ++i) {
-    UNILINK_LOG_DEBUG("test", "operation", "Long message " + std::to_string(i) + " " + std::string(100, 'x'));
+    WIRESTEAD_LOG_DEBUG("test", "operation", "Long message " + std::to_string(i) + " " + std::string(100, 'x'));
   }
 
   Logger::instance().flush();
@@ -237,8 +237,8 @@ TEST_F(LoggerBehaviorTest, AsyncLoggingEnabled) {
   EXPECT_TRUE(Logger::instance().async_logging_enabled());
 
   // Log some messages
-  UNILINK_LOG_DEBUG("test", "operation", "Async debug message");
-  UNILINK_LOG_INFO("test", "operation", "Async info message");
+  WIRESTEAD_LOG_DEBUG("test", "operation", "Async debug message");
+  WIRESTEAD_LOG_INFO("test", "operation", "Async info message");
 
   // Ensure all async messages are flushed
   Logger::instance().flush();
@@ -258,8 +258,8 @@ TEST_F(LoggerBehaviorTest, AsyncLoggingDisabled) {
   EXPECT_FALSE(Logger::instance().async_logging_enabled());
 
   // Log some messages
-  UNILINK_LOG_DEBUG("test", "operation", "Sync debug message");
-  UNILINK_LOG_INFO("test", "operation", "Sync info message");
+  WIRESTEAD_LOG_DEBUG("test", "operation", "Sync debug message");
+  WIRESTEAD_LOG_INFO("test", "operation", "Sync info message");
 }
 
 // ============================================================================
@@ -276,8 +276,8 @@ TEST_F(LoggerBehaviorTest, LogCallback) {
   Logger::instance().set_level(LogLevel::DEBUG);
 
   // Log some messages
-  UNILINK_LOG_DEBUG("test", "operation", "Callback debug message");
-  UNILINK_LOG_INFO("test", "operation", "Callback info message");
+  WIRESTEAD_LOG_DEBUG("test", "operation", "Callback debug message");
+  WIRESTEAD_LOG_INFO("test", "operation", "Callback info message");
 
   // Flush to ensure callback is called
   Logger::instance().flush();
@@ -302,35 +302,35 @@ TEST_F(LoggerBehaviorTest, LogCallback) {
 
 TEST_F(LoggerBehaviorTest, LogWithEmptyComponent) {
   Logger::instance().set_level(LogLevel::DEBUG);
-  UNILINK_LOG_DEBUG("", "operation", "Message with empty component");
+  WIRESTEAD_LOG_DEBUG("", "operation", "Message with empty component");
   // Should not crash
 }
 
 TEST_F(LoggerBehaviorTest, LogWithEmptyOperation) {
   Logger::instance().set_level(LogLevel::DEBUG);
-  UNILINK_LOG_DEBUG("component", "", "Message with empty operation");
+  WIRESTEAD_LOG_DEBUG("component", "", "Message with empty operation");
   // Should not crash
 }
 
 TEST_F(LoggerBehaviorTest, LogWithEmptyMessage) {
   Logger::instance().set_level(LogLevel::DEBUG);
-  UNILINK_LOG_DEBUG("component", "operation", "");
+  WIRESTEAD_LOG_DEBUG("component", "operation", "");
   // Should not crash
 }
 
 TEST_F(LoggerBehaviorTest, LogWhenDisabled) {
   Logger::instance().set_enabled(false);
   Logger::instance().set_level(LogLevel::DEBUG);
-  UNILINK_LOG_DEBUG("test", "operation", "Message when disabled");
+  WIRESTEAD_LOG_DEBUG("test", "operation", "Message when disabled");
   // Should not crash
 }
 
 TEST_F(LoggerBehaviorTest, LogLevelFiltering) {
   Logger::instance().set_level(LogLevel::WARNING);
-  UNILINK_LOG_DEBUG("test", "operation", "Debug message");
-  UNILINK_LOG_INFO("test", "operation", "Info message");
-  UNILINK_LOG_WARNING("test", "operation", "Warning message");
-  UNILINK_LOG_ERROR("test", "operation", "Error message");
+  WIRESTEAD_LOG_DEBUG("test", "operation", "Debug message");
+  WIRESTEAD_LOG_INFO("test", "operation", "Info message");
+  WIRESTEAD_LOG_WARNING("test", "operation", "Warning message");
+  WIRESTEAD_LOG_ERROR("test", "operation", "Error message");
   // Should not crash
 }
 
@@ -349,7 +349,7 @@ TEST_F(LoggerBehaviorTest, ConcurrentLogging) {
   for (int t = 0; t < num_threads; ++t) {
     threads.emplace_back([t, messages_per_thread]() {
       for (int i = 0; i < messages_per_thread; ++i) {
-        UNILINK_LOG_DEBUG("thread" + std::to_string(t), "operation", "Message " + std::to_string(i));
+        WIRESTEAD_LOG_DEBUG("thread" + std::to_string(t), "operation", "Message " + std::to_string(i));
       }
     });
   }
@@ -374,7 +374,7 @@ TEST_F(LoggerBehaviorTest, CallbackExceptionSafety) {
 
   Logger::instance().set_level(LogLevel::INFO);
 
-  EXPECT_NO_THROW(UNILINK_LOG_INFO("test", "callback_exception", "Message"));
+  EXPECT_NO_THROW(WIRESTEAD_LOG_INFO("test", "callback_exception", "Message"));
 
   Logger::instance().flush();
   Logger::instance().set_callback(nullptr);
@@ -387,7 +387,7 @@ TEST_F(LoggerBehaviorTest, CustomFormatHandling) {
   Logger::instance().set_level(LogLevel::INFO);
   Logger::instance().set_format("[{level}] {component}/{operation}: {message}");
 
-  UNILINK_LOG_INFO("test_component", "fmt_operation", "formatted message");
+  WIRESTEAD_LOG_INFO("test_component", "fmt_operation", "formatted message");
   Logger::instance().flush();
 
   ASSERT_FALSE(captured_logs.empty());
@@ -407,7 +407,7 @@ TEST_F(LoggerBehaviorTest, DisabledLoggerSkipsMacroMessageEvaluation) {
     return std::string("expensive message");
   };
 
-  UNILINK_LOG_DEBUG("test", "disabled", make_message());
+  WIRESTEAD_LOG_DEBUG("test", "disabled", make_message());
 
   EXPECT_EQ(evaluations, 0);
 }
@@ -424,7 +424,7 @@ TEST_F(LoggerBehaviorTest, ParameterizedLogMacroUsesRuntimeLevel) {
     return LogLevel::WARNING;
   };
 
-  UNILINK_LOG(choose_level(), "test", "runtime_level", "runtime level message");
+  WIRESTEAD_LOG(choose_level(), "test", "runtime_level", "runtime level message");
   Logger::instance().flush();
 
   EXPECT_EQ(level_evaluations, 1);
@@ -443,7 +443,7 @@ TEST_F(LoggerBehaviorTest, ParameterizedLogMacroSkipsFilteredMessageEvaluation) 
   };
 
   const auto runtime_level = LogLevel::INFO;
-  UNILINK_LOG(runtime_level, "test", "filtered", make_message());
+  WIRESTEAD_LOG(runtime_level, "test", "filtered", make_message());
 
   EXPECT_EQ(evaluations, 0);
 }
@@ -459,7 +459,7 @@ TEST_F(LoggerBehaviorTest, OutputsDisabledSkipsMessageEvaluation) {
     return std::string("no output message");
   };
 
-  UNILINK_LOG_INFO("test", "outputs_disabled", make_message());
+  WIRESTEAD_LOG_INFO("test", "outputs_disabled", make_message());
 
   EXPECT_FALSE(Logger::instance().has_outputs());
   EXPECT_EQ(evaluations, 0);
@@ -510,7 +510,7 @@ TEST_F(LoggerBehaviorTest, ReloadsLogLevelAliasesAndReportsInvalidEnvironment) {
 }
 
 TEST_F(LoggerBehaviorTest, WiresteadLogLevelTakesPrecedenceOverUnilinkLogLevel) {
-  // UNILINK_LOG_LEVEL alone still works (no regression).
+  // WIRESTEAD_LOG_LEVEL alone still works (no regression).
   Logger::instance().set_enabled(true);
   setLogLevelEnv("ERROR");
   Logger::instance().reload_from_environment();
@@ -519,26 +519,26 @@ TEST_F(LoggerBehaviorTest, WiresteadLogLevelTakesPrecedenceOverUnilinkLogLevel) 
   EXPECT_TRUE(Logger::instance().last_error().empty());
   clearLogLevelEnv();
 
-  // WIRESTEAD_LOG_LEVEL alone works the same way as UNILINK_LOG_LEVEL.
+  // UNILINK_LOG_LEVEL alone works as a legacy fallback.
   Logger::instance().set_enabled(true);
-  setWiresteadLogLevelEnv("WARNING");
+  setUnilinkLogLevelEnv("WARNING");
   Logger::instance().reload_from_environment();
   EXPECT_TRUE(Logger::instance().enabled());
   EXPECT_EQ(Logger::instance().level(), LogLevel::WARNING);
   EXPECT_TRUE(Logger::instance().last_error().empty());
-  clearWiresteadLogLevelEnv();
+  clearUnilinkLogLevelEnv();
 
   // When both are set to different values, WIRESTEAD_LOG_LEVEL wins.
   Logger::instance().set_enabled(true);
   setLogLevelEnv("ERROR");
-  setWiresteadLogLevelEnv("DEBUG");
+  setUnilinkLogLevelEnv("DEBUG");
   Logger::instance().reload_from_environment();
   EXPECT_TRUE(Logger::instance().enabled());
-  EXPECT_EQ(Logger::instance().level(), LogLevel::DEBUG);
+  EXPECT_EQ(Logger::instance().level(), LogLevel::ERROR);
   EXPECT_TRUE(Logger::instance().last_error().empty());
 
   clearLogLevelEnv();
-  clearWiresteadLogLevelEnv();
+  clearUnilinkLogLevelEnv();
 }
 
 TEST_F(LoggerBehaviorTest, CallbackReenabledAfterOutputsDisabled) {
@@ -550,7 +550,7 @@ TEST_F(LoggerBehaviorTest, CallbackReenabledAfterOutputsDisabled) {
       [&captured_logs](LogLevel /* level */, const std::string& message) { captured_logs.push_back(message); });
   Logger::instance().set_level(LogLevel::INFO);
 
-  UNILINK_LOG_INFO("test", "callback", "callback restored");
+  WIRESTEAD_LOG_INFO("test", "callback", "callback restored");
   Logger::instance().flush();
 
   ASSERT_FALSE(captured_logs.empty());
@@ -569,7 +569,7 @@ TEST_F(LoggerBehaviorTest, OutputDisabling) {
   Logger::instance().set_console_output(false);  // Disable
 
   // Log something - should go nowhere effectively (internal state check)
-  UNILINK_LOG_INFO("test", "disable", "Void message");
+  WIRESTEAD_LOG_INFO("test", "disable", "Void message");
 
   // Re-enable console for other tests (TearDown handles this, but good practice)
   Logger::instance().set_console_output(true);
@@ -606,13 +606,13 @@ TEST_F(LoggerBehaviorTest, ConsoleErrorStreamSelection) {
   Logger::instance().set_level(LogLevel::DEBUG);  // Ensure all levels are processed
 
   // Normal message (stdout via INFO)
-  UNILINK_LOG_INFO("test", "console", "Normal message");
+  WIRESTEAD_LOG_INFO("test", "console", "Normal message");
 
   // Error message (stderr via ERROR)
-  UNILINK_LOG_ERROR("test", "console", "Error message");
+  WIRESTEAD_LOG_ERROR("test", "console", "Error message");
 
   // Critical message (stderr via CRITICAL)
-  UNILINK_LOG_CRITICAL("test", "console", "Critical message");
+  WIRESTEAD_LOG_CRITICAL("test", "console", "Critical message");
 
   // Clean up
   Logger::instance().set_console_output(false);
@@ -629,7 +629,7 @@ TEST_F(LoggerBehaviorTest, OutputBitmaskRestoresFileAndCallbackSinks) {
 
   Logger::instance().set_outputs(static_cast<int>(LogOutput::FILE) | static_cast<int>(LogOutput::CALLBACK));
   Logger::instance().set_level(LogLevel::INFO);
-  UNILINK_LOG_INFO("test", "outputs", "restored outputs");
+  WIRESTEAD_LOG_INFO("test", "outputs", "restored outputs");
   Logger::instance().flush();
 
   ASSERT_FALSE(captured_logs.empty());

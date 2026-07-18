@@ -24,10 +24,10 @@
 #include <vector>
 
 #include "test/utils/test_utils.hpp"
-#include "unilink/interface/channel.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/interface/channel.hpp"
+#include "wirestead/wirestead.hpp"
 
-namespace unilink::test::wrapper_support {
+namespace wirestead::test::wrapper_support {
 
 class FakeChannel : public interface::Channel {
  public:
@@ -270,4 +270,4 @@ class UdpServerLoopbackHarness {
   std::shared_ptr<wrapper::UdpClient> client_;
 };
 
-}  // namespace unilink::test::wrapper_support
+}  // namespace wirestead::test::wrapper_support

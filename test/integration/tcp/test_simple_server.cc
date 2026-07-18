@@ -23,10 +23,10 @@
 
 #include "test_constants.hpp"
 #include "test_utils.hpp"
-#include "unilink/diagnostics/exceptions.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/diagnostics/exceptions.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
+using namespace wirestead;
 using namespace std::chrono_literals;
 
 class SimpleServerTest : public ::testing::Test {
@@ -57,7 +57,7 @@ TEST_F(SimpleServerTest, BasicServerCreation) {
   std::cout << "Testing basic server creation with port: " << test_port << std::endl;
 
   // Create server
-  server_ = unilink::tcp_server(test_port)
+  server_ = wirestead::tcp_server(test_port)
                 // No client limit
                 .on_data([](auto&&) {})
                 .on_error([](auto&&) {})
@@ -84,7 +84,7 @@ TEST_F(SimpleServerTest, AutoStartServer) {
   std::cout << "Testing auto-start server with port: " << test_port << std::endl;
 
   // Create server (auto-manage triggers start)
-  server_ = unilink::tcp_server(test_port).auto_start(true).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).auto_start(true).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   ASSERT_NE(server_, nullptr) << "Server creation failed";
   std::cout << "Server created with auto-start" << std::endl;
@@ -109,7 +109,7 @@ TEST_F(SimpleServerTest, ServerWithCallbacks) {
   auto last_error = std::make_shared<std::string>();
 
   // Create server
-  server_ = unilink::tcp_server(test_port)
+  server_ = wirestead::tcp_server(test_port)
                 .on_connect([connect_called](const wrapper::ConnectionContext& ctx) {
                   std::cout << "Connect callback called for client: " << ctx.client_id() << std::endl;
                   connect_called->store(true);
@@ -136,7 +136,7 @@ TEST_F(SimpleServerTest, ServerStateCheck) {
   uint16_t test_port = getTestPort();
   std::cout << "Testing server state check, port: " << test_port << std::endl;
 
-  server_ = unilink::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   ASSERT_NE(server_, nullptr);
 
@@ -156,7 +156,7 @@ TEST_F(SimpleServerTest, ServerStateCheck) {
  */
 TEST_F(SimpleServerTest, ClientLimitSingleClient) {
   uint16_t test_port = getTestPort();
-  server_ = unilink::tcp_server(test_port).max_clients(1).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).max_clients(1).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   ASSERT_NE(server_, nullptr);
   EXPECT_TRUE(server_->start().get());
@@ -168,7 +168,7 @@ TEST_F(SimpleServerTest, ClientLimitSingleClient) {
  */
 TEST_F(SimpleServerTest, ClientLimitMultiClient) {
   uint16_t test_port = getTestPort();
-  server_ = unilink::tcp_server(test_port).max_clients(3).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).max_clients(3).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   ASSERT_NE(server_, nullptr);
   EXPECT_TRUE(server_->start().get());
@@ -179,7 +179,7 @@ TEST_F(SimpleServerTest, ClientLimitMultiClient) {
  */
 TEST_F(SimpleServerTest, ClientLimitDefaultAllowsServerCreation) {
   uint16_t test_port = getTestPort();
-  server_ = unilink::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   ASSERT_NE(server_, nullptr);
   EXPECT_TRUE(server_->start().get());
@@ -190,7 +190,7 @@ TEST_F(SimpleServerTest, ClientLimitDefaultAllowsServerCreation) {
  */
 TEST_F(SimpleServerTest, MaxClientsZeroAllowsServerCreation) {
   uint16_t test_port = getTestPort();
-  server_ = unilink::tcp_server(test_port).max_clients(0).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port).max_clients(0).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   ASSERT_NE(server_, nullptr);
   EXPECT_TRUE(server_->start().get());

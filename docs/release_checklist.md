@@ -23,28 +23,28 @@ CI, CPack, and consumer smoke workflows live here.
 - [ ] CPack package was generated.
 - [ ] Package contains headers.
 - [ ] Package contains library artifacts.
-- [ ] Package contains `unilinkConfig.cmake`.
-- [ ] Package contains `unilinkTargets.cmake`.
+- [ ] Package contains `wiresteadConfig.cmake`.
+- [ ] Package contains `wiresteadTargets.cmake`.
 - [ ] Package contains `README.md`.
 - [ ] Package contains `LICENSE`.
 - [ ] Package contains `NOTICE`.
 
 ## Documentation
 
-- [ ] Core README links to `unilink-docs`.
+- [ ] Core README links to `wirestead-docs`.
 - [ ] Core README and docs repo links were checked.
 - [ ] Core minimal docs are present:
   - [ ] `docs/installation.md`
   - [ ] `docs/quickstart.md`
   - [ ] `docs/api_stability.md`
   - [ ] `docs/release_checklist.md`
-- [ ] `unilink-docs` is updated when public API or behavior changes.
-- [ ] Doxygen workflow in `unilink-docs` passes.
+- [ ] `wirestead-docs` is updated when public API or behavior changes.
+- [ ] Doxygen workflow in `wirestead-docs` passes.
 
 ## Benchmark / validation
 
-- [ ] Latest relevant benchmark result is preserved in `unilink-benchmarks`.
-- [ ] Latest benchmark artifact or `unilink-benchmarks` result is linked from the release notes.
+- [ ] Latest relevant benchmark result is preserved in `wirestead-benchmarks`.
+- [ ] Latest benchmark artifact or `wirestead-benchmarks` result is linked from the release notes.
 - [ ] `.github/workflows/benchmark.yml` was run manually or by the latest nightly schedule.
 - [ ] Contract-changing PRs link CI, Consumer Smoke, Benchmark, and TSAN run results in the PR or release notes.
 - [ ] Installed consumer runtime smoke passed for the release candidate package.
@@ -56,9 +56,9 @@ CI, CPack, and consumer smoke workflows live here.
 
 ## External repositories
 
-- [ ] `unilink-python` compatibility impact checked.
-- [ ] `unilink-examples` compatibility impact checked, if examples depend on changed API.
-- [ ] `unilink-benchmarks` compatibility impact checked, if benchmark APIs changed.
+- [ ] `wirestead-python` compatibility impact checked.
+- [ ] `wirestead-examples` compatibility impact checked, if examples depend on changed API.
+- [ ] `wirestead-benchmarks` compatibility impact checked, if benchmark APIs changed.
 
 ## Release notes
 

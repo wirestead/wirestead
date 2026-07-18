@@ -20,11 +20,11 @@
 #include <iostream>
 
 #include "test_utils.hpp"
-#include "unilink/base/error_codes.hpp"
-#include "unilink/wrapper/tcp_client/tcp_client.hpp"
+#include "wirestead/base/error_codes.hpp"
+#include "wirestead/wrapper/tcp_client/tcp_client.hpp"
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 
 TEST(TcpClientErrorMappingTest, ConnectionRefused) {
   // Use a port that is likely closed (getAvailableTestPort finds a free port, but we don't listen on it)
@@ -58,7 +58,7 @@ TEST(TcpClientErrorMappingTest, ConnectionRefused) {
   // On Windows, firewall might drop packets leading to TimedOut.
   EXPECT_TRUE(code == ErrorCode::ConnectionRefused || code == ErrorCode::IoError || code == ErrorCode::TimedOut ||
               code == ErrorCode::NotConnected)
-      << "Expected ConnectionRefused, IoError, TimedOut, or NotConnected, got: " << unilink::to_string(code);
+      << "Expected ConnectionRefused, IoError, TimedOut, or NotConnected, got: " << wirestead::to_string(code);
 
   client.stop();
 }
@@ -88,7 +88,7 @@ TEST(TcpClientErrorMappingTest, Timeout) {
     auto code = error_future.get();
     EXPECT_TRUE(code == ErrorCode::TimedOut || code == ErrorCode::NotConnected || code == ErrorCode::IoError ||
                 code == ErrorCode::ConnectionRefused)
-        << "Expected TimedOut, NotConnected, IoError, or ConnectionRefused, got: " << unilink::to_string(code);
+        << "Expected TimedOut, NotConnected, IoError, or ConnectionRefused, got: " << wirestead::to_string(code);
   } else {
     // Timeout didn't happen in 2s (which is > 500ms).
     // This might happen if system is weird or firewall rejects immediately (Refused).

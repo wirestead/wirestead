@@ -26,14 +26,14 @@
 #include <vector>
 
 #include "test_utils.hpp"
-#include "unilink/framer/line_framer.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/framer/line_framer.hpp"
+#include "wirestead/wirestead.hpp"
 #include "wrapper_contract_test_utils.hpp"
 
 namespace {
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 
 class TcpServerWrapperLifecycleTest : public ::testing::Test {
  protected:
@@ -54,7 +54,7 @@ class TcpServerWrapperLifecycleTest : public ::testing::Test {
 };
 
 TEST_F(TcpServerWrapperLifecycleTest, ServerStartStopMultipleTimes) {
-  server_ = unilink::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   for (int i = 0; i < 3; ++i) {
     auto f = server_->start();
     EXPECT_TRUE(f.get());
@@ -72,8 +72,8 @@ TEST_F(TcpServerWrapperLifecycleTest, DefaultUsesDistinctThreadsPerInstance) {
 
   std::atomic<std::thread::id> thread1{};
   std::atomic<std::thread::id> thread2{};
-  auto server1 = unilink::tcp_server(test_port_).on_error([](auto&&) {}).build();
-  auto server2 = unilink::tcp_server(port2).on_error([](auto&&) {}).build();
+  auto server1 = wirestead::tcp_server(test_port_).on_error([](auto&&) {}).build();
+  auto server2 = wirestead::tcp_server(port2).on_error([](auto&&) {}).build();
 
   server1->on_connect([&](const wrapper::ConnectionContext&) { thread1 = std::this_thread::get_id(); });
   server2->on_connect([&](const wrapper::ConnectionContext&) { thread2 = std::this_thread::get_id(); });
@@ -84,8 +84,8 @@ TEST_F(TcpServerWrapperLifecycleTest, DefaultUsesDistinctThreadsPerInstance) {
   EXPECT_TRUE(f2.get());
   ASSERT_TRUE(TestUtils::waitForCondition([&] { return server1->listening() && server2->listening(); }, 1000));
 
-  auto client1 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
-  auto client2 = unilink::tcp_client("127.0.0.1", port2).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client1 = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client2 = wirestead::tcp_client("127.0.0.1", port2).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   client1->start();
   client2->start();
 
@@ -106,8 +106,8 @@ TEST_F(TcpServerWrapperLifecycleTest, SharedContextOptInUsesOneThread) {
 
   std::atomic<std::thread::id> thread1{};
   std::atomic<std::thread::id> thread2{};
-  auto server1 = unilink::tcp_server(test_port_).shared_context(true).on_error([](auto&&) {}).build();
-  auto server2 = unilink::tcp_server(port2).shared_context(true).on_error([](auto&&) {}).build();
+  auto server1 = wirestead::tcp_server(test_port_).shared_context(true).on_error([](auto&&) {}).build();
+  auto server2 = wirestead::tcp_server(port2).shared_context(true).on_error([](auto&&) {}).build();
 
   server1->on_connect([&](const wrapper::ConnectionContext&) { thread1 = std::this_thread::get_id(); });
   server2->on_connect([&](const wrapper::ConnectionContext&) { thread2 = std::this_thread::get_id(); });
@@ -118,8 +118,8 @@ TEST_F(TcpServerWrapperLifecycleTest, SharedContextOptInUsesOneThread) {
   EXPECT_TRUE(f2.get());
   ASSERT_TRUE(TestUtils::waitForCondition([&] { return server1->listening() && server2->listening(); }, 1000));
 
-  auto client1 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
-  auto client2 = unilink::tcp_client("127.0.0.1", port2).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client1 = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client2 = wirestead::tcp_client("127.0.0.1", port2).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   client1->start();
   client2->start();
 
@@ -187,11 +187,11 @@ TEST_F(TcpServerWrapperLifecycleTest, ManagedExternalContextRestartsStoppedIoCon
 // session state from the stopped instance's transport_cache_/framers_
 // carries over into the second instance's client_count()/connected_clients().
 TEST_F(TcpServerWrapperLifecycleTest, StopClearsTransportCacheAndFramersBeforeRestart) {
-  server_ = unilink::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   auto f1 = server_->start();
   ASSERT_TRUE(f1.get());
 
-  auto client1 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client1 = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_TRUE(client1->start().get());
   ASSERT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() >= 1; }, 5000));
 
@@ -207,7 +207,7 @@ TEST_F(TcpServerWrapperLifecycleTest, StopClearsTransportCacheAndFramersBeforeRe
   ASSERT_TRUE(f2.get());
   EXPECT_TRUE(server_->listening());
 
-  auto client2 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client2 = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_TRUE(client2->start().get());
   EXPECT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() >= 1; }, 5000));
   // Exactly one live client after the restart - no leaked session/framer
@@ -224,7 +224,7 @@ TEST_F(TcpServerWrapperLifecycleTest, StopClearsTransportCacheAndFramersBeforeRe
 // the next start() regardless of whether transport_cache_ was live to
 // receive the call.
 TEST_F(TcpServerWrapperLifecycleTest, MaxClientsWhileStoppedAppliesOnNextStart) {
-  server_ = unilink::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_TRUE(server_->start().get());
   server_->stop();
 
@@ -233,8 +233,8 @@ TEST_F(TcpServerWrapperLifecycleTest, MaxClientsWhileStoppedAppliesOnNextStart) 
 
   ASSERT_TRUE(server_->start().get());
 
-  auto client1 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
-  auto client2 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client1 = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client2 = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_TRUE(client1->start().get());
   EXPECT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() >= 1; }, 5000));
 
@@ -254,11 +254,11 @@ TEST_F(TcpServerWrapperLifecycleTest, MaxClientsWhileStoppedAppliesOnNextStart) 
 // and immediately closes over-limit connections, and keeps accepting
 // afterward instead of pausing.
 TEST_F(TcpServerWrapperLifecycleTest, OverLimitConnectionIsClosedPromptlyAndAcceptLoopKeepsRunning) {
-  server_ = unilink::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   server_->max_clients(1);
   ASSERT_TRUE(server_->start().get());
 
-  auto client1 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client1 = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_TRUE(client1->start().get());
   EXPECT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() >= 1; }, 5000));
 
@@ -269,7 +269,7 @@ TEST_F(TcpServerWrapperLifecycleTest, OverLimitConnectionIsClosedPromptlyAndAcce
   // repeated connect attempts instead: the server accepting-then-closing
   // each attempt drives the client's retry loop, which wouldn't advance at
   // all if the connection were instead left open and silent.
-  auto client2 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client2 = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   std::atomic<int> client2_connects{0};
   client2->on_connect([&](const wrapper::ConnectionContext&) { client2_connects++; });
   client2->start();
@@ -283,7 +283,7 @@ TEST_F(TcpServerWrapperLifecycleTest, OverLimitConnectionIsClosedPromptlyAndAcce
   client1->stop();
   EXPECT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() == 0; }, 5000));
 
-  auto client3 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client3 = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_TRUE(client3->start().get());
   EXPECT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() >= 1; }, 5000));
 
@@ -295,7 +295,7 @@ TEST_F(TcpServerWrapperLifecycleTest, SendAndCountReflectLiveClientsAndReturnSta
   std::vector<size_t> ids;
   std::mutex ids_mutex;
 
-  server_ = unilink::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   server_->on_connect([&](const wrapper::ConnectionContext& ctx) {
     std::lock_guard<std::mutex> lk(ids_mutex);
     ids.push_back(ctx.client_id());
@@ -303,8 +303,8 @@ TEST_F(TcpServerWrapperLifecycleTest, SendAndCountReflectLiveClientsAndReturnSta
   auto server_start_fut = server_->start();
   ASSERT_TRUE(server_start_fut.get());
 
-  auto client1 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
-  auto client2 = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client1 = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client2 = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   std::atomic<int> client_received{0};
   client1->on_data([&](const wrapper::MessageContext&) { client_received++; });
@@ -353,14 +353,14 @@ TEST_F(TcpServerWrapperLifecycleTest, SendAndCountReflectLiveClientsAndReturnSta
 
 TEST_F(TcpServerWrapperLifecycleTest, PortRetryConfiguration) {
   server_ =
-      unilink::tcp_server(test_port_).port_retry(true, 5, 100).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+      wirestead::tcp_server(test_port_).port_retry(true, 5, 100).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   auto f = server_->start();
   EXPECT_TRUE(f.get());
   EXPECT_TRUE(server_->listening());
 }
 
 TEST_F(TcpServerWrapperLifecycleTest, ConcurrentStartStop) {
-  server_ = unilink::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   std::vector<std::thread> threads;
   for (int i = 0; i < 2; ++i) {  // Reduced count for stability
     threads.emplace_back([this]() {
@@ -377,12 +377,12 @@ TEST_F(TcpServerWrapperLifecycleTest, ConcurrentStartStop) {
 
 TEST_F(TcpServerWrapperLifecycleTest, HandlerReplacement) {
   std::atomic<int> count{0};
-  server_ = unilink::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  server_ = wirestead::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   server_->on_connect([&](const wrapper::ConnectionContext&) { count = 1; });
   server_->on_connect([&](const wrapper::ConnectionContext&) { count = 2; });
 
   auto f = server_->start();
-  auto client = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   client->start();
 
   TestUtils::waitForCondition([&]() { return count.load() > 0; }, 5000);
@@ -459,7 +459,7 @@ TEST_F(TcpServerWrapperLifecycleTest, RawDataBatchFlushesByLatency) {
 
   ASSERT_TRUE(server_->start().get());
 
-  auto client = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_TRUE(client->start().get());
   ASSERT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() == 1; }, 5000));
 
@@ -487,7 +487,7 @@ TEST_F(TcpServerWrapperLifecycleTest, FramedMessageBatchFlushesAtBatchSize) {
 
   ASSERT_TRUE(server_->start().get());
 
-  auto client = unilink::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto client = wirestead::tcp_client("127.0.0.1", test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
   ASSERT_TRUE(client->start().get());
   ASSERT_TRUE(TestUtils::waitForCondition([&]() { return server_->client_count() == 1; }, 5000));
 
@@ -508,7 +508,7 @@ TEST_F(TcpServerWrapperLifecycleTest, LineSendingVariantsReachConnectedClients) 
   std::atomic<int> received{0};
   std::string received_data;
   std::mutex received_mutex;
-  auto client = unilink::tcp_client("127.0.0.1", test_port_)
+  auto client = wirestead::tcp_client("127.0.0.1", test_port_)
                     .on_data([&](const wrapper::MessageContext& ctx) {
                       std::lock_guard<std::mutex> lock(received_mutex);
                       received++;

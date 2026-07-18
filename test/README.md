@@ -1,4 +1,4 @@
-# unilink tests
+# Wirestead tests
 
 The test tree is organized by test scope first, then by component.
 
@@ -14,7 +14,7 @@ test/
 ## Running
 
 ```bash
-cmake -S . -B build -DUNILINK_BUILD_TESTS=ON
+cmake -S . -B build -DWIRESTEAD_BUILD_TESTS=ON
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```

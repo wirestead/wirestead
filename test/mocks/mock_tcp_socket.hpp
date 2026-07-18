@@ -22,9 +22,9 @@
 #include <functional>
 #include <memory>
 
-#include "unilink/base/platform.hpp"
+#include "wirestead/base/platform.hpp"
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 namespace mocks {
 
@@ -128,4 +128,4 @@ class MockSerialPort {
 
 }  // namespace mocks
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

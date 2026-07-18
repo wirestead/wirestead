@@ -27,15 +27,15 @@
 #include <vector>
 
 #include "test/utils/test_utils.hpp"
-#include "unilink/config/serial_config.hpp"
-#include "unilink/framer/line_framer.hpp"
-#include "unilink/interface/channel.hpp"
-#include "unilink/interface/iserial_port.hpp"
-#include "unilink/transport/serial/serial.hpp"
-#include "unilink/unilink.hpp"
+#include "wirestead/config/serial_config.hpp"
+#include "wirestead/framer/line_framer.hpp"
+#include "wirestead/interface/channel.hpp"
+#include "wirestead/interface/iserial_port.hpp"
+#include "wirestead/transport/serial/serial.hpp"
+#include "wirestead/wirestead.hpp"
 
-using namespace unilink;
-using namespace unilink::test;
+using namespace wirestead;
+using namespace wirestead::test;
 using namespace std::chrono_literals;
 
 namespace {
@@ -201,7 +201,8 @@ class SerialWrapperLifecycleTest : public ::testing::Test {
 };
 
 TEST_F(SerialWrapperLifecycleTest, AutoManageStartsAndStopsChannel) {
-  auto serial = unilink::serial(device_, 9600).auto_start(true).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
+  auto serial =
+      wirestead::serial(device_, 9600).auto_start(true).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
 
   std::atomic<bool> connected{false};
   std::atomic<bool> disconnected{false};
@@ -226,8 +227,8 @@ TEST_F(SerialWrapperLifecycleTest, DefaultUsesDistinctThreadsPerInstance) {
   std::atomic<std::thread::id> thread1{};
   std::atomic<std::thread::id> thread2{};
 
-  auto serial1 = unilink::serial(device_, 9600).reopen_on_error(false).build();
-  auto serial2 = unilink::serial(device_, 9600).reopen_on_error(false).build();
+  auto serial1 = wirestead::serial(device_, 9600).reopen_on_error(false).build();
+  auto serial2 = wirestead::serial(device_, 9600).reopen_on_error(false).build();
   serial1->on_error([&](const wrapper::ErrorContext&) { thread1 = std::this_thread::get_id(); });
   serial2->on_error([&](const wrapper::ErrorContext&) { thread2 = std::this_thread::get_id(); });
 
@@ -248,8 +249,8 @@ TEST_F(SerialWrapperLifecycleTest, SharedContextOptInUsesOneThread) {
   std::atomic<std::thread::id> thread1{};
   std::atomic<std::thread::id> thread2{};
 
-  auto serial1 = unilink::serial(device_, 9600).shared_context(true).reopen_on_error(false).build();
-  auto serial2 = unilink::serial(device_, 9600).shared_context(true).reopen_on_error(false).build();
+  auto serial1 = wirestead::serial(device_, 9600).shared_context(true).reopen_on_error(false).build();
+  auto serial2 = wirestead::serial(device_, 9600).shared_context(true).reopen_on_error(false).build();
   serial1->on_error([&](const wrapper::ErrorContext&) { thread1 = std::this_thread::get_id(); });
   serial2->on_error([&](const wrapper::ErrorContext&) { thread2 = std::this_thread::get_id(); });
 
@@ -279,7 +280,7 @@ TEST_F(SerialWrapperLifecycleTest, ConfigurationSetters) {
   serial->stop();
 }
 
-// Regression test for jwsung91/unilink#444: Impl::stop() used to null the
+// Regression test for jwsung91/wirestead#444: Impl::stop() used to null the
 // channel's callbacks (including on_state, which is what fulfills the
 // start() future) without releasing the channel object itself. Since
 // start()'s `if (!channel)` guard is the only place that re-runs

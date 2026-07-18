@@ -19,11 +19,11 @@
 #include <boost/asio.hpp>
 #include <thread>
 
-#include "unilink/concurrency/io_context_manager.hpp"
+#include "wirestead/concurrency/io_context_manager.hpp"
 
-using namespace unilink::concurrency;
+using namespace wirestead::concurrency;
 
-namespace unilink {
+namespace wirestead {
 namespace test {
 
 TEST(IoContextManagerLifecycleTest, ExternalContextReference) {
@@ -91,4 +91,4 @@ TEST(IoContextManagerLifecycleTest, IndependentContext) {
 }
 
 }  // namespace test
-}  // namespace unilink
+}  // namespace wirestead

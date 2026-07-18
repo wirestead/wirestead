@@ -16,22 +16,5 @@
 
 #pragma once
 
-#include "unilink/config/tcp_client_config.hpp"
-#include "unilink/transport/base/reconnect_decider.hpp"
-
-namespace unilink {
-namespace transport {
-namespace detail {
-
-/**
- * @brief Determines whether a reconnection attempt should be made and the base delay to use.
- */
-inline ReconnectLogicDecision decide_reconnect(const config::TcpClientConfig& cfg,
-                                               const diagnostics::ErrorInfo& error_info, uint32_t attempt_count,
-                                               const std::optional<ReconnectPolicy>& policy) {
-  return decide_reconnect_common(cfg, error_info, attempt_count, policy);
-}
-
-}  // namespace detail
-}  // namespace transport
-}  // namespace unilink
+#include <wirestead/compat/unilink.hpp>
+#include <wirestead/transport/tcp_client/detail/reconnect_decider.hpp>
