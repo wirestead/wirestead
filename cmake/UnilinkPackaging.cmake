@@ -190,6 +190,20 @@ if(UNILINK_ENABLE_INSTALL)
     COMPATIBILITY SameMajorVersion
   )
 
+  # find_package(wirestead) - see cmake/WiresteadConfig.cmake.in for how this
+  # reuses unilink's own config instead of duplicating dependency resolution.
+  configure_package_config_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/WiresteadConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/wiresteadConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/wirestead
+  )
+
+  write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/wiresteadConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+  )
+
   if(UNILINK_ENABLE_PKGCONFIG)
     set(PKGCONFIG_REQUIRES "")
     # Derived from
@@ -205,6 +219,11 @@ if(UNILINK_ENABLE_INSTALL)
     configure_file(
       ${CMAKE_CURRENT_SOURCE_DIR}/cmake/unilink.pc.in
       ${CMAKE_CURRENT_BINARY_DIR}/unilink.pc @ONLY
+    )
+
+    configure_file(
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/wirestead.pc.in
+      ${CMAKE_CURRENT_BINARY_DIR}/wirestead.pc @ONLY
     )
   endif()
 endif()
@@ -279,9 +298,24 @@ if(UNILINK_ENABLE_INSTALL)
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/unilink
   )
 
+  # find_package(wirestead) config - installed alongside, not instead of, the
+  # unilink one above. See cmake/WiresteadConfig.cmake.in.
+  install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/wiresteadConfig.cmake
+          ${CMAKE_CURRENT_BINARY_DIR}/wiresteadConfigVersion.cmake
+    COMPONENT cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/wirestead
+  )
+
   if(UNILINK_ENABLE_PKGCONFIG)
     install(
       FILES ${CMAKE_CURRENT_BINARY_DIR}/unilink.pc
+      COMPONENT pkgconfig
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+    )
+
+    install(
+      FILES ${CMAKE_CURRENT_BINARY_DIR}/wirestead.pc
       COMPONENT pkgconfig
       DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
     )

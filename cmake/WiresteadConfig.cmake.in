@@ -1,0 +1,21 @@
+@PACKAGE_INIT@
+
+# find_package(wirestead) support. Wirestead does not maintain a separate build
+# of the library - it reuses the unilink package's own config (which owns the
+# real Boost/spdlog/Threads dependency resolution and the actual
+# unilink::unilink_shared / unilink::unilink_static imported targets) and only
+# adds a wirestead::wirestead alias on top. See docs/migration-from-unilink.md
+# for why the underlying library, headers, and binary name stay unilink-named
+# for now.
+
+include(CMakeFindDependencyMacro)
+find_dependency(
+  unilink CONFIG REQUIRED HINTS "${CMAKE_CURRENT_LIST_DIR}/../unilink"
+)
+
+if(NOT TARGET wirestead::wirestead)
+  add_library(wirestead::wirestead INTERFACE IMPORTED)
+  target_link_libraries(wirestead::wirestead INTERFACE unilink::unilink)
+endif()
+
+check_required_components(wirestead)

@@ -362,3 +362,63 @@ fi
 
 echo
 echo "Installed consumer smoke passed for library mode: $LIBRARY_MODE"
+
+wirestead_consumer_dir="${CONSUMER_DIR}-wirestead"
+rm -rf "$wirestead_consumer_dir"
+mkdir -p "$wirestead_consumer_dir"
+
+log_step "Generating find_package(wirestead) consumer project"
+cat > "$wirestead_consumer_dir/CMakeLists.txt" <<'EOF'
+cmake_minimum_required(VERSION 3.12)
+project(wirestead_consumer_smoke LANGUAGES CXX)
+
+find_package(wirestead CONFIG REQUIRED)
+
+add_executable(wirestead_consumer_smoke main.cpp)
+target_link_libraries(wirestead_consumer_smoke PRIVATE wirestead::wirestead)
+target_compile_features(wirestead_consumer_smoke PRIVATE cxx_std_20)
+EOF
+
+# Headers still live under <unilink/...> at this stage of the migration (see
+# docs/migration-from-unilink.md) - this only proves the wirestead::wirestead
+# target resolves to the real library and links, not the header story.
+cat > "$wirestead_consumer_dir/main.cpp" <<'EOF'
+#include <unilink/unilink.hpp>
+
+int main() {
+    // Port is never bound (auto_start(false), never start_sync()'d) - any
+    // valid port number satisfies this build()-only smoke check.
+    auto tcp_server = unilink::tcp_server(45678).auto_start(false).build();
+    return tcp_server ? 0 : 1;
+}
+EOF
+
+wirestead_consumer_build_dir="$wirestead_consumer_dir/build"
+
+wirestead_consumer_args=(
+  -S "$wirestead_consumer_dir"
+  -B "$wirestead_consumer_build_dir"
+  -G "$CMAKE_GENERATOR"
+  -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE"
+  -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX"
+)
+
+if [[ -n "${CMAKE_TOOLCHAIN_FILE:-}" ]]; then
+  wirestead_consumer_args+=("-DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}")
+fi
+
+if [[ -n "${VCPKG_TARGET_TRIPLET:-}" ]]; then
+  wirestead_consumer_args+=("-DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}")
+fi
+
+log_step "Configuring find_package(wirestead) consumer"
+cmake "${wirestead_consumer_args[@]}"
+
+log_step "Building find_package(wirestead) consumer"
+cmake --build "$wirestead_consumer_build_dir" --parallel
+
+log_step "Running find_package(wirestead) consumer runtime smoke"
+"$wirestead_consumer_build_dir/wirestead_consumer_smoke"
+
+echo
+echo "Installed find_package(wirestead) consumer smoke passed for library mode: $LIBRARY_MODE"
