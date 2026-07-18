@@ -5,7 +5,7 @@ includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
 
 Name: unilink
 Description: A cross-platform asynchronous C++ communication library providing a unified API for Serial, TCP, UDP, and UDS transports
-URL: https://github.com/jwsung91/unilink
+URL: https://github.com/wirestead/wirestead
 Version: @PROJECT_VERSION@
 Requires: @PKGCONFIG_REQUIRES@
 Requires.private: @PKGCONFIG_REQUIRES_PRIVATE@

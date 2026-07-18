@@ -12,7 +12,7 @@ set(CPACK_PACKAGE_DESCRIPTION
 )
 set(CPACK_PACKAGE_VENDOR "Jinwoo Sung")
 set(CPACK_PACKAGE_CONTACT "jwsung91@gmail.com")
-set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/jwsung91/unilink")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/wirestead/wirestead")
 
 # License and documentation
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")

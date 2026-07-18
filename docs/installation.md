@@ -57,8 +57,8 @@ cmake --build --preset dev-linux-x64 --parallel 1
 For a plain source install with an existing dependency setup:
 
 ```bash
-git clone https://github.com/jwsung91/unilink.git
-cd unilink
+git clone https://github.com/wirestead/wirestead.git
+cd wirestead
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel 1
 sudo cmake --install build

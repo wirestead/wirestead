@@ -5,7 +5,7 @@ project(
   VERSION 0.8.9
   DESCRIPTION
     "Unified, cross-platform async C++ library for Serial, TCP, UDP, and UDS"
-  HOMEPAGE_URL "https://github.com/jwsung91/unilink"
+  HOMEPAGE_URL "https://github.com/wirestead/wirestead"
   LANGUAGES CXX
 )
 
