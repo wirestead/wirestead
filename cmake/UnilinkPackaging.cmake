@@ -284,6 +284,15 @@ if(UNILINK_ENABLE_INSTALL)
     PATTERN "*.h"
   )
 
+  # <wirestead/unilink.hpp> forwarding header - see wirestead/unilink.hpp. Deep
+  # <unilink/...> includes have no wirestead equivalent; only the documented
+  # public entrypoint does (docs/api_stability.md).
+  install(
+    FILES ${CMAKE_CURRENT_SOURCE_DIR}/wirestead/unilink.hpp
+    COMPONENT headers
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/wirestead
+  )
+
   install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/unilinkConfig.cmake
           ${CMAKE_CURRENT_BINARY_DIR}/unilinkConfigVersion.cmake

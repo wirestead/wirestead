@@ -55,3 +55,11 @@
 #ifndef UNILINK_NO_EXPORT
 #define UNILINK_NO_EXPORT UNILINK_LOCAL
 #endif
+
+// Wirestead alias: every symbol is annotated with UNILINK_API, not a
+// separately-tracked macro, so WIRESTEAD_API always mirrors whatever
+// UNILINK_API resolved to above rather than duplicating the dllexport/
+// dllimport/visibility logic. See docs/migration-from-unilink.md.
+#ifndef WIRESTEAD_API
+#define WIRESTEAD_API UNILINK_API
+#endif

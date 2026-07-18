@@ -64,6 +64,7 @@ class LoggerBehaviorTest : public ::testing::Test {
     Logger::instance().set_callback(nullptr);
     Logger::instance().set_format("{timestamp} [{level}] [{component}] [{operation}] {message}");
     clearLogLevelEnv();
+    clearWiresteadLogLevelEnv();
   }
 
   void setLogLevelEnv(const std::string& value) {
@@ -79,6 +80,22 @@ class LoggerBehaviorTest : public ::testing::Test {
     _putenv_s("UNILINK_LOG_LEVEL", "");
 #else
     unsetenv("UNILINK_LOG_LEVEL");
+#endif
+  }
+
+  void setWiresteadLogLevelEnv(const std::string& value) {
+#ifdef _WIN32
+    _putenv_s("WIRESTEAD_LOG_LEVEL", value.c_str());
+#else
+    setenv("WIRESTEAD_LOG_LEVEL", value.c_str(), 1);
+#endif
+  }
+
+  void clearWiresteadLogLevelEnv() {
+#ifdef _WIN32
+    _putenv_s("WIRESTEAD_LOG_LEVEL", "");
+#else
+    unsetenv("WIRESTEAD_LOG_LEVEL");
 #endif
   }
 
@@ -490,6 +507,38 @@ TEST_F(LoggerBehaviorTest, ReloadsLogLevelAliasesAndReportsInvalidEnvironment) {
   EXPECT_FALSE(Logger::instance().last_error().empty());
 
   clearLogLevelEnv();
+}
+
+TEST_F(LoggerBehaviorTest, WiresteadLogLevelTakesPrecedenceOverUnilinkLogLevel) {
+  // UNILINK_LOG_LEVEL alone still works (no regression).
+  Logger::instance().set_enabled(true);
+  setLogLevelEnv("ERROR");
+  Logger::instance().reload_from_environment();
+  EXPECT_TRUE(Logger::instance().enabled());
+  EXPECT_EQ(Logger::instance().level(), LogLevel::ERROR);
+  EXPECT_TRUE(Logger::instance().last_error().empty());
+  clearLogLevelEnv();
+
+  // WIRESTEAD_LOG_LEVEL alone works the same way as UNILINK_LOG_LEVEL.
+  Logger::instance().set_enabled(true);
+  setWiresteadLogLevelEnv("WARNING");
+  Logger::instance().reload_from_environment();
+  EXPECT_TRUE(Logger::instance().enabled());
+  EXPECT_EQ(Logger::instance().level(), LogLevel::WARNING);
+  EXPECT_TRUE(Logger::instance().last_error().empty());
+  clearWiresteadLogLevelEnv();
+
+  // When both are set to different values, WIRESTEAD_LOG_LEVEL wins.
+  Logger::instance().set_enabled(true);
+  setLogLevelEnv("ERROR");
+  setWiresteadLogLevelEnv("DEBUG");
+  Logger::instance().reload_from_environment();
+  EXPECT_TRUE(Logger::instance().enabled());
+  EXPECT_EQ(Logger::instance().level(), LogLevel::DEBUG);
+  EXPECT_TRUE(Logger::instance().last_error().empty());
+
+  clearLogLevelEnv();
+  clearWiresteadLogLevelEnv();
 }
 
 TEST_F(LoggerBehaviorTest, CallbackReenabledAfterOutputsDisabled) {
