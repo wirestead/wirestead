@@ -44,7 +44,9 @@ function(unilink_add_unit_gtest target source_path labels timeout)
     list(APPEND _test_properties RESOURCE_LOCK "${ARGV4}")
   endif()
 
-  gtest_discover_tests(${target} PROPERTIES ${_test_properties})
+  gtest_discover_tests(
+    ${target} DISCOVERY_TIMEOUT 60 PROPERTIES ${_test_properties}
+  )
 
   list(APPEND _unilink_unit_test_targets ${target})
   set(_unilink_unit_test_targets
