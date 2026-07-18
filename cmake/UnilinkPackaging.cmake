@@ -154,7 +154,9 @@ set(CPACK_COMPONENTS_ALL libraries headers cmake pkgconfig documentation)
 
 # Component descriptions
 set(CPACK_COMPONENT_LIBRARIES_DISPLAY_NAME "Libraries")
-set(CPACK_COMPONENT_LIBRARIES_DESCRIPTION "Wirestead shared and static libraries")
+set(CPACK_COMPONENT_LIBRARIES_DESCRIPTION
+    "Wirestead shared and static libraries"
+)
 set(CPACK_COMPONENT_LIBRARIES_REQUIRED TRUE)
 
 set(CPACK_COMPONENT_HEADERS_DISPLAY_NAME "Header Files")
