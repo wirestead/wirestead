@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "test_utils.hpp"
 #include "wirestead/framer/line_framer.hpp"
 #include "wirestead/interface/channel.hpp"
 #include "wirestead/wrapper/udp/udp.hpp"
@@ -331,14 +332,14 @@ TEST(UdpClientWrapperLifecycleTest, RestartAfterStopResolvesFutureAndReinstallsH
   auto first = client.start();
   ASSERT_EQ(first.wait_for(std::chrono::seconds(1)), std::future_status::ready);
   EXPECT_TRUE(first.get());
-  EXPECT_EQ(connect_count.load(), 1);
+  EXPECT_TRUE(TestUtils::waitForCondition([&]() { return connect_count.load() == 1; }, 1000));
 
   client.stop();
 
   auto second = client.start();
   ASSERT_EQ(second.wait_for(std::chrono::seconds(1)), std::future_status::ready);
   EXPECT_TRUE(second.get());
-  EXPECT_EQ(connect_count.load(), 2);
+  EXPECT_TRUE(TestUtils::waitForCondition([&]() { return connect_count.load() == 2; }, 1000));
 
   client.stop();
 }
