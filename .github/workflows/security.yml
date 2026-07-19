@@ -24,6 +24,10 @@ jobs:
     name: Trivy Security Scan
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
 
     steps:
     - name: Checkout code
