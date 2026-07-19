@@ -85,8 +85,9 @@ become a deprecated compatibility port depending on `wirestead`.
 ## External Repositories
 
 External documentation, Python binding, example, and container repositories are
-outside this source-tree rename. Links to legacy `unilink-lab/*` repositories
-remain historical/current until those repositories are moved or replaced.
+outside this source-tree rename. Those repositories already moved from the
+`unilink-lab` organization to `wirestead`, but still keep their legacy
+`unilink-*` names until each one is individually renamed or replaced.
 
 ## Version Policy
 
