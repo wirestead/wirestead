@@ -45,7 +45,7 @@ if(DEFINED BUILD_PYTHON_BINDINGS AND BUILD_PYTHON_BINDINGS)
   message(
     FATAL_ERROR
       "BUILD_PYTHON_BINDINGS has been removed. "
-      "Python bindings live at https://github.com/unilink-lab/unilink-python."
+      "Python bindings live at https://github.com/wirestead/unilink-python."
   )
 endif()
 
@@ -53,7 +53,7 @@ if(DEFINED WIRESTEAD_BUILD_EXAMPLES AND WIRESTEAD_BUILD_EXAMPLES)
   message(
     FATAL_ERROR
       "WIRESTEAD_BUILD_EXAMPLES has been removed. "
-      "Examples live at https://github.com/unilink-lab/unilink-examples."
+      "Examples live at https://github.com/wirestead/unilink-examples."
   )
 endif()
 
@@ -61,7 +61,7 @@ if(DEFINED UNILINK_BUILD_EXAMPLES AND UNILINK_BUILD_EXAMPLES)
   message(
     FATAL_ERROR
       "UNILINK_BUILD_EXAMPLES has been removed. "
-      "Examples live at https://github.com/unilink-lab/unilink-examples."
+      "Examples live at https://github.com/wirestead/unilink-examples."
   )
 endif()
 

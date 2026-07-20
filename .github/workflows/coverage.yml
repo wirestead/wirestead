@@ -338,7 +338,7 @@ jobs:
           EOF
           echo "✅ Custom index page created with coverage: ${COVERAGE}"
 
-      # API docs (Doxygen) still live in the legacy unilink-lab/unilink-docs
+      # API docs (Doxygen) still live in the legacy wirestead/unilink-docs
       # repository until the external docs repo is moved.
       # since docs generation moved out of this one. GitHub's native
       # actions/deploy-pages can only publish to the Pages site of the repo
@@ -350,7 +350,7 @@ jobs:
       - name: Checkout legacy docs source
         uses: actions/checkout@v7
         with:
-          repository: unilink-lab/unilink-docs
+          repository: wirestead/unilink-docs
           path: docs-src
 
       - name: Checkout Wirestead core for docs generation

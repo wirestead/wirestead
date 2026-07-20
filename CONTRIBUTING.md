@@ -93,7 +93,7 @@ lowercase, imperative mood, no trailing period.
   model, callback lifetime, API stability, security model. Full tutorials
   and runnable examples still live in legacy locations until those
   repositories are moved:
-  [unilink-docs](https://github.com/unilink-lab/unilink-docs) and
-  [unilink-examples](https://github.com/unilink-lab/unilink-examples).
+  [unilink-docs](https://github.com/wirestead/unilink-docs) and
+  [unilink-examples](https://github.com/wirestead/unilink-examples).
 - Bug reports and feature requests: open a GitHub issue in this repository.
 - Security issues: see `docs/security.md` before filing a public issue.
