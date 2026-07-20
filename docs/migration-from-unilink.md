@@ -84,10 +84,11 @@ become a deprecated compatibility port depending on `wirestead`.
 
 ## External Repositories
 
-External documentation, Python binding, example, and container repositories are
-outside this source-tree rename. Those repositories already moved from the
-`unilink-lab` organization to `wirestead`, but still keep their legacy
-`unilink-*` names until each one is individually renamed or replaced.
+External documentation, Python binding, example, benchmark, and container
+repositories are outside this source-tree rename. Those repositories already
+moved from the `unilink-lab` organization to `wirestead`, and have since been
+renamed to `wirestead-docs`, `wirestead-python`, `wirestead-examples`,
+`wirestead-benchmarks`, and `wirestead-container` respectively.
 
 ## Version Policy
 

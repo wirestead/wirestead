@@ -79,9 +79,9 @@ Core repository entrypoints:
 
 Useful external repositories:
 
-* [Python bindings](https://github.com/wirestead/unilink-python) (legacy/current)
-* [Examples](https://github.com/wirestead/unilink-examples) (legacy/current)
-* [Containers](https://github.com/wirestead/unilink-container) (legacy/current)
+* [Python bindings](https://github.com/wirestead/wirestead-python) (legacy/current)
+* [Examples](https://github.com/wirestead/wirestead-examples) (legacy/current)
+* [Containers](https://github.com/wirestead/wirestead-container) (legacy/current)
 
 ---
 
