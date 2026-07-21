@@ -25,3 +25,8 @@ venv.bak/
 AGENTS.md
 CLAUDE.md
 GEMINI.md
+
+# agent-rules (local only)
+/.agent-rules/bases/AGENTS.md
+/.agent-rules/bases/CLAUDE.md
+/.agent-rules/bases/GEMINI.md
