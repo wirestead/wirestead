@@ -29,7 +29,7 @@ jobs:
         # escalating their own permissions). Those PRs -- i.e. GitHub Actions
         # version bumps -- must be merged manually. All other Dependabot PRs
         # auto-merge fine.
-        run: gh pr merge --auto --merge "$PR_URL"
+        run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
