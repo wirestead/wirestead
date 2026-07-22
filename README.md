@@ -81,6 +81,7 @@ Core repository entrypoints:
 
 Useful external repositories:
 
+* [Documentation](https://github.com/wirestead/wirestead-docs)
 * [Python bindings](https://github.com/wirestead/wirestead-python)
 * [Examples](https://github.com/wirestead/wirestead-examples)
 * [Containers](https://github.com/wirestead/wirestead-container)
