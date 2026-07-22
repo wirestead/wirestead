@@ -17,11 +17,11 @@ gate and rejects Boost versions older than the configured minimum.
 ## vcpkg
 
 ```bash
-vcpkg install jwsung91-unilink
+vcpkg install wirestead
 ```
 
-The `wirestead` vcpkg port is planned after the v0.9.0 release. Until then,
-`jwsung91-unilink` is the legacy/current port.
+`jwsung91-unilink` is now a deprecated compatibility alias that depends on
+`wirestead` and installs nothing itself; use `wirestead` directly.
 
 ## Minimal CMake find_package consumer
 

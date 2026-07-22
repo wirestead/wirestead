@@ -10,7 +10,7 @@ _Wirestead is the successor to UniLink._
 Serial · TCP · UDP · UDS
 
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-informational)
-![vcpkg](https://img.shields.io/badge/vcpkg-jwsung91--unilink%20legacy/current-0078D6)
+![vcpkg](https://img.shields.io/badge/vcpkg-wirestead-0078D6)
 [![Coverage](https://img.shields.io/endpoint?url=https://wirestead.github.io/wirestead/coverage/badges/coverage.json)](https://wirestead.github.io/wirestead/coverage/)
 
 ## Description
@@ -41,14 +41,16 @@ The project prioritizes **API clarity, predictable runtime behavior, and stabili
 ### vcpkg (recommended)
 
 ```bash
-vcpkg install jwsung91-unilink
+vcpkg install wirestead
 ```
 
-The `wirestead` vcpkg port is planned after the v0.9.0 release. Until then,
-`jwsung91-unilink` is the legacy/current port.
+`jwsung91-unilink` is now a deprecated compatibility alias that depends on
+`wirestead` and installs nothing itself; use `wirestead` directly.
 
 External documentation, examples, Python bindings, and container repositories
-are still in their legacy locations until they are moved.
+have moved to the `wirestead` organization as `wirestead-docs`,
+`wirestead-python`, `wirestead-examples`, `wirestead-benchmarks`, and
+`wirestead-container`.
 
 ### Contributor Development Setup
 
@@ -79,9 +81,9 @@ Core repository entrypoints:
 
 Useful external repositories:
 
-* [Python bindings](https://github.com/wirestead/wirestead-python) (legacy/current)
-* [Examples](https://github.com/wirestead/wirestead-examples) (legacy/current)
-* [Containers](https://github.com/wirestead/wirestead-container) (legacy/current)
+* [Python bindings](https://github.com/wirestead/wirestead-python)
+* [Examples](https://github.com/wirestead/wirestead-examples)
+* [Containers](https://github.com/wirestead/wirestead-container)
 
 ---
 
