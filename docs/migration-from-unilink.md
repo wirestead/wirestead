@@ -25,7 +25,7 @@ be rebuilt.
 | Library file | `libwirestead` | no `libunilink` binary compatibility shim |
 | SONAME | `libwirestead.so.0` on Linux | no `libunilink` SONAME |
 | Release assets | `wirestead-<version>-*` | old `unilink-<version>-*` asset names are not produced |
-| vcpkg port | planned `wirestead` port after v0.9.0 | existing `jwsung91-unilink` port remains the legacy/current route until deprecated |
+| vcpkg port | `wirestead` (live in the vcpkg registry) | `jwsung91-unilink` is a deprecated alias depending on `wirestead` |
 
 ## Source Compatibility
 
@@ -77,10 +77,10 @@ and the logger emits a diagnostic line so the precedence is visible.
 
 ## vcpkg Status
 
-The canonical vcpkg port will be `wirestead` after a validated v0.9.0 release is
-available. Until that PR lands, existing vcpkg instructions that reference
-`jwsung91-unilink` describe the legacy/current port. That port is expected to
-become a deprecated compatibility port depending on `wirestead`.
+The canonical vcpkg port is `wirestead`, merged into the vcpkg registry in
+[microsoft/vcpkg#52984](https://github.com/microsoft/vcpkg/pull/52984).
+`jwsung91-unilink` is now a deprecated compatibility port that installs
+nothing itself and only depends on `wirestead`.
 
 ## External Repositories
 
