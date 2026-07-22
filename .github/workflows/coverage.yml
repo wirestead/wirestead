@@ -338,16 +338,15 @@ jobs:
           EOF
           echo "✅ Custom index page created with coverage: ${COVERAGE}"
 
-      # API docs (Doxygen) still live in the legacy wirestead/wirestead-docs
-      # repository until the external docs repo is moved.
-      # since docs generation moved out of this one. GitHub's native
-      # actions/deploy-pages can only publish to the Pages site of the repo
-      # the workflow is running in, so wirestead-docs can't deploy here itself
-      # (no supported cross-repo path) - this job checks wirestead-docs out as
-      # a source dependency instead and generates docs from *this* exact
-      # commit, then combines them with the coverage report into one
+      # API docs (Doxygen) live in the separate wirestead/wirestead-docs
+      # repository, since docs generation moved out of this one. GitHub's
+      # native actions/deploy-pages can only publish to the Pages site of the
+      # repo the workflow is running in, so wirestead-docs can't deploy here
+      # itself (no supported cross-repo path) - this job checks wirestead-docs
+      # out as a source dependency instead and generates docs from *this*
+      # exact commit, then combines them with the coverage report into one
       # artifact before the single deploy-pages call below.
-      - name: Checkout legacy docs source
+      - name: Checkout docs source
         uses: actions/checkout@v7
         with:
           repository: wirestead/wirestead-docs
@@ -356,7 +355,7 @@ jobs:
       - name: Checkout Wirestead core for docs generation
         uses: actions/checkout@v7
         with:
-          path: docs-src/external/unilink
+          path: docs-src/external/wirestead
 
       - name: Install Doxygen
         run: |
