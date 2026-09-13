@@ -57,17 +57,16 @@ CI, CPack, and consumer smoke workflows live here.
       `docs/` or the documentation site. This box was tickable without checking
       before, and was ticked for two releases that added eight undocumented
       APIs.
-- [ ] Documented code still compiles against the tag. `check_docs_coverage.sh`
-      only finds API that was **added** and never documented; API that was
-      **removed or changed** leaves documentation that still reads fine and no
-      longer builds. Extract the ```cpp blocks from `wirestead-docs/docs/` and
-      this repository's `docs/`, hoist each block's own `#include` lines above
-      the wrapper, wrap the fragments in `void f(){ ... }`, and run
-      `g++ -fsyntax-only -std=c++20 -I. -Ibuild -DWIRESTEAD_ENABLE_CONFIG=1`
-      over them. Filter for `has no member named|is not a member of|no matching
-      function|too many arguments|cannot convert`; everything else is fragment
-      noise. Removing `AsyncLogConfig::batch_size` in #639 left three documented
-      snippets that only break once this tag ships.
+- [ ] Documented code still compiles against the tag. Verified with
+      `scripts/check_docs_compile.sh <path-to-wirestead-docs>`, which compiles
+      every documented C++ sample in this repository's `docs/` and on the site
+      and reports only the errors that mean a name moved.
+      `check_docs_coverage.sh` cannot answer this: it finds API that was
+      **added** and never documented, while API that was **removed or changed**
+      leaves documentation that still reads fine and no longer builds. Removing
+      `AsyncLogConfig::batch_size` in #639 left three documented snippets that
+      break the moment this tag ships. Read the output rather than obeying it -
+      a fragment that was always illustrative needs no change.
 - [ ] Doxygen workflow in `wirestead-docs` passes.
 
 ## Benchmark / validation

@@ -25,6 +25,10 @@ When a public API changes, `scripts/check_docs_coverage.sh` lists what has no
 mention on either side. It exists because two releases shipped eight APIs that
 neither had.
 
+`scripts/check_docs_compile.sh` covers the other direction: it compiles every
+documented C++ sample, on both sides, against these headers. Prose keeps
+reading fine after an API is removed or renamed, so nothing else notices.
+
 ## Core entrypoints
 
 - [Quick Start](quickstart.md)
