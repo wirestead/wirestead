@@ -95,7 +95,6 @@ set(WIRESTEAD_HEADERS
     wirestead/interface/iuds_socket.hpp
     wirestead/memory/memory_pool.hpp
     wirestead/memory/memory_tracker.hpp
-    wirestead/memory/memory_validator.hpp
     wirestead/memory/safe_data_buffer.hpp
     wirestead/memory/safe_span.hpp
     wirestead/transport/serial/boost_serial_port.hpp

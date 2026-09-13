@@ -24,64 +24,6 @@
 namespace wirestead {
 namespace util {
 
-void InputValidator::validate_host(const std::string& host) {
-  validate_non_empty_string(host, "host");
-  validate_string_length(host, base::constants::MAX_HOSTNAME_LENGTH, "host");
-
-  if (is_valid_host(host)) {
-    return;
-  }
-
-  throw diagnostics::ValidationException("invalid host format", "host", "valid IPv4, IPv6, or hostname");
-}
-
-void InputValidator::validate_ipv4_address(const std::string& address) {
-  validate_non_empty_string(address, "ipv4_address");
-
-  if (!is_valid_ipv4(address)) {
-    throw diagnostics::ValidationException("invalid IPv4 address format", "ipv4_address", "valid IPv4 address");
-  }
-}
-
-void InputValidator::validate_ipv6_address(const std::string& address) {
-  validate_non_empty_string(address, "ipv6_address");
-
-  if (!is_valid_ipv6(address)) {
-    throw diagnostics::ValidationException("invalid IPv6 address format", "ipv6_address", "valid IPv6 address");
-  }
-}
-
-void InputValidator::validate_uds_path(const std::string& path) {
-  validate_non_empty_string(path, "uds_path");
-  validate_string_length(path, base::constants::MAX_UDS_PATH_LENGTH, "uds_path");
-
-  if (!is_valid_uds_path(path)) {
-    throw diagnostics::ValidationException("invalid UDS path format", "uds_path", "valid Unix Domain Socket path");
-  }
-}
-
-void InputValidator::validate_device_path(const std::string& device) {
-  validate_non_empty_string(device, "device_path");
-  validate_string_length(device, base::constants::MAX_DEVICE_PATH_LENGTH, "device_path");
-
-  if (!is_valid_device_path(device)) {
-    throw diagnostics::ValidationException("invalid device path format", "device_path", "valid device path");
-  }
-}
-
-void InputValidator::validate_parity(const std::string& parity) {
-  validate_non_empty_string(parity, "parity");
-
-  // Convert to lowercase for case-insensitive comparison
-  std::string lower_parity = parity;
-  std::transform(lower_parity.begin(), lower_parity.end(), lower_parity.begin(),
-                 [](unsigned char c) { return std::tolower(c); });
-
-  if (lower_parity != "none" && lower_parity != "odd" && lower_parity != "even") {
-    throw diagnostics::ValidationException("invalid parity value", "parity", "none, odd, or even");
-  }
-}
-
 bool InputValidator::is_valid_host(const std::string& host) {
   // Check if it's an IPv4 address
   if (is_valid_ipv4(host)) {

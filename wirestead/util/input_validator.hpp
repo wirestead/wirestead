@@ -40,26 +40,9 @@ namespace util {
 class WIRESTEAD_API InputValidator {
  public:
   // Network validation
-  static void validate_host(const std::string& host);
   static void validate_port(uint16_t port);
-  static void validate_ipv4_address(const std::string& address);
-  static void validate_ipv6_address(const std::string& address);
-  static void validate_uds_path(const std::string& path);
-
-  // Serial validation
-  static void validate_device_path(const std::string& device);
-  static void validate_baud_rate(uint32_t baud_rate);
-  static void validate_data_bits(uint8_t data_bits);
-  static void validate_stop_bits(uint8_t stop_bits);
-  static void validate_parity(const std::string& parity);
-
-  // Memory validation
-  static void validate_buffer_size(size_t size);
-  static void validate_memory_alignment(const void* ptr, size_t alignment);
 
   // Timeout and interval validation
-  static void validate_timeout(unsigned timeout_ms);
-  static void validate_retry_interval(unsigned interval_ms);
   static void validate_retry_count(int retry_count);
 
   // String validation
@@ -120,21 +103,6 @@ inline void InputValidator::validate_range(size_t value, size_t min, size_t max,
   }
 }
 
-inline void InputValidator::validate_buffer_size(size_t size) {
-  validate_range(size, static_cast<size_t>(base::constants::MIN_BUFFER_SIZE),
-                 static_cast<size_t>(base::constants::MAX_BUFFER_SIZE), "buffer_size");
-}
-
-inline void InputValidator::validate_timeout(unsigned timeout_ms) {
-  validate_range(static_cast<int64_t>(timeout_ms), static_cast<int64_t>(base::constants::MIN_CONNECTION_TIMEOUT_MS),
-                 static_cast<int64_t>(base::constants::MAX_CONNECTION_TIMEOUT_MS), "timeout_ms");
-}
-
-inline void InputValidator::validate_retry_interval(unsigned interval_ms) {
-  validate_range(static_cast<int64_t>(interval_ms), static_cast<int64_t>(base::constants::MIN_RETRY_INTERVAL_MS),
-                 static_cast<int64_t>(base::constants::MAX_RETRY_INTERVAL_MS), "retry_interval_ms");
-}
-
 inline void InputValidator::validate_retry_count(int retry_count) {
   if (retry_count == base::constants::DEFAULT_MAX_RETRIES) {  // -1 means infinite, which is valid
     return;
@@ -151,33 +119,6 @@ inline void InputValidator::validate_port(uint16_t port) {
     throw diagnostics::ValidationException("port cannot be zero", "port", "non-zero port number");
   }
   // Port numbers are already constrained by uint16_t type (0-65535)
-}
-
-inline void InputValidator::validate_baud_rate(uint32_t baud_rate) {
-  validate_range(static_cast<int64_t>(baud_rate), static_cast<int64_t>(base::constants::MIN_BAUD_RATE),
-                 static_cast<int64_t>(base::constants::MAX_BAUD_RATE), "baud_rate");
-}
-
-inline void InputValidator::validate_data_bits(uint8_t data_bits) {
-  validate_range(static_cast<int64_t>(data_bits), static_cast<int64_t>(base::constants::MIN_DATA_BITS),
-                 static_cast<int64_t>(base::constants::MAX_DATA_BITS), "data_bits");
-}
-
-inline void InputValidator::validate_stop_bits(uint8_t stop_bits) {
-  validate_range(static_cast<int64_t>(stop_bits), static_cast<int64_t>(base::constants::MIN_STOP_BITS),
-                 static_cast<int64_t>(base::constants::MAX_STOP_BITS), "stop_bits");
-}
-
-inline void InputValidator::validate_memory_alignment(const void* ptr, size_t alignment) {
-  if (ptr == nullptr) {
-    throw diagnostics::ValidationException("memory pointer cannot be null", "ptr", "non-null pointer");
-  }
-
-  uintptr_t address = reinterpret_cast<uintptr_t>(ptr);
-  if (address % alignment != 0) {
-    throw diagnostics::ValidationException("memory pointer not properly aligned", "ptr",
-                                           "aligned to " + std::to_string(alignment) + " bytes");
-  }
 }
 
 }  // namespace util

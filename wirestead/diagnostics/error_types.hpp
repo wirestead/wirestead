@@ -186,8 +186,6 @@ struct ErrorStats {
   size_t errors_by_level[4] = {0, 0, 0, 0};           // INFO, WARNING, ERROR, CRITICAL
   size_t errors_by_category[6] = {0, 0, 0, 0, 0, 0};  // CONNECTION, COMMUNICATION, etc.
   size_t retryable_errors = 0;
-  size_t successful_retries = 0;
-  size_t failed_retries = 0;
 
   std::chrono::system_clock::time_point first_error;
   std::chrono::system_clock::time_point last_error;
@@ -200,8 +198,6 @@ struct ErrorStats {
     std::fill(std::begin(errors_by_level), std::end(errors_by_level), 0);
     std::fill(std::begin(errors_by_category), std::end(errors_by_category), 0);
     retryable_errors = 0;
-    successful_retries = 0;
-    failed_retries = 0;
     first_error = std::chrono::system_clock::time_point{};
     last_error = std::chrono::system_clock::time_point{};
   }
