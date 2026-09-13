@@ -57,6 +57,17 @@ CI, CPack, and consumer smoke workflows live here.
       `docs/` or the documentation site. This box was tickable without checking
       before, and was ticked for two releases that added eight undocumented
       APIs.
+- [ ] Documented code still compiles against the tag. `check_docs_coverage.sh`
+      only finds API that was **added** and never documented; API that was
+      **removed or changed** leaves documentation that still reads fine and no
+      longer builds. Extract the ```cpp blocks from `wirestead-docs/docs/` and
+      this repository's `docs/`, hoist each block's own `#include` lines above
+      the wrapper, wrap the fragments in `void f(){ ... }`, and run
+      `g++ -fsyntax-only -std=c++20 -I. -Ibuild -DWIRESTEAD_ENABLE_CONFIG=1`
+      over them. Filter for `has no member named|is not a member of|no matching
+      function|too many arguments|cannot convert`; everything else is fragment
+      noise. Removing `AsyncLogConfig::batch_size` in #639 left three documented
+      snippets that only break once this tag ships.
 - [ ] Doxygen workflow in `wirestead-docs` passes.
 
 ## Benchmark / validation

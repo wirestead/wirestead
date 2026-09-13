@@ -66,8 +66,9 @@ class WIRESTEAD_API BoostSerialPort : public interface::SerialPortInterface {
     struct serial_struct info;
     const int fd = port_.native_handle();
     if (::ioctl(fd, TIOCGSERIAL, &info) != 0) return false;
-    if (info.flags & ASYNC_LOW_LATENCY) return true;
-    info.flags |= ASYNC_LOW_LATENCY;
+    const auto low_latency = static_cast<decltype(info.flags)>(ASYNC_LOW_LATENCY);
+    if (info.flags & low_latency) return true;
+    info.flags |= low_latency;
     return ::ioctl(fd, TIOCSSERIAL, &info) == 0;
 #else
     return false;
