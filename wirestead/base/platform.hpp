@@ -108,28 +108,6 @@ namespace base {
 class WIRESTEAD_API PlatformInfo {
  public:
   /**
-   * @brief Get the feature level
-   * @return Feature level (1=basic, 2=standard, 3=all)
-   */
-  static int get_feature_level() { return WIRESTEAD_FEATURE_LEVEL; }
-
-  /**
-   * @brief Get a human-readable platform description
-   * @return Platform description string
-   */
-  static std::string get_platform_description() {
-#if defined(WIRESTEAD_PLATFORM_WINDOWS)
-    return "Windows (Full Features)";
-#elif defined(WIRESTEAD_PLATFORM_MACOS)
-    return "macOS (Full Features)";
-#elif defined(WIRESTEAD_PLATFORM_POSIX)
-    return "POSIX Platform (Full Features)";
-#else
-    return "Unknown Platform";
-#endif
-  }
-
-  /**
    * @brief Check if advanced logging is available
    * @return true if advanced logging is available
    */

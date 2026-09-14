@@ -17,7 +17,6 @@
 #pragma once
 
 #include <memory>
-#include <mutex>
 
 #include "iconfig_manager.hpp"
 #include "wirestead/base/visibility.hpp"
@@ -39,20 +38,6 @@ class WIRESTEAD_API ConfigFactory {
    * Create a configuration manager with default settings
    */
   static std::shared_ptr<ConfigManagerInterface> create_with_defaults();
-
-  /**
-   * Create a configuration manager and load from file
-   */
-  static std::shared_ptr<ConfigManagerInterface> create_from_file(const std::string& filepath);
-
-  /**
-   * Create a singleton configuration manager
-   */
-  static std::shared_ptr<ConfigManagerInterface> get_singleton();
-
- private:
-  static std::shared_ptr<ConfigManagerInterface> singleton_instance_;
-  static std::mutex singleton_mutex_;
 };
 
 /**

@@ -24,6 +24,98 @@ and ABI policy.
 
 ### Removed
 
+- `wirestead/memory/memory_validator.hpp`, in full.
+
+  The header declared eleven free functions in `memory::memory_validator`, the
+  `MemoryValidator` RAII class and the three `MemoryPatternGenerator` statics.
+  **None of them had a definition anywhere** - there is no `memory_validator.cc`
+  and never was - so `nm` finds no matching symbol in any library this project
+  has ever built, shared or static. Nothing included the header either, not even
+  `wirestead.hpp`, yet it was listed in `WiresteadSources.cmake` and so installed
+  into the consumer's include directory.
+
+  Nothing can break, because nothing could ever have linked against it. Most of
+  the API was also unimplementable as declared: `memory_accessible()` cannot be
+  answered portably for an arbitrary pointer, and `double_free()` /
+  `use_after_free()` take a raw pointer with no allocator context. The parts that
+  were implementable already exist as `base::safe_memory::safe_memcpy` and are
+  used by five transports, and the real checking is done by the ASan/UBSan
+  Memory Safety Tests job.
+
+- `ThreadSafeState`, `ThreadSafeCounter`, `ThreadSafeFlag` and the
+  `ThreadSafeLinkState` alias, from `wirestead/concurrency/thread_safe_state.hpp`.
+
+  **This is a breaking change.** These are templates and inline functions, so an
+  external consumer could have been using them successfully; nothing inside this
+  project was. There were no instantiations in the library, the tests, or any of
+  the six satellite repositories.
+
+  `AtomicState` and its `AtomicLinkState` alias stay, and the header stays with
+  them: that alias is the state primitive every transport actually uses. It is
+  what made the three removed classes look load-bearing from a distance and they
+  are not - `ThreadSafeState` was only ever reachable through
+  `ThreadSafeLinkState`, which nothing named.
+
+  Adopting rather than deleting was considered and rejected.
+  `ThreadSafeState::notify_callbacks()` took a mutex on every state transition to
+  iterate a callback list nothing ever registered into, so converting the
+  transports to it would have added a lock per connection state change and bought
+  nothing over the `AtomicLinkState` they already use. Removing the three also
+  drops `<shared_mutex>`, `<condition_variable>`, `<functional>`, `<vector>`,
+  `<mutex>`, `<algorithm>` and `<chrono>` from a header six transports include.
+
+  `wirestead-docs` documents all four types. Those sections describe v0.9.6
+  correctly and must be corrected when this change ships: the `ThreadSafeState`,
+  `ThreadSafeCounter` and `ThreadSafeFlag` sections of
+  `docs/contributor/architecture/memory_safety.md` go, the `AtomicState` section
+  stays, and the thread-safety row of its safety-feature table needs rewording.
+
+- `ErrorStats::successful_retries` and `ErrorStats::failed_retries`.
+
+  Both were declared and cleared in `reset()`, and neither was ever incremented
+  or read. `retryable_errors` beside them is incremented and stays. Because
+  `ErrorHandler::error_stats()` is public, a caller reading these two always got
+  0 - not an absent statistic but a silently wrong one.
+
+  Populating them is not a small wiring job: `ErrorHandler` only ever sees
+  errors that were reported to it, and a retry that succeeds reports nothing, so
+  the success count can never reach it without new plumbing from the reconnect
+  path. `RuntimeStats`, where transport telemetry belongs, has no retry counters
+  either. Retry telemetry is a feature to design there, not two fields pinned at
+  zero here.
+
+- Public API that nothing called, anywhere in this project, its tests, its six
+  satellite repositories or its documentation:
+
+  - `GlobalMemoryPool::create_optimized()` and `create_size_optimized()`. The
+    per-channel pool path they were meant to serve is used - `serial.cc`
+    constructs `MemoryPool pool_{0, 200}` directly - so the factories were a
+    redundant second entrance with numbers nobody chose.
+  - `PlatformInfo::get_feature_level()` and `get_platform_description()`. The
+    other five members of that class stay.
+  - `ConfigFactory::create_from_file()` and `get_singleton()`, with the
+    singleton storage and mutex they were the only users of.
+  - Thirteen `InputValidator::validate_*` overloads: the throwing wrappers for
+    host, IPv4, IPv6, UDS path, device path, baud rate, data bits, stop bits,
+    parity, buffer size, memory alignment, timeout and retry interval. No
+    production code called any of them; only their own unit tests did, which is
+    the test existing because the API does rather than a use of it. The six
+    `validate_*` that builders actually throw from stay, as do all six
+    `is_valid_*` predicates the configs call.
+
+    The tests were not deleted with them. Those parameterized tables were the
+    only coverage the `is_valid_*` predicates had, reaching them through the
+    wrappers, so they now drive the predicates directly and the tables are
+    unchanged. `MAX_DEVICE_PATH_LENGTH` went too - `validate_device_path` was
+    its only reader.
+
+- Fifteen constants in `base/constants.hpp` that nothing referenced, including
+  `constants.hpp` itself: the whole thread-pool group (there is no thread pool),
+  the memory-pool sizing group (`MemoryPool`'s constructor uses its own
+  defaults), the cleanup and health-check intervals, the error-recency pair -
+  duplicated by the private `ErrorHandler::MAX_RECENT_ERRORS` that is actually
+  used - plus `DEFAULT_BUFFER_SIZE`.
+
 - `AsyncLogConfig::batch_size` and `AsyncLogConfig::enable_batch_processing`,
   and the three-argument `AsyncLogConfig` constructor that took a batch size.
 

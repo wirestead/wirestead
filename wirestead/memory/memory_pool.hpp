@@ -134,23 +134,6 @@ class WIRESTEAD_API GlobalMemoryPool {
  public:
   static MemoryPool& instance();
 
-  // Both factories tune capacity, not prefill: they raise max_pool_size so more
-  // released buffers stay resident under concurrency. Their prefill arguments
-  // (800 and 1200) were written while initial_pool_size was discarded and so
-  // allocated nothing; #575 made the parameter real, which would have turned
-  // them into roughly 17 MB and 26 MB allocated up front. Both start empty and
-  // fill as buffers are released, matching the constructor's default.
-
-  // Factory method to create optimized memory pool
-  static std::unique_ptr<MemoryPool> create_optimized() {
-    return std::make_unique<MemoryPool>(0, 4000);  // Optimized default sizes
-  }
-
-  // Factory method to create size-optimized memory pool
-  static std::unique_ptr<MemoryPool> create_size_optimized() {
-    return std::make_unique<MemoryPool>(0, 6000);  // Even larger for better concurrency
-  }
-
   // Non-copyable, non-movable
   GlobalMemoryPool() = delete;
   GlobalMemoryPool(const GlobalMemoryPool&) = delete;

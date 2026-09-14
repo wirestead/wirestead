@@ -16,15 +16,10 @@
 
 #include "config_factory.hpp"
 
-#include <mutex>
-
 #include "config_manager.hpp"
 
 namespace wirestead {
 namespace config {
-
-std::shared_ptr<ConfigManagerInterface> ConfigFactory::singleton_instance_ = nullptr;
-std::mutex ConfigFactory::singleton_mutex_;
 
 std::shared_ptr<ConfigManagerInterface> ConfigFactory::create() { return std::make_shared<ConfigManager>(); }
 
@@ -32,23 +27,6 @@ std::shared_ptr<ConfigManagerInterface> ConfigFactory::create_with_defaults() {
   auto config = create();
   ConfigPresets::setup_all_defaults(config);
   return config;
-}
-
-std::shared_ptr<ConfigManagerInterface> ConfigFactory::create_from_file(const std::string& filepath) {
-  auto config = create();
-  if (!config->load_from_file(filepath)) {
-    // If loading fails, fall back to defaults
-    ConfigPresets::setup_all_defaults(config);
-  }
-  return config;
-}
-
-std::shared_ptr<ConfigManagerInterface> ConfigFactory::get_singleton() {
-  std::lock_guard<std::mutex> lock(singleton_mutex_);
-  if (!singleton_instance_) {
-    singleton_instance_ = create_with_defaults();
-  }
-  return singleton_instance_;
 }
 
 void ConfigPresets::setup_tcp_client_defaults(std::shared_ptr<ConfigManagerInterface> config) {
