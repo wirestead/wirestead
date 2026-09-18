@@ -79,7 +79,6 @@ foreach(
   test_error_codes_to_string.cc
   test_error_mapping_edge_cases.cc
   test_memory_pool_edge_cases.cc
-  test_legacy_compat.cc
 )
   get_filename_component(test_name ${test_file} NAME_WE)
 
@@ -87,11 +86,7 @@ foreach(
   if(test_name STREQUAL "test_core")
     set(resource_lock "log_file_io")
   endif()
-  if(test_name STREQUAL "test_legacy_compat")
-    set(test_labels "legacy_compat")
-  else()
-    set(test_labels "unit_common_fast")
-  endif()
+  set(test_labels "unit_common_fast")
   wirestead_add_unit_gtest(
     run_unit_${test_name} ${CMAKE_CURRENT_SOURCE_DIR}/common/${test_file}
     "${test_labels}" 30 "${resource_lock}"

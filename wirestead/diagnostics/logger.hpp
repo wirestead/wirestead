@@ -307,21 +307,5 @@ class WIRESTEAD_API Logger {
     }                                                                                                     \
   } while (0)
 
-#define UNILINK_LOG(level, component, operation, message) WIRESTEAD_LOG(level, component, operation, message)
-
-#define UNILINK_LOG_DEBUG(component, operation, message) WIRESTEAD_LOG_DEBUG(component, operation, message)
-
-#define UNILINK_LOG_INFO(component, operation, message) WIRESTEAD_LOG_INFO(component, operation, message)
-
-#define UNILINK_LOG_WARNING(component, operation, message) WIRESTEAD_LOG_WARNING(component, operation, message)
-
-#define UNILINK_LOG_ERROR(component, operation, message) WIRESTEAD_LOG_ERROR(component, operation, message)
-
-#define UNILINK_LOG_CRITICAL(component, operation, message) WIRESTEAD_LOG_CRITICAL(component, operation, message)
-
-#define UNILINK_LOG_PERF_START(component, operation) WIRESTEAD_LOG_PERF_START(component, operation)
-
-#define UNILINK_LOG_PERF_END(component, operation) WIRESTEAD_LOG_PERF_END(component, operation)
-
 }  // namespace diagnostics
 }  // namespace wirestead

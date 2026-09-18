@@ -77,13 +77,10 @@ DESTDIR=%{buildroot} cmake --install build
 
 %files devel
 %{_includedir}/wirestead/
-%{_includedir}/unilink/
 %{_includedir}/wirestead_export.hpp
 %{_libdir}/libwirestead.so
 %{_libdir}/cmake/wirestead/
-%{_libdir}/cmake/unilink/
 %{_libdir}/pkgconfig/wirestead.pc
-%{_libdir}/pkgconfig/unilink.pc
 %{_datadir}/wirestead/package.xml
 
 %changelog

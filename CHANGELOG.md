@@ -24,6 +24,24 @@ and ABI policy.
 
 ### Removed
 
+- **Breaking:** the Unilink compatibility layer, promised for the v0.9.x line
+  only. This is why the next release is v0.10.0 rather than a v0.9 patch.
+
+  Gone: `namespace unilink`, the `<unilink/...>` forwarding headers,
+  `find_package(unilink)` with its `unilink::unilink`, `unilink_shared` and
+  `unilink_static` targets, `unilink.pc`, the `UNILINK_API` / `UNILINK_EXPORT` /
+  `UNILINK_LOG_*` macros, `UnilinkException`, and the `UNILINK_*` CMake option
+  and `UNILINK_LOG_LEVEL` fallbacks. The first group fails loudly at configure or
+  compile time. The last two do not: an old `-DUNILINK_BUILD_TESTS=ON` draws
+  only CMake's unused-variable warning, and `UNILINK_LOG_LEVEL=debug` is
+  ignored outright.
+
+  Migrate on v0.9.x first, where both names build; see
+  `docs/migration-from-unilink.md`. For packagers, the install tree no longer
+  contains `include/unilink/`, `lib/cmake/unilink/` or `unilink.pc`, so the
+  vcpkg port's `vcpkg_cmake_config_fixup(PACKAGE_NAME unilink)` must go with
+  this release or the port build fails.
+
 - `wirestead/memory/memory_validator.hpp`, in full.
 
   The header declared eleven free functions in `memory::memory_validator`, the

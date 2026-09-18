@@ -340,11 +340,8 @@ target_include_directories(
 
 # Add compile definitions
 target_compile_definitions(
-  wirestead_dependencies
-  INTERFACE $<$<CONFIG:Debug>:WIRESTEAD_DEBUG=1>
-            $<$<CONFIG:Debug>:UNILINK_DEBUG=1>
-            $<$<CONFIG:Release>:WIRESTEAD_RELEASE=1>
-            $<$<CONFIG:Release>:UNILINK_RELEASE=1>
+  wirestead_dependencies INTERFACE $<$<CONFIG:Debug>:WIRESTEAD_DEBUG=1>
+                                   $<$<CONFIG:Release>:WIRESTEAD_RELEASE=1>
 )
 
 # Platform-specific definitions
@@ -370,14 +367,12 @@ endif()
 if(WIRESTEAD_ENABLE_CONFIG)
   target_compile_definitions(
     wirestead_dependencies INTERFACE WIRESTEAD_ENABLE_CONFIG=1
-                                     UNILINK_ENABLE_CONFIG=1
   )
 endif()
 
 if(WIRESTEAD_ENABLE_MEMORY_TRACKING)
   target_compile_definitions(
     wirestead_dependencies INTERFACE WIRESTEAD_ENABLE_MEMORY_TRACKING=1
-                                     UNILINK_ENABLE_MEMORY_TRACKING=1
   )
 endif()
 

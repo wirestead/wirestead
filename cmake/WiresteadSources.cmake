@@ -55,7 +55,6 @@ set(WIRESTEAD_HEADERS
     wirestead/base/deprecated.hpp
     wirestead/base/platform.hpp
     wirestead/base/visibility.hpp
-    wirestead/compat/unilink.hpp
     wirestead/framer/iframer.hpp
     wirestead/framer/line_framer.hpp
     wirestead/framer/packet_framer.hpp

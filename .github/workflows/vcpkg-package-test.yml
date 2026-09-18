@@ -110,15 +110,12 @@ jobs:
 
           echo "Checking headers..."
           test -d "${INSTALL_ROOT}/include/wirestead"
-          test -d "${INSTALL_ROOT}/include/unilink"
 
           echo "Checking CMake package config..."
           test -f "${INSTALL_ROOT}/share/wirestead/wiresteadConfig.cmake"
-          test -f "${INSTALL_ROOT}/share/unilink/unilinkConfig.cmake"
 
           echo "Checking pkg-config file..."
           test -f "${INSTALL_ROOT}/lib/pkgconfig/wirestead.pc"
-          test -f "${INSTALL_ROOT}/lib/pkgconfig/unilink.pc"
 
           echo "Checking libraries (release + debug)..."
           LIB_FILES=$(find "${INSTALL_ROOT}" -type f \
@@ -133,14 +130,6 @@ jobs:
           fi
           echo "${LIB_FILES}"
 
-          if find "${INSTALL_ROOT}" -type f \
-            \( -path "*/lib/*" -o -path "*/lib64/*" -o -path "*/debug/lib/*" -o -path "*/bin/*" \) \
-            \( -name "libunilink*.a" -o -name "libunilink*.so*" -o -name "libunilink*.dylib" -o -name "unilink*.dll" -o -name "unilink*.lib" \) \
-            | grep -q .; then
-            echo "Unexpected legacy libunilink binary compatibility artifact found"
-            exit 1
-          fi
-
       - name: Verify installation layout (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -149,22 +138,15 @@ jobs:
 
           Write-Host "Checking headers..."
           if (-not (Test-Path "$installRoot\include\wirestead")) { throw "Wirestead headers not found" }
-          if (-not (Test-Path "$installRoot\include\unilink")) { throw "Legacy headers not found" }
 
           Write-Host "Checking CMake package config..."
           if (-not (Test-Path "$installRoot\share\wirestead\wiresteadConfig.cmake")) { throw "wiresteadConfig.cmake not found" }
-          if (-not (Test-Path "$installRoot\share\unilink\unilinkConfig.cmake")) { throw "unilinkConfig.cmake not found" }
 
           Write-Host "Collecting libraries..."
           $libs = @(Get-ChildItem -Path "$installRoot\lib" -Recurse -Include *wirestead*.lib -ErrorAction SilentlyContinue)
           $dlls = @(Get-ChildItem -Path "$installRoot\bin" -Recurse -Include *wirestead*.dll -ErrorAction SilentlyContinue)
           if ($libs.Count -eq 0 -and $dlls.Count -eq 0) {
             throw "No wirestead libraries or DLLs found under $installRoot"
-          }
-          $legacyLibs = @(Get-ChildItem -Path "$installRoot\lib" -Recurse -Include *unilink*.lib -ErrorAction SilentlyContinue)
-          $legacyDlls = @(Get-ChildItem -Path "$installRoot\bin" -Recurse -Include *unilink*.dll -ErrorAction SilentlyContinue)
-          if ($legacyLibs.Count -ne 0 -or $legacyDlls.Count -ne 0) {
-            throw "Unexpected legacy libunilink binary compatibility artifact found under $installRoot"
           }
           $libs + $dlls | ForEach-Object { Write-Host "  $_" }
 

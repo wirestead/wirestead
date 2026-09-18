@@ -1,36 +1,4 @@
-# Wirestead build options. WIRESTEAD_* is the canonical option surface;
-# UNILINK_* is accepted as a v0.9.x compatibility input and forwarded during
-# configure.
-
-set(_wirestead_option_suffixes
-    BUILD_SHARED
-    BUILD_STATIC
-    BUILD_TESTS
-    BUILD_DOCS
-    ENABLE_CONFIG
-    ENABLE_MEMORY_TRACKING
-    ENABLE_SANITIZERS
-    ENABLE_INSTALL
-    ENABLE_PKGCONFIG
-    ENABLE_EXPORT_HEADER
-    ENABLE_WARNINGS
-    ENABLE_WERROR
-    ENABLE_COVERAGE
-    ENABLE_ASAN
-    ENABLE_UBSAN
-    ENABLE_TSAN
-    ENABLE_LTO
-    ENABLE_PCH
-)
-
-foreach(_suffix IN LISTS _wirestead_option_suffixes)
-  if(DEFINED WIRESTEAD_${_suffix})
-    set(_wirestead_explicit_wirestead_${_suffix} TRUE)
-  endif()
-  if(DEFINED UNILINK_${_suffix})
-    set(_wirestead_explicit_unilink_${_suffix} TRUE)
-  endif()
-endforeach()
+# Wirestead build options.
 
 option(WIRESTEAD_BUILD_SHARED "Build shared library" ON)
 option(WIRESTEAD_LIMIT_EXPORTED_SYMBOLS
@@ -64,14 +32,6 @@ if(DEFINED WIRESTEAD_BUILD_EXAMPLES AND WIRESTEAD_BUILD_EXAMPLES)
   message(
     FATAL_ERROR
       "WIRESTEAD_BUILD_EXAMPLES has been removed. "
-      "Examples live at https://github.com/wirestead/wirestead-examples."
-  )
-endif()
-
-if(DEFINED UNILINK_BUILD_EXAMPLES AND UNILINK_BUILD_EXAMPLES)
-  message(
-    FATAL_ERROR
-      "UNILINK_BUILD_EXAMPLES has been removed. "
       "Examples live at https://github.com/wirestead/wirestead-examples."
   )
 endif()
@@ -120,36 +80,6 @@ if(WIRESTEAD_ENABLE_LTO)
   endif()
 endif()
 option(WIRESTEAD_ENABLE_PCH "Enable Precompiled Headers" OFF)
-
-foreach(_suffix IN LISTS _wirestead_option_suffixes)
-  set(_wirestead_var "WIRESTEAD_${_suffix}")
-  set(_unilink_var "UNILINK_${_suffix}")
-
-  if(_wirestead_explicit_wirestead_${_suffix}
-     AND _wirestead_explicit_unilink_${_suffix}
-  )
-    if(NOT "${${_wirestead_var}}" STREQUAL "${${_unilink_var}}")
-      message(
-        FATAL_ERROR
-          "${_unilink_var}=${${_unilink_var}} conflicts with "
-          "${_wirestead_var}=${${_wirestead_var}}. Set only one of them, or "
-          "set both to the same value."
-      )
-    endif()
-  elseif(_wirestead_explicit_unilink_${_suffix})
-    set(${_wirestead_var}
-        ${${_unilink_var}}
-        CACHE BOOL "" FORCE
-    )
-  endif()
-
-  set(${_unilink_var}
-      ${${_wirestead_var}}
-      CACHE BOOL "Legacy alias for ${_wirestead_var}" FORCE
-  )
-endforeach()
-
-unset(_wirestead_option_suffixes)
 
 if(NOT DEFINED CMAKE_ARCHIVE_OUTPUT_DIRECTORY)
   set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")

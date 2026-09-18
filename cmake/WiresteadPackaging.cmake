@@ -29,8 +29,6 @@ endif()
 
 if(WIRESTEAD_OS_LABEL)
   set(_wirestead_os "${WIRESTEAD_OS_LABEL}")
-elseif(UNILINK_OS_LABEL)
-  set(_wirestead_os "${UNILINK_OS_LABEL}")
 elseif(APPLE)
   set(_wirestead_os "macos")
 elseif(WIN32)
@@ -162,17 +160,6 @@ if(WIRESTEAD_ENABLE_INSTALL)
     COMPATIBILITY SameMajorVersion
   )
 
-  configure_package_config_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/UnilinkConfig.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/unilinkConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/unilink
-  )
-  write_basic_package_version_file(
-    ${CMAKE_CURRENT_BINARY_DIR}/unilinkConfigVersion.cmake
-    VERSION ${PROJECT_VERSION}
-    COMPATIBILITY SameMajorVersion
-  )
-
   if(WIRESTEAD_ENABLE_PKGCONFIG)
     set(PKGCONFIG_REQUIRES "")
     file(RELATIVE_PATH WIRESTEAD_PKGCONFIG_PREFIX_FROM_PCFILEDIR
@@ -189,10 +176,6 @@ if(WIRESTEAD_ENABLE_INSTALL)
     configure_file(
       ${CMAKE_CURRENT_SOURCE_DIR}/cmake/wirestead.pc.in
       ${CMAKE_CURRENT_BINARY_DIR}/wirestead.pc @ONLY
-    )
-    configure_file(
-      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/unilink.pc.in
-      ${CMAKE_CURRENT_BINARY_DIR}/unilink.pc @ONLY
     )
   endif()
 endif()
@@ -250,15 +233,6 @@ if(WIRESTEAD_ENABLE_INSTALL)
     PATTERN "*.h"
   )
 
-  install(
-    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/unilink/
-    COMPONENT headers
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/unilink
-    FILES_MATCHING
-    PATTERN "*.hpp"
-    PATTERN "*.h"
-  )
-
   if(WIRESTEAD_ENABLE_EXPORT_HEADER)
     install(
       FILES ${CMAKE_CURRENT_BINARY_DIR}/wirestead_export.hpp
@@ -281,21 +255,9 @@ if(WIRESTEAD_ENABLE_INSTALL)
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/wirestead
   )
 
-  install(
-    FILES ${CMAKE_CURRENT_BINARY_DIR}/unilinkConfig.cmake
-          ${CMAKE_CURRENT_BINARY_DIR}/unilinkConfigVersion.cmake
-    COMPONENT cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/unilink
-  )
-
   if(WIRESTEAD_ENABLE_PKGCONFIG)
     install(
       FILES ${CMAKE_CURRENT_BINARY_DIR}/wirestead.pc
-      COMPONENT pkgconfig
-      DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
-    )
-    install(
-      FILES ${CMAKE_CURRENT_BINARY_DIR}/unilink.pc
       COMPONENT pkgconfig
       DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
     )
