@@ -116,7 +116,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contributor workflow: runn
 
 ## Coming from Unilink
 
-Wirestead is the successor to Unilink. The `unilink` namespace, headers and CMake package are still installed as compatibility aliases for the v0.9.x line — see [Migrating from Unilink](./docs/migration-from-unilink.md).
+Wirestead is the successor to Unilink. The `unilink` compatibility aliases were removed in v0.10.0; v0.9.x is the last line that installs them. See [Migrating from Unilink](./docs/migration-from-unilink.md).
 
 ## 📚 Documentation
 

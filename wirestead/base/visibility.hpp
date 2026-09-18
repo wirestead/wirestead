@@ -55,20 +55,3 @@
 #ifndef WIRESTEAD_NO_EXPORT
 #define WIRESTEAD_NO_EXPORT WIRESTEAD_LOCAL
 #endif
-
-// Legacy Unilink export macros are source compatibility aliases for v0.9.x.
-#ifndef UNILINK_API
-#define UNILINK_API WIRESTEAD_API
-#endif
-
-#ifndef UNILINK_LOCAL
-#define UNILINK_LOCAL WIRESTEAD_LOCAL
-#endif
-
-#ifndef UNILINK_EXPORT
-#define UNILINK_EXPORT WIRESTEAD_EXPORT
-#endif
-
-#ifndef UNILINK_NO_EXPORT
-#define UNILINK_NO_EXPORT WIRESTEAD_NO_EXPORT
-#endif

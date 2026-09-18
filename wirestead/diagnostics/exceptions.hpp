@@ -201,8 +201,6 @@ class WIRESTEAD_API ConfigurationException : public WiresteadException {
   std::string config_section_;
 };
 
-using UnilinkException = WiresteadException;
-
 }  // namespace diagnostics
 
 }  // namespace wirestead

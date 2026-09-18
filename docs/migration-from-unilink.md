@@ -1,8 +1,9 @@
 # Migrating from Unilink to Wirestead
 
 Wirestead is the canonical project, package, build, and C++ API identity
-starting with v0.9.0. Unilink names are kept only as a v0.9.x source and build
-compatibility layer for existing consumers.
+starting with v0.9.0. The v0.9.x line kept Unilink names as a source and build
+compatibility layer for existing consumers; **v0.10.0 removed it**. Migrate
+while still on v0.9.x, where old and new names both build, then upgrade.
 
 The rename changes C++ mangled symbols, library filenames, and shared library
 SONAMEs. Existing v0.8.x binaries are not ABI-compatible with v0.9.x and must
@@ -90,8 +91,8 @@ be rebuilt.
 
 ## Compatibility Surface
 
-Existing documented source usage continues to compile when rebuilt against
-v0.9.x:
+Up to and including v0.9.x, existing documented source usage continued to
+compile when rebuilt:
 
 ```cpp
 #include <unilink/unilink.hpp>
@@ -104,7 +105,7 @@ The compatibility layer is intentionally narrow. It does not support reopening
 symbols, undocumented internal headers, checks that hard-code mangled symbol
 names, or old shared library filenames.
 
-Provided compatibility surfaces:
+Compatibility surfaces provided by v0.9.x, all removed in v0.10.0:
 
 - `namespace unilink = wirestead`
 - `<unilink/...>` forwarding headers
@@ -117,13 +118,12 @@ Provided compatibility surfaces:
 - `UNILINK_LOG_LEVEL` fallback when `WIRESTEAD_LOG_LEVEL` is unset or empty
 - `unilink.pc` forwarding pkg-config metadata
 
-`WIRESTEAD_LOG_LEVEL` takes precedence when both environment variables are set.
-If both old and new CMake options are explicitly set to different values,
-configure fails with `FATAL_ERROR`.
-
-The Unilink compatibility layer is guaranteed for the v0.9.x line. Its removal
-version is not fixed; removal will be decided later from real usage data and
-will not make Unilink the canonical identity again.
+On v0.10.0 and later each of these fails at the first step that meets it:
+`find_package(unilink)` at configure, `<unilink/...>` and `UNILINK_*` macros at
+compile. `UNILINK_*` CMake options and `UNILINK_LOG_LEVEL` do not fail: the
+options get only CMake's "Manually-specified variables were not used" warning
+and the environment variable is ignored outright, so check for them
+explicitly.
 
 ## ABI and Install Prefixes
 
@@ -136,8 +136,11 @@ Do not install Unilink v0.8.x and Wirestead v0.9.x into the same prefix. The
 v0.9.x install includes legacy `<unilink/...>` forwarding headers and
 `unilinkConfig.cmake` for source compatibility, so an old Unilink install in
 the same prefix can create ambiguous headers, package configs, or stale binary
-artifacts. Use separate prefixes while migrating, or remove the old install
-before validating Wirestead.
+artifacts. Upgrading a prefix from v0.9.x to v0.10.0 leaves those v0.9.x files
+behind as well, since nothing uninstalls them, and they still forward to the new
+install - so a consumer that has not migrated keeps building there and fails
+only on a clean prefix. Use separate prefixes while migrating, or remove the
+old install before validating Wirestead.
 
 ## Python Users
 

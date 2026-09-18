@@ -70,8 +70,8 @@ function(wirestead_configure_shared_target target output_name)
   )
   target_compile_definitions(
     ${target}
-    PUBLIC WIRESTEAD_BUILD_SHARED UNILINK_BUILD_SHARED
-    PRIVATE WIRESTEAD_BUILDING_LIBRARY UNILINK_BUILDING_LIBRARY
+    PUBLIC WIRESTEAD_BUILD_SHARED
+    PRIVATE WIRESTEAD_BUILDING_LIBRARY
   )
   wirestead_limit_exported_symbols(${target})
   wirestead_configure_library_target(${target})
@@ -84,9 +84,7 @@ function(wirestead_configure_static_target target output_name)
                CXX_VISIBILITY_PRESET hidden
                VISIBILITY_INLINES_HIDDEN YES
   )
-  target_compile_definitions(
-    ${target} PUBLIC WIRESTEAD_BUILD_STATIC UNILINK_BUILD_STATIC
-  )
+  target_compile_definitions(${target} PUBLIC WIRESTEAD_BUILD_STATIC)
   wirestead_configure_library_target(${target})
 endfunction()
 
@@ -141,18 +139,12 @@ function(wirestead_add_library_targets)
 
   if(TARGET wirestead_shared)
     add_library(wirestead::wirestead_shared ALIAS wirestead_shared)
-    add_library(unilink_shared ALIAS wirestead_shared)
-    add_library(unilink::unilink_shared ALIAS wirestead_shared)
   endif()
   if(TARGET wirestead_static)
     add_library(wirestead::wirestead_static ALIAS wirestead_static)
-    add_library(unilink_static ALIAS wirestead_static)
-    add_library(unilink::unilink_static ALIAS wirestead_static)
   endif()
   if(TARGET wirestead)
     add_library(wirestead::wirestead ALIAS wirestead)
-    add_library(unilink ALIAS wirestead)
-    add_library(unilink::unilink ALIAS wirestead)
   endif()
 
   set(WIRESTEAD_LIBRARY_TARGETS

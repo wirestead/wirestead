@@ -247,21 +247,13 @@ jobs:
           tar -tzf "$pkg" | tee package-files.txt | sed -n '1,80p'
 
           grep -E '/include/wirestead/wirestead.hpp$' package-files.txt
-          grep -E '/include/unilink/unilink.hpp$' package-files.txt
           grep -E '/lib/(lib)?wirestead[^/]*\.(a|so|dylib)(\.[0-9.]+)?$|/bin/wirestead[^/]*\.(dll|exe)$' package-files.txt
-          grep -E '/unilinkConfig\.cmake$' package-files.txt
           grep -E '/wiresteadConfig\.cmake$' package-files.txt
           grep -E '/wiresteadTargets\.cmake$' package-files.txt
-          grep -E '/unilink\.pc$' package-files.txt
           grep -E '/wirestead\.pc$' package-files.txt
           grep -E '/LICENSE$' package-files.txt
           grep -E '/NOTICE$' package-files.txt
           grep -E '/README\.md$' package-files.txt
-
-          if grep -E '/lib/(lib)?unilink[^/]*\.(a|so|dylib)(\.[0-9.]+)?$|/bin/unilink[^/]*\.(dll|exe)$' package-files.txt; then
-            echo "Unexpected legacy libunilink binary compatibility artifact found"
-            exit 1
-          fi
 
       - name: Verify package contents (ZIP)
         if: runner.os == 'Windows'
@@ -289,23 +281,8 @@ jobs:
             Write-Error "Missing wirestead library output under lib/ or bin/"
             exit 1
           }
-          $legacyLibraryFiles = Get-ChildItem -Recurse $dest | Where-Object {
-            $_.FullName -match '[\\/](lib|bin)[\\/]' -and $_.Name -match '^(unilink|libunilink).*\.(dll|lib|a)$'
-          }
-          if ($legacyLibraryFiles) {
-            Write-Error "Unexpected legacy libunilink binary compatibility artifact found"
-            exit 1
-          }
           if (-not (Get-ChildItem -Recurse $dest -Filter "wirestead.hpp")) {
             Write-Error "Missing wirestead.hpp"
-            exit 1
-          }
-          if (-not (Get-ChildItem -Recurse $dest -Filter "unilink.hpp" | Where-Object { $_.FullName -match '[\\/]unilink[\\/]' })) {
-            Write-Error "Missing legacy unilink.hpp"
-            exit 1
-          }
-          if (-not (Get-ChildItem -Recurse $dest -Filter "unilinkConfig.cmake")) {
-            Write-Error "Missing unilinkConfig.cmake"
             exit 1
           }
           if (-not (Get-ChildItem -Recurse $dest -Filter "wiresteadConfig.cmake")) {

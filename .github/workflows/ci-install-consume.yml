@@ -196,56 +196,14 @@ jobs:
           cmake --build build --config Release
           "$binary"
 
-      - name: Consume legacy package (find_package)
-        shell: bash
-        run: |
-          install_prefix="$RUNNER_TEMP/wirestead-install"
-          mkdir -p "$RUNNER_TEMP/consumer-legacy" && cd "$RUNNER_TEMP/consumer-legacy"
-          cat > CMakeLists.txt <<'EOF'
-          cmake_minimum_required(VERSION 3.12)
-          project(legacy_consumer CXX)
-          set(CMAKE_CXX_STANDARD 20)
-          find_package(unilink CONFIG REQUIRED)
-          if(NOT TARGET unilink::unilink)
-            message(FATAL_ERROR "Expected installed package to provide unilink::unilink")
-          endif()
-          add_executable(legacy_consumer main.cpp)
-          target_link_libraries(legacy_consumer PRIVATE unilink::unilink)
-          EOF
-          cat > main.cpp <<'EOF'
-          #include <unilink/unilink.hpp>
-          #include <iostream>
-          int main(){
-            unilink::diagnostics::Logger::instance().set_console_output(false);
-            unilink::diagnostics::Logger::instance().set_level(unilink::diagnostics::LogLevel::INFO);
-            std::cout << "unilink compatibility package consumed successfully!\n";
-            return 0;
-          }
-          EOF
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            generator=(-G "Visual Studio 17 2022" -A x64)
-            binary="./build/Release/legacy_consumer.exe"
-            export PATH="$install_prefix/bin:/c/vcpkg-pinned/installed/$VCPKG_TARGET_TRIPLET/bin:$PATH"
-          else
-            generator=(-G Ninja)
-            binary="./build/legacy_consumer"
-          fi
-          cmake -S . -B build "${generator[@]}" \
-            -DCMAKE_PREFIX_PATH="$install_prefix" \
-            -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE \
-            -DVCPKG_TARGET_TRIPLET=$VCPKG_TARGET_TRIPLET
-          cmake --build build --config Release
-          "$binary"
-
       # pkg-config is not part of the MSVC consumption story, and the Windows
       # runners have no pkg-config to test with.
       - name: Test pkg-config
         if: runner.os != 'Windows'
         run: |
-          # wirestead.pc and unilink.pc both need vcpkg's pkg-config modules
-          # when dependencies such as spdlog are external.
+          # wirestead.pc needs vcpkg's pkg-config modules when dependencies
+          # such as spdlog are external.
           export PKG_CONFIG_PATH="$RUNNER_TEMP/wirestead-install/lib/pkgconfig:$VCPKG_ROOT/installed/$VCPKG_TARGET_TRIPLET/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
           echo "Testing pkg-config integration..."
           pkg-config --cflags --libs wirestead
-          pkg-config --cflags --libs unilink
           echo "pkg-config test completed successfully!"

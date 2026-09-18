@@ -20,7 +20,7 @@ gate and rejects Boost versions older than the configured minimum.
 vcpkg install wirestead
 ```
 
-For Unilink migration details and compatibility aliases, see
+For Unilink migration details, see
 [Migrating from Unilink](migration-from-unilink.md).
 
 ## Minimal CMake find_package consumer
