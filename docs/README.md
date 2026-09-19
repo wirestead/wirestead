@@ -43,6 +43,12 @@ reading fine after an API is removed or renamed, so nothing else notices.
 - [Migrating from Unilink](migration-from-unilink.md)
 - [Release Checklist](release_checklist.md)
 
+## Design drafts
+
+Proposals under review. They describe intended behavior, not current behavior.
+
+- [v0.10 Communication API Contract](communication_contract_v0.10.md)
+
 ## Extended user documentation
 
 Quick start tutorials, the full API guide, the transport feature matrix,
