@@ -19,6 +19,18 @@ Each rule carries a status:
 | **Proposed** | Recommended direction, pending confirmation |
 | **Open** | Not decided; listed in [Open items](#9-open-items) |
 
+A rule without its own marker takes the default status of its section:
+
+| Section | Default status |
+| --- | --- |
+| 1 Terms, 2 Ready to send | Proposed |
+| 3 Transmission | Proposed |
+| 4 Receiving | Proposed |
+| 5 Execution | Proposed |
+| 6 Lifecycle | Proposed |
+| 7 Error delivery | Proposed |
+| 8 Next step, 9 Open items | Not rules |
+
 The final contract states every rule as a guarantee, an explicit
 non-guarantee, or a caller precondition. Words such as "recommended" or "aim
 to" belong to this draft only.
@@ -34,7 +46,8 @@ to" belong to this draft only.
 | **Serial scope** | The unit within which callbacks never run concurrently. See [section 5.1](#51-serial-scopes). |
 | **Happens-before** | An ordering guarantee between events, separate from serial execution: two callbacks can be serialized without either being guaranteed to come first. |
 | **Reentrancy** | A user callback running synchronously on the caller's stack, inside an API call. Distinct from concurrency: a callback on another thread is not reentrancy. |
-| **Shutdown complete** | For a scope: no callback of that scope is running, and none will start. |
+| **Connection instance** | One established connection, from the moment it becomes ready to send until it is lost or stopped. A reconnect creates a new instance; so does a restart. |
+| **Shutdown complete** | For an object or scope, all of: (1) no user callback of it is running; (2) no callback from the run being stopped will start; (3) any internal work still outstanding either does not touch the object's state or holds its own lifetime independently of the object, so destroying the object is safe; (4) after a restart, nothing left over from the previous run affects the new one. It does not require every internal handler to have run. |
 
 **Decided:** the acceptance result is separate from anything that happens
 after acceptance. A return value reports acceptance only. Cancellation,
@@ -72,9 +85,17 @@ by a table read top to bottom.
    it is rejected with `WouldBlock`.
 3. **Strategy.** The table in [3.2](#32-strategy-decision).
 
-**Proposed.** After a wait ends, stages 1 and 3 run again. Reserving capacity
-and accepting the request are one synchronized decision, so that several
-senders woken together cannot collectively exceed the limit.
+**Proposed.** A wait belongs to the connection instance that was current when
+it started. After the wait ends, stages 1 and 3 run again, and acceptance also
+requires that the connection instance is **still the same one**: if it ended
+while the sender waited, the request is rejected even when a new connection is
+already ready to send. Checking the state alone is not enough, because the
+state can read "ready" again for a different connection.
+
+Reserving capacity, confirming the connection instance and accepting the
+request are one synchronized decision, so that several senders woken together
+cannot collectively exceed the limit, and none can land on a connection it did
+not wait on.
 
 ### 3.2 Strategy decision
 
@@ -90,7 +111,7 @@ A wait ends in one of three ways:
 | Event while waiting | Result |
 | --- | --- |
 | Capacity becomes available | Re-run stages 1 and 3 |
-| Ready-to-send is lost | Reject `NotConnected` or the transport's equivalent |
+| The connection instance it waited on ends, whether or not a new one is already ready | Reject `NotConnected` or the transport's equivalent |
 | `stop()` | Reject `CancelledWhileWaiting` |
 
 - **Decided:** a wait may be unbounded while the channel stays ready and the
@@ -145,10 +166,15 @@ contract. It belongs in [tuning.md](tuning.md).
 
 - A send addressed to one session follows [3.1](#31-decision-procedure) to
   [3.5](#35-order) for that session.
-- **Proposed:** a send to several sessions is decided per session
-  independently. Its result reports the number of sessions that accepted, the
-  number that rejected, and a count per rejection reason. It does not report a
-  single "representative" reason.
+- **Proposed:** a send to several sessions never waits. Each target session
+  is decided as `try_send*()` would decide it, so one slow session cannot hold
+  the call or delay acceptance by the others.
+- **Proposed:** the target set is fixed once, when the call selects its
+  sessions. A session that connects after that point is not a target. A target
+  that ends after selection counts as rejected (`NotConnected`).
+- **Proposed:** the result reports, over that fixed target set, the number of
+  sessions that accepted, the number that rejected, and a count per rejection
+  reason. It does not report a single "representative" reason.
 - **Proposed:** a send that addresses zero sessions returns a result
   distinguishable from both acceptance and rejection.
 - Order is per session. Nothing orders one session's writes against another's.
@@ -248,7 +274,25 @@ checked.
   other scopes may continue. Completion for the whole object is observable only
   through an external `stop()` (**Open:** or another completion signal).
 
-### 5.5 Executors
+### 5.5 Concurrent calls on one object
+
+[5.4](#54-call-site-rules) says where a call may be made from; this table says
+which calls may overlap on the **same** object, from different threads.
+
+| Combination | Contract |
+| --- | --- |
+| `send*()` / `send*()` | Allowed. The library protects its queues and state; order follows [3.5](#35-order) |
+| `send*()` / `stop()` | Allowed. A send whose acceptance decision completes before shutdown begins is accepted and then discarded or aborted under [6.1](#61-events); any other is rejected `Stopping` or `NotStarted`. No request is accepted after `stop()` has returned |
+| `send*()` / `stats()` | Allowed. The snapshot is observational; its fields are not mutually consistent |
+| `stop()` / `stop()` | Allowed; every caller returns after shutdown is complete (**Decided**) |
+| `start()` / `stop()` | Precondition: the caller serializes them |
+| `start()` / `start()` | Precondition: the caller serializes them |
+| Handler registration / `start()` | Precondition: the caller serializes them. Allowing registration only while stopped does not make it safe to register concurrently with a `start()` that is making the object run |
+| Handler registration / handler registration | Precondition: the caller serializes them |
+| Configuration change / `send*()` | Only for items on the explicit list; each listed item states how it is synchronized and from which point it takes effect (**Open:** the list) |
+| Destruction / anything | Precondition: not concurrent, see [5.4](#54-call-site-rules) |
+
+### 5.6 Executors
 
 | Executor | External `stop()` waits for | Preconditions |
 | --- | --- | --- |
@@ -261,7 +305,7 @@ Wirestead's shutdown work. That is why the blocking restriction in
 [5.4](#54-call-site-rules) covers executor threads, not only Wirestead
 callbacks.
 
-### 5.6 A callback that does not return
+### 5.7 A callback that does not return
 
 - Its own scope stops making progress.
 - Other scopes depend on the executor's thread count and whether they share a
@@ -269,7 +313,7 @@ callbacks.
 - `stop()` is not guaranteed to finish in bounded time while a callback it has
   to wait for has not returned.
 
-### 5.7 Exceptions from callbacks
+### 5.8 Exceptions from callbacks
 
 **Open.** The proposal is that an exception thrown by a user callback does not
 propagate out of the library, is logged, and does not close the connection.
@@ -314,21 +358,28 @@ separate decision, recorded here as such.
 ### 6.3 `on_error`
 
 **Proposed:** `on_error` fires for terminal failures (retries exhausted, start
-failure) and, if [5.7](#57-exceptions-from-callbacks) decides so, for callback
+failure) and, if [5.8](#58-exceptions-from-callbacks) decides so, for callback
 exceptions. Connection loss is reported through `on_disconnect` and not also
 through `on_error`. Post-acceptance discards are reported through statistics
 only. `on_error` is not raised once per failed send.
 
 ## 7. Error delivery
 
+Each kind has exactly one path:
+
 | Kind | Delivered through |
 | --- | --- |
-| Invalid configuration or argument | Synchronous validation or a documented exception (**Open:** which, and at `build()` or `start()`) |
-| Rejection at acceptance | The acceptance result |
-| After acceptance | Statistics only ([3.8](#38-what-happens-after-acceptance)) |
-| Connection loss | `on_disconnect(reason)` |
-| Terminal failure | `on_error` |
+| Send argument or size error | The acceptance result's rejection reason ([3.1](#31-decision-procedure) stage 1) |
+| Any other rejection of a send | The acceptance result's rejection reason |
+| Configuration error | A separate configuration-validation policy (**Open:** exception or result, and at `build()` or `start()`) |
+| Discard or abort of one accepted request | Statistics only. No per-request notification ([3.8](#38-what-happens-after-acceptance)) |
+| Channel or session connection loss | `on_disconnect(reason)` |
+| Terminal failure of the channel | `on_error` |
 | Shutdown by `stop()` | No callback; blocked senders get `CancelledWhileWaiting` |
+
+"Statistics only" covers individual requests. It does not contradict the
+connection-loss and terminal-failure rows, which report the state of the
+channel or session, not the fate of a request.
 
 ## 8. Next step: implementation comparison
 
@@ -351,7 +402,7 @@ assumed to hold for the others.
 7. Callback exceptions and whether `on_error` reports them.
 8. Reconnecting event.
 9. UDP server virtual-session expiry event.
-10. Configuration validation: exception or result, and at `build()` or
+10. Configuration validation policy: exception or result, and at `build()` or
     `start()`.
 11. Accumulated receive memory while callbacks are blocked.
 12. Whether post-acceptance statistics can be exact per request.
