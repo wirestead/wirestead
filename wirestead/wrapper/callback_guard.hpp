@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <condition_variable>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -60,46 +61,102 @@ class CallbackGuard {
 
 inline bool in_data_callback() { return g_callback_depth > 0; }
 
-// Counts the user callbacks of one wrapper object that are currently running,
-// so stop() can wait for "no user callback of this object is running" - part
-// of what the v0.10 contract calls shutdown complete
-// (docs/communication_contract_v0.10_decisions.md, D-1).
+// Admission gate for one wrapper object's user callbacks (D-1 in
+// docs/communication_contract_v0.10_decisions.md).
 //
-// Joining the io thread answers this only when the object owns that thread. On
-// an externally run io_context the callbacks run on threads the library never
-// joins, so a stop() there has to wait for this count instead.
+// Shutdown complete means "no user callback of this object is running, and
+// none from that run will start". Counting running callbacks alone cannot
+// answer that: a callback path that has already passed its liveness check can
+// register itself after a stop() has looked at the count. So admission, the
+// count and the closed flag are all decided under one mutex, and stop()
+// closes the gate before it waits.
 //
-// A wait from inside one of the object's own callbacks would wait for itself;
-// callers check that first (Scope::is_active_on_this_thread()) and take the
-// request-only path.
-class ActiveCallbacks {
+// Each run carries a generation. A callback admitted for an earlier run is
+// refused after a restart, so a leftover handler cannot be counted against -
+// or delivered during - the new run.
+class CallbackGate {
  public:
-  class Scope {
+  // Held for the duration of one callback. `admitted()` false means the gate
+  // was closed, or the lease belongs to an earlier run: the caller must not
+  // invoke the user callback.
+  class Lease {
    public:
-    explicit Scope(ActiveCallbacks& owner) : owner_(owner) {
-      std::lock_guard<std::mutex> lock(owner_.mutex_);
-      ++owner_.running_;
-      owner_.threads_.push_back(std::this_thread::get_id());
-    }
-    ~Scope() {
-      {
-        std::lock_guard<std::mutex> lock(owner_.mutex_);
-        --owner_.running_;
-        auto it = std::find(owner_.threads_.begin(), owner_.threads_.end(), std::this_thread::get_id());
-        if (it != owner_.threads_.end()) owner_.threads_.erase(it);
+    Lease() = default;
+    Lease(CallbackGate* gate, bool admitted) : gate_(admitted ? gate : nullptr) {}
+    Lease(Lease&& other) noexcept : gate_(other.gate_) { other.gate_ = nullptr; }
+    Lease& operator=(Lease&& other) noexcept {
+      if (this != &other) {
+        release();
+        gate_ = other.gate_;
+        other.gate_ = nullptr;
       }
-      owner_.idle_.notify_all();
+      return *this;
     }
-    Scope(const Scope&) = delete;
-    Scope& operator=(const Scope&) = delete;
+    Lease(const Lease&) = delete;
+    Lease& operator=(const Lease&) = delete;
+    ~Lease() { release(); }
+
+    bool admitted() const { return gate_ != nullptr; }
 
    private:
-    ActiveCallbacks& owner_;
+    void release() {
+      if (gate_ == nullptr) return;
+      CallbackGate* gate = gate_;
+      gate_ = nullptr;
+      {
+        std::lock_guard<std::mutex> lock(gate->mutex_);
+        --gate->running_;
+        auto it = std::find(gate->threads_.begin(), gate->threads_.end(), std::this_thread::get_id());
+        if (it != gate->threads_.end()) gate->threads_.erase(it);
+      }
+      gate->idle_.notify_all();
+    }
+
+    CallbackGate* gate_ = nullptr;
   };
 
-  // True when this thread is currently running a callback of this object, in
-  // which case waiting for the count to reach zero would deadlock.
-  bool is_active_on_this_thread() const {
+  // Admission and registration in one step: a callback that is admitted is
+  // already counted, so no stop() can observe an empty gate and return while
+  // this callback is about to run.
+  Lease enter(uint64_t generation) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (closed_ || generation != generation_) return Lease(this, false);
+    ++running_;
+    threads_.push_back(std::this_thread::get_id());
+    return Lease(this, true);
+  }
+
+  // Stops admitting. Callbacks already admitted keep running; wait_until_idle()
+  // is what waits for them.
+  void close() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    closed_ = true;
+  }
+
+  // Opens the gate for a new run and returns that run's generation. Callbacks
+  // left over from the previous run are refused by enter().
+  uint64_t open_new_generation() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    closed_ = false;
+    return ++generation_;
+  }
+
+  // A restart that keeps the handlers it already has - an injected channel,
+  // where the same handlers stay registered across runs - admits them again
+  // without changing the generation.
+  void reopen() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    closed_ = false;
+  }
+
+  uint64_t generation() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return generation_;
+  }
+
+  // True when this thread is running a callback of this object: waiting for
+  // the gate to drain from here would wait for itself.
+  bool active_on_this_thread() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return std::find(threads_.begin(), threads_.end(), std::this_thread::get_id()) != threads_.end();
   }
@@ -113,6 +170,8 @@ class ActiveCallbacks {
   mutable std::mutex mutex_;
   std::condition_variable idle_;
   int running_ = 0;
+  bool closed_ = false;
+  uint64_t generation_ = 0;
   std::vector<std::thread::id> threads_;
 };
 

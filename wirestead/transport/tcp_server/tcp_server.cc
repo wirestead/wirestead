@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <atomic>
 #include <boost/asio.hpp>
+#include <condition_variable>
 #include <future>
 #include <iostream>
 #include <mutex>
@@ -85,8 +86,43 @@ struct TcpServer::Impl {
   diagnostics::RuntimeStatsCounters stats_;
 
   mutable std::mutex sessions_mutex_;
-  // Serializes the waiting half of stop() (D-1).
+  // D-1: shutdown requested and shutdown completed are separate states. The
+  // cleanup that tears the sessions down is what completes it, so waiting
+  // callers wait for its signal rather than for a lock.
   std::mutex stop_mtx_;
+  std::condition_variable stop_cv_;
+  bool cleanup_done_ = false;
+  std::mutex join_mtx_;
+
+  void mark_cleanup_done() {
+    {
+      std::lock_guard<std::mutex> lock(stop_mtx_);
+      cleanup_done_ = true;
+    }
+    stop_cv_.notify_all();
+  }
+
+  // The cleanup runs on the io_context; if nobody is currently running it,
+  // this thread drives it rather than waiting forever.
+  void wait_for_cleanup() {
+    std::unique_lock<std::mutex> lock(stop_mtx_);
+    while (!cleanup_done_) {
+      if (stop_cv_.wait_for(lock, std::chrono::milliseconds(20), [this] { return cleanup_done_; })) return;
+      lock.unlock();
+      const std::size_t ran = ioc_.poll();
+      const bool context_stopped = ioc_.stopped();
+      lock.lock();
+      if (cleanup_done_) return;
+      if (ran == 0 && context_stopped) {
+        // Nobody is servicing this io_context and it will not run again on its
+        // own, so no handler can be executing: finish the teardown here.
+        lock.unlock();
+        perform_cleanup();
+        lock.lock();
+        return;
+      }
+    }
+  }
   std::unordered_map<ClientId, std::shared_ptr<TcpServerSession>> sessions_;
 
   size_t max_clients_;
@@ -477,6 +513,10 @@ struct TcpServer::Impl {
 
   void perform_cleanup() {
     if (cleanup_started_.exchange(true)) return;
+    struct CompletionSignal {
+      Impl* impl;
+      ~CompletionSignal() { impl->mark_cleanup_done(); }
+    } completion_signal{this};
     try {
       boost::system::error_code ec;
       if (acceptor_ && acceptor_->is_open()) {
@@ -531,10 +571,11 @@ struct TcpServer::Impl {
       return;
     }
 
-    std::lock_guard<std::mutex> stop_lock(stop_mtx_);
     if (!first) {
-      // The first caller is either finished or still inside the section below;
-      // taking stop_mtx_ is what makes this caller wait for it.
+      // Wait for the teardown the first caller started - the signal, not a
+      // lock, is what says it finished.
+      wait_for_cleanup();
+      std::lock_guard<std::mutex> join_lock(join_mtx_);
       join_owned_thread();
       return;
     }
@@ -568,12 +609,16 @@ struct TcpServer::Impl {
       });
 
       if (cleanup_future.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
+        // Nothing is servicing the context; run it here instead of returning
+        // with the teardown unfinished.
         perform_cleanup();
       }
     } else {
       perform_cleanup();
     }
 
+    wait_for_cleanup();
+    std::lock_guard<std::mutex> join_lock(join_mtx_);
     join_owned_thread();
   }
 
@@ -627,6 +672,10 @@ void TcpServer::start() {
   }
   impl->stopping_.store(false);
   impl->cleanup_started_.store(false);
+  {
+    std::lock_guard<std::mutex> lock(impl->stop_mtx_);
+    impl->cleanup_done_ = false;
+  }
   // Restart contract (#444): stats() resets on restart. The server-level
   // counters now outlive the sessions that fed them, so clearing them here is
   // what keeps that promise - before absorption they were empty and a restart

@@ -44,10 +44,22 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
   mutable std::shared_mutex mutex_;
   std::mutex bp_mutex_;
   std::condition_variable bp_cv_;
-  // D-1: this object's running user callbacks, so stop() can wait for
-  // "no callback of this object is running" - including a session callback on
-  // an external io_context, where there is no thread to join.
-  detail::ActiveCallbacks active_callbacks_;
+  // D-1: admission gate for this object's user callbacks, across every
+  // session. Admission and the running count are one decision under the gate's
+  // own lock, and a new run refuses callbacks left over from the previous one.
+  detail::CallbackGate callback_gate_;
+  std::atomic<uint64_t> callback_generation_{0};
+
+  // A thread the shutdown needs: one running a callback of this object, or one
+  // currently running the external io_context this server was built on - which
+  // a callback of another channel sharing that context is.
+  bool shutdown_needs_this_thread() const {
+    if (callback_gate_.active_on_this_thread()) return true;
+    if (use_external_context_.load() && external_ioc_) {
+      return external_ioc_->get_executor().running_in_this_thread();
+    }
+    return false;
+  }
   uint16_t port_;
   std::string bind_address_{"0.0.0.0"};
   std::string tls_certificate_file_;
@@ -176,8 +188,9 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     pending_promises_.clear();
   }
 
-  void flush_batches() {
-    detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
+  void flush_batches(uint64_t generation) {
+    auto lease = callback_gate_.enter(generation);
+    if (!lease.admitted()) return;
     std::unique_lock<std::shared_mutex> lock(mutex_);
     if (!data_batch_queue_.empty()) {
       auto handler = data_batch_handler_;
@@ -204,17 +217,17 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     }
   }
 
-  void schedule_batch_timer() {
+  void schedule_batch_timer(uint64_t generation) {
     if (!batch_timer_) return;
     batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait([this, weak_impl = weak_from_this(),
+    batch_timer_->async_wait([this, generation, weak_impl = weak_from_this(),
                               weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
       if (ec) return;
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
-      flush_batches();
+      flush_batches(generation);
     });
   }
 
@@ -229,6 +242,12 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     auto f = p.get_future();
     pending_promises_.push_back(std::move(p));
     if (started_.exchange(true)) return f;
+
+    // D-1: a run admits callbacks again. Handlers registered in
+    // setup_internal_handlers() get a generation of their own; handlers that
+    // stay registered across runs - an injected channel - keep theirs and
+    // stay admissible.
+    callback_gate_.reopen();
 
     if (!channel_) {
       config::TcpServerConfig config;
@@ -293,7 +312,10 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     // D-1: a stop() from inside a callback may already have torn everything
     // down, but shutdown is not complete while a callback of this object is
     // still running, so a later caller still waits at the end.
-    const bool inside_own_callback = active_callbacks_.is_active_on_this_thread();
+    const bool request_only = shutdown_needs_this_thread();
+    // Closed first, so no callback can be admitted between the teardown and
+    // the wait at the end.
+    callback_gate_.close();
     {
       std::unique_lock<std::shared_mutex> lock(mutex_);
       if (!started_.exchange(false) && !channel_) {
@@ -356,8 +378,8 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     // Rule 2: a caller running one of this object's callbacks has requested
     // the shutdown and must not wait for itself. Everyone else leaves only
     // once no callback of this object - of any session - is running.
-    if (!inside_own_callback) {
-      active_callbacks_.wait_until_idle();
+    if (!request_only) {
+      callback_gate_.wait_until_idle();
     }
   }
 
@@ -434,14 +456,20 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
 
     std::weak_ptr<bool> weak_alive = alive_marker_;
     std::weak_ptr<Impl> weak_impl = weak_from_this();
+    // Registering handlers starts a new generation, so a handler from an
+    // earlier registration can no longer be admitted.
+    const uint64_t generation = callback_gate_.open_new_generation();
+    callback_generation_.store(generation);
     auto transport_server = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
     if (transport_server) {
-      transport_server->on_multi_connect([this, weak_impl, weak_alive](ClientId id, const std::string& info) {
+      transport_server->on_multi_connect([this, generation, weak_impl, weak_alive](ClientId id,
+                                                                                   const std::string& info) {
         auto impl_keepalive = weak_impl.lock();
         if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
-        detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
+        auto lease = callback_gate_.enter(generation);
+        if (!lease.admitted()) return;
 
         ConnectionHandler handler;
         {
@@ -450,7 +478,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
             auto framer = framer_factory_();
             if (framer) {
               auto shared_framer = std::shared_ptr<framer::IFramer>(std::move(framer));
-              shared_framer->on_message([this, id](memory::ConstByteSpan msg) {
+              shared_framer->on_message([this, id, generation](memory::ConstByteSpan msg) {
                 // #441: snapshot under a shared_lock (pure read), build the
                 // copy before taking the exclusive lock for queue mutation.
                 bool batch_mode;
@@ -473,7 +501,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
                       batch = std::move(message_batch_queue_);
                       message_batch_queue_.clear();
                     } else if (message_batch_queue_.size() == 1) {
-                      schedule_batch_timer();
+                      schedule_batch_timer(generation);
                     }
                   }
                   detail::invoke_user_callback("tcp_server", "on_message_batch", flush_handler, batch);
@@ -489,66 +517,69 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         }
         detail::invoke_user_callback("tcp_server", "on_connect", handler, ConnectionContext(id, info));
       });
-      transport_server->on_multi_data([this, weak_impl, weak_alive](ClientId id, memory::ConstByteSpan data_span) {
-        auto impl_keepalive = weak_impl.lock();
-        if (!impl_keepalive) return;
-        auto alive = weak_alive.lock();
-        if (!alive) return;
+      transport_server->on_multi_data(
+          [this, generation, weak_impl, weak_alive](ClientId id, memory::ConstByteSpan data_span) {
+            auto impl_keepalive = weak_impl.lock();
+            if (!impl_keepalive) return;
+            auto alive = weak_alive.lock();
+            if (!alive) return;
 
-        // #449: everything below runs synchronously on this io thread -
-        // mark it so a blocking send_to()/broadcast() called from within
-        // one of these callbacks fails fast instead of deadlocking.
-        detail::CallbackGuard callback_guard;
-        detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
+            // #449: everything below runs synchronously on this io thread -
+            // mark it so a blocking send_to()/broadcast() called from within
+            // one of these callbacks fails fast instead of deadlocking.
+            auto lease = callback_gate_.enter(generation);
+            if (!lease.admitted()) return;
+            detail::CallbackGuard callback_guard;
 
-        // #441: snapshot the handler/framer pointers under a shared_lock
-        // (not unique_lock) - this is a pure read, matching try_send's
-        // locking level so it no longer blocks concurrent sends even
-        // briefly.
-        bool batch_mode;
-        interface::SharedCallback<MessageHandler> handler;
-        std::shared_ptr<framer::IFramer> framer;
-        {
-          std::shared_lock<std::shared_mutex> lock(mutex_);
-          batch_mode = static_cast<bool>(data_batch_handler_);
-          handler = on_data_;
-          auto it = framers_.find(id);
-          if (it != framers_.end()) {
-            framer = it->second;
-          }
-        }
-
-        if (batch_mode) {
-          // #441: build the copy before taking the exclusive lock, so the
-          // lock is only held for the queue mutation itself, not the
-          // allocation.
-          MessageContext ctx(id, memory::SafeDataBuffer(data_span));
-          interface::SharedCallback<BatchMessageHandler> flush_handler;
-          std::vector<MessageContext> batch;
-          {
-            std::unique_lock<std::shared_mutex> lock(mutex_);
-            data_batch_queue_.emplace_back(std::move(ctx));
-            if (data_batch_queue_.size() >= max_batch_size_) {
-              flush_handler = data_batch_handler_;
-              batch = std::move(data_batch_queue_);
-              data_batch_queue_.clear();
-            } else if (data_batch_queue_.size() == 1) {
-              schedule_batch_timer();
+            // #441: snapshot the handler/framer pointers under a shared_lock
+            // (not unique_lock) - this is a pure read, matching try_send's
+            // locking level so it no longer blocks concurrent sends even
+            // briefly.
+            bool batch_mode;
+            interface::SharedCallback<MessageHandler> handler;
+            std::shared_ptr<framer::IFramer> framer;
+            {
+              std::shared_lock<std::shared_mutex> lock(mutex_);
+              batch_mode = static_cast<bool>(data_batch_handler_);
+              handler = on_data_;
+              auto it = framers_.find(id);
+              if (it != framers_.end()) {
+                framer = it->second;
+              }
             }
-          }
-          detail::invoke_user_callback("tcp_server", "on_data_batch", flush_handler, batch);
-        } else {
-          detail::invoke_user_callback("tcp_server", "on_data", handler, MessageContext(id, data_span));
-        }
 
-        if (framer) framer->push_bytes(data_span);
-      });
-      transport_server->on_multi_disconnect([this, weak_impl, weak_alive](ClientId id) {
+            if (batch_mode) {
+              // #441: build the copy before taking the exclusive lock, so the
+              // lock is only held for the queue mutation itself, not the
+              // allocation.
+              MessageContext ctx(id, memory::SafeDataBuffer(data_span));
+              interface::SharedCallback<BatchMessageHandler> flush_handler;
+              std::vector<MessageContext> batch;
+              {
+                std::unique_lock<std::shared_mutex> lock(mutex_);
+                data_batch_queue_.emplace_back(std::move(ctx));
+                if (data_batch_queue_.size() >= max_batch_size_) {
+                  flush_handler = data_batch_handler_;
+                  batch = std::move(data_batch_queue_);
+                  data_batch_queue_.clear();
+                } else if (data_batch_queue_.size() == 1) {
+                  schedule_batch_timer(generation);
+                }
+              }
+              detail::invoke_user_callback("tcp_server", "on_data_batch", flush_handler, batch);
+            } else {
+              detail::invoke_user_callback("tcp_server", "on_data", handler, MessageContext(id, data_span));
+            }
+
+            if (framer) framer->push_bytes(data_span);
+          });
+      transport_server->on_multi_disconnect([this, generation, weak_impl, weak_alive](ClientId id) {
         auto impl_keepalive = weak_impl.lock();
         if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
-        detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
+        auto lease = callback_gate_.enter(generation);
+        if (!lease.admitted()) return;
 
         ConnectionHandler handler;
         {
@@ -559,12 +590,14 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         detail::invoke_user_callback("tcp_server", "on_disconnect", handler, ConnectionContext(id));
       });
 
-      transport_server->on_backpressure([this, weak_impl, weak_alive](size_t queued) {
+      transport_server->on_backpressure([this, generation, weak_impl, weak_alive](size_t queued) {
         bp_cv_.notify_all();
         auto impl_keepalive = weak_impl.lock();
         if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
+        auto lease = callback_gate_.enter(generation);
+        if (!lease.admitted()) return;
         std::function<void(size_t)> handler;
         {
           std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -573,12 +606,13 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         detail::invoke_user_callback("tcp_server", "on_backpressure", handler, queued);
       });
     }
-    channel_->on_state([this, weak_impl, weak_alive](base::LinkState state) {
+    channel_->on_state([this, generation, weak_impl, weak_alive](base::LinkState state) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
-      detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
 
       if (state == base::LinkState::Listening) {
         is_listening_.store(true);

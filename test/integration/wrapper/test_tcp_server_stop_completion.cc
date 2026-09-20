@@ -43,29 +43,34 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
-class Gate {
+// One-shot event. The tests fix their order with these rather than with
+// sleeps; a sleep appears only as the window in which a caller must *not*
+// have returned, where a longer wait can only weaken the test, not flake it.
+class Signal {
  public:
-  void wait_until_open(std::chrono::milliseconds bound = 5s) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait_for(lock, bound, [this] { return open_; });
-  }
-  void open() {
+  void notify() {
     {
       std::lock_guard<std::mutex> lock(mutex_);
-      open_ = true;
+      set_ = true;
     }
     cv_.notify_all();
   }
-  bool is_open() const {
+  bool wait(std::chrono::milliseconds bound = 5s) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return cv_.wait_for(lock, bound, [this] { return set_; });
+  }
+  bool is_set() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    return open_;
+    return set_;
   }
 
  private:
   mutable std::mutex mutex_;
   std::condition_variable cv_;
-  bool open_ = false;
+  bool set_ = false;
 };
+
+constexpr auto kNotYetWindow = 300ms;
 
 class TcpServerStopCompletionTest : public ::testing::Test {
  protected:
@@ -85,7 +90,7 @@ class TcpServerStopCompletionTest : public ::testing::Test {
 TEST_F(TcpServerStopCompletionTest, OutsideStopsWaitForASessionCallbackToFinish) {
   auto server = wirestead::tcp_server(port_).on_error([](auto&&) {}).build();
 
-  Gate in_callback;
+  Signal in_callback, release_callback;
   std::atomic<bool> callback_finished{false};
   std::atomic<int> callbacks_after_stop{0};
   std::atomic<bool> stops_returned{false};
@@ -95,9 +100,9 @@ TEST_F(TcpServerStopCompletionTest, OutsideStopsWaitForASessionCallbackToFinish)
       callbacks_after_stop.fetch_add(1);
       return;
     }
-    if (in_callback.is_open()) return;
-    in_callback.open();
-    std::this_thread::sleep_for(300ms);
+    if (in_callback.is_set()) return;
+    in_callback.notify();
+    release_callback.wait();
     callback_finished = true;
   });
 
@@ -109,21 +114,31 @@ TEST_F(TcpServerStopCompletionTest, OutsideStopsWaitForASessionCallbackToFinish)
   ASSERT_TRUE(TestUtils::waitForCondition([&] { return server->client_count() == 2; }, 3000));
 
   ASSERT_TRUE(slow_client->send("busy\n"));
-  in_callback.wait_until_open();
-  ASSERT_TRUE(in_callback.is_open()) << "the session callback never ran";
+  ASSERT_TRUE(in_callback.wait()) << "the session callback never ran";
 
-  std::atomic<int> returned_after_callback{0};
+  std::atomic<int> entered{0};
+  std::atomic<int> returns{0};
+  std::atomic<int> returns_before_callback_finished{0};
   std::vector<std::thread> stoppers;
   for (int i = 0; i < 2; ++i) {
     stoppers.emplace_back([&] {
+      entered.fetch_add(1);
       server->stop();
-      if (callback_finished.load()) returned_after_callback.fetch_add(1);
+      if (!callback_finished.load()) returns_before_callback_finished.fetch_add(1);
+      returns.fetch_add(1);
     });
   }
+
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return entered.load() == 2; }, 3000));
+  std::this_thread::sleep_for(kNotYetWindow);
+  EXPECT_EQ(returns.load(), 0) << "an outside stop() returned while a session callback was running";
+
+  release_callback.notify();
   for (auto& stopper : stoppers) stopper.join();
   stops_returned = true;
 
-  EXPECT_EQ(returned_after_callback.load(), 2) << "an outside stop() returned while a session callback was running";
+  EXPECT_EQ(returns.load(), 2);
+  EXPECT_EQ(returns_before_callback_finished.load(), 0);
   EXPECT_EQ(callbacks_after_stop.load(), 0) << "a callback ran after stop() returned";
 
   slow_client->stop();
@@ -135,17 +150,15 @@ TEST_F(TcpServerStopCompletionTest, OutsideStopsWaitForASessionCallbackToFinish)
 TEST_F(TcpServerStopCompletionTest, SessionCallbackRequestsStopWhileOutsideCallersWait) {
   auto server = wirestead::tcp_server(port_).on_error([](auto&&) {}).build();
 
-  Gate in_callback;
+  Signal in_callback, inner_stop_returned, release_callback;
   std::atomic<bool> callback_finished{false};
-  std::atomic<bool> inner_stop_returned_early{false};
 
   server->on_data([&](const wrapper::MessageContext&) {
-    if (in_callback.is_open()) return;
-    in_callback.open();
-    const auto before = Clock::now();
-    server->stop();
-    inner_stop_returned_early = (Clock::now() - before) < 200ms;
-    std::this_thread::sleep_for(300ms);
+    if (in_callback.is_set()) return;
+    in_callback.notify();
+    server->stop();  // rule 2: requests, does not wait for itself
+    inner_stop_returned.notify();
+    release_callback.wait();
     callback_finished = true;
   });
 
@@ -155,21 +168,32 @@ TEST_F(TcpServerStopCompletionTest, SessionCallbackRequestsStopWhileOutsideCalle
   ASSERT_TRUE(TestUtils::waitForCondition([&] { return server->client_count() == 1; }, 3000));
   ASSERT_TRUE(client->send("busy\n"));
 
-  in_callback.wait_until_open();
-  ASSERT_TRUE(in_callback.is_open()) << "the session callback never ran";
+  ASSERT_TRUE(in_callback.wait()) << "the session callback never ran";
+  ASSERT_TRUE(inner_stop_returned.wait()) << "stop() from inside the session callback did not return";
+  ASSERT_FALSE(callback_finished.load()) << "the callback ended before its stop() was observed";
 
-  std::atomic<int> returned_after_callback{0};
+  std::atomic<int> entered{0};
+  std::atomic<int> returns{0};
+  std::atomic<int> returns_before_callback_finished{0};
   std::vector<std::thread> stoppers;
   for (int i = 0; i < 2; ++i) {
     stoppers.emplace_back([&] {
+      entered.fetch_add(1);
       server->stop();
-      if (callback_finished.load()) returned_after_callback.fetch_add(1);
+      if (!callback_finished.load()) returns_before_callback_finished.fetch_add(1);
+      returns.fetch_add(1);
     });
   }
+
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return entered.load() == 2; }, 3000));
+  std::this_thread::sleep_for(kNotYetWindow);
+  EXPECT_EQ(returns.load(), 0) << "an outside stop() returned while the session callback was still running";
+
+  release_callback.notify();
   for (auto& stopper : stoppers) stopper.join();
 
-  EXPECT_TRUE(inner_stop_returned_early.load()) << "stop() from inside a session callback waited for itself";
-  EXPECT_EQ(returned_after_callback.load(), 2) << "an outside stop() returned before the session callback finished";
+  EXPECT_EQ(returns.load(), 2);
+  EXPECT_EQ(returns_before_callback_finished.load(), 0);
 
   client->stop();
 }
@@ -216,13 +240,13 @@ TEST_F(TcpServerStopCompletionTest, OutsideStopWaitsOnAnExternallyRunContext) {
   std::thread ioc_thread([&] { ioc->run(); });
 
   auto server = std::make_shared<wrapper::TcpServer>(port_, ioc);
-  Gate in_callback;
+  Signal in_callback, release_callback;
   std::atomic<bool> callback_finished{false};
 
   server->on_data([&](const wrapper::MessageContext&) {
-    if (in_callback.is_open()) return;
-    in_callback.open();
-    std::this_thread::sleep_for(300ms);
+    if (in_callback.is_set()) return;
+    in_callback.notify();
+    release_callback.wait();
     callback_finished = true;
   });
 
@@ -232,11 +256,23 @@ TEST_F(TcpServerStopCompletionTest, OutsideStopWaitsOnAnExternallyRunContext) {
   ASSERT_TRUE(TestUtils::waitForCondition([&] { return server->client_count() == 1; }, 3000));
   ASSERT_TRUE(client->send("busy\n"));
 
-  in_callback.wait_until_open();
-  ASSERT_TRUE(in_callback.is_open()) << "the session callback never ran";
+  ASSERT_TRUE(in_callback.wait()) << "the session callback never ran";
 
-  server->stop();
-  EXPECT_TRUE(callback_finished.load()) << "stop() returned while a session callback was running";
+  std::atomic<bool> entered{false};
+  std::atomic<bool> returned{false};
+  std::thread stopper([&] {
+    entered = true;
+    server->stop();
+    returned = true;
+  });
+
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return entered.load(); }, 3000));
+  std::this_thread::sleep_for(kNotYetWindow);
+  EXPECT_FALSE(returned.load()) << "stop() returned while a session callback was running on the external context";
+
+  release_callback.notify();
+  stopper.join();
+  EXPECT_TRUE(callback_finished.load());
 
   client->stop();
   server.reset();

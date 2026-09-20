@@ -17,15 +17,12 @@
 // D-1 for the TCP client: concurrent and callback-initiated stop()
 // (docs/communication_contract_v0.10_decisions.md).
 //
-//   1. stop() from a thread the shutdown does not need returns only when
-//      shutdown is complete - every concurrent caller, including one that
-//      finds a shutdown already requested;
-//   2. stop() from a thread the shutdown does need requests it and returns;
-//   3. stop() after completion returns immediately;
-//   4. after a waiting stop() returns, a restart works and receives data.
-//
-// Every wait is bounded and every assertion is on observed order, not on
-// sleeps: a regression fails rather than hanging.
+// The order these tests depend on is fixed with explicit signals rather than
+// sleeps: a callback is held open by a gate, the callers announce that they
+// have entered stop(), and the assertions are on what had happened by the time
+// the gate was opened. Sleeps appear only as the "has not returned yet"
+// observation window, where a longer sleep can only make the test weaker, not
+// flaky.
 
 #include <gtest/gtest.h>
 
@@ -49,32 +46,46 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
-// A latch that records when it was released, so a test can assert that a
-// stop() returned *after* a callback finished rather than guessing with a
-// sleep.
-class Gate {
+// Joins a thread however the test leaves the scope, so a failed assertion
+// does not terminate the process on a still-joinable std::thread.
+class JoinOnExit {
  public:
-  void wait_until_open(std::chrono::milliseconds bound = 5s) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait_for(lock, bound, [this] { return open_; });
+  explicit JoinOnExit(std::thread& thread) : thread_(thread) {}
+  ~JoinOnExit() {
+    if (thread_.joinable()) thread_.join();
   }
-  void open() {
+
+ private:
+  std::thread& thread_;
+};
+
+// One-shot event.
+class Signal {
+ public:
+  void notify() {
     {
       std::lock_guard<std::mutex> lock(mutex_);
-      open_ = true;
+      set_ = true;
     }
     cv_.notify_all();
   }
-  bool is_open() const {
+  bool wait(std::chrono::milliseconds bound = 5s) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return cv_.wait_for(lock, bound, [this] { return set_; });
+  }
+  bool is_set() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    return open_;
+    return set_;
   }
 
  private:
   mutable std::mutex mutex_;
   std::condition_variable cv_;
-  bool open_ = false;
+  bool set_ = false;
 };
+
+// How long a caller that must not return yet is given to prove it.
+constexpr auto kNotYetWindow = 300ms;
 
 class TcpClientStopCompletionTest : public ::testing::Test {
  protected:
@@ -88,12 +99,11 @@ class TcpClientStopCompletionTest : public ::testing::Test {
     if (server_) server_->stop();
   }
 
-  std::shared_ptr<wrapper::TcpClient> connected_client() {
-    auto client = wirestead::tcp_client("127.0.0.1", port_).on_error([](auto&&) {}).build();
-    return client;
+  std::shared_ptr<wrapper::TcpClient> make_client() {
+    return wirestead::tcp_client("127.0.0.1", port_).on_error([](auto&&) {}).build();
   }
 
-  void push_to_client(const std::string& payload) {
+  void push(const std::string& payload) {
     ASSERT_TRUE(TestUtils::waitForCondition([&] { return server_->client_count() > 0; }, 3000));
     server_->broadcast(payload);
   }
@@ -102,98 +112,121 @@ class TcpClientStopCompletionTest : public ::testing::Test {
   std::shared_ptr<wrapper::TcpServer> server_;
 };
 
-// Rule 1: two concurrent outside callers both return only after the callback
-// they overlap with has finished.
+// Rule 1: both concurrent callers return only after the callback they overlap
+// with has finished, and nothing is delivered afterwards.
 TEST_F(TcpClientStopCompletionTest, ConcurrentOutsideStopsBothWaitForACallbackToFinish) {
-  auto client = connected_client();
+  auto client = make_client();
 
-  Gate in_callback;
+  Signal in_callback, release_callback;
   std::atomic<bool> callback_finished{false};
-  std::atomic<int> callbacks_after_stop{0};
-  std::atomic<bool> stops_returned{false};
+  std::atomic<int> callbacks_after_return{0};
+  std::atomic<bool> returned{false};
 
   client->on_data([&](const wrapper::MessageContext&) {
-    if (stops_returned.load()) {
-      callbacks_after_stop.fetch_add(1);
+    if (returned.load()) {
+      callbacks_after_return.fetch_add(1);
       return;
     }
-    in_callback.open();
-    std::this_thread::sleep_for(300ms);
+    if (in_callback.is_set()) return;
+    in_callback.notify();
+    release_callback.wait();
     callback_finished = true;
   });
 
   ASSERT_TRUE(client->start_sync());
-  push_to_client("hello\n");
-  in_callback.wait_until_open();
-  ASSERT_TRUE(in_callback.is_open()) << "the slow callback never ran";
+  push("hello\n");
+  ASSERT_TRUE(in_callback.wait()) << "the callback never ran";
 
-  std::atomic<bool> first_done{false};
-  std::atomic<bool> second_done{false};
-  std::thread first([&] {
-    client->stop();
-    EXPECT_TRUE(callback_finished.load()) << "the first stop() returned while the callback was still running";
-    first_done = true;
-  });
-  std::thread second([&] {
-    client->stop();
-    EXPECT_TRUE(callback_finished.load()) << "the second stop() returned while the callback was still running";
-    second_done = true;
-  });
+  std::atomic<int> entered{0};
+  std::atomic<int> returns{0};
+  std::atomic<int> returns_before_callback_finished{0};
+  std::vector<std::thread> stoppers;
+  for (int i = 0; i < 2; ++i) {
+    stoppers.emplace_back([&] {
+      entered.fetch_add(1);
+      client->stop();
+      if (!callback_finished.load()) returns_before_callback_finished.fetch_add(1);
+      returns.fetch_add(1);
+    });
+  }
 
-  first.join();
-  second.join();
-  stops_returned = true;
-  EXPECT_TRUE(first_done.load());
-  EXPECT_TRUE(second_done.load());
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return entered.load() == 2; }, 3000));
+  std::this_thread::sleep_for(kNotYetWindow);
+  EXPECT_EQ(returns.load(), 0) << "a stop() returned while the callback was still running";
+
+  release_callback.notify();
+  for (auto& stopper : stoppers) stopper.join();
+  returned = true;
+
+  EXPECT_EQ(returns.load(), 2);
+  EXPECT_EQ(returns_before_callback_finished.load(), 0);
 
   server_->broadcast("after-stop\n");
   std::this_thread::sleep_for(200ms);
-  EXPECT_EQ(callbacks_after_stop.load(), 0) << "a callback ran after stop() returned";
+  EXPECT_EQ(callbacks_after_return.load(), 0) << "a callback ran after stop() returned";
 }
 
-// Rules 1 and 2 together, which testing them separately does not cover: the
-// callback requests the shutdown and keeps running while two outside callers
-// wait for it.
+// Rules 1 and 2 in one run, in a fixed order: the callback's own stop() is
+// observed to return *while the callback is still running*, and only then do
+// the outside callers start.
 TEST_F(TcpClientStopCompletionTest, CallbackRequestsStopWhileOutsideCallersWaitForCompletion) {
-  auto client = connected_client();
+  auto client = make_client();
 
-  Gate in_callback;
+  Signal in_callback, inner_stop_returned, release_callback;
   std::atomic<bool> callback_finished{false};
-  std::atomic<bool> inner_stop_returned_early{false};
 
   client->on_data([&](const wrapper::MessageContext&) {
-    in_callback.open();
-    const auto before = Clock::now();
-    client->stop();  // rule 2: requests, does not wait for itself
-    const auto elapsed = Clock::now() - before;
-    inner_stop_returned_early = elapsed < 200ms;
-    std::this_thread::sleep_for(300ms);
+    if (in_callback.is_set()) return;
+    in_callback.notify();
+    client->stop();  // rule 2: requests the shutdown, does not wait for itself
+    inner_stop_returned.notify();
+    release_callback.wait();
     callback_finished = true;
   });
 
   ASSERT_TRUE(client->start_sync());
-  push_to_client("hello\n");
-  in_callback.wait_until_open();
-  ASSERT_TRUE(in_callback.is_open()) << "the callback never ran";
+  push("hello\n");
+  ASSERT_TRUE(in_callback.wait()) << "the callback never ran";
+  ASSERT_TRUE(inner_stop_returned.wait()) << "stop() from inside the callback did not return";
+  ASSERT_FALSE(callback_finished.load()) << "the callback ended before its stop() was observed";
 
-  std::vector<std::thread> waiters;
-  std::atomic<int> returned_after_callback{0};
+  std::atomic<int> entered{0};
+  std::atomic<int> returns{0};
+  std::atomic<int> returns_before_callback_finished{0};
+  std::vector<std::thread> stoppers;
   for (int i = 0; i < 2; ++i) {
-    waiters.emplace_back([&] {
+    stoppers.emplace_back([&] {
+      entered.fetch_add(1);
       client->stop();
-      if (callback_finished.load()) returned_after_callback.fetch_add(1);
+      if (!callback_finished.load()) returns_before_callback_finished.fetch_add(1);
+      returns.fetch_add(1);
     });
   }
-  for (auto& waiter : waiters) waiter.join();
 
-  EXPECT_TRUE(inner_stop_returned_early.load()) << "stop() from inside the callback waited instead of requesting";
-  EXPECT_EQ(returned_after_callback.load(), 2) << "an outside stop() returned before the callback had finished";
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return entered.load() == 2; }, 3000));
+  std::this_thread::sleep_for(kNotYetWindow);
+  EXPECT_EQ(returns.load(), 0) << "an outside stop() returned while the callback was still running";
+
+  release_callback.notify();
+  for (auto& stopper : stoppers) stopper.join();
+
+  EXPECT_EQ(returns.load(), 2);
+  EXPECT_EQ(returns_before_callback_finished.load(), 0);
+
+  // Rule 4, after a shutdown that was requested from a callback: restart and
+  // receive again.
+  std::atomic<int> received{0};
+  client->on_data([&](const wrapper::MessageContext&) { received.fetch_add(1); });
+  ASSERT_TRUE(client->start_sync()) << "restart after a callback-initiated stop failed";
+  push("again\n");
+  EXPECT_TRUE(TestUtils::waitForCondition([&] { return received.load() > 0; }, 3000))
+      << "the restarted channel received nothing";
+  client->stop();
 }
 
-// Rule 2 for the callback kinds this test can reach deterministically, and
-// rule 3 for the call that follows them.
+// Rule 2 from the connect callback, then rule 3 for the call that follows.
 TEST_F(TcpClientStopCompletionTest, StopFromConnectCallbackReturnsAndDoesNotThrow) {
-  auto client = wirestead::tcp_client("127.0.0.1", port_).on_error([](auto&&) {}).build();
+  auto client = make_client();
 
   std::atomic<bool> returned{false};
   std::atomic<bool> threw{false};
@@ -218,51 +251,64 @@ TEST_F(TcpClientStopCompletionTest, StopFromConnectCallbackReturnsAndDoesNotThro
   EXPECT_LT(Clock::now() - before, 500ms) << "a stop() after completion did not return immediately";
 }
 
-// Rule 4: after a waiting stop() returns, the channel restarts and receives.
+// Rule 4 on its own: restart after a completed stop() receives again.
 TEST_F(TcpClientStopCompletionTest, RestartAfterStopReceivesDataAgain) {
-  auto client = connected_client();
+  auto client = make_client();
 
   std::atomic<int> received{0};
   client->on_data([&](const wrapper::MessageContext&) { received.fetch_add(1); });
 
   ASSERT_TRUE(client->start_sync());
-  push_to_client("first\n");
+  push("first\n");
   EXPECT_TRUE(TestUtils::waitForCondition([&] { return received.load() > 0; }, 3000));
 
   client->stop();
   received = 0;
 
   ASSERT_TRUE(client->start_sync()) << "restart after a completed stop() failed";
-  push_to_client("second\n");
+  push("second\n");
   EXPECT_TRUE(TestUtils::waitForCondition([&] { return received.load() > 0; }, 3000))
       << "the restarted channel received nothing";
   client->stop();
 }
 
-// Rule 1 again, on an externally run io_context: there is no io thread to
-// join, so completion has to come from somewhere else.
+// Rule 1 on an externally run io_context: no thread of ours to join, so
+// completion has to come from the callbacks and the transport's own teardown.
 TEST_F(TcpClientStopCompletionTest, OutsideStopWaitsOnAnExternallyRunContext) {
   auto ioc = std::make_shared<boost::asio::io_context>();
   auto work = boost::asio::make_work_guard(*ioc);
   std::thread ioc_thread([&] { ioc->run(); });
 
   auto client = std::make_shared<wrapper::TcpClient>("127.0.0.1", port_, ioc);
-  Gate in_callback;
+  Signal in_callback, release_callback;
   std::atomic<bool> callback_finished{false};
 
   client->on_data([&](const wrapper::MessageContext&) {
-    in_callback.open();
-    std::this_thread::sleep_for(300ms);
+    if (in_callback.is_set()) return;
+    in_callback.notify();
+    release_callback.wait();
     callback_finished = true;
   });
 
   ASSERT_TRUE(client->start_sync());
-  push_to_client("hello\n");
-  in_callback.wait_until_open();
-  ASSERT_TRUE(in_callback.is_open()) << "the slow callback never ran";
+  push("hello\n");
+  ASSERT_TRUE(in_callback.wait()) << "the callback never ran";
 
-  client->stop();
-  EXPECT_TRUE(callback_finished.load()) << "stop() returned while a callback was running on the external context";
+  std::atomic<bool> entered{false};
+  std::atomic<bool> returned{false};
+  std::thread stopper([&] {
+    entered = true;
+    client->stop();
+    returned = true;
+  });
+
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return entered.load(); }, 3000));
+  std::this_thread::sleep_for(kNotYetWindow);
+  EXPECT_FALSE(returned.load()) << "stop() returned while a callback was running on the external context";
+
+  release_callback.notify();
+  stopper.join();
+  EXPECT_TRUE(callback_finished.load());
 
   client.reset();
   work.reset();
@@ -270,44 +316,98 @@ TEST_F(TcpClientStopCompletionTest, OutsideStopWaitsOnAnExternallyRunContext) {
   if (ioc_thread.joinable()) ioc_thread.join();
 }
 
-// The cross-channel case: a callback of one channel stopping another.
-// Sharing the executor makes the second channel's shutdown need this thread,
-// so it is request-only; with its own executor the same call waits.
+// The cross-channel case. Stopping a channel whose shutdown needs the thread
+// this callback is running on is request-only; stopping one with its own
+// executor waits for that channel's callback to finish.
 TEST_F(TcpClientStopCompletionTest, StoppingAnotherChannelFromACallback) {
   auto shared_ioc = std::make_shared<boost::asio::io_context>();
   auto work = boost::asio::make_work_guard(*shared_ioc);
-  std::thread ioc_thread([&] { shared_ioc->run(); });
+  std::vector<std::thread> ioc_threads;
+  for (int i = 0; i < 2; ++i) ioc_threads.emplace_back([&] { shared_ioc->run(); });
+  // Released on every exit path, so a failed assertion cannot leave the gates
+  // shut or the io threads running.
+  struct SharedContextCleanup {
+    std::vector<std::thread>& threads;
+    std::shared_ptr<boost::asio::io_context> ioc;
+    std::vector<Signal*> gates;
+    ~SharedContextCleanup() {
+      for (auto* gate : gates) gate->notify();
+      ioc->stop();
+      for (auto& thread : threads) {
+        if (thread.joinable()) thread.join();
+      }
+    }
+  };
 
   auto driver = std::make_shared<wrapper::TcpClient>("127.0.0.1", port_, shared_ioc);
   auto shared_peer = std::make_shared<wrapper::TcpClient>("127.0.0.1", port_, shared_ioc);
-  auto independent_peer = wirestead::tcp_client("127.0.0.1", port_).on_error([](auto&&) {}).build();
+  auto independent_peer = make_client();
 
-  Gate stopped_both;
-  std::atomic<bool> shared_stop_fast{false};
+  Signal peer_in_callback, release_peer, driver_in_callback, driver_may_proceed, driver_done;
+  Signal independent_in_callback, release_independent;
+  std::atomic<bool> peer_callback_finished{false};
+  std::atomic<bool> independent_callback_finished{false};
+  std::atomic<bool> shared_stop_returned_while_peer_running{false};
   std::atomic<bool> independent_stop_waited{false};
 
+  SharedContextCleanup cleanup{ioc_threads, shared_ioc, {&release_peer, &release_independent, &driver_may_proceed}};
+
+  shared_peer->on_data([&](const wrapper::MessageContext&) {
+    if (peer_in_callback.is_set()) return;
+    peer_in_callback.notify();
+    release_peer.wait();
+    peer_callback_finished = true;
+  });
+  independent_peer->on_data([&](const wrapper::MessageContext&) {
+    if (independent_in_callback.is_set()) return;
+    independent_in_callback.notify();
+    release_independent.wait();
+    independent_callback_finished = true;
+  });
   driver->on_data([&](const wrapper::MessageContext&) {
-    if (stopped_both.is_open()) return;
-    auto before = Clock::now();
-    shared_peer->stop();  // shares this executor: request only
-    shared_stop_fast = (Clock::now() - before) < 500ms;
+    if (driver_in_callback.is_set()) return;
+    driver_in_callback.notify();
+    // The other two callbacks have to be running before this one stops them,
+    // otherwise a stop that refuses their admission is indistinguishable from
+    // one that waited for them.
+    driver_may_proceed.wait();
 
-    before = Clock::now();
-    independent_peer->stop();  // its own io thread: waits for completion
-    independent_stop_waited = !independent_peer->connected();
+    // Shares this io_context, so its shutdown needs this thread: request only.
+    shared_peer->stop();
+    shared_stop_returned_while_peer_running = !peer_callback_finished.load();
 
-    stopped_both.open();
+    // Its own executor: this waits until that channel's callback has finished,
+    // which another thread releases below.
+    independent_peer->stop();
+    independent_stop_waited = independent_callback_finished.load();
+
+    driver_done.notify();
   });
 
   ASSERT_TRUE(shared_peer->start_sync());
   ASSERT_TRUE(independent_peer->start_sync());
   ASSERT_TRUE(driver->start_sync());
-  push_to_client("hello\n");
-  stopped_both.wait_until_open();
-  ASSERT_TRUE(stopped_both.is_open()) << "the driver callback never completed";
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return server_->client_count() == 3; }, 5000))
+      << "not every client connected";
 
-  EXPECT_TRUE(shared_stop_fast.load()) << "stopping a channel that shares this executor blocked the callback";
-  EXPECT_TRUE(independent_stop_waited.load()) << "stopping an independent channel did not complete";
+  server_->broadcast("hold\n");
+  ASSERT_TRUE(driver_in_callback.wait()) << "the driver's callback never ran";
+  ASSERT_TRUE(peer_in_callback.wait()) << "the shared peer's callback never ran";
+  ASSERT_TRUE(independent_in_callback.wait()) << "the independent peer's callback never ran";
+  driver_may_proceed.notify();
+
+  std::thread releaser([&] {
+    std::this_thread::sleep_for(kNotYetWindow);
+    release_independent.notify();
+  });
+  JoinOnExit join_releaser(releaser);
+
+  ASSERT_TRUE(driver_done.wait(10s)) << "the driver callback did not finish";
+  EXPECT_TRUE(shared_stop_returned_while_peer_running.load())
+      << "stopping a channel that shares this executor waited instead of requesting";
+  EXPECT_TRUE(independent_stop_waited.load()) << "stopping an independent channel returned before its callback ended";
+
+  release_peer.notify();
 
   driver->stop();
   shared_peer->stop();
@@ -315,8 +415,6 @@ TEST_F(TcpClientStopCompletionTest, StoppingAnotherChannelFromACallback) {
   driver.reset();
   shared_peer.reset();
   work.reset();
-  shared_ioc->stop();
-  if (ioc_thread.joinable()) ioc_thread.join();
 }
 
 }  // namespace

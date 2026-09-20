@@ -31,6 +31,7 @@
 #ifdef WIRESTEAD_TLS_ENABLED
 #include <boost/asio/ssl.hpp>
 #endif
+#include <condition_variable>
 #include <cstdint>
 #include <cstring>
 #include <deque>
@@ -159,9 +160,52 @@ struct TcpClient::Impl {
   // reservation both go through write_reserve_mtx_ - see bp_utils.hpp.
   std::atomic<size_t> inflight_bytes_{0};
   std::mutex write_reserve_mtx_;
-  // Serializes the waiting half of stop() (D-1): concurrent callers from off
-  // the executor all leave with the shutdown complete.
+  // D-1: shutdown *requested* and shutdown *completed* are separate states.
+  // The cleanup handler that runs on the strand is what completes it, and
+  // waiting callers wait for that signal rather than for a mutex - a mutex
+  // only says another caller was here, not that the teardown ran.
   std::mutex stop_mtx_;
+  std::condition_variable stop_cv_;
+  bool cleanup_done_ = false;
+  // Serializes the join itself: joining a thread from two callers is not
+  // allowed, and the second caller must not return before the first has.
+  std::mutex join_mtx_;
+
+  void mark_cleanup_done() {
+    {
+      std::lock_guard<std::mutex> lock(stop_mtx_);
+      cleanup_done_ = true;
+    }
+    stop_cv_.notify_all();
+  }
+
+  // Waits for the cleanup handler to have run. The handler sits on the strand,
+  // so whoever runs the io_context executes it; if nobody is currently doing
+  // that - a never-started transport, or an external context its owner has
+  // stopped pumping - this thread drives it instead rather than waiting
+  // forever. Running it from here is safe because the strand serializes it.
+  void wait_for_cleanup() {
+    std::unique_lock<std::mutex> lock(stop_mtx_);
+    while (!cleanup_done_) {
+      if (stop_cv_.wait_for(lock, std::chrono::milliseconds(20), [this] { return cleanup_done_; })) return;
+      if (!ioc_) return;
+      lock.unlock();
+      const std::size_t ran = ioc_->poll();
+      const bool context_stopped = ioc_->stopped();
+      lock.lock();
+      if (cleanup_done_) return;
+      if (ran == 0 && context_stopped) {
+        // Nothing is servicing this io_context and it will not run again on
+        // its own - a caller-driven context that has stopped, or one that was
+        // never run. No handler can be executing, so running the teardown on
+        // this thread is safe and is the only way to finish it.
+        lock.unlock();
+        perform_stop_cleanup();
+        lock.lock();
+        return;
+      }
+    }
+  }
   // Atomic rather than mutex-guarded: read both from the strand and from
   // arbitrary caller threads (async_try_write_* fast-fail prechecks) (#436).
   std::atomic<base::constants::BackpressureStrategy> bp_strategy_{base::constants::BackpressureStrategy::Reliable};
@@ -349,7 +393,6 @@ void TcpClient::stop() {
     impl_->stopping_.store(true);
     impl_->stop_seq_.store(impl_->current_seq_.load());
     if (impl_->ioc_) {
-
       // Post via a raw Impl* rather than weak_from_this().lock(): when stop()
       // runs from ~TcpClient(), the shared_ptr use count is already 0, so that
       // lock() is guaranteed null (standard shared_ptr/enable_shared_from_this
@@ -368,9 +411,12 @@ void TcpClient::stop() {
     return;
   }
 
-  // Serialized so a second caller waits here rather than returning while the
-  // first is still tearing the transport down.
-  std::lock_guard<std::mutex> lock(impl_->stop_mtx_);
+  // Wait for the teardown itself, not for a lock: with an external io_context
+  // there is no thread to join, so the cleanup handler's own signal is the
+  // only evidence that the transport is finished with its state.
+  impl_->wait_for_cleanup();
+
+  std::lock_guard<std::mutex> join_lock(impl_->join_mtx_);
   impl_->join_ioc_thread(false);
 }
 
@@ -1332,6 +1378,11 @@ void TcpClient::Impl::transition_to(LinkState next, const boost::system::error_c
 }
 
 void TcpClient::Impl::perform_stop_cleanup() {
+  // Signals completion on every exit, including the error paths below.
+  struct CompletionSignal {
+    Impl* impl;
+    ~CompletionSignal() { impl->mark_cleanup_done(); }
+  } completion_signal{this};
   try {
     retry_timer_.cancel();
     connect_timer_.cancel();
@@ -1372,6 +1423,10 @@ void TcpClient::Impl::perform_stop_cleanup() {
 }
 
 void TcpClient::Impl::reset_start_state() {
+  {
+    std::lock_guard<std::mutex> lock(stop_mtx_);
+    cleanup_done_ = false;
+  }
   stop_requested_.store(false);
   stopping_.store(false);
   terminal_state_notified_.store(false);
