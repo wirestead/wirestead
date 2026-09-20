@@ -171,7 +171,11 @@ contract. It belongs in [tuning.md](tuning.md).
   the call or delay acceptance by the others.
 - **Proposed:** the target set is fixed once, when the call selects its
   sessions. A session that connects after that point is not a target. A target
-  that ends after selection counts as rejected (`NotConnected`).
+  that ends **between selection and its own acceptance decision** is rejected
+  with `NotConnected`. A target that ends **after** it accepted keeps that
+  acceptance in the result; what happens to the request then follows
+  [6.1](#61-events), as a discard before write or an abort during write. A
+  result is never revised after the fact.
 - **Proposed:** the result reports, over that fixed target set, the number of
   sessions that accepted, the number that rejected, and a count per rejection
   reason. It does not report a single "representative" reason.
@@ -282,7 +286,7 @@ which calls may overlap on the **same** object, from different threads.
 | Combination | Contract |
 | --- | --- |
 | `send*()` / `send*()` | Allowed. The library protects its queues and state; order follows [3.5](#35-order) |
-| `send*()` / `stop()` | Allowed. A send whose acceptance decision completes before shutdown begins is accepted and then discarded or aborted under [6.1](#61-events); any other is rejected `Stopping` or `NotStarted`. No request is accepted after `stop()` has returned |
+| `send*()` / `stop()` | Allowed, with four separate cases: (1) a send whose acceptance decision completes before shutdown begins keeps its acceptance, and only what is still unfinished when shutdown reaches it is discarded or aborted under [6.1](#61-events) - a request already written stays written; (2) a call already waiting for capacity is woken and returns `CancelledWhileWaiting`; (3) a call that observes the shutdown is rejected `Stopping` or `NotStarted`; (4) no request is accepted again until an explicit restart |
 | `send*()` / `stats()` | Allowed. The snapshot is observational; its fields are not mutually consistent |
 | `stop()` / `stop()` | Allowed; every caller returns after shutdown is complete (**Decided**) |
 | `start()` / `stop()` | Precondition: the caller serializes them |
