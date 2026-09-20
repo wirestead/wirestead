@@ -48,6 +48,8 @@ reading fine after an API is removed or renamed, so nothing else notices.
 Proposals under review. They describe intended behavior, not current behavior.
 
 - [v0.10 Communication API Contract](communication_contract_v0.10.md)
+- [v0.10 Contract Audit](communication_contract_v0.10_audit.md)
+- [v0.10 Contract Decisions](communication_contract_v0.10_decisions.md)
 
 ## Extended user documentation
 
