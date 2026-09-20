@@ -219,7 +219,7 @@ expires an entry after a configured silence, which is not a remote disconnect.
 | C-3.2-5 `send_blocking()` in a not-ready state rejects immediately | Proposed | Serial | The wrapper re-checks `is_connected()` after the wait | `wrapper/serial/serial.cc:386-398` `[code]` | Match | Differs from TCP |
 | C-3.4-2 A rejected `*_move()` leaves the source unchanged | Proposed | Serial | Moved only after the checks | `transport/serial/serial.cc:762-784, 818-861` `[code]` | Match | – |
 | C-5.4-2 Every concurrent `stop()` caller waits | Decided | Serial | `stopping_.exchange(true)` returns early | `transport/serial/serial.cc:674` `[code]` | Differs | Same as TCP |
-| C-5.4-3 `stop()` inside a callback requests shutdown without waiting | Decided | Serial | `stop()` joins the owned io thread **without** checking whether it is the current thread, unlike every other transport. Confirmed at runtime: the join throws `std::system_error` ("Resource deadlock avoided"), and the rest of the shutdown never runs - see [section 10](#10-runtime-confirmation-serial-stop-inside-a-callback) | `transport/serial/serial.cc:683-686` `[code]`; `test/repro/serial_stop_in_callback_repro.cc` `[test-run, see section 10]` | Differs | `stop()` from a serial callback throws instead of requesting shutdown, and a later restart does not return |
+| C-5.4-3 `stop()` inside a callback requests shutdown without waiting | Decided | Serial | `stop()` joins the owned io thread **without** checking whether it is the current thread, unlike every other transport. Confirmed at runtime: the join throws `std::system_error` ("Resource deadlock avoided"), and the rest of the shutdown never runs - see [section 10](#10-runtime-confirmation-serial-stop-inside-a-callback) | `transport/serial/serial.cc:683-686` `[code]`; `test/repro/serial_stop_in_callback_repro.cc` `[test-run, see section 10]` | Differs | `stop()` from a serial callback throws instead of requesting shutdown, and a later restart's future never completes |
 | C-5.4-4 Blocking send inside any callback | Proposed | Serial | Guard set only in the data dispatch | `wrapper/serial/serial.cc:433` `[code]` | Differs | Same as TCP |
 | C-6.1-1 Queued data discarded when the link drops | Decided | Serial | With `reopen_on_error`, the queue survives the reopen; it is cleared only by cleanup or by a queue overflow | `transport/serial/serial.cc:188-194, 455-465, 498-503` `[code]` | Differs | Same as TCP |
 | C-6.1-3 Link loss during operation fires `on_disconnect` | Proposed | Serial | With `reopen_on_error` the state goes to `Connecting`, which the wrapper ignores; without it, the state goes to `Error` and `on_error` fires | `transport/serial/serial.cc:491-509`; `wrapper/serial/serial.cc:495-515` `[code]` | Differs | Reopen-on-error behaves like TCP: a recovered drop is reported nowhere |
@@ -355,13 +355,14 @@ meaning each completed as described below.
 | Destruction | completed, with no call in flight | completed, with no call in flight | completed, with no call in flight |
 | Process result | exited 0 | exited 0 | exited 0 |
 
-Restart is observed separately, through `start()`'s future, so that "returned
-false" and "has not returned" are distinct:
+Restart is observed separately. `start()` itself returns a future, so what is
+observed is whether that future completes - keeping "completed with false"
+apart from "not ready within the bound":
 
 | Scenario | `stop()` in the callback | Restart after the outside `stop()` | Destruction |
 | --- | --- | --- | --- |
-| `restart-after-callback-stop` | yes, threw | **has not returned after 3s** - not a `false` return, not an exception | not attempted; the child exited deliberately with the `start()` still in flight |
-| `restart-control` | no | returned `true` | completed after a further `stop()` |
+| `restart-after-callback-stop` | yes, threw | `start()` returned, but **its future was not ready within 3s** - not a `false` completion, not an exception | not attempted; the child exited deliberately with the asynchronous start still in flight |
+| `restart-control` | no | future completed with `true` | completed after a further `stop()` |
 
 The control scenarios are what make the rest meaningful: the same object, the
 same pseudo-terminal and the same outside `stop()` restart cleanly when the
@@ -375,8 +376,8 @@ callback does not call `stop()`.
   which is before `ioc_.restart()` and before `started_ = false`, and the
   exception then unwinds out of the wrapper's `stop()` before it clears the
   channel's callbacks and releases the channel. The object is left
-  half-stopped: a later `stop()` returns, but a restart does not come back at
-  all.
+  half-stopped: a later `stop()` returns, but a restart's future never
+  completes.
 - What a destruction in that state would do is **not** established here. The
   reproduction deliberately stops rather than destroying an object with a call
   in flight, so only destruction with nothing in flight is observed as

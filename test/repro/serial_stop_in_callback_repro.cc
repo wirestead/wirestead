@@ -38,7 +38,9 @@
 // kills the child instead of the test runner.
 //
 // Exit codes: 0 scenario completed (or skipped), 2 setup failed, 3 the child
-// hung, 4 the child stopped deliberately with a call still in flight.
+// hung, 4 the child stopped deliberately with a call still in flight. Once the
+// serial object exists, every early exit calls _exit() rather than returning,
+// so a callback that is still running never sees its references destroyed.
 
 #include <cstdio>
 #include <cstring>
@@ -96,20 +98,23 @@ bool open_pty(Pty& pty) {
   return true;
 }
 
-// Reports one of: returned-true, returned-false, threw, or still-running.
+// start() itself returns a future; what is observed here is whether that
+// future completes. Four outcomes are kept apart: completed true, completed
+// false, threw, and not ready within the bound.
 void observe_start(wirestead::wrapper::Serial& port, const char* label) {
   try {
     auto future = port.start();
     const auto status = future.wait_for(3s);
     if (status != std::future_status::ready) {
-      std::printf("[obs] %s: has not returned after 3s\n", label);
+      std::printf("[obs] %s: start() returned, but its future was not ready within 3s\n", label);
+      obs("leaving the object alive: an asynchronous start is still in flight");
       std::fflush(stdout);
-      obs("leaving the object alive: a start() is still in flight");
-      std::fflush(stdout);
+      // Exit the process here: returning would destroy the object and the
+      // state that start is still working on.
       _exit(4);
     }
     const bool ok = future.get();
-    std::printf("[obs] %s: returned %s\n", label, ok ? "true" : "false");
+    std::printf("[obs] %s: future completed with %s\n", label, ok ? "true" : "false");
     std::fflush(stdout);
   } catch (const std::exception& e) {
     std::printf("[obs] %s: threw %s\n", label, e.what());
@@ -176,22 +181,28 @@ int run_scenario(Mode mode) {
     }
   });
 
+  // From here the object exists and a callback may run at any moment, so every
+  // early exit leaves the process rather than returning: returning would
+  // destroy `port` and the flags the callback holds references to.
   if (!port->start_sync()) {
     obs("start-failed");
-    return 2;
+    std::fflush(stdout);
+    _exit(2);
   }
   obs("started");
 
   const char payload[] = "ping\n";
   if (write(pty.master, payload, sizeof(payload) - 1) < 0) {
     obs("write-to-pty-failed");
-    return 2;
+    std::fflush(stdout);
+    _exit(2);
   }
 
   for (int i = 0; i < 250 && !entered.load(); ++i) std::this_thread::sleep_for(20ms);
   if (!entered.load()) {
     obs("callback-never-entered");
-    return 2;
+    std::fflush(stdout);
+    _exit(2);
   }
   // Wait for the callback body to be left, by return or by exception. Without
   // this the flags below would be read while the callback may still be running.
@@ -199,7 +210,8 @@ int run_scenario(Mode mode) {
   if (!callback_left.load()) {
     obs("callback-did-not-return-within-5s");
     obs("leaving the object alive: a callback is still in flight");
-    return 4;
+    std::fflush(stdout);
+    _exit(4);
   }
 
   std::printf("[obs] callback-left: stop_returned=%d threw_at_call_site=%d connected=%d\n",
