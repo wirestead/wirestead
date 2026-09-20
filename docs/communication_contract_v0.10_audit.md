@@ -30,10 +30,11 @@ never recorded as a pass:
 | `[test-run]` | Run locally for this audit, with the result stated |
 
 Tests run for this audit, on Linux/WSL2, Release, at the baseline commit:
-`ctest -R "Contract|StopContract"` - **53 tests, all passed**. That selection
-includes `ContractComplianceTest.*` and `StopContractTest.*` plus everything
-else carrying a contract label. No other suite was run in this round; the rest
-of the repository's tests are neither claimed to pass nor to fail here.
+`ctest -R "Contract|StopContract"` - **53 tests, all passed**. `-R` filters on
+test **names**, so the selection is every test whose name contains "Contract"
+or "StopContract", which includes `ContractComplianceTest.*` and
+`StopContractTest.*`. No other suite was run in this round; the rest of the
+repository's tests are neither claimed to pass nor to fail here.
 
 ## Verdicts
 
@@ -54,9 +55,9 @@ Counting the rows of the three tables below:
 | Verdict | Rows |
 | --- | --- |
 | Match | 25 |
-| Differs | 19 |
+| Differs | 20 |
 | Insufficient evidence | 6 |
-| **Total** | **50** |
+| **Total** | **51** |
 
 ## 1. Concurrency, callbacks, ownership
 
@@ -113,7 +114,8 @@ Counting the rows of the three tables below:
 | C-6.1-1 On connection loss, not-yet-written requests are discarded | Decided | Client | The queue survives the loss. A write that failed mid-batch is returned to the front of the queue, and the reconnect path does not clear it, so queued data is written on the next connection | `transport/tcp_client/tcp_client.cc:1061-1075, 1102-1131, 715-816` `[code]` | Differs | The contract's "data from a previous connection is never sent on a new one" does not hold here; a partially written message can also be resent in full, which the peer may see as a duplicate |
 | C-6.1-2 Blocked senders are woken with `NotConnected` | Proposed | Client | Connection loss does not clear `backpressure_active_`, and the wait predicate does not test readiness, so a blocked sender is not necessarily woken by the loss itself | `transport/tcp_client/tcp_client.cc:1102-1131`; `wrapper/tcp_client/tcp_client.cc:334-344` `[code]` | Insufficient evidence | Whether the waiter stays blocked depends on timing the code alone did not settle; needs a test |
 | C-6.1-3 Connection loss during operation fires `on_disconnect` | Proposed | Client | The wrapper maps `Closed` to `on_disconnect` and `Error` to `on_error`; a loss that leads to a retry transitions to `Connecting`, which the wrapper ignores | `wrapper/tcp_client/tcp_client.cc:505-545`; `transport/tcp_client/tcp_client.cc:1102-1131` `[code]` | Differs | A client that reconnects can deliver `on_connect` twice with no `on_disconnect` in between |
-| C-6.1-2 | Proposed | Server | `do_close()` drains the session's queues and clears backpressure before clearing callbacks, which wakes a caller blocked in `send_to_blocking()` for that client | `tcp_server_session.cc:455-470` `[code]` | Match | – |
+| C-6.1-2a A session ending releases callers waiting on it | Proposed | Server | `do_close()` drains the session's queues and clears backpressure before clearing callbacks, which wakes a caller blocked in `send_to_blocking()` for that client | `tcp_server_session.cc:455-470` `[code]` | Match | – |
+| C-6.1-2b The released caller is told `NotConnected` | Proposed | Server | `send_to_blocking()` returns `false`; no reason is carried | `wrapper/tcp_server/tcp_server.cc:389-410` `[code]` | Differs | Same root as C-3.7-1: the reason exists inside the library but has no way out |
 | C-6.1-3 | Proposed | Server | A session's `on_close` fires the multi-client disconnect handler | `transport/tcp_server/tcp_server.cc:414-421` `[code]` | Match | – |
 | C-6.2-1 `stop()` does not fire `on_disconnect` | Proposed | Client | State notifications are suppressed once stopping | `transport/tcp_client/tcp_client.cc:1399-1400` `[code]`; `StopContractTest.*`, `ContractComplianceTest.TcpClient_StopSemantics` `[test-run, passed]` | Match | – |
 | C-6.2-1 | Proposed | Server | The session close handler returns early when the server is stopping | `transport/tcp_server/tcp_server.cc:417-418` `[code]`; `ContractComplianceTest.TcpServer_StopSemantics` `[test-run, passed]` | Match | – |
@@ -121,7 +123,7 @@ Counting the rows of the three tables below:
 | C-6.3-1 Connection loss is not also reported through `on_error` | Proposed | Client | A failed write records error info for `last_error` but raises no `on_error` | `transport/tcp_client/tcp_client.cc:1061-1075` `[code]` | Match | Combined with C-6.1-3, a loss that is retried produces no callback at all |
 | C-6.1-5 Restart keeps handlers and configuration and resets statistics | Proposed | Client | The wrapper keeps handlers and config; the transport resets its state and statistics on start | `transport/tcp_client/tcp_client.cc:1362-1376` `[code]`; wrapper lifecycle tests `[test-exists]` | Match | Already the documented #444 contract |
 | C-6.1-6 Session end: statistics closed and folded into server totals | Proposed | Server | `stats_.absorb()` runs under the same lock as the erase, so it happens exactly once | `transport/tcp_server/tcp_server.cc:428-438` `[code]` | Match | – |
-| C-1-1 Shutdown complete covers outstanding internal work | Proposed | Server | `stop()` dispatches cleanup onto the io_context and waits up to 2 seconds, then runs cleanup directly. The contract's own precondition for a caller-run executor is that the executor keeps running, so the timeout path is outside the case the rule covers. Separately, `cleanup_started_` records only that cleanup **began**, so whether a second path can return while cleanup is still in progress was not settled | `transport/tcp_server/tcp_server.cc:476-478, 544-560` `[code]` | Insufficient evidence | Needs the three parts separated - running callbacks, cleanup itself, and internal work still outstanding - before any verdict |
+| C-1-1 Shutdown complete covers outstanding internal work | Proposed | Server | `stop()` dispatches cleanup onto the io_context and waits up to 2 seconds, then runs cleanup directly. An executor that never runs at all is outside the contract's precondition for a caller-run executor, but the timeout can also be reached **while the executor is running**, when a long handler or a backlog delays the cleanup - and that path's completion guarantee is unverified. Separately, `cleanup_started_` records only that cleanup **began**, so whether a second path can return while cleanup is still in progress was not settled | `transport/tcp_server/tcp_server.cc:476-478, 544-560` `[code]` | Insufficient evidence | Needs the three parts separated - running callbacks, cleanup itself, and internal work still outstanding - before any verdict |
 
 ## Cross-cutting observations
 
@@ -154,9 +156,17 @@ Counting the rows of the three tables below:
 
 1. Confirm or revise the rules marked Differs, one decision per rule, before
    any code changes.
-2. Close the Insufficient evidence rows with targeted tests: reentrancy
-   through `dispatch()` (C-5.3-1), a blocked sender across a disconnect
-   (C-6.1-2), callback ordering on a multi-threaded executor (C-5.2-1), and
-   shutdown completion with an external io_context (C-5.4-1).
+2. Close the six Insufficient evidence rows with targeted tests:
+   - C-5.4-1 shutdown completion with an external io_context, including work
+     still outstanding;
+   - C-5.3-1 reentrancy through `dispatch()`;
+   - C-5.1-2b serialization of all of one session's callbacks on a
+     multi-threaded executor;
+   - C-5.2-1 `on_connect` ordering against that connection's receive
+     callbacks;
+   - C-6.1-2 (client) a blocked sender across a disconnect;
+   - C-1-1 server shutdown, separating running callbacks, the cleanup itself,
+     and outstanding internal work, including the timeout path with a running
+     executor.
 3. Extend the same table to UDS client, UDS server, UDP, UDP server and
    serial.
