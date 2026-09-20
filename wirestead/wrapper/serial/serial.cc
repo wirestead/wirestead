@@ -226,11 +226,16 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
 
   void stop() {
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    if (!started_.load()) {
+    // A stop() from inside a callback marks the wrapper stopped and then asks
+    // the transport to shut down without waiting for its own thread. A later
+    // stop() from outside must therefore still finish the teardown rather than
+    // return on the flag alone, which is what left the object half-stopped
+    // (jwsung91/wirestead#649).
+    const bool was_started = started_.exchange(false);
+    if (!was_started && !channel) {
       fulfill_all_locked(false);
       return;
     }
-    started_.store(false);
     bp_cv_.notify_all();
 
     if (batch_timer_) {

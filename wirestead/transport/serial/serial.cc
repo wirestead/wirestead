@@ -101,6 +101,10 @@ struct Serial::Impl {
   // reservation both go through write_reserve_mtx_ - see bp_utils.hpp.
   std::atomic<size_t> inflight_bytes_{0};
   std::mutex write_reserve_mtx_;
+  // Serializes the waiting half of stop(), so concurrent callers from outside
+  // the io thread all return with the shutdown complete rather than with one
+  // of them returning early.
+  std::mutex stop_mtx_;
   // Atomic rather than mutex-guarded: read both from the strand and from
   // arbitrary caller threads (async_try_write_* fast-fail prechecks) - a
   // strand-post/dispatch here would only protect the former (#436).
@@ -666,20 +670,34 @@ void Serial::start() {
 
 void Serial::stop() {
   auto impl = get_impl();
-  if (!impl->started_) {
+
+  // A callback runs on the io thread that a waiting stop() would have to join,
+  // so a stop() from there can only *request* the shutdown. Joining it would
+  // be a self-join, which throws EDEADLK rather than waiting, and would then
+  // unwind through the rest of the shutdown (jwsung91/wirestead#649).
+  const bool on_io_thread =
+      impl->owns_ioc_ && impl->ioc_thread_.joinable() && impl->ioc_thread_.get_id() == std::this_thread::get_id();
+
+  if (!impl->started_ && !impl->stopping_.load()) {
     impl->state_.set(LinkState::Closed);
     return;
   }
 
-  if (impl->stopping_.exchange(true)) return;
+  if (!impl->stopping_.exchange(true)) {
+    auto self = shared_from_this();
+    net::post(impl->strand_, [self] {
+      auto impl = self->get_impl();
+      impl->perform_cleanup();
+      if (impl->owns_ioc_) impl->ioc_.stop();
+    });
+  }
 
-  auto self = shared_from_this();
-  net::post(impl->strand_, [self] {
-    auto impl = self->get_impl();
-    impl->perform_cleanup();
-    if (impl->owns_ioc_) impl->ioc_.stop();
-  });
+  if (on_io_thread) return;
 
+  // Every caller from outside the io thread leaves this function with the
+  // shutdown complete, including one that found a shutdown already requested -
+  // it waits on the mutex while the first caller joins.
+  std::lock_guard<std::mutex> lock(impl->stop_mtx_);
   if (impl->owns_ioc_ && impl->ioc_thread_.joinable()) {
     impl->ioc_thread_.join();
     impl->ioc_.restart();
