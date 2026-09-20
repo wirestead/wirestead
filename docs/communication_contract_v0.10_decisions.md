@@ -27,29 +27,47 @@ own evidence, as in the audit.
 Two states are distinguished, and the contract names both:
 
 - **Shutdown requested** - a stop has begun; no new work is accepted.
-- **Shutdown complete** - as defined in contract section 1: no user callback of
-  the object is running, none from that run will start, outstanding internal
-  work cannot touch the object, and nothing from the run survives into a later
-  one.
+- **Shutdown complete** - exactly as contract section 1 defines it, including
+  its allowance that outstanding internal work may remain when it holds its own
+  lifetime independently of the object. This decision does not restate or
+  strengthen that definition.
 
 Then:
 
-1. `stop()` called from **outside** the library's execution threads returns
-   only when shutdown is complete. This holds for every concurrent caller, and
-   for a caller that finds a shutdown already requested or already in progress:
-   it waits rather than returning early.
-2. `stop()` called from **inside a user callback**, or on an executor thread
-   whose progress the shutdown needs, requests the shutdown and returns without
-   waiting. It never waits for itself.
+1. `stop()` called from a thread that the target's shutdown does not need in
+   order to make progress returns only when shutdown is complete. This holds
+   for every concurrent caller, and for a caller that finds a shutdown already
+   requested or already in progress: it waits rather than returning early.
+2. `stop()` called from a thread the shutdown **does** need - the target's own
+   callback, or any other work on the executor that has to run for the
+   shutdown to finish - requests the shutdown and returns without waiting. It
+   never waits for itself.
 3. `stop()` after shutdown is complete returns immediately and changes nothing.
-4. After an outside `stop()` returns, `start()` and destruction are both
-   allowed.
+4. After a `stop()` that waited returns, `start()` is allowed.
+
+**Scope of rule 2, decided here:** the criterion stays the contract's
+(section 5.4) - whether the target's shutdown needs the executor this thread is
+running - rather than "inside any callback". A callback of an unrelated channel
+on an unrelated executor therefore still gets the waiting form, and does not
+silently lose the completion guarantee. The implementation must be able to
+answer that question for the target, for example by testing the target
+executor's `running_in_this_thread()`; a thread-local "inside some callback"
+flag answers a different question and would widen rule 2 beyond this decision.
+
+**Destruction is not included in rule 4.** It keeps the contract's own
+precondition (section 5.4): an object is destroyed only once its shutdown is
+complete and nothing else is accessing it concurrently, and a waiting shutdown
+is never performed on an executor thread the shutdown needs. In particular,
+destroying an object from inside its own callback is not supported, and a
+callback-initiated `stop()` does not make it so: it requests a shutdown, and
+something outside still has to observe completion before destruction.
 
 ### Applies to
 
 Every target's public `stop()`: TCP client, TCP server, UDS client, UDS server,
-UDP, UDP server, serial - and the transport `stop()` beneath each. Destruction
-follows rule 1 when it runs outside the executor, and rule 2 when it does not.
+UDP, UDP server, serial - and the transport `stop()` beneath each. Destructors
+that stop as part of destruction inherit the same rules, but the destruction
+precondition above is what decides where a destructor may run at all.
 
 ### Exceptions and caller preconditions
 
@@ -80,12 +98,17 @@ Per target, not once:
 1. Two outside threads call `stop()` concurrently while a slow callback is
    running; assert both return only after the callback has finished and that no
    callback runs after either return.
-2. `stop()` from inside each callback kind returns within a bound and does not
+2. The combined path, which testing each rule separately does not cover: a
+   callback requests `stop()` and then keeps running, while two outside threads
+   call `stop()`. Neither outside caller returns until the callback has been
+   left and shutdown is complete; the callback's own `stop()` returns
+   immediately.
+3. `stop()` from inside each callback kind returns within a bound and does not
    throw.
-3. After an outside `stop()` returns, a restart succeeds **and the restarted
+4. After a waiting `stop()` returns, a restart succeeds **and the restarted
    channel receives data** (the shape `SerialStopInCallbackTest` already uses).
-4. A third `stop()` after completion returns immediately.
-5. For the externally-run-io_context configuration, the same as 1 with the
+5. A third `stop()` after completion returns immediately.
+6. For the externally-run-io_context configuration, the same as 1 with the
    executor running.
 
 ## D-2: blocking sends inside any callback (C-5.4-4)
@@ -94,8 +117,10 @@ Per target, not once:
 
 While the calling thread is executing **any** user callback the library
 invoked, a blocking send never waits. If it would have to wait for queue
-capacity, it is rejected immediately; if capacity is available, it is accepted
-as usual.
+capacity, it is rejected immediately. If no wait is needed, the ordinary
+acceptance procedure applies unchanged - every other rejection condition still
+holds, so a send from `on_disconnect` or `on_error` is still refused for its
+own reason even with an empty queue.
 
 "Any callback" is the whole set, not the data path only: `on_data`,
 `on_message`, their batch forms, `on_connect`, `on_disconnect`, `on_error`,
@@ -128,10 +153,13 @@ Reliable strategy, `send_blocking()`/`send_line_blocking()`, `send_move()` and
   does not.
 - The data and message callbacks already behave this way, so the common case is
   unchanged.
-- Implementation note, not part of the contract: the existing guard is set at
-  each dispatch site, which is why four callback kinds are uncovered. Setting
-  it once inside the shared user-callback invocation would cover every kind and
-  every future callback.
+- Implementation scope is not settled by this decision. The existing guard is
+  set at each dispatch site, which is why four callback kinds are uncovered.
+  Moving it into the shared user-callback invocation is the obvious candidate,
+  but the scope needs checking first: whether every callback path really goes
+  through that invocation, whether the depth counter is restored when a
+  callback leaves through an exception, and how nested callbacks on one thread
+  behave.
 
 ### Verification
 
@@ -167,6 +195,26 @@ class SendResult {
 };
 ```
 
+Which situation yields which reason is part of this decision, not of the
+implementation:
+
+| Situation | Reason |
+| --- | --- |
+| Never started, or stopped and not started again | `NotStarted` |
+| A shutdown has been requested and not completed | `Stopping` |
+| Started, but the target is not ready to send (contract section 2 defines readiness per transport; this replaces the transport-specific `NotConnected` spelling) | `NotReady` |
+| The connection instance a sender waited on ended, even if a new one is ready (contract 3.1) | `NotReady`, and the request is never accepted onto the new connection |
+| `stop()` while a sender was waiting for capacity | `CancelledWhileWaiting` |
+| Capacity is short where waiting is not permitted: `try_send*()`, or a blocking send under D-2 | `WouldBlock` |
+| Capacity is short and the BestEffort strategy refuses the new request | `QueueFull` |
+| Payload empty, null, or above the per-message maximum | `InvalidArgument` for shape, `TooLarge` for size |
+
+When several apply at once, the first match in this order is reported, which
+follows the contract's own decision procedure: `InvalidArgument`/`TooLarge`
+(stage 1 validation), then `NotStarted`/`Stopping`/`NotReady` (state), then
+`WouldBlock` (call site), then `QueueFull`/`CancelledWhileWaiting` (strategy
+and waiting).
+
 Three reporting paths stay separate, and this decision keeps them apart:
 
 | What | Reported through |
@@ -199,8 +247,8 @@ later.
 
 - **Recommended transition: replace the return type in place**, with an
   `explicit operator bool`. `if (port->send(x))` and `if (!port->send(x))`
-  keep compiling; `bool ok = port->send(x);` does not, which is deliberate -
-  those call sites are the ones that should look at the reason.
+  keep compiling; `bool ok = port->send(x);` does not, and has to be changed to
+  `port->send(x).accepted()` or an explicit conversion.
 - The alternative, keeping `bool` and adding parallel `*_ex()` APIs, doubles
   the surface permanently and leaves the reason invisible by default. Not
   recommended.
@@ -214,23 +262,27 @@ later.
 
 ### Verification
 
-1. One test per rejection reason, on at least one target each, asserting the
-   reason rather than only the refusal.
-2. Every target keeps its existing accept/reject tests, now reading
+1. One test per rejection reason, asserting the reason rather than only the
+   refusal.
+2. The situations that apply to every target - not ready, stopping, waiting
+   cancelled by `stop()`, capacity short - are checked **on each target** to
+   map to the same reason. One target per reason would leave the common
+   mapping unverified, which is what the audit found for other rules.
+3. Every target keeps its existing accept/reject tests, now reading
    `accepted()`.
-3. `scripts/check_docs_compile.sh` passes, which is what proves the documented
+4. `scripts/check_docs_compile.sh` passes, which is what proves the documented
    `if (send(...))` form still compiles.
-4. The installed-consumer smoke builds against the new headers.
-5. The Python binding's own tests, once its mapping is decided.
+5. The installed-consumer smoke builds against the new headers.
+6. The Python binding's own tests, once its mapping is decided.
 
 ## Dependencies of the remaining section 9.1 rows
 
 | Row | Depends on | Note |
 | --- | --- | --- |
-| C-3.1-1b validation before waiting | D-3 | The fix is to validate before the wait; D-3 is what makes the resulting rejection distinguishable from a queue refusal |
+| C-3.1-1b validation before waiting | none for the fix; D-3 for the reason | Validating before the wait is implementable with today's `bool`. D-3 only makes the resulting rejection distinguishable from a queue refusal |
 | C-3.2-3 keep-latest on the blocking path | Contract open item (keep-latest policy), then D-3 | Not decidable until keep-latest is either adopted as an opt-in policy or dropped from v0.10 |
 | C-3.6-3, C-3.6-4 fanout result | D-3 | Needs the aggregate type defined alongside `SendResult`; zero targets must stay distinguishable |
-| C-6.1-1 queued data across a link loss | Event model (audit 9.6), then C-3.8-1 | Whether the queue is discarded is part of the event model; the discard has to be observable, which is the statistics decision |
+| C-6.1-1 queued data across a link loss | C-3.8-1 for observability; event model for the notification | Discarding is already **Decided** in contract 6.1 - "data from a previous connection is never sent on a new one" - so what is left is implementing the discard and deciding how it is observed and announced, not whether it happens |
 | C-6.1-2 reason a blocked sender was released | D-1 and D-3 | D-1 says who releases the waiter, D-3 carries the reason out |
 
 ## Suggested build order
