@@ -119,8 +119,10 @@ While the calling thread is executing **any** user callback the library
 invoked, a blocking send never waits. If it would have to wait for queue
 capacity, it is rejected immediately. If no wait is needed, the ordinary
 acceptance procedure applies unchanged - every other rejection condition still
-holds, so a send from `on_disconnect` or `on_error` is still refused for its
-own reason even with an empty queue.
+holds. Being inside a callback is not itself a reason to refuse: a send from
+`on_disconnect` or `on_error` is refused when the target is not ready to send,
+and a send to a different, healthy channel from the same callback is accepted
+normally.
 
 "Any callback" is the whole set, not the data path only: `on_data`,
 `on_message`, their batch forms, `on_connect`, `on_disconnect`, `on_error`,
@@ -167,7 +169,10 @@ For each target, for each callback kind, and for each blocking send API:
 
 1. With backpressure active, a blocking send from that callback returns within
    a bound instead of waiting, with the rejection D-3 defines.
-2. With capacity available, the same call from the same callback is accepted.
+2. With capacity available, the same call from the same callback is accepted
+   when the other acceptance conditions hold, and otherwise rejected with the
+   reason those conditions give - not with a callback-specific refusal. A send
+   to a different, ready channel from inside a callback is accepted.
 3. A blocking send from an outside thread still waits as before - the rule does
    not leak out of callbacks.
 
@@ -209,11 +214,34 @@ implementation:
 | Capacity is short and the BestEffort strategy refuses the new request | `QueueFull` |
 | Payload empty, null, or above the per-message maximum | `InvalidArgument` for shape, `TooLarge` for size |
 
-When several apply at once, the first match in this order is reported, which
-follows the contract's own decision procedure: `InvalidArgument`/`TooLarge`
-(stage 1 validation), then `NotStarted`/`Stopping`/`NotReady` (state), then
-`WouldBlock` (call site), then `QueueFull`/`CancelledWhileWaiting` (strategy
-and waiting).
+When several apply at once, which one is reported depends on where the call
+is, and the two points are ordered separately.
+
+**On first entry**, the contract's own decision procedure decides:
+`InvalidArgument`/`TooLarge` (stage 1 validation), then
+`NotStarted`/`Stopping`/`NotReady` (state), then `WouldBlock` (call site), then
+`QueueFull` (strategy).
+
+**When a wait ends**, the reason the wait ended is decided **first**, and a
+later state never overwrites it:
+
+| The wait ended because | Reason |
+| --- | --- |
+| `stop()` | `CancelledWhileWaiting` |
+| The connection instance it waited on ended | `NotReady` |
+| Capacity became available | No rejection yet - continue below |
+
+Only in the third case does the call re-check state, connection instance and
+capacity, as one synchronized decision (contract 3.1), and report whatever that
+re-check yields. Without this split, a sender woken by `stop()` would be read
+as `Stopping` on the state check and the mapping table above would contradict
+itself.
+
+**When `stop()` and a connection loss race**, the cause is fixed at the same
+synchronized point that releases the waiter: whichever cause that point
+observes is the one reported, and the other, arriving afterwards, does not
+change it. This makes the reported reason stable rather than dependent on how
+long the woken thread took to be scheduled.
 
 Three reporting paths stay separate, and this decision keeps them apart:
 
@@ -288,7 +316,9 @@ later.
 ## Suggested build order
 
 1. D-1, per target, reusing the shape proven on serial.
-2. D-2, which is one guard moved into the shared dispatch plus tests per
+2. D-2: first establish which callback paths reach the shared dispatch and
+   whether the guard is restored when a callback leaves through an exception or
+   nests, then widen the refusal to the paths that check out, with tests per
    callback kind.
 3. D-3, then the fanout aggregate (C-3.6-3/4) immediately after, since callers
    should meet both in the same release.
