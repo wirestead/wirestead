@@ -21,17 +21,24 @@
 //
 // This program REPRODUCES and REPORTS. It asserts nothing about what stop()
 // should do, so it does not freeze today's behavior into a test: it fails only
-// if the repro path cannot run, or if the scenario hangs.
+// if the repro path cannot run, or if a scenario hangs.
 //
-// The scenario runs in a forked child with a parent-side timeout, so a hang
+// Two things are deliberately kept apart:
+//
+//   shutdown scenarios (stop-nocatch, stop-catch, control)
+//       observe the callback, the stop() call and an outside stop(), then
+//       destroy the object with no call in flight;
+//   restart scenarios (restart-after-callback-stop, restart-control)
+//       observe only whether a restart returns. If it does not return within
+//       the bound, the child reports and _exit()s **without destroying the
+//       object**, because destroying it while start() is in flight would make
+//       the observation unsafe rather than informative.
+//
+// Every scenario runs in a forked child with a parent-side timeout, so a hang
 // kills the child instead of the test runner.
 //
-// Modes:
-//   nocatch  - call stop() in the callback, let the exception propagate
-//   catch    - call stop() in the callback inside try/catch at the call site
-//   control  - do not call stop() in the callback (baseline for the follow-on)
-//
-// Exit codes: 0 repro completed (or skipped), 2 setup failed, 3 the child hung.
+// Exit codes: 0 scenario completed (or skipped), 2 setup failed, 3 the child
+// hung, 4 the child stopped deliberately with a call still in flight.
 
 #include <cstdio>
 #include <cstring>
@@ -51,6 +58,8 @@ int main() {
 
 #include <atomic>
 #include <chrono>
+#include <future>
+#include <memory>
 #include <string>
 #include <thread>
 
@@ -65,52 +74,102 @@ void obs(const char* line) {
   std::fflush(stdout);
 }
 
-int run_scenario(bool catch_at_call_site, bool control) {
-  int master = posix_openpt(O_RDWR | O_NOCTTY);
-  if (master < 0 || grantpt(master) != 0 || unlockpt(master) != 0) {
+// Set from the callback's own scope exit, so it fires whether the callback
+// returns normally or leaves through an exception. It reports that the user
+// callback body was left - not that the library finished its own handling.
+struct ScopeSignal {
+  std::atomic<bool>& flag;
+  ~ScopeSignal() { flag.store(true); }
+};
+
+struct Pty {
+  int master = -1;
+  std::string slave;
+};
+
+bool open_pty(Pty& pty) {
+  pty.master = posix_openpt(O_RDWR | O_NOCTTY);
+  if (pty.master < 0 || grantpt(pty.master) != 0 || unlockpt(pty.master) != 0) return false;
+  const char* name = ptsname(pty.master);
+  if (name == nullptr) return false;
+  pty.slave = name;
+  return true;
+}
+
+// Reports one of: returned-true, returned-false, threw, or still-running.
+void observe_start(wirestead::wrapper::Serial& port, const char* label) {
+  try {
+    auto future = port.start();
+    const auto status = future.wait_for(3s);
+    if (status != std::future_status::ready) {
+      std::printf("[obs] %s: has not returned after 3s\n", label);
+      std::fflush(stdout);
+      obs("leaving the object alive: a start() is still in flight");
+      std::fflush(stdout);
+      _exit(4);
+    }
+    const bool ok = future.get();
+    std::printf("[obs] %s: returned %s\n", label, ok ? "true" : "false");
+    std::fflush(stdout);
+  } catch (const std::exception& e) {
+    std::printf("[obs] %s: threw %s\n", label, e.what());
+    std::fflush(stdout);
+  } catch (...) {
+    std::printf("[obs] %s: threw an unknown exception\n", label);
+    std::fflush(stdout);
+  }
+}
+
+enum class Mode { StopNoCatch, StopCatch, Control, RestartAfterCallbackStop, RestartControl };
+
+bool calls_stop_in_callback(Mode m) {
+  return m == Mode::StopNoCatch || m == Mode::StopCatch || m == Mode::RestartAfterCallbackStop;
+}
+bool catches_at_call_site(Mode m) { return m == Mode::StopCatch; }
+bool observes_restart(Mode m) { return m == Mode::RestartAfterCallbackStop || m == Mode::RestartControl; }
+
+int run_scenario(Mode mode) {
+  Pty pty;
+  if (!open_pty(pty)) {
     obs("pty-setup-failed");
     return 2;
   }
-  const char* slave = ptsname(master);
-  if (slave == nullptr) {
-    obs("ptsname-failed");
-    return 2;
-  }
-  std::printf("[obs] pty=%s\n", slave);
+  std::printf("[obs] pty=%s\n", pty.slave.c_str());
   std::fflush(stdout);
 
   // Default construction: the transport owns its io_context and io thread,
   // which is the configuration the audit row is about.
-  auto port = wirestead::serial(slave, 115200).on_error([](auto&&) {}).build();
+  auto port = wirestead::serial(pty.slave, 115200).on_error([](auto&&) {}).build();
 
   std::atomic<bool> entered{false};
+  std::atomic<bool> callback_left{false};
   std::atomic<bool> stop_returned{false};
-  std::atomic<bool> threw{false};
+  std::atomic<bool> threw_at_call_site{false};
 
   port->on_data([&](const wirestead::wrapper::MessageContext&) {
     if (entered.exchange(true)) return;
+    ScopeSignal leave{callback_left};
     obs("callback-entered");
-    if (control) {
+    if (!calls_stop_in_callback(mode)) {
       obs("control: callback does not call stop()");
-      stop_returned = true;
       return;
     }
-    if (catch_at_call_site) {
+    if (catches_at_call_site(mode)) {
       try {
         port->stop();
         stop_returned = true;
         obs("stop-returned-normally");
       } catch (const std::exception& e) {
-        threw = true;
+        threw_at_call_site = true;
         std::printf("[obs] stop-threw-at-call-site: %s\n", e.what());
         std::fflush(stdout);
       } catch (...) {
-        threw = true;
+        threw_at_call_site = true;
         obs("stop-threw-at-call-site: unknown exception");
       }
     } else {
-      // No catch here: whatever escapes is handled by the library's own
-      // callback dispatch, which is one of the observation points.
+      // No catch here: whatever escapes goes to the library's own callback
+      // dispatch, which is one of the observation points.
       port->stop();
       stop_returned = true;
       obs("stop-returned-normally");
@@ -124,56 +183,63 @@ int run_scenario(bool catch_at_call_site, bool control) {
   obs("started");
 
   const char payload[] = "ping\n";
-  if (write(master, payload, sizeof(payload) - 1) < 0) {
+  if (write(pty.master, payload, sizeof(payload) - 1) < 0) {
     obs("write-to-pty-failed");
     return 2;
   }
 
-  for (int i = 0; i < 100 && !entered.load(); ++i) std::this_thread::sleep_for(20ms);
+  for (int i = 0; i < 250 && !entered.load(); ++i) std::this_thread::sleep_for(20ms);
   if (!entered.load()) {
     obs("callback-never-entered");
     return 2;
   }
-  for (int i = 0; i < 100 && !(stop_returned.load() || threw.load()); ++i) std::this_thread::sleep_for(20ms);
+  // Wait for the callback body to be left, by return or by exception. Without
+  // this the flags below would be read while the callback may still be running.
+  for (int i = 0; i < 250 && !callback_left.load(); ++i) std::this_thread::sleep_for(20ms);
+  if (!callback_left.load()) {
+    obs("callback-did-not-return-within-5s");
+    obs("leaving the object alive: a callback is still in flight");
+    return 4;
+  }
 
-  std::printf("[obs] after-callback: stop_returned=%d threw_at_call_site=%d connected=%d\n",
-              static_cast<int>(stop_returned.load()), static_cast<int>(threw.load()),
+  std::printf("[obs] callback-left: stop_returned=%d threw_at_call_site=%d connected=%d\n",
+              static_cast<int>(stop_returned.load()), static_cast<int>(threw_at_call_site.load()),
               static_cast<int>(port->connected()));
   std::fflush(stdout);
 
-  // Follow-on: how much of the shutdown actually ran. A stop() from outside,
-  // then a restart, each bounded so this cannot hang on its own.
   obs("outside-stop-begin");
   port->stop();
   obs("outside-stop-returned");
 
-  std::atomic<bool> restarted{false};
-  std::thread restarter([&] { restarted = port->start_sync(); });
-  for (int i = 0; i < 60 && !restarted.load(); ++i) std::this_thread::sleep_for(50ms);
-  std::printf("[obs] restart-after-stop: %s\n", restarted.load() ? "succeeded" : "did not complete within 3s");
-  std::fflush(stdout);
-  if (restarted.load()) {
-    restarter.join();
+  if (observes_restart(mode)) {
+    // Only this scenario touches start() again. It never destroys the object
+    // afterwards unless start() has actually returned.
+    observe_start(*port, "restart-after-outside-stop");
+    obs("restart returned, so stopping again before destruction");
     port->stop();
-  } else {
-    restarter.detach();
   }
 
   obs("destroying");
   port.reset();
   obs("destroyed");
-  close(master);
+  close(pty.master);
   return 0;
+}
+
+Mode parse_mode(const char* text) {
+  if (std::strcmp(text, "stop-catch") == 0) return Mode::StopCatch;
+  if (std::strcmp(text, "control") == 0) return Mode::Control;
+  if (std::strcmp(text, "restart-after-callback-stop") == 0) return Mode::RestartAfterCallbackStop;
+  if (std::strcmp(text, "restart-control") == 0) return Mode::RestartControl;
+  return Mode::StopNoCatch;
 }
 
 }  // namespace
 
 int main(int argc, char** argv) {
-  const char* mode = argc > 1 ? argv[1] : "nocatch";
+  const char* mode_text = argc > 1 ? argv[1] : "stop-nocatch";
   const int timeout_s = argc > 2 ? atoi(argv[2]) : 20;
-  const bool catch_at_call_site = std::strcmp(mode, "catch") == 0;
-  const bool control = std::strcmp(mode, "control") == 0;
-  std::printf("[obs] mode=%s timeout=%ds\n", mode, timeout_s);
+  std::printf("[obs] mode=%s timeout=%ds\n", mode_text, timeout_s);
   std::fflush(stdout);
 
   pid_t pid = fork();
@@ -181,7 +247,7 @@ int main(int argc, char** argv) {
     obs("fork-failed");
     return 2;
   }
-  if (pid == 0) _exit(run_scenario(catch_at_call_site, control));
+  if (pid == 0) _exit(run_scenario(parse_mode(mode_text)));
 
   for (int i = 0; i < timeout_s * 20; ++i) {
     int status = 0;
@@ -190,7 +256,9 @@ int main(int argc, char** argv) {
         const int code = WEXITSTATUS(status);
         std::printf("[result] child exited code=%d\n", code);
         std::fflush(stdout);
-        return code == 0 ? 0 : 2;
+        // 4 means the child stopped on purpose with a call in flight: that is
+        // an observation, not a failure of the reproduction.
+        return (code == 0 || code == 4) ? 0 : 2;
       }
       std::printf("[result] child killed by signal %d\n", WIFSIGNALED(status) ? WTERMSIG(status) : 0);
       std::fflush(stdout);

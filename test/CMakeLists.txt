@@ -100,7 +100,9 @@ if(UNIX)
   target_include_directories(
     run_repro_serial_stop_in_callback PRIVATE ${CMAKE_SOURCE_DIR}
   )
-  foreach(_repro_mode nocatch catch control)
+  foreach(_repro_mode stop-nocatch stop-catch control
+                      restart-after-callback-stop restart-control
+  )
     add_test(NAME ReproSerialStopInCallback.${_repro_mode}
              COMMAND run_repro_serial_stop_in_callback ${_repro_mode} 20
     )
