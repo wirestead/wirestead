@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <condition_variable>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -74,6 +75,13 @@ inline bool in_data_callback() { return g_callback_depth > 0; }
 // Each run carries a generation. A callback admitted for an earlier run is
 // refused after a restart, so a leftover handler cannot be counted against -
 // or delivered during - the new run.
+// Testing seam: called at the point the admission race lives - after a
+// handler has checked that its object is alive, before it registers itself -
+// so a test can park a callback exactly there instead of waiting for that
+// window to happen by chance. Nothing in the library ever sets it.
+using PreAdmissionHook = void (*)();
+inline std::atomic<PreAdmissionHook> g_pre_admission_hook{nullptr};
+
 class CallbackGate {
  public:
   // Held for the duration of one callback. `admitted()` false means the gate
@@ -119,6 +127,7 @@ class CallbackGate {
   // already counted, so no stop() can observe an empty gate and return while
   // this callback is about to run.
   Lease enter(uint64_t generation) {
+    if (auto hook = g_pre_admission_hook.load(std::memory_order_acquire)) hook();
     std::lock_guard<std::mutex> lock(mutex_);
     if (closed_ || generation != generation_) return Lease(this, false);
     ++running_;
@@ -139,14 +148,6 @@ class CallbackGate {
     std::lock_guard<std::mutex> lock(mutex_);
     closed_ = false;
     return ++generation_;
-  }
-
-  // A restart that keeps the handlers it already has - an injected channel,
-  // where the same handlers stay registered across runs - admits them again
-  // without changing the generation.
-  void reopen() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    closed_ = false;
   }
 
   uint64_t generation() const {

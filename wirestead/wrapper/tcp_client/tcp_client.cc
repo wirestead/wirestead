@@ -216,12 +216,6 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     if (!alive_marker_) {
       alive_marker_ = std::make_shared<bool>(true);
     }
-    // D-1: a run admits callbacks again. Handlers registered in
-    // setup_internal_handlers() get a generation of their own; handlers that
-    // stay registered across runs - an injected channel - keep theirs and
-    // stay admissible.
-    callback_gate_.reopen();
-
     if (!channel_) {
       config::TcpClientConfig config;
       config.host = host_;
@@ -241,8 +235,13 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       config.receive_buffer_size = receive_buffer_size_;
       config.read_buffer_size = read_buffer_size_;
       channel_ = factory::ChannelFactory::create(config, external_ioc_);
-      setup_internal_handlers();
     }
+
+    // D-1: the new run's generation is opened and the gate admits again in
+    // one step, so no callback of the previous run can be admitted in
+    // between. Handlers are (re-)registered for this generation, including on
+    // an injected channel, where the same object serves every run.
+    setup_internal_handlers();
 
     started_.store(true);
     channel_->start();
@@ -480,8 +479,9 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
     std::weak_ptr<bool> weak_alive = alive_marker_;
     std::weak_ptr<Impl> weak_impl = weak_from_this();
-    // Registering handlers starts a new generation, so a handler from an
-    // earlier registration can no longer be admitted.
+    // Opening the generation and admitting again are the same step, under the
+    // gate's lock: a handler of an earlier run can never be admitted into
+    // this one.
     const uint64_t generation = callback_gate_.open_new_generation();
     callback_generation_.store(generation);
 
@@ -604,10 +604,12 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   void attach_framer_callback() {
     if (!framer_) return;
     // Framed messages are produced inside the on_bytes dispatch, which already
-    // holds a lease; the generation is carried so a stale framer cannot
-    // deliver into a later run.
-    const uint64_t generation = callback_generation_.load();
-    framer_->on_message([this, generation](memory::ConstByteSpan msg) {
+    // holds a lease for the run that is delivering them, so this reads the
+    // current generation at call time. Capturing it here instead would pin
+    // the generation of whenever the framer happened to be attached - before
+    // the first start(), for a framer set on the builder.
+    framer_->on_message([this](memory::ConstByteSpan msg) {
+      const uint64_t generation = callback_generation_.load();
       // #441: snapshot under a shared_lock (pure read), build the copy
       // before taking the exclusive lock for queue mutation.
       bool batch_mode;

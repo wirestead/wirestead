@@ -243,12 +243,6 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     pending_promises_.push_back(std::move(p));
     if (started_.exchange(true)) return f;
 
-    // D-1: a run admits callbacks again. Handlers registered in
-    // setup_internal_handlers() get a generation of their own; handlers that
-    // stay registered across runs - an injected channel - keep theirs and
-    // stay admissible.
-    callback_gate_.reopen();
-
     if (!channel_) {
       config::TcpServerConfig config;
       config.bind_address = bind_address_;
@@ -270,7 +264,6 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
 
       channel_ = factory::ChannelFactory::create(config, external_ioc_);
       transport_cache_ = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
-      setup_internal_handlers();
 
       if (client_limit_enabled_.load()) {
         auto transport_server = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
@@ -279,6 +272,13 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         }
       }
     }
+    // D-1: registering the handlers is what opens this run's generation and
+    // admits callbacks again - one step under the gate's lock, so a callback
+    // of the previous run can never be admitted into this one. It runs on
+    // every start, including on an injected channel whose object serves every
+    // run.
+    if (channel_) setup_internal_handlers();
+
     // #506: take a local copy of the shared_ptr before unlocking. Calling
     // through the raw channel_ member here would race a concurrent stop()'s
     // channel_.reset() on the member itself (not just the pointee) - TSAN
@@ -456,8 +456,8 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
 
     std::weak_ptr<bool> weak_alive = alive_marker_;
     std::weak_ptr<Impl> weak_impl = weak_from_this();
-    // Registering handlers starts a new generation, so a handler from an
-    // earlier registration can no longer be admitted.
+    // Opening this run's generation and admitting again are one step under
+    // the gate's lock.
     const uint64_t generation = callback_gate_.open_new_generation();
     callback_generation_.store(generation);
     auto transport_server = std::dynamic_pointer_cast<transport::TcpServer>(channel_);

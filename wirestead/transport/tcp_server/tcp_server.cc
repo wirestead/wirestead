@@ -102,26 +102,13 @@ struct TcpServer::Impl {
     stop_cv_.notify_all();
   }
 
-  // The cleanup runs on the io_context; if nobody is currently running it,
-  // this thread drives it rather than waiting forever.
+  // Waits for the teardown that was dispatched onto the context, and nothing
+  // more: the contract's precondition is that the context's owner keeps it
+  // running, and running it here would execute unrelated handlers - another
+  // channel's user callbacks included - on the stopping thread.
   void wait_for_cleanup() {
     std::unique_lock<std::mutex> lock(stop_mtx_);
-    while (!cleanup_done_) {
-      if (stop_cv_.wait_for(lock, std::chrono::milliseconds(20), [this] { return cleanup_done_; })) return;
-      lock.unlock();
-      const std::size_t ran = ioc_.poll();
-      const bool context_stopped = ioc_.stopped();
-      lock.lock();
-      if (cleanup_done_) return;
-      if (ran == 0 && context_stopped) {
-        // Nobody is servicing this io_context and it will not run again on its
-        // own, so no handler can be executing: finish the teardown here.
-        lock.unlock();
-        perform_cleanup();
-        lock.lock();
-        return;
-      }
-    }
+    stop_cv_.wait(lock, [this] { return cleanup_done_; });
   }
   std::unordered_map<ClientId, std::shared_ptr<TcpServerSession>> sessions_;
 
@@ -547,8 +534,8 @@ struct TcpServer::Impl {
   }
 
   void stop(std::shared_ptr<TcpServer> self) {
-    // D-1: only the first caller drives the teardown, but every caller from
-    // off the executor leaves this function with the shutdown complete.
+    // D-1. Two states: requested, and complete. Only the first caller drives
+    // the teardown; every caller from off the executor returns with it done.
     const bool first = !stopping_.exchange(true);
 
     if (first) {
@@ -571,55 +558,36 @@ struct TcpServer::Impl {
       return;
     }
 
-    if (!first) {
-      // Wait for the teardown the first caller started - the signal, not a
-      // lock, is what says it finished.
-      wait_for_cleanup();
+    if (owns_ioc_) {
+      // We own the thread that runs this context, so the teardown is not
+      // dispatched into it: the thread is stopped and joined first - its exit
+      // is what says no handler of ours is still running - and the teardown
+      // then runs here, where nothing can race it. A second caller waits on
+      // the same mutex and finds the work already done.
       std::lock_guard<std::mutex> join_lock(join_mtx_);
       join_owned_thread();
+      perform_cleanup();
+      wait_for_cleanup();
       return;
     }
 
-    // #503: previously gated on has_active_ioc (owns_ioc_ || a running
-    // shared IoContextManager) before deciding to dispatch perform_cleanup()
-    // onto ioc_ vs. calling it directly - but a "managed external context"
-    // (owns_ioc_ == false, since some other owner constructed the
-    // io_context, yet that owner's own thread may still be actively
-    // running it, e.g. the wrapper layer's own io_context+thread) fell
-    // through to the direct-call branch, racing acceptor_->close() against
-    // that thread's concurrent async_accept(). Whenever we have a valid
-    // self to dispatch through, always prefer dispatching onto ioc_ (with
-    // the same timeout-based direct-call fallback for the case where
-    // nothing is actually pumping it) - a stale, unserviced io_context only
-    // costs one extra harmless wait before falling back to the exact same
-    // direct call as before; self is only null when called from the
-    // destructor, where shared_from_this() isn't available and a direct
-    // call is the only option.
-    if (self) {
-      auto cleanup_promise = std::make_shared<std::promise<void>>();
-      auto cleanup_future = cleanup_promise->get_future();
-
-      std::weak_ptr<TcpServer> weak_self = self;
-      net::dispatch(ioc_, [weak_self, cleanup_promise]() {
-        if (auto shared_self = weak_self.lock()) {
-          auto* cleanup_impl = shared_self->get_impl();
-          cleanup_impl->perform_cleanup();
-        }
-        cleanup_promise->set_value();
-      });
-
-      if (cleanup_future.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
-        // Nothing is servicing the context; run it here instead of returning
-        // with the teardown unfinished.
+    // External context: the teardown is queued on a context this library does
+    // not run. Waiting for it here would mean waiting on a caller that may
+    // not be running it, and running it here would execute unrelated handlers
+    // - another channel's user callbacks included - on the stopping thread.
+    // Neither is this layer's to do: the queued teardown holds its own
+    // lifetime, which contract section 1 allows outstanding internal work to
+    // do, and the wrapper's callback gate is what establishes that no user
+    // callback of the object is running.
+    if (first) {
+      if (self) {
+        net::dispatch(ioc_, [self]() { self->get_impl()->perform_cleanup(); });
+      } else {
+        // ~TcpServer() only: the caller's precondition is that the shutdown is
+        // already complete and nothing else is running.
         perform_cleanup();
       }
-    } else {
-      perform_cleanup();
     }
-
-    wait_for_cleanup();
-    std::lock_guard<std::mutex> join_lock(join_mtx_);
-    join_owned_thread();
   }
 
   void join_owned_thread() {

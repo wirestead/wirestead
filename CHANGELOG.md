@@ -21,14 +21,17 @@ and ABI policy.
   still requests the shutdown and returns immediately, since waiting there
   would wait for itself.
 
-  Measured against the previous code, callers already waited in most
-  configurations - through the io-thread join and the wrapper's locking - so
-  this makes the guarantee explicit rather than changing what most programs
-  observe. Two cases do change: a `stop()` on a channel whose shutdown needs
-  the calling thread (a callback of another channel sharing its executor) now
-  requests the shutdown instead of waiting for itself, and code that released
-  a slow callback *after* `stop()` returned has to release it from another
-  thread. The library's own lifecycle test was updated the same way.
+  Previously a `stop()` could return while a callback of that object was
+  still running: measured on the previous release, with a callback in
+  progress, the first `stop()` returned immediately and a second one 400 ms
+  later, and on an externally run `io_context` `stop()` returned immediately
+  in both cases.
+
+  Two things change for callers. A `stop()` on a channel whose shutdown needs
+  the calling thread - a callback of another channel sharing its executor -
+  now requests the shutdown instead of waiting for itself. And code that
+  released a slow callback *after* `stop()` returned has to release it from
+  another thread; the library's own lifecycle test was updated the same way.
 
   This is D-1 of `docs/communication_contract_v0.10_decisions.md`, applied to
   the TCP targets. UDS, UDP and serial follow in their own changes.

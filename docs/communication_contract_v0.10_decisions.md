@@ -91,6 +91,21 @@ precondition above is what decides where a destructor may run at all.
   each still needs its own test.
 - No signature changes, so no ABI impact beyond the behavior.
 
+### What completion is evidenced by
+
+The evidence differs by who runs the executor, and the difference is part of
+the decision rather than an implementation detail:
+
+| Configuration | What says the shutdown is complete |
+| --- | --- |
+| The library owns the io thread | No callback of the object is running (the wrapper's gate), and the thread has exited, which is only after its handlers have run |
+| An externally run io_context | No callback of the object is running (the gate). Internal work still queued on that context is allowed to remain: contract section 1 permits outstanding work that holds its own lifetime, and it does |
+
+A stopping thread never runs the caller's executor to force the teardown
+through. Doing so would execute unrelated handlers - another channel's user
+callbacks among them - on the stopping thread, and would take a lock order the
+caller never agreed to.
+
 ### Verification
 
 Per target, not once:

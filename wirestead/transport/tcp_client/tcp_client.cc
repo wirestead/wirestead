@@ -179,33 +179,15 @@ struct TcpClient::Impl {
     stop_cv_.notify_all();
   }
 
-  // Waits for the cleanup handler to have run. The handler sits on the strand,
-  // so whoever runs the io_context executes it; if nobody is currently doing
-  // that - a never-started transport, or an external context its owner has
-  // stopped pumping - this thread drives it instead rather than waiting
-  // forever. Running it from here is safe because the strand serializes it.
+  // Waits for the teardown that was posted to the strand. The contract's
+  // precondition for an externally run io_context is that the caller keeps it
+  // running, so this waits and nothing more: running the caller's executor
+  // here would execute other channels' handlers on the stopping thread.
   void wait_for_cleanup() {
     std::unique_lock<std::mutex> lock(stop_mtx_);
-    while (!cleanup_done_) {
-      if (stop_cv_.wait_for(lock, std::chrono::milliseconds(20), [this] { return cleanup_done_; })) return;
-      if (!ioc_) return;
-      lock.unlock();
-      const std::size_t ran = ioc_->poll();
-      const bool context_stopped = ioc_->stopped();
-      lock.lock();
-      if (cleanup_done_) return;
-      if (ran == 0 && context_stopped) {
-        // Nothing is servicing this io_context and it will not run again on
-        // its own - a caller-driven context that has stopped, or one that was
-        // never run. No handler can be executing, so running the teardown on
-        // this thread is safe and is the only way to finish it.
-        lock.unlock();
-        perform_stop_cleanup();
-        lock.lock();
-        return;
-      }
-    }
+    stop_cv_.wait(lock, [this] { return cleanup_done_; });
   }
+
   // Atomic rather than mutex-guarded: read both from the strand and from
   // arbitrary caller threads (async_try_write_* fast-fail prechecks) (#436).
   std::atomic<base::constants::BackpressureStrategy> bp_strategy_{base::constants::BackpressureStrategy::Reliable};
@@ -384,40 +366,52 @@ void TcpClient::start() {
 }
 
 void TcpClient::stop() {
-  // D-1: a caller on the executor the shutdown needs can only request it;
-  // anyone else leaves this function with the shutdown complete, including a
-  // caller that finds one already requested.
+  // D-1. A caller on the executor the shutdown needs can only request it;
+  // anyone else leaves with the shutdown complete, including a caller that
+  // finds one already requested.
   const bool on_executor = impl_->ioc_ && impl_->ioc_->get_executor().running_in_this_thread();
+  const bool first = !impl_->stop_requested_.exchange(true);
 
-  if (!impl_->stop_requested_.exchange(true)) {
+  if (first) {
     impl_->stopping_.store(true);
     impl_->stop_seq_.store(impl_->current_seq_.load());
-    if (impl_->ioc_) {
-      // Post via a raw Impl* rather than weak_from_this().lock(): when stop()
-      // runs from ~TcpClient(), the shared_ptr use count is already 0, so that
-      // lock() is guaranteed null (standard shared_ptr/enable_shared_from_this
-      // behavior during destruction) and perform_stop_cleanup() - which resets
-      // work_guard_ - would never be posted, leaving join_ioc_thread() below
-      // blocked forever with no work_guard reset to let io_context::run()
-      // return. impl_ itself stays alive until after join_ioc_thread() returns
-      // (~TcpClient() doesn't destroy it until its body finishes), so capturing
-      // the raw Impl* is safe in both the destructor and non-destructor paths.
-      Impl* impl_ptr = impl_.get();
-      net::post(impl_->strand_, [impl_ptr]() { impl_ptr->perform_stop_cleanup(); });
+  }
+
+  if (!impl_->ioc_) return;
+
+  // The teardown is posted to the strand, where it also releases the work
+  // guard - which is what lets an owned io thread's run() return, so the post
+  // has to happen before any join. `self` keeps the object alive for the
+  // handler; in ~TcpClient() there is no `self` to take, and the caller's
+  // precondition there is that the shutdown is already complete.
+  if (first) {
+    if (auto self = weak_from_this().lock()) {
+      net::post(impl_->strand_, [self]() { self->impl_->perform_stop_cleanup(); });
+    } else {
+      impl_->perform_stop_cleanup();
     }
   }
 
-  if (on_executor || !impl_->ioc_) {
-    return;
+  if (on_executor) return;
+
+  if (impl_->owns_ioc_) {
+    // The thread returns from run() only after its handlers, the teardown
+    // included, have finished, so its exit is the completion evidence. The
+    // mutex makes a second caller wait for the first rather than join a
+    // thread it does not own; the teardown below is a no-op once it has run.
+    std::lock_guard<std::mutex> join_lock(impl_->join_mtx_);
+    impl_->join_ioc_thread(false);
+    impl_->perform_stop_cleanup();
   }
 
-  // Wait for the teardown itself, not for a lock: with an external io_context
-  // there is no thread to join, so the cleanup handler's own signal is the
-  // only evidence that the transport is finished with its state.
-  impl_->wait_for_cleanup();
-
-  std::lock_guard<std::mutex> join_lock(impl_->join_mtx_);
-  impl_->join_ioc_thread(false);
+  // External context: the teardown is queued on a context this library does
+  // not run, so waiting for it here would mean either waiting on a caller
+  // that may not be running it, or running it ourselves - which would execute
+  // unrelated handlers, another channel's user callbacks included, on the
+  // stopping thread. Neither is this layer's to do: the queued teardown holds
+  // its own lifetime, which contract section 1 allows outstanding internal
+  // work to do, and the wrapper's callback gate is what establishes that no
+  // user callback of the object is running.
 }
 
 bool TcpClient::is_connected() const { return get_impl()->connected_.load(); }
