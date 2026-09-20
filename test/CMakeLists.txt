@@ -84,6 +84,33 @@ add_subdirectory(integration)
 message(STATUS "Building E2E Tests")
 add_subdirectory(e2e)
 
+# Audit reproductions. These record behavior rather than asserting a contract,
+# so each one runs its scenario in a forked child with its own timeout and the
+# harness is never left waiting on a hang. POSIX only - the serial one needs a
+# pseudo-terminal.
+if(UNIX)
+  message(STATUS "Building Audit Reproductions")
+  add_executable(
+    run_repro_serial_stop_in_callback
+    ${CMAKE_CURRENT_SOURCE_DIR}/repro/serial_stop_in_callback_repro.cc
+  )
+  target_link_libraries(
+    run_repro_serial_stop_in_callback PRIVATE ${_wirestead_test_lib}
+  )
+  target_include_directories(
+    run_repro_serial_stop_in_callback PRIVATE ${CMAKE_SOURCE_DIR}
+  )
+  foreach(_repro_mode nocatch catch control)
+    add_test(NAME ReproSerialStopInCallback.${_repro_mode}
+             COMMAND run_repro_serial_stop_in_callback ${_repro_mode} 20
+    )
+    set_tests_properties(
+      ReproSerialStopInCallback.${_repro_mode} PROPERTIES TIMEOUT 60 LABELS
+                                                          "repro_serial"
+    )
+  endforeach()
+endif()
+
 # ============================================================================
 # LEGACY TESTS - To be migrated or removed
 # ============================================================================

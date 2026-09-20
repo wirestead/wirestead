@@ -219,7 +219,7 @@ expires an entry after a configured silence, which is not a remote disconnect.
 | C-3.2-5 `send_blocking()` in a not-ready state rejects immediately | Proposed | Serial | The wrapper re-checks `is_connected()` after the wait | `wrapper/serial/serial.cc:386-398` `[code]` | Match | Differs from TCP |
 | C-3.4-2 A rejected `*_move()` leaves the source unchanged | Proposed | Serial | Moved only after the checks | `transport/serial/serial.cc:762-784, 818-861` `[code]` | Match | – |
 | C-5.4-2 Every concurrent `stop()` caller waits | Decided | Serial | `stopping_.exchange(true)` returns early | `transport/serial/serial.cc:674` `[code]` | Differs | Same as TCP |
-| C-5.4-3 `stop()` inside a callback requests shutdown without waiting | Decided | Serial | `stop()` joins the owned io thread **without** checking whether it is the current thread, unlike every other transport | `transport/serial/serial.cc:683-686` `[code]` | Differs | Calling `stop()` from a serial callback joins the calling thread with itself; the runtime effect was read, not observed, so it needs a test |
+| C-5.4-3 `stop()` inside a callback requests shutdown without waiting | Decided | Serial | `stop()` joins the owned io thread **without** checking whether it is the current thread, unlike every other transport. Confirmed at runtime: the join throws `std::system_error` ("Resource deadlock avoided"), and the rest of the shutdown never runs - see [section 10](#10-runtime-confirmation-serial-stop-inside-a-callback) | `transport/serial/serial.cc:683-686` `[code]`; `test/repro/serial_stop_in_callback_repro.cc` `[test-run, see section 10]` | Differs | `stop()` from a serial callback throws instead of requesting shutdown, and leaves the object unable to restart |
 | C-5.4-4 Blocking send inside any callback | Proposed | Serial | Guard set only in the data dispatch | `wrapper/serial/serial.cc:433` `[code]` | Differs | Same as TCP |
 | C-6.1-1 Queued data discarded when the link drops | Decided | Serial | With `reopen_on_error`, the queue survives the reopen; it is cleared only by cleanup or by a queue overflow | `transport/serial/serial.cc:188-194, 455-465, 498-503` `[code]` | Differs | Same as TCP |
 | C-6.1-3 Link loss during operation fires `on_disconnect` | Proposed | Serial | With `reopen_on_error` the state goes to `Connecting`, which the wrapper ignores; without it, the state goes to `Error` and `on_error` fires | `transport/serial/serial.cc:491-509`; `wrapper/serial/serial.cc:495-515` `[code]` | Differs | Reopen-on-error behaves like TCP: a recovered drop is reported nowhere |
@@ -295,7 +295,7 @@ observed. They are marked in the Kind column.
 | C-5.2-1 | TCP server | Insufficient evidence | `on_connect` precedes that connection's receive callbacks | Multi-threaded executor, a client that writes immediately on connect, assert the order per session |
 | C-6.1-2 | TCP client | Insufficient evidence | A blocked sender is released by a disconnect | Fill the queue under Reliable, drop the peer, assert the blocked call returns within a bound |
 | C-1-1 | TCP server, UDS server | Insufficient evidence | Shutdown completion on the timeout path | Occupy the executor with a long handler so cleanup cannot finish in 2s; assert what `stop()` guarantees on return |
-| C-5.4-3 | Serial | Runtime confirmation of a Differs row | `stop()` from a callback joins the current thread | Call `stop()` from `on_data` on an owned io_context; assert the observed behavior |
+| C-5.4-3 | Serial | ~~Runtime confirmation of a Differs row~~ **done**, see [section 10](#10-runtime-confirmation-serial-stop-inside-a-callback) | `stop()` from a callback joins the current thread | Done: `test/repro/serial_stop_in_callback_repro.cc` |
 
 The serial row stays classified as Differs in its own table: the code path is
 clear, and only its runtime effect is unconfirmed. Turning a code-level
@@ -319,6 +319,66 @@ ways: nothing at all (TCP client, serial with reopen), `on_error` (UDS
 client), or `on_disconnect` for an expiry that is not a disconnect (UDP
 server). Whatever the contract decides, this is one decision for all
 transports, not a per-transport fix.
+
+## 10. Runtime confirmation: serial `stop()` inside a callback
+
+Reproduction: `test/repro/serial_stop_in_callback_repro.cc`, registered as
+`ReproSerialStopInCallback.{nocatch,catch,control}`. It reports rather than
+asserts, so it does not freeze the current behavior into a test; it fails only
+if the repro path cannot run or the scenario hangs. The scenario runs in a
+forked child with a parent-side timeout and a ctest `TIMEOUT`, so a hang would
+kill the child, not the runner.
+
+Setup: the public `wirestead::serial()` wrapper in its default configuration,
+where the transport owns its io_context and io thread; a POSIX
+pseudo-terminal supplies the input; `stop()` is called from `on_data`.
+
+Run: Linux/WSL2, Release, at audit baseline `d914b8d7c` plus this
+reproduction. All three modes passed, meaning the scenario completed.
+
+| Observation point | `nocatch` | `catch` (diagnostic) | `control` (no `stop()` in the callback) |
+| --- | --- | --- | --- |
+| Callback entry | entered | entered | entered |
+| `stop()` call | did not return; threw | threw `std::system_error`: "Resource deadlock avoided" | not called |
+| After the callback | the library's own dispatch caught it and logged "Uncaught exception in user callback: Resource deadlock avoided"; the connection did not continue | same, minus the log: the diagnostic catch took it first | normal |
+| External cleanup | a later `stop()` from outside returned; **a restart never completed** (3s bound) | same | a later `stop()` returned and **the restart succeeded** |
+| Destruction | completed | completed | completed |
+| Process result | exited 0 | exited 0 | exited 0 |
+
+The `control` row is what makes the rest meaningful: the same object, the same
+pseudo-terminal and the same outside `stop()` restart cleanly when the callback
+does not call `stop()`.
+
+### What this settles
+
+- The effect is an exception, not a hang. `std::jthread::join()` on the current
+  thread throws `EDEADLK` rather than blocking, so nothing deadlocks.
+- Catching the exception is not enough. `Serial::stop()` throws at its join,
+  which is before `ioc_.restart()` and before `started_ = false`, and the
+  exception then unwinds out of the wrapper's `stop()` before it clears the
+  channel's callbacks and releases the channel. The object is left
+  half-stopped: a later `stop()` returns, but a restart does not complete.
+- By the criterion agreed for this check - "even if the exception is caught
+  inside, an interrupted shutdown is a defect" - this is a defect, not only a
+  contract difference.
+
+### Minimal fix direction
+
+Not implemented here; recorded for the decision.
+
+1. The smallest change is the self-thread check the other transports already
+   have: detach instead of join when `stop()` runs on the io thread. That
+   removes the exception.
+2. It is **not** sufficient on its own. The state that a callback-initiated
+   `stop()` leaves behind still has to be defined: `started_`, `ioc_.restart()`
+   and the wrapper's channel release all sit after the join today, so a
+   restart's preconditions have to be re-established by whichever path
+   completes the shutdown.
+3. That question is the same one the contract already has open for
+   "`stop()` inside a callback requests shutdown and returns without waiting"
+   (C-5.4-3) and for shutdown completion (C-1-1): what a caller may do with the
+   object after a callback-initiated stop, and what tells it the shutdown
+   finished. The fix should land with that decision rather than before it.
 
 ## Next
 
