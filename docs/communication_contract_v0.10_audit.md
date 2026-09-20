@@ -386,14 +386,15 @@ callback does not call `stop()`.
   inside, an interrupted shutdown is a defect" - this is a defect, not only a
   contract difference.
 
-### Minimal fix direction
+### Fix
 
-Not implemented here; recorded for the decision.
+Fixed after this observation, under the narrow contract below; the
+reproduction stays in the tree and now records the fixed behavior.
 
-Swapping the join for a detach is **not** the recommended fix: it removes the
-exception without saying who waits for the io thread, who keeps the object
-alive meanwhile, and when the io_context becomes restartable. The narrow
-contract this fix needs is:
+Swapping the join for a detach was **not** the fix: it removes the exception
+without saying who waits for the io thread, who keeps the object alive
+meanwhile, and when the io_context becomes restartable. The contract
+implemented is narrow:
 
 1. `stop()` from inside a callback requests shutdown and returns, without
    joining the thread it is running on.
@@ -403,10 +404,18 @@ contract this fix needs is:
 4. Restarting from inside a callback, before shutdown is complete, is not
    supported.
 
-That is narrower than the still-open C-5.4-3 and C-1-1 decisions, so the fix
-does not have to wait for them. A regression test for it should cover a
-callback-initiated `stop()` leaving no exception, an outside `stop()`
-completing, and a restart that actually receives data again.
+That is narrower than the still-open C-5.4-3 and C-1-1 decisions, so it did
+not wait for them, and it does not pre-empt them: what a caller may do between
+a callback-initiated `stop()` and the outside one is still undecided.
+
+`SerialStopInCallbackTest` covers the three points that matter: the
+callback's `stop()` does not throw, an outside `stop()` completes, and the
+restarted channel receives data again. It fails on the unfixed library, which
+was checked by reverting the two source files and re-running it.
+
+With the fix, the reproduction reports `stop-returned-normally` in both
+`stop-nocatch` and `stop-catch`, and `future completed with true` in
+`restart-after-callback-stop`, matching `restart-control`.
 
 ## Next
 

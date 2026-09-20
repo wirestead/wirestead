@@ -10,6 +10,26 @@ and ABI policy.
 
 ### Fixed
 
+- `stop()` called from inside a serial callback threw instead of stopping.
+
+  The callback runs on the transport's own io thread, and `stop()` joined that
+  thread unconditionally, so the call joined the thread with itself:
+  `std::system_error`, "Resource deadlock avoided". Without a catch at the call
+  site the library's callback dispatch swallowed and logged it, which hid the
+  real damage - the throw unwound before `io_context::restart()` and before the
+  wrapper released the channel, so the object was left half-stopped. A later
+  `stop()` returned, but a restart's future never completed.
+
+  A `stop()` from the io thread now requests the shutdown and returns without
+  joining, and a later `stop()` from outside completes it, waiting even when a
+  shutdown was already requested. After that call returns the object can be
+  restarted and destroyed. Restarting from inside a callback, before the
+  shutdown completes, remains unsupported.
+
+  Reproduced in `test/repro/serial_stop_in_callback_repro.cc`; covered by
+  `SerialStopInCallbackTest`, which checks that the callback's `stop()` does
+  not throw and that a restarted channel receives data again.
+
 - The CPack Debian package named the wrong Boost package.
 
   It required only `libboost-system-dev`. The package ships the headers as well
