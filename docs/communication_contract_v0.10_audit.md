@@ -273,10 +273,10 @@ supports it.
 
 | Target | Difference |
 | --- | --- |
-| TCP client | The only target that re-queues the batch it was writing when the write failed, so a partly written message is resent on the next connection. Also the only one whose blocked senders are not released by a disconnect, because its wait predicate does not test readiness |
+| TCP client | The only target that re-queues the batch it was writing when the write failed, so a partly written message is resent on the next connection. Also the only one whose wait predicate does not test readiness, so whether a disconnect alone releases a blocked sender is unconfirmed (C-6.1-2, 9.4) |
 | UDS client | A retried loss reports `on_error` because the retry path passes through `Error` - the opposite of TCP, which reports nothing |
 | UDS server | `*_move()` consumes the source even when rejected |
-| UDP | No connection instance exists, so four connection rules are not applicable. Readiness additionally requires a destination, which the contract's UDP row does not mention |
+| UDP | No connection instance exists, so four connection rules are not applicable. The APIs that use the default destination additionally require one to be set, while `async_write_to()` takes it as an argument; whether a destination belongs in the readiness definition is still open in the contract (comparison deferred) |
 | UDP server | Sessions are virtual and share one executor and one mutex, with no per-session strand; whether that still satisfies per-session non-overlap is untraced (9.4). Expiry fires `on_disconnect` today, recorded as an observation against an open contract item |
 | Serial | `stop()` joins the owned io thread without checking whether it is the current thread, so `stop()` from a serial callback joins the calling thread with itself. Every other transport checks |
 
@@ -327,8 +327,11 @@ transports, not a per-transport fix.
    settles every target.
 2. Decide the event model ([9.6](#96-the-event-model-is-the-largest-design-question)),
    which the per-transport rows cannot settle individually.
-3. Write the tests in [9.4](#94-insufficient-evidence-and-the-smallest-test-that-would-close-it),
-   eight rows across seven rules.
+3. Write the checks in [9.4](#94-insufficient-evidence-and-runtime-confirmation-with-the-smallest-check-for-each):
+   10 target-level entries across 8 rules - 9 insufficient-evidence rows plus
+   one runtime confirmation of the serial `stop()` difference. Start with the
+   serial one: its risky path is already identified in code, so it does not
+   wait on any design decision.
 4. Leave the API-family and transport-specific rows
    ([9.2](#92-differences-between-api-families-inside-one-target),
    [9.3](#93-transport-specific-differences)) until the common rules are
