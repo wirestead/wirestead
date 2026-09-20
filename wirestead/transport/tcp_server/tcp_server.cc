@@ -85,6 +85,8 @@ struct TcpServer::Impl {
   diagnostics::RuntimeStatsCounters stats_;
 
   mutable std::mutex sessions_mutex_;
+  // Serializes the waiting half of stop() (D-1).
+  std::mutex stop_mtx_;
   std::unordered_map<ClientId, std::shared_ptr<TcpServerSession>> sessions_;
 
   size_t max_clients_;
@@ -505,11 +507,11 @@ struct TcpServer::Impl {
   }
 
   void stop(std::shared_ptr<TcpServer> self) {
-    if (stopping_.exchange(true)) {
-      return;
-    }
+    // D-1: only the first caller drives the teardown, but every caller from
+    // off the executor leaves this function with the shutdown complete.
+    const bool first = !stopping_.exchange(true);
 
-    {
+    if (first) {
       std::lock_guard<std::mutex> lock(sessions_mutex_);
       on_bytes_ = nullptr;
       on_state_ = nullptr;
@@ -520,8 +522,20 @@ struct TcpServer::Impl {
     }
 
     if (ioc_.get_executor().running_in_this_thread()) {
-      perform_cleanup();
-      if (owns_ioc_) ioc_.stop();
+      // Rule 2: this thread is one the shutdown needs, so it requests and
+      // returns rather than waiting for itself.
+      if (first) {
+        perform_cleanup();
+        if (owns_ioc_) ioc_.stop();
+      }
+      return;
+    }
+
+    std::lock_guard<std::mutex> stop_lock(stop_mtx_);
+    if (!first) {
+      // The first caller is either finished or still inside the section below;
+      // taking stop_mtx_ is what makes this caller wait for it.
+      join_owned_thread();
       return;
     }
 
@@ -560,18 +574,20 @@ struct TcpServer::Impl {
       perform_cleanup();
     }
 
-    if (owns_ioc_) {
-      if (work_guard_) work_guard_->reset();
-      if (ioc_thread_.joinable()) {
-        if (std::this_thread::get_id() == ioc_thread_.get_id()) {
-          ioc_thread_.detach();
-        } else {
-          ioc_thread_.request_stop();
-          ioc_thread_.join();
-        }
-        ioc_.restart();
-      }
+    join_owned_thread();
+  }
+
+  void join_owned_thread() {
+    if (!owns_ioc_) return;
+    if (work_guard_) work_guard_->reset();
+    if (!ioc_thread_.joinable()) return;
+    if (std::this_thread::get_id() == ioc_thread_.get_id()) {
+      ioc_thread_.detach();
+    } else {
+      ioc_thread_.request_stop();
+      ioc_thread_.join();
     }
+    ioc_.restart();
   }
 };
 

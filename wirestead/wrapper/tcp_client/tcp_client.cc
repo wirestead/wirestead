@@ -45,6 +45,10 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   mutable std::shared_mutex mutex_;
   std::mutex bp_mutex_;
   std::condition_variable bp_cv_;
+  // D-1: counts this object's user callbacks that are running, so stop() can
+  // wait for "no user callback of this object is running" even when the
+  // io_context is external and there is no thread to join.
+  detail::ActiveCallbacks active_callbacks_;
   std::string host_;
   uint16_t port_;
   std::shared_ptr<interface::Channel> channel_;
@@ -136,6 +140,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   void flush_batches() {
+    detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
     std::unique_lock<std::shared_mutex> lock(mutex_);
     if (!data_batch_queue_.empty()) {
       auto handler = data_batch_handler_;
@@ -240,38 +245,49 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   void stop() {
     bool should_join = false;
+    bool needs_teardown = true;
+    // D-1: a stop() that only requested the shutdown (from a callback) may
+    // already have torn the channel down, but shutdown is not complete while a
+    // callback of this object is still running, so a later caller waits below
+    // even when it finds nothing left to tear down.
+    const bool inside_own_callback = active_callbacks_.is_active_on_this_thread();
     {
       std::unique_lock<std::shared_mutex> lock(mutex_);
-      if (!started_.load()) {
+      const bool was_started = started_.exchange(false);
+      if (!was_started && !channel_) {
+        // Nothing left to tear down, but a callback of this object may still
+        // be running - shutdown is not complete until it is not, so this
+        // caller still waits below.
         fulfill_all_locked(false);
-        return;
+        needs_teardown = false;
       }
-      started_.store(false);
-      bp_cv_.notify_all();
-      alive_marker_.reset();
-      if (batch_timer_) {
-        batch_timer_->cancel();
-        batch_timer_.reset();
-      }
-      if (channel_) {
-        auto ch = channel_;
-        lock.unlock();
-        ch->stop();
-        lock.lock();
-        if (channel_ == ch) {
-          channel_->on_bytes(nullptr);
-          channel_->on_state(nullptr);
-          channel_->on_backpressure(nullptr);
+      if (needs_teardown) {
+        bp_cv_.notify_all();
+        alive_marker_.reset();
+        if (batch_timer_) {
+          batch_timer_->cancel();
+          batch_timer_.reset();
         }
+        if (channel_) {
+          auto ch = channel_;
+          lock.unlock();
+          ch->stop();
+          lock.lock();
+          if (channel_ == ch) {
+            channel_->on_bytes(nullptr);
+            channel_->on_state(nullptr);
+            channel_->on_backpressure(nullptr);
+          }
+        }
+        if (use_external_context_.load() && manage_external_context_.load()) {
+          if (work_guard_) work_guard_.reset();
+          if (external_ioc_) external_ioc_->stop();
+          should_join = true;
+        }
+        fulfill_all_locked(false);
       }
-      if (use_external_context_.load() && manage_external_context_.load()) {
-        if (work_guard_) work_guard_.reset();
-        if (external_ioc_) external_ioc_->stop();
-        should_join = true;
-      }
-      fulfill_all_locked(false);
     }
-    if (should_join && external_thread_.joinable()) {
+    if (needs_teardown && should_join && external_thread_.joinable()) {
       try {
         if (std::this_thread::get_id() != external_thread_.get_id()) {
           external_thread_.request_stop();
@@ -282,9 +298,20 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       } catch (...) {
       }
     }
-    std::unique_lock<std::shared_mutex> lock(mutex_);
-    channel_.reset();
-    if (framer_) framer_->reset();
+    if (needs_teardown) {
+      std::unique_lock<std::shared_mutex> lock(mutex_);
+      channel_.reset();
+      if (framer_) framer_->reset();
+    }
+
+    // D-1 rule 2: a caller running one of this object's callbacks has just
+    // requested the shutdown; waiting here would be waiting for itself.
+    // Every other caller leaves only once no callback of this object is
+    // running - the half of "shutdown complete" that joining an owned io
+    // thread cannot answer for an external io_context.
+    if (!inside_own_callback) {
+      active_callbacks_.wait_until_idle();
+    }
   }
 
   bool try_send(std::string_view data) {
@@ -452,6 +479,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       // these callbacks fails fast instead of deadlocking waiting for this
       // same thread to clear backpressure.
       detail::CallbackGuard callback_guard;
+      detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
 
       // #441: snapshot the handler/framer pointers under a shared_lock (not
       // unique_lock) - this is a pure read, matching try_send's locking
@@ -497,6 +525,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
+      detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
       ConnectionHandler connect_handler;
       ConnectionHandler disconnect_handler;
       ErrorHandler error_handler;
@@ -537,6 +566,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
+      detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
       std::function<void(size_t)> handler;
       {
         std::shared_lock<std::shared_mutex> lock(mutex_);

@@ -159,6 +159,9 @@ struct TcpClient::Impl {
   // reservation both go through write_reserve_mtx_ - see bp_utils.hpp.
   std::atomic<size_t> inflight_bytes_{0};
   std::mutex write_reserve_mtx_;
+  // Serializes the waiting half of stop() (D-1): concurrent callers from off
+  // the executor all leave with the shutdown complete.
+  std::mutex stop_mtx_;
   // Atomic rather than mutex-guarded: read both from the strand and from
   // arbitrary caller threads (async_try_write_* fast-fail prechecks) (#436).
   std::atomic<base::constants::BackpressureStrategy> bp_strategy_{base::constants::BackpressureStrategy::Reliable};
@@ -337,28 +340,37 @@ void TcpClient::start() {
 }
 
 void TcpClient::stop() {
-  if (impl_->stop_requested_.exchange(true)) {
+  // D-1: a caller on the executor the shutdown needs can only request it;
+  // anyone else leaves this function with the shutdown complete, including a
+  // caller that finds one already requested.
+  const bool on_executor = impl_->ioc_ && impl_->ioc_->get_executor().running_in_this_thread();
+
+  if (!impl_->stop_requested_.exchange(true)) {
+    impl_->stopping_.store(true);
+    impl_->stop_seq_.store(impl_->current_seq_.load());
+    if (impl_->ioc_) {
+
+      // Post via a raw Impl* rather than weak_from_this().lock(): when stop()
+      // runs from ~TcpClient(), the shared_ptr use count is already 0, so that
+      // lock() is guaranteed null (standard shared_ptr/enable_shared_from_this
+      // behavior during destruction) and perform_stop_cleanup() - which resets
+      // work_guard_ - would never be posted, leaving join_ioc_thread() below
+      // blocked forever with no work_guard reset to let io_context::run()
+      // return. impl_ itself stays alive until after join_ioc_thread() returns
+      // (~TcpClient() doesn't destroy it until its body finishes), so capturing
+      // the raw Impl* is safe in both the destructor and non-destructor paths.
+      Impl* impl_ptr = impl_.get();
+      net::post(impl_->strand_, [impl_ptr]() { impl_ptr->perform_stop_cleanup(); });
+    }
+  }
+
+  if (on_executor || !impl_->ioc_) {
     return;
   }
 
-  impl_->stopping_.store(true);
-  impl_->stop_seq_.store(impl_->current_seq_.load());
-  if (!impl_->ioc_) {
-    return;
-  }
-
-  // Post via a raw Impl* rather than weak_from_this().lock(): when stop()
-  // runs from ~TcpClient(), the shared_ptr use count is already 0, so that
-  // lock() is guaranteed null (standard shared_ptr/enable_shared_from_this
-  // behavior during destruction) and perform_stop_cleanup() - which resets
-  // work_guard_ - would never be posted, leaving join_ioc_thread() below
-  // blocked forever with no work_guard reset to let io_context::run()
-  // return. impl_ itself stays alive until after join_ioc_thread() returns
-  // (~TcpClient() doesn't destroy it until its body finishes), so capturing
-  // the raw Impl* is safe in both the destructor and non-destructor paths.
-  Impl* impl_ptr = impl_.get();
-  net::post(impl_->strand_, [impl_ptr]() { impl_ptr->perform_stop_cleanup(); });
-
+  // Serialized so a second caller waits here rather than returning while the
+  // first is still tearing the transport down.
+  std::lock_guard<std::mutex> lock(impl_->stop_mtx_);
   impl_->join_ioc_thread(false);
 }
 

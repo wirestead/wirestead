@@ -44,6 +44,10 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
   mutable std::shared_mutex mutex_;
   std::mutex bp_mutex_;
   std::condition_variable bp_cv_;
+  // D-1: this object's running user callbacks, so stop() can wait for
+  // "no callback of this object is running" - including a session callback on
+  // an external io_context, where there is no thread to join.
+  detail::ActiveCallbacks active_callbacks_;
   uint16_t port_;
   std::string bind_address_{"0.0.0.0"};
   std::string tls_certificate_file_;
@@ -173,6 +177,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   void flush_batches() {
+    detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
     std::unique_lock<std::shared_mutex> lock(mutex_);
     if (!data_batch_queue_.empty()) {
       auto handler = data_batch_handler_;
@@ -284,48 +289,55 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
 
   void stop() {
     bool should_join = false;
+    bool needs_teardown = true;
+    // D-1: a stop() from inside a callback may already have torn everything
+    // down, but shutdown is not complete while a callback of this object is
+    // still running, so a later caller still waits at the end.
+    const bool inside_own_callback = active_callbacks_.is_active_on_this_thread();
     {
       std::unique_lock<std::shared_mutex> lock(mutex_);
-      if (!started_.exchange(false)) {
+      if (!started_.exchange(false) && !channel_) {
         is_listening_.store(false);
         fulfill_all_locked(false);
-        return;
+        needs_teardown = false;
       }
-      bp_cv_.notify_all();
-      if (batch_timer_) {
-        batch_timer_->cancel();
-        batch_timer_.reset();
+      if (needs_teardown) {
+        bp_cv_.notify_all();
+        if (batch_timer_) {
+          batch_timer_->cancel();
+          batch_timer_.reset();
+        }
+        if (channel_) {
+          channel_->on_bytes(nullptr);
+          channel_->on_state(nullptr);
+          channel_->on_backpressure(nullptr);
+          auto transport_server = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
+          if (transport_server) transport_server->request_stop();
+          // #506: same rationale as start() above - copy before unlocking so
+          // this call can't race a concurrent channel_.reset() on the member.
+          auto channel_copy = channel_;
+          lock.unlock();
+          channel_copy->stop();
+          lock.lock();
+        }
+        if (use_external_context_.load() && manage_external_context_.load()) {
+          if (work_guard_) work_guard_.reset();
+          if (external_ioc_) external_ioc_->stop();
+          should_join = true;
+        }
+        // #444: transport_cache_ is a separate cached shared_ptr to the same
+        // transport object channel_ points at - without this, send_to()/
+        // broadcast()/max_clients() could still reach the stopped transport
+        // via transport_cache_ even after channel_.reset() below. framers_
+        // must also be cleared so a restart doesn't resume per-client framing
+        // state from stale ClientIds (mirrors UdsServer's existing behavior).
+        transport_cache_.reset();
+        framers_.clear();
+        fulfill_all_locked(false);
+        is_listening_.store(false);
       }
-      if (channel_) {
-        channel_->on_bytes(nullptr);
-        channel_->on_state(nullptr);
-        channel_->on_backpressure(nullptr);
-        auto transport_server = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
-        if (transport_server) transport_server->request_stop();
-        // #506: same rationale as start() above - copy before unlocking so
-        // this call can't race a concurrent channel_.reset() on the member.
-        auto channel_copy = channel_;
-        lock.unlock();
-        channel_copy->stop();
-        lock.lock();
-      }
-      if (use_external_context_.load() && manage_external_context_.load()) {
-        if (work_guard_) work_guard_.reset();
-        if (external_ioc_) external_ioc_->stop();
-        should_join = true;
-      }
-      // #444: transport_cache_ is a separate cached shared_ptr to the same
-      // transport object channel_ points at - without this, send_to()/
-      // broadcast()/max_clients() could still reach the stopped transport
-      // via transport_cache_ even after channel_.reset() below. framers_
-      // must also be cleared so a restart doesn't resume per-client framing
-      // state from stale ClientIds (mirrors UdsServer's existing behavior).
-      transport_cache_.reset();
-      framers_.clear();
-      fulfill_all_locked(false);
-      is_listening_.store(false);
     }
-    if (should_join && external_thread_.joinable()) {
+    if (needs_teardown && should_join && external_thread_.joinable()) {
       try {
         if (std::this_thread::get_id() != external_thread_.get_id()) {
           external_thread_.request_stop();
@@ -336,8 +348,17 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
       } catch (...) {
       }
     }
-    std::unique_lock<std::shared_mutex> lock(mutex_);
-    channel_.reset();
+    if (needs_teardown) {
+      std::unique_lock<std::shared_mutex> lock(mutex_);
+      channel_.reset();
+    }
+
+    // Rule 2: a caller running one of this object's callbacks has requested
+    // the shutdown and must not wait for itself. Everyone else leaves only
+    // once no callback of this object - of any session - is running.
+    if (!inside_own_callback) {
+      active_callbacks_.wait_until_idle();
+    }
   }
 
   bool try_send_to(ClientId client_id, std::string_view data) {
@@ -420,6 +441,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
+        detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
 
         ConnectionHandler handler;
         {
@@ -477,6 +499,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         // mark it so a blocking send_to()/broadcast() called from within
         // one of these callbacks fails fast instead of deadlocking.
         detail::CallbackGuard callback_guard;
+        detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
 
         // #441: snapshot the handler/framer pointers under a shared_lock
         // (not unique_lock) - this is a pure read, matching try_send's
@@ -525,6 +548,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
         if (!alive) return;
+        detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
 
         ConnectionHandler handler;
         {
@@ -554,6 +578,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
+      detail::ActiveCallbacks::Scope active_scope(active_callbacks_);
 
       if (state == base::LinkState::Listening) {
         is_listening_.store(true);

@@ -8,6 +8,27 @@ and ABI policy.
 
 ## Unreleased
 
+### Changed
+
+- **Breaking behavior:** `stop()` on the TCP client and TCP server now returns
+  only when the shutdown is complete, and a second concurrent `stop()` waits
+  for the first instead of returning early.
+
+  "Complete" here means no user callback of that object is still running and
+  none from that run will start - which a caller previously could not rely on
+  at all with an externally run `io_context`, where the library has no thread
+  to join. Called from inside one of the object's own callbacks, `stop()`
+  still requests the shutdown and returns immediately, since waiting there
+  would wait for itself.
+
+  Code that called `stop()` from a second thread and expected it to be cheap
+  now blocks until the first caller is done. Code that released a slow
+  callback *after* `stop()` returned has to release it from another thread; the
+  library's own lifecycle test was updated the same way.
+
+  This is D-1 of `docs/communication_contract_v0.10_decisions.md`, applied to
+  the TCP targets. UDS, UDP and serial follow in their own changes.
+
 ### Fixed
 
 - `stop()` called from inside a serial callback threw instead of stopping.
