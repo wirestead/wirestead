@@ -48,7 +48,8 @@ repository's tests are neither claimed to pass nor to fail here.
 | --- | --- |
 | **Match** | The implementation behaves as the rule says |
 | **Differs** | The implementation behaves differently; no judgement yet about which side should change |
-| **Insufficient evidence** | Reading the code did not settle it; needs a test or a deeper read |
+| **Insufficient evidence** | Reading the code did not settle the behavior; needs a test or a deeper read |
+| **Comparison deferred** | The contract item is still Open, so there is nothing settled to compare against. The observed behavior is recorded; it does not become the decision |
 | **Not applicable** | The rule does not apply to this target |
 
 Rule IDs are `C-<section>-<n>`, numbered within the contract section they come
@@ -164,7 +165,7 @@ Row counts are stated at the end of each round's tables and in
 | C-3.6-3 The result reports accepted and rejected counts | Proposed | UDS server | One `bool`, true when at least one session accepted | `transport/uds/uds_server.cc:510-520` `[code]` | Differs | Same as TCP server |
 | C-3.6-4 A call with zero targets is distinguishable | Proposed | UDS server | Returns `false` and records a failed send | `transport/uds/uds_server.cc:517-519` `[code]` | Differs | Same as TCP server |
 | C-3.4-2 A rejected `*_move()` leaves the source unchanged | Proposed | UDS server | `async_try_write_move()` moves the vector into a `shared_ptr` **before** any check, so the source is consumed even when the call rejects | `transport/uds/uds_server.cc:499-502` `[code]` | Differs | Unique to this target: a caller that retries after a rejection retries with an empty buffer |
-| C-5.1-2a Session callbacks run on the session strand | Proposed | UDS server | Each session owns `net::make_strand(ioc_)` | `transport/uds/uds_server_session.cc:29, 48` `[code]` | Match | – |
+| C-5.1-2a Session receive and close callbacks run on the session strand | Proposed | UDS server | Traced per path: the read handler is `bind_executor(strand_, ...)` and invokes `on_bytes_` inside it; `do_close()` - which invokes `on_close_` - is reached only from strand-bound handlers; handler registration is dispatched onto the strand too | `transport/uds/uds_server_session.cc:29, 48, 276-306, 299-340, 442` `[code]` | Match | – |
 | C-5.1-2b All of one session's callbacks are serialized | Proposed | UDS server | Connect and batched delivery run outside the session strand, as on TCP | `wrapper/uds_server/uds_server.cc:330-345` `[code]` | Insufficient evidence | Same open question as TCP server |
 | C-5.4-2 Every concurrent `stop()` caller waits | Decided | UDS server | `stopping_.exchange(true)` returns early for the second caller | `transport/uds/uds_server.cc:202` `[code]` | Differs | Same as TCP |
 | C-5.4-4 Blocking send inside any callback | Proposed | UDS server | Guard set only in the data dispatch | `wrapper/uds_server/uds_server.cc:342` `[code]` | Differs | Same as TCP |
@@ -179,7 +180,7 @@ corresponds to a reconnect.
 
 | Rule ID | Contract status | Target | Observed implementation | Evidence | Verdict | User impact |
 | --- | --- | --- | --- | --- | --- | --- |
-| C-2-1 Ready to send is socket open and bound | Proposed (Open in the contract) | UDP | `is_connected()` reports an internal flag set when the socket is open and bound, or when the first datagram arrives; **every send also requires a destination** (`remote_endpoint_`), configured or learned from a received datagram | `transport/udp/udp.cc:280, 325-327, 849, 984-990` `[code]` | Differs | The contract's UDP row names the socket state only; the implementation also requires a destination, which settles contract open item 3 as a question of wording |
+| C-2-1 Ready to send is socket open and bound | Open in the contract | UDP | `is_connected()` reports an internal flag set when the socket is open and bound, or when the first datagram arrives. The APIs that use the **default** destination additionally require `remote_endpoint_` - configured, or learned from a received datagram - while `async_write_to()` / `async_try_write_to()` take a destination as an argument and do not | `transport/udp/udp.cc:280, 325-327, 849, 984-990, 1102-1130` `[code]` | Comparison deferred | Observation for contract open item 3: whether a destination belongs in the readiness definition is a decision the contract has not made |
 | C-3.1-1b Validation without waiting - Reliable and blocking paths | Proposed | UDP | Same wrapper shape: wait first, validate in the transport | `wrapper/udp/udp.cc:318-331, 345-353` `[code]` | Differs | Same as TCP |
 | C-3.2-1 `try_send*()` rejects under pressure | Proposed | UDP | Shared helpers, with `TxItem` carrying the destination | `transport/udp/udp.cc:984-1029`; `bp_utils.hpp` `[code]` | Match | – |
 | C-3.2-3 `send_blocking()` never removes older accepted requests | Proposed | UDP | The plain path routes through `decide_enqueue()` with a projection over `TxItem`, so BestEffort trims oldest-first | `transport/udp/udp.cc:586-592` `[code]` | Differs | Same as TCP |
@@ -199,13 +200,14 @@ expires an entry after a configured silence, which is not a remote disconnect.
 | Rule ID | Contract status | Target | Observed implementation | Evidence | Verdict | User impact |
 | --- | --- | --- | --- | --- | --- | --- |
 | C-2-2 A virtual session is ready to send while it exists | Proposed | UDP server | Sessions are created on the first datagram from an endpoint and refreshed by each further datagram | `wrapper/udp/udp_server.cc:264-322` `[code]` | Match | – |
-| C-6.1-7 Virtual session expiry is distinct from a disconnect | Open in the contract | UDP server | A reaper timer removes sessions silent for longer than the configured timeout and fires **`on_disconnect`** for each | `wrapper/udp/udp_server.cc:186-238` `[code]` | Differs | The implementation already answers contract open item 9, but by reusing `on_disconnect`, which the contract distinguishes from a remote disconnect |
+| C-6.1-7 Virtual session expiry is distinct from a disconnect | Open in the contract | UDP server | A reaper timer removes sessions silent for longer than the configured timeout and fires `on_disconnect` for each | `wrapper/udp/udp_server.cc:186-238` `[code]` | Comparison deferred | Observation for contract open item 9: today expiry reuses `on_disconnect`. What the event should be is undecided, so this is not counted as a difference |
 | C-3.6-1 Fanout never waits | Proposed | UDP server | `broadcast()` calls the try path per session endpoint | `wrapper/udp/udp_server.cc:535-546` `[code]` | Match | – |
 | C-3.6-2 The target set is fixed at selection | Proposed | UDP server | The loop holds the wrapper's shared lock | `wrapper/udp/udp_server.cc:535-544` `[code]` | Match | – |
 | C-3.6-3 The result reports accepted and rejected counts | Proposed | UDP server | A single OR-ed `bool` | `wrapper/udp/udp_server.cc:539-545` `[code]` | Differs | Same as the other servers |
 | C-3.6-4 A call with zero targets is distinguishable | Proposed | UDP server | Returns `false`, as when every session rejects | `wrapper/udp/udp_server.cc:539-545` `[code]` | Differs | Same as the other servers |
-| C-5.1-2 Session scope | Proposed | UDP server | There is no per-session strand: all sessions are served by the one UDP socket's executor, and session state lives in the wrapper under one mutex | `wrapper/udp/udp_server.cc:88-89, 264-322` `[code]` | Differs | The contract's session scope does not describe this target; virtual sessions share one scope |
+| C-5.1-2 Session scope | Proposed | UDP server | There is no per-session strand: all sessions are served by the one UDP socket's executor, and session state lives in the wrapper under one mutex. The rule asks that callbacks of **one** session never overlap, which a single shared execution path can satisfy; whether any callback path of one session can overlap another of the same session was not traced | `wrapper/udp/udp_server.cc:88-89, 264-322` `[code]` | Insufficient evidence | A structure without per-session strands is not by itself a difference; it needs the callback paths traced |
 | C-5.4-4 Blocking send inside any callback | Proposed | UDP server | Guard set only in the data dispatch | `wrapper/udp/udp_server.cc:258` `[code]` | Differs | Same as TCP |
+| C-5.4-2 Every concurrent `stop()` caller waits | Decided | UDP server | The wrapper's `stop()` runs `started.exchange(false)` and then calls the UDP channel's `stop()`, which itself returns early on its own exchange | `wrapper/udp/udp_server.cc:465-490`; `transport/udp/udp.cc:791-793` `[code]` | Differs | Same as the other targets |
 
 ## 8. Serial
 
@@ -226,36 +228,46 @@ expires an entry after a configured silence, which is not a remote disconnect.
 ## 9. Summary by category
 
 Rows: round 1 (TCP) 51 - 25 match, 20 differs, 6 insufficient evidence.
-Round 2 (UDS, UDP, serial) 57 - 17 match, 34 differs, 2 insufficient
-evidence, 4 not applicable. The round-2 differences are mostly the same
-handful of rules repeating across targets, which is what the categories below
-separate.
+Round 2 (UDS, UDP, serial) 58 - 17 match, 32 differs, 3 insufficient
+evidence, 2 comparison deferred, 4 not applicable. Totals: 109 rows, 42
+match, 52 differs, 9 insufficient evidence, 2 deferred, 4 not applicable.
+
+Most round-2 differences are the same few rules repeating across targets,
+which is what the categories below separate. The two deferred rows are not
+counted as differences: the contract has not decided those items, so there is
+nothing to differ from.
 
 ### 9.1 Common differences - the same rule differs on every target examined
 
-| Rule | Targets | What differs |
-| --- | --- | --- |
-| C-5.4-2 concurrent `stop()` | all 7 | The second caller returns from an `exchange` before the first has finished; every transport uses the same shape |
-| C-5.4-4 blocking send inside a callback | all 7 | The fail-fast guard is set only around the data and message dispatch, not around connect, disconnect, error or backpressure callbacks |
-| C-3.1-1b validation before waiting | all 5 client-side targets | The wrapper waits for backpressure and only then lets the transport validate, so an invalid request can wait first |
-| C-3.2-3 keep-latest on the blocking path | all 6 queue-owning targets | The plain path routes through the shared `decide_enqueue()`, which trims oldest-first for BestEffort |
-| C-3.7-1 structured acceptance result | all 7 | Everything returns `bool`; this also causes C-5.5-3, C-6.1-2b, C-3.6-3 and C-3.6-4 |
-| C-3.6-3, C-3.6-4 fanout result | TCP, UDS, UDP servers | One OR-ed `bool`; zero targets is indistinguishable from all-rejected |
-| C-6.1-1 queued data across a link loss | TCP client, UDS client, serial | The queue survives the loss and is written on the next connection |
-| C-6.1-2 the reason a blocked sender was released | all 5 client-side targets | The wake happens (except on the TCP client, see 9.3); the reason never reaches the caller |
+Each row names the targets whose own rows carry the evidence. Sharing a
+helper is a lead, not a verdict: a target is listed only where the public API
+path reaching that helper was read for that target.
 
-These are properties of the shared layers - the wrapper's blocking-send loop,
-`bp_utils.hpp`, the callback guard - rather than of any one transport.
+| Rule | Targets with a row | What differs |
+| --- | --- | --- |
+| C-5.4-2 concurrent `stop()` | TCP client, TCP server, UDS client, UDS server, UDP, UDP server, serial | The second caller returns from an `exchange` before the first has finished |
+| C-5.4-4 blocking send inside a callback | TCP client, TCP server, UDS client, UDS server, UDP, UDP server, serial | The fail-fast guard is set only around the data and message dispatch, not around connect, disconnect, error or backpressure callbacks |
+| C-3.1-1b validation before waiting | TCP client, UDS client, UDP, serial (the four client-side targets), and the same shape in the servers' `send_to_blocking()` | The wrapper waits for backpressure and only then lets the transport validate |
+| C-3.2-3 keep-latest on the blocking path | TCP client, UDS client, UDP, serial; the TCP and UDS session paths route the same way | The plain path routes through the shared `decide_enqueue()`, which trims oldest-first for BestEffort |
+| C-3.7-1 structured acceptance result | every target with a row | Everything returns `bool`; this also causes C-5.5-3, C-6.1-2b, C-3.6-3 and C-3.6-4 |
+| C-3.6-3, C-3.6-4 fanout result | TCP server, UDS server, UDP server | One OR-ed `bool`; zero targets is indistinguishable from all-rejected |
+| C-6.1-1 queued data across a link loss | TCP client, UDS client, serial | The queue survives the loss and is written on the next connection |
+| C-6.1-2 the reason a blocked sender was released | TCP client, UDS client, serial (UDP has no connection loss) | The wake happens, except on the TCP client (see 9.3); the reason never reaches the caller |
+
+The shared layers - the wrapper's blocking-send loop, `bp_utils.hpp`, the
+callback guard - are why the same rule repeats, but the rows above are what
+supports it.
 
 ### 9.2 Differences between API families inside one target
 
 | Family split | Where | What differs |
 | --- | --- | --- |
-| `try_send*()` vs Reliable `send*()`/`send_blocking*()` | all client-side targets | Validation before waiting (C-3.1-1a vs C-3.1-1b) |
-| `send()` vs `send_blocking()` on a BestEffort channel | all queue-owning targets | `send()` rejects the new request; `send_blocking()` takes the plain path and trims older accepted ones |
+| `try_send*()` vs Reliable `send*()`/`send_blocking*()` | TCP client, UDS client, UDP, serial | Validation before waiting (C-3.1-1a vs C-3.1-1b) |
+| `send()` vs `send_blocking()` on a BestEffort channel | TCP client, UDS client, UDP, serial | `send()` rejects the new request; `send_blocking()` takes the plain path and trims older accepted ones |
 | Plain path vs try path, payload size | UDS client | The try path enforces the size maximum; the plain path leaves it to the queue-limit reservation |
 | `*_move()` rejection | UDS server vs every other target | The UDS server converts the vector into a `shared_ptr` before its checks, so a rejected call still consumes the source |
 | `send_blocking()` while not ready | TCP client vs UDS client, UDP, serial | Only the TCP client omits the readiness check after the wait and queues the request instead of rejecting it |
+| Default-destination sends vs `*_write_to()` | UDP | The default-destination APIs require `remote_endpoint_`; the explicit-destination ones take it as an argument |
 
 ### 9.3 Transport-specific differences
 
@@ -265,23 +277,29 @@ These are properties of the shared layers - the wrapper's blocking-send loop,
 | UDS client | A retried loss reports `on_error` because the retry path passes through `Error` - the opposite of TCP, which reports nothing |
 | UDS server | `*_move()` consumes the source even when rejected |
 | UDP | No connection instance exists, so four connection rules are not applicable. Readiness additionally requires a destination, which the contract's UDP row does not mention |
-| UDP server | Sessions are virtual and share one executor and one mutex; there is no per-session serial scope. Expiry fires `on_disconnect`, which the contract treats as a different event |
+| UDP server | Sessions are virtual and share one executor and one mutex, with no per-session strand; whether that still satisfies per-session non-overlap is untraced (9.4). Expiry fires `on_disconnect` today, recorded as an observation against an open contract item |
 | Serial | `stop()` joins the owned io thread without checking whether it is the current thread, so `stop()` from a serial callback joins the calling thread with itself. Every other transport checks |
 
-### 9.4 Insufficient evidence, and the smallest test that would close it
+### 9.4 Insufficient evidence and runtime confirmation, with the smallest check for each
 
-| Rule | Target | Claim to settle | Minimal scenario |
-| --- | --- | --- | --- |
-| C-5.4-1 | TCP client | `stop()` returns only when outstanding internal work can no longer touch the object | External io_context with a slow handler in flight; `stop()` from another thread; assert no handler touches the object afterwards |
-| C-5.3-1 | TCP client | A send from inside a callback can invoke `on_backpressure` synchronously | Drive the queue to the threshold, send from within `on_data`, record the call stack depth or a reentrancy flag |
-| C-5.1-2b | TCP server, UDS server | All callbacks of one session are serialized | Multi-threaded executor, one session, a slow `on_data`, assert no other callback of that session overlaps |
-| C-5.2-1 | TCP server | `on_connect` precedes that connection's receive callbacks | Multi-threaded executor, a client that writes immediately on connect, assert the order per session |
-| C-6.1-2 | TCP client | A blocked sender is released by a disconnect | Fill the queue under Reliable, drop the peer, assert the blocked call returns within a bound |
-| C-1-1 | TCP server, UDS server | Shutdown completion on the timeout path | Occupy the executor with a long handler so cleanup cannot finish in 2s; assert what `stop()` guarantees on return |
-| C-5.4-3 | Serial | `stop()` from a callback joins the current thread | Call `stop()` from `on_data` on an owned io_context; assert the observed behavior |
+Two kinds are listed together: rows whose **behavior** the code did not settle,
+and one row judged Differs in code whose **runtime effect** has not been
+observed. They are marked in the Kind column.
 
-The last row is new in round 2: the serial finding was read in code, so the
-runtime effect is stated as unverified rather than as a defect.
+| Rule | Target | Kind | Claim to settle | Minimal scenario |
+| --- | --- | --- | --- | --- |
+| C-5.4-1 | TCP client | Insufficient evidence | `stop()` returns only when outstanding internal work can no longer touch the object | External io_context with a slow handler in flight; `stop()` from another thread; assert no handler touches the object afterwards |
+| C-5.3-1 | TCP client | Insufficient evidence | A send from inside a callback can invoke `on_backpressure` synchronously | Drive the queue to the threshold, send from within `on_data`, record the call stack depth or a reentrancy flag |
+| C-5.1-2b | TCP server, UDS server | Insufficient evidence | All callbacks of one session are serialized | Multi-threaded executor, one session, a slow `on_data`, assert no other callback of that session overlaps |
+| C-5.1-2 | UDP server | Insufficient evidence | Callbacks of one virtual session never overlap, despite there being no per-session strand | Two datagrams from one endpoint while `on_data` is slow; assert no overlap for that session |
+| C-5.2-1 | TCP server | Insufficient evidence | `on_connect` precedes that connection's receive callbacks | Multi-threaded executor, a client that writes immediately on connect, assert the order per session |
+| C-6.1-2 | TCP client | Insufficient evidence | A blocked sender is released by a disconnect | Fill the queue under Reliable, drop the peer, assert the blocked call returns within a bound |
+| C-1-1 | TCP server, UDS server | Insufficient evidence | Shutdown completion on the timeout path | Occupy the executor with a long handler so cleanup cannot finish in 2s; assert what `stop()` guarantees on return |
+| C-5.4-3 | Serial | Runtime confirmation of a Differs row | `stop()` from a callback joins the current thread | Call `stop()` from `on_data` on an owned io_context; assert the observed behavior |
+
+The serial row stays classified as Differs in its own table: the code path is
+clear, and only its runtime effect is unconfirmed. Turning a code-level
+difference into insufficient evidence because no test was run would hide it.
 
 ### 9.5 Three reporting gaps that need different fixes
 
