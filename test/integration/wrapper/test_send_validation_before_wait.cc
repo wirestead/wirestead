@@ -254,4 +254,85 @@ TYPED_TEST(ServerSendValidationBeforeWaitTest, ValidPayloadAndEmptyLineStillWait
     EXPECT_TRUE(result.get());
   }
 }
+
+template <typename W>
+bool send_valid(W& w, int api) {
+  switch (api) {
+    case 0:
+      return w.send("valid");
+    case 1:
+      return w.send_blocking("valid");
+    case 2:
+      return w.send_line("valid");
+    case 3:
+      return w.send_line_blocking("valid");
+    case 4:
+      return w.send_move(std::vector<uint8_t>{1});
+    default:
+      return w.send_shared(std::make_shared<const std::vector<uint8_t>>(1, 1));
+  }
+}
+TYPED_TEST(SendValidationBeforeWaitTest, NotReadyDoesNotWaitForCapacity) {
+  auto c = std::make_shared<ValidationChannel>();
+  TypeParam w(c);
+  w.backpressure_strategy(base::constants::BackpressureStrategy::Reliable);
+  auto started = w.start();
+  c->state(base::LinkState::Connected);
+  ASSERT_TRUE(started.get());
+  c->ready = false;
+  for (int api = 0; api < 6; ++api) {
+    SCOPED_TRACE(api);
+    c->pressure = true;
+    auto result = std::async(std::launch::async, [&] { return send_valid(w, api); });
+    EXPECT_EQ(result.wait_for(2s), std::future_status::ready);
+    c->pressure = false;
+    EXPECT_FALSE(result.get());
+    EXPECT_EQ(c->failures, 0) << "not-ready wrapper should not submit a write";
+  }
+  w.stop();
+}
+TYPED_TEST(SendValidationBeforeWaitTest, ReadinessLossReleasesCapacityWait) {
+  auto c = std::make_shared<ValidationChannel>();
+  TypeParam w(c);
+  w.backpressure_strategy(base::constants::BackpressureStrategy::Reliable);
+  auto started = w.start();
+  c->state(base::LinkState::Connected);
+  ASSERT_TRUE(started.get());
+  for (int api = 0; api < 6; ++api) {
+    SCOPED_TRACE(api);
+    c->ready = true;
+    c->pressure = true;
+    c->probes = 0;
+    auto result = std::async(std::launch::async, [&] { return send_valid(w, api); });
+    const auto end = std::chrono::steady_clock::now() + 2s;
+    while (c->probes == 0 && std::chrono::steady_clock::now() < end) std::this_thread::yield();
+    EXPECT_GT(c->probes, 0);
+    EXPECT_EQ(result.wait_for(50ms), std::future_status::timeout);
+    c->ready = false;
+    // No backpressure notification: the periodic predicate must see readiness loss.
+    EXPECT_EQ(result.wait_for(2s), std::future_status::ready);
+    c->pressure = false;
+    EXPECT_FALSE(result.get());
+    EXPECT_EQ(c->failures, 0);
+  }
+  w.stop();
+}
+TYPED_TEST(ServerSendValidationBeforeWaitTest, UnknownClientDoesNotWaitForCapacity) {
+  for (int api = 0; api < 3; ++api) {
+    SCOPED_TRACE(api);
+    HeldServer<TypeParam> t;
+    ASSERT_TRUE(t.start());
+    // This fixture has exactly one session. Its next ID has never existed.
+    const ClientId missing = t.id + 1;
+    auto result = std::async(std::launch::async, [&] {
+      if (api == 0) return t.server->send_to(missing, "valid");
+      if (api == 1) return t.server->send_to_blocking(missing, "valid");
+      return t.server->send_to_line(missing, "");
+    });
+    EXPECT_EQ(result.wait_for(2s), std::future_status::ready);
+    t.unblock();
+    EXPECT_FALSE(result.get());
+  }
+}
+
 }  // namespace

@@ -497,3 +497,12 @@ describe the audited baseline; this update covers the payload-shape and
 per-message-size subset only. Whole-queue-limit validation, state ordering and
 D-3 result reasons remain outstanding. See
 [validation evidence](send_validation_before_wait.md).
+
+## Post-audit update: readiness before waiting
+
+TCP no longer waits on stale queue pressure when its channel is disconnected,
+and UDP server no longer waits on global queue pressure for an unknown client
+ID. Regression coverage checks all four client wrappers and all three server
+wrappers. This does not establish connection-instance fencing or the full
+synchronized acceptance decision. See
+[readiness validation](send_readiness_before_wait.md).
