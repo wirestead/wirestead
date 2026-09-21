@@ -36,6 +36,7 @@
 #include "wirestead/transport/udp/udp.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
+#include "wirestead/wrapper/send_validation.hpp"
 
 namespace wirestead {
 namespace wrapper {
@@ -595,8 +596,10 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         std::shared_lock<std::shared_mutex> lock(mutex);
         return !started.load() || !channel || !channel->is_backpressure_active();
       };
-      if (!predicate() && detail::in_data_callback()) return false;
-      while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), predicate)) {
+      if (detail::payload_needs_capacity(data.size())) {
+        if (!predicate() && detail::in_data_callback()) return false;
+        while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), predicate)) {
+        }
       }
       bp_lock.unlock();
       if (try_send_to(client_id, data)) return true;

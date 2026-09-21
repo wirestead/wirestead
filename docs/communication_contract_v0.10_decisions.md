@@ -3,9 +3,9 @@
 Decision proposals for the common differences in
 [the audit](communication_contract_v0.10_audit.md) section 9.1.
 **Implementation status:** D-1 landed for TCP in PR #652, UDS in PR #654,
-UDP in PR #655 and serial in PR #656. This follow-up implements D-2 through
-the common wrapper callback invocation. D-3 remains separate work; approving
-a decision does not make it implemented across all targets.
+UDP in PR #655 and serial in PR #656. D-2 landed in PR #657. This follow-up
+addresses payload validation before capacity waiting, a prerequisite for D-3.
+Structured results and the remaining stage-1 checks are separate work.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.
@@ -356,3 +356,17 @@ later.
 
 Each lands as its own change with its own tests; none of them waits on the
 still-open C-5.4-3, C-1-1 or event-model decisions.
+
+## Validation-before-wait follow-up
+
+The empty-payload and per-message maximum portions of C-3.1-1b are implemented
+across all seven wrappers before introducing D-3's result type. Invalid sizes
+bypass the capacity wait and reach the same transport validation path, keeping
+its refusal, error callbacks and accounting. Line payloads are judged after
+their newline is appended; an empty line remains a valid one-byte request.
+
+This does not claim the entire stage-1 decision is implemented. Detecting a
+payload larger than a transport's configured whole-queue limit, readiness
+before waiting, connection-instance fencing and structured reasons remain
+part of the subsequent D-3 work. See
+[validation evidence](send_validation_before_wait.md).
