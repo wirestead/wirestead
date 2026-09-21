@@ -604,7 +604,11 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         }
       }
       bp_lock.unlock();
-      if (try_send_to(client_id, data)) return true;
+      std::shared_lock<std::shared_mutex> lock(mutex);
+      auto it = sessions.find(client_id);
+      if (!started.load() || it == sessions.end() || !channel) return false;
+      auto bytes = base::safe_convert::string_to_bytes(data);
+      if (channel->async_write_to(memory::ConstByteSpan(bytes.first, bytes.second), it->second.endpoint)) return true;
     }
     return false;
   }

@@ -5,9 +5,10 @@ Decision proposals for the common differences in
 **Implementation status:** D-1 landed for TCP in PR #652, UDS in PR #654,
 UDP in PR #655 and serial in PR #656. D-2 landed in PR #657, and payload-size
 validation before waiting landed in PR #658. PR #659 repaired TCP
-readiness and UDP server target checks before capacity waiting. This follow-up
-adds reported whole-queue hard limits to validation before waiting. Structured
-results and connection-instance fencing remain separate work.
+readiness and UDP server target checks before capacity waiting. PR #661
+added reported whole-queue hard limits to validation before waiting. This
+follow-up aligns UDP server blocking admission with ordinary writes.
+Structured results and connection-instance fencing remain separate work.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.
@@ -397,3 +398,16 @@ This does not change UDP server's existing try-write submission path, which
 also applies its lower pressure threshold. Nor does it complete the
 synchronized state/connection decision or structured results. See
 [queue-limit validation](send_queue_limit_before_wait.md).
+
+## UDP server blocking-admission follow-up
+
+UDP server now uses ordinary async_write_to after capacity waiting, matching
+the hard-limit admission used by the other blocking paths. Reliable send_to,
+Reliable send_to_line and explicit send_to_blocking accept a payload above
+the pressure watermark when other admission checks pass. Explicit blocking
+uses this path under either configured strategy. Nonblocking and BestEffort
+send_to keep async_try_write_to and its watermark refusal.
+
+This closes the lower-threshold exception recorded in the whole-queue-limit
+follow-up above. Acceptance still does not guarantee delivery. See
+[UDP admission validation](udp_server_reliable_admission.md).

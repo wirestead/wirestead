@@ -517,3 +517,11 @@ Custom channels without metadata retain the previous behavior. Lower
 path-specific thresholds, structured reasons and connection fencing are not
 covered by this update. See
 [queue-limit validation](send_queue_limit_before_wait.md).
+
+## Post-audit update: UDP server blocking admission
+
+The UDP server path-specific threshold exception recorded above is resolved
+for blocking-capable sends. After waiting, they now use ordinary write
+admission; try-send and BestEffort sends retain their nonblocking path.
+[UDP admission validation](udp_server_reliable_admission.md) includes real
+datagram receipt above the pressure watermark. This is not D-3 completion.

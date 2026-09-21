@@ -24,7 +24,6 @@
 #include <string>
 #include <string_view>
 #include <thread>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -438,13 +437,7 @@ TYPED_TEST(ServerSendValidationBeforeWaitTest, ExactQueueLimitStillWaits) {
     EXPECT_EQ(entry.wait_for(2s), std::future_status::ready);
     EXPECT_EQ(result.wait_for(100ms), std::future_status::timeout);
     t.unblock();
-    // UDP server still submits through its try-write path, whose pressure
-    // threshold is stricter than the hard queue cap. Preserve that refusal.
-    if constexpr (std::is_same_v<TypeParam, UdpServerLoopbackHarness>) {
-      EXPECT_FALSE(result.get());
-    } else {
-      EXPECT_TRUE(result.get());
-    }
+    EXPECT_TRUE(result.get());
   }
 }
 TEST(WriteQueueLimitTest, ConcreteClientTransportsReportConfiguredHardCap) {
@@ -468,6 +461,72 @@ TEST(WriteQueueLimitTest, ConcreteClientTransportsReportConfiguredHardCap) {
         transport::UdpChannel::create(udp, io), transport::Serial::create(serial, io)};
     for (const auto& channel : channels) {
       EXPECT_EQ(channel->write_queue_limit(), std::optional<size_t>(expected));
+    }
+  }
+}
+
+void verify_udp_reliable_delivery(bool wait_for_pressure) {
+  for (int api = 0; api < 4; ++api) {
+    SCOPED_TRACE(api);
+    HeldServer<UdpServerLoopbackHarness> t;
+    ASSERT_TRUE(t.start());
+    // Explicit blocking sends use ordinary admission even under BestEffort,
+    // just like the other wrappers.
+    if (api == 3) t.server->backpressure_strategy(base::constants::BackpressureStrategy::BestEffort);
+    const std::string payload(2048, 'r');  // Above 1 KiB watermark, below hard cap and UDP datagram maximum.
+    const std::string expected = api == 2 ? payload + "\n" : payload;
+    auto delivered = std::make_shared<std::promise<void>>();
+    auto received = delivered->get_future();
+    auto once = std::make_shared<std::atomic<bool>>(false);
+    t.peer->on_data([expected, delivered, once](const wrapper::MessageContext& ctx) {
+      if (ctx.data() == expected && !once->exchange(true)) delivered->set_value();
+    });
+    if (!wait_for_pressure) {
+      t.unblock();
+      ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return !t.server->stats().backpressure_active; }, 3000));
+    }
+    std::promise<void> entered;
+    auto entry = entered.get_future();
+    auto result = std::async(std::launch::async, [&] {
+      entered.set_value();
+      if (api == 0) return t.server->send_to(t.id, payload);
+      if (api == 2) return t.server->send_to_line(t.id, payload);
+      return t.server->send_to_blocking(t.id, payload);
+    });
+    EXPECT_EQ(entry.wait_for(2s), std::future_status::ready);
+    if (wait_for_pressure) {
+      EXPECT_EQ(result.wait_for(100ms), std::future_status::timeout);
+    }
+    t.unblock();
+    EXPECT_EQ(result.wait_for(3s), std::future_status::ready);
+    const bool accepted = result.get();
+    EXPECT_TRUE(accepted);
+    if (accepted) {
+      EXPECT_EQ(received.wait_for(3s), std::future_status::ready);
+    }
+  }
+}
+TEST(UdpServerReliableAdmissionTest, AboveWatermarkIsDeliveredWithoutPressure) { verify_udp_reliable_delivery(false); }
+TEST(UdpServerReliableAdmissionTest, AboveWatermarkIsDeliveredAfterWaiting) { verify_udp_reliable_delivery(true); }
+TEST(UdpServerReliableAdmissionTest, NonblockingAdmissionKeepsWatermarkLimit) {
+  for (auto strategy :
+       {base::constants::BackpressureStrategy::Reliable, base::constants::BackpressureStrategy::BestEffort}) {
+    HeldServer<UdpServerLoopbackHarness> t;
+    ASSERT_TRUE(t.start());
+    t.server->backpressure_strategy(strategy);
+    const std::string payload(2048, 'r');
+    for (bool pressured : {true, false}) {
+      SCOPED_TRACE(pressured);
+      if (!pressured) {
+        t.unblock();
+        ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return !t.server->stats().backpressure_active; }, 3000));
+      }
+      EXPECT_FALSE(t.server->try_send_to(t.id, payload));
+      EXPECT_FALSE(t.server->try_send_to_line(t.id, payload));
+      if (strategy == base::constants::BackpressureStrategy::BestEffort) {
+        EXPECT_FALSE(t.server->send_to(t.id, payload));
+        EXPECT_FALSE(t.server->send_to_line(t.id, payload));
+      }
     }
   }
 }
