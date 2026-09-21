@@ -351,7 +351,9 @@ void stop_uds_session(std::shared_ptr<UdsServerSession>& session, StallingUdsSoc
 }
 
 void stop_serial(std::shared_ptr<Serial>& serial, StallingSerialPort* port, net::io_context& ioc) {
-  serial->stop();
+  // Request on the target executor, release the deliberately stalled write,
+  // then let an outside caller observe completion.
+  net::post(ioc, [serial] { serial->stop(); });
   ioc.restart();
   ioc.poll();
   while (port && port->pending_write_count() > 0) {
@@ -359,6 +361,7 @@ void stop_serial(std::shared_ptr<Serial>& serial, StallingSerialPort* port, net:
     ioc.restart();
     ioc.poll();
   }
+  wirestead::test::stop_with_context(serial, ioc);
   serial.reset();
 }
 

@@ -21,6 +21,7 @@
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <boost/asio/strand.hpp>
 #include <cctype>
 #include <iostream>
 #include <mutex>
@@ -52,6 +53,32 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
   mutable std::shared_mutex mutex_;
   std::mutex bp_mutex_;
   std::condition_variable bp_cv_;
+  // D-1: admission gate for this object's user callbacks. Admission, the
+  // running count and the closed flag are one decision, so a stop() cannot
+  // observe an empty gate while a callback is about to start, and a callback
+  // left over from a previous run is refused after a restart.
+  detail::CallbackGate callback_gate_;
+  std::mutex stop_finalize_mutex_;
+  std::atomic<uint64_t> callback_generation_{0};
+
+  // True when this thread is one the target's shutdown needs: a callback of
+  // this object, or any thread currently running the external io_context this
+  // channel was built on (which a callback of another channel sharing it is).
+  // Such a caller requests the shutdown and returns; it cannot wait for work
+  // its own thread has to perform.
+  bool shutdown_needs_this_thread() const {
+    if (callback_gate_.active_on_this_thread()) return true;
+    if (external_ioc && external_ioc->get_executor().running_in_this_thread()) return true;
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (!channel) return false;
+    const auto executor = channel->get_executor();
+    using IoExecutor = boost::asio::io_context::executor_type;
+    if (auto* io = executor.target<IoExecutor>()) return io->running_in_this_thread();
+    if (auto* strand = executor.target<boost::asio::strand<IoExecutor>>())
+      return strand->get_inner_executor().running_in_this_thread();
+    return false;
+  }
+
   std::string device;
   uint32_t baud_rate;
   std::shared_ptr<interface::Channel> channel;
@@ -140,7 +167,9 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
     pending_promises_.clear();
   }
 
-  void flush_batches() {
+  void flush_batches(uint64_t generation) {
+    auto lease = callback_gate_.enter(generation);
+    if (!lease.admitted()) return;
     std::unique_lock<std::shared_mutex> lock(mutex_);
     if (!data_batch_queue_.empty()) {
       auto handler = data_batch_handler_;
@@ -167,17 +196,17 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
     }
   }
 
-  void schedule_batch_timer() {
+  void schedule_batch_timer(uint64_t generation) {
     if (!batch_timer_) return;
     batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait([this, weak_impl = weak_from_this(),
+    batch_timer_->async_wait([this, generation, weak_impl = weak_from_this(),
                               weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
       if (ec) return;
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
-      flush_batches();
+      flush_batches(generation);
     });
   }
 
@@ -198,14 +227,16 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
       return future;
     }
 
+    if (!alive_marker_) alive_marker_ = std::make_shared<bool>(true);
     if (!channel) {
       channel = factory::ChannelFactory::create(build_config_locked(), external_ioc);
-      setup_internal_handlers();
     }
+    setup_internal_handlers();
     started_.store(true);
 
+    auto channel_copy = channel;
     lock.unlock();
-    channel->start();
+    channel_copy->start();
     if (use_external_context && manage_external_context && !external_thread.joinable()) {
       if (external_ioc && external_ioc->stopped()) {
         external_ioc->restart();
@@ -225,67 +256,45 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   void stop() {
-    std::unique_lock<std::shared_mutex> lock(mutex_);
-    // A stop() from inside a callback marks the wrapper stopped and then asks
-    // the transport to shut down without waiting for its own thread. A later
-    // stop() from outside must therefore still finish the teardown rather than
-    // return on the flag alone, which is what left the object half-stopped
-    // (jwsung91/wirestead#649).
-    const bool was_started = started_.exchange(false);
-    if (!was_started && !channel) {
+    const bool request_only = shutdown_needs_this_thread();
+    callback_gate_.close();
+    std::shared_ptr<interface::Channel> channel_copy;
+    {
+      std::unique_lock<std::shared_mutex> lock(mutex_);
+      started_.store(false);
+
+      bp_cv_.notify_all();
       fulfill_all_locked(false);
-      return;
+      channel_copy = channel;
     }
-    bp_cv_.notify_all();
+    if (channel_copy) channel_copy->stop();
+    if (request_only) return;
 
-    if (batch_timer_) {
-      batch_timer_->cancel();
-      batch_timer_.reset();
-    }
-
-    if (channel) {
-      lock.unlock();
-      channel->stop();
-      // Clear callbacks after stop() rather than before: the transport-level
-      // fix (#436) already synchronizes callback reads against these
-      // setters, but clearing after stop() means no in-flight handler can
-      // observe a null callback mid-shutdown in the first place - belt and
-      // braces once the underlying race is fixed at the source.
-      channel->on_bytes(nullptr);
-      channel->on_state(nullptr);
-      channel->on_backpressure(nullptr);
-      lock.lock();
-      if (factory_managed_channel_) {
-        // Fully release the channel rather than reusing it: start()'s
-        // `if (!channel)` guard is what re-runs setup_internal_handlers() and
-        // rebuilds config from the (possibly changed) staged fields. Reusing
-        // a stopped channel left every handler nulled forever - including
-        // the one that fulfills the start() future - so a restart would
-        // hang (jwsung91/wirestead#444). Injected channels (factory_managed_
-        // channel_ == false) are exempt: the caller owns that channel's
-        // identity, so we must not discard and factory-rebuild it.
-        channel.reset();
+    callback_gate_.wait_until_idle();
+    std::lock_guard<std::mutex> finalize_lock(stop_finalize_mutex_);
+    {
+      std::unique_lock<std::shared_mutex> lock(mutex_);
+      alive_marker_.reset();
+      if (batch_timer_) {
+        batch_timer_->cancel();
+        batch_timer_.reset();
       }
-    }
 
-    if (work_guard_) {
+      if (channel) {
+        channel->on_bytes(nullptr);
+        channel->on_state(nullptr);
+        channel->on_backpressure(nullptr);
+      }
+      if (factory_managed_channel_) channel.reset();
+      data_batch_queue_.clear();
+      message_batch_queue_.clear();
+      if (framer) framer->reset();
+    }
+    if (use_external_context && manage_external_context) {
       work_guard_.reset();
-    }
-
-    if (use_external_context && manage_external_context && external_thread.joinable()) {
       if (external_ioc) external_ioc->stop();
-      if (std::this_thread::get_id() != external_thread.get_id()) {
-        lock.unlock();
-        external_thread.join();
-        lock.lock();
-      } else {
-        external_thread.detach();
-      }
+      if (external_thread.joinable()) external_thread.join();
     }
-
-    fulfill_all_locked(false);
-
-    if (framer) framer->reset();
   }
 
   bool try_send(std::string_view data) {
@@ -425,12 +434,16 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
 
     std::weak_ptr<bool> weak_alive = alive_marker_;
     std::weak_ptr<Impl> weak_impl = weak_from_this();
+    const auto generation = callback_gate_.open_new_generation();
+    callback_generation_.store(generation);
 
-    channel->on_bytes([this, weak_impl, weak_alive](memory::ConstByteSpan data) {
+    channel->on_bytes([this, generation, weak_impl, weak_alive](memory::ConstByteSpan data) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
 
       // #449: everything below runs synchronously on this io thread - mark
       // it so a blocking send() called from within one of these callbacks
@@ -465,7 +478,7 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
             batch = std::move(data_batch_queue_);
             data_batch_queue_.clear();
           } else if (data_batch_queue_.size() == 1) {
-            schedule_batch_timer();
+            schedule_batch_timer(generation);
           }
         }
         detail::invoke_user_callback("serial", "on_data_batch", flush_handler, batch);
@@ -476,12 +489,14 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
       if (framer_to_push) framer_to_push->push_bytes(data);
     });
 
-    channel->on_backpressure([this, weak_impl, weak_alive](size_t queued) {
-      bp_cv_.notify_all();
+    channel->on_backpressure([this, generation, weak_impl, weak_alive](size_t queued) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
+      bp_cv_.notify_all();
       std::function<void(size_t)> handler;
       {
         std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -490,11 +505,13 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
       detail::invoke_user_callback("serial", "on_backpressure", handler, queued);
     });
 
-    channel->on_state([this, weak_impl, weak_alive](base::LinkState state) {
+    channel->on_state([this, generation, weak_impl, weak_alive](base::LinkState state) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
 
       switch (state) {
         case base::LinkState::Connected: {
@@ -536,6 +553,7 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
   void attach_framer_callback() {
     if (!framer) return;
     framer->on_message([this](memory::ConstByteSpan msg) {
+      const auto generation = callback_generation_.load();
       // #441: snapshot under a shared_lock (pure read), build the copy
       // before taking the exclusive lock for queue mutation.
       bool batch_mode;
@@ -558,7 +576,7 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
             batch = std::move(message_batch_queue_);
             message_batch_queue_.clear();
           } else if (message_batch_queue_.size() == 1) {
-            schedule_batch_timer();
+            schedule_batch_timer(generation);
           }
         }
         detail::invoke_user_callback("serial", "on_message_batch", flush_handler, batch);

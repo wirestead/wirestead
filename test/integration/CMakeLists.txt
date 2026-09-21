@@ -222,8 +222,11 @@ wirestead_add_integration_gtest(
 
 # Serial integration tests NOTE: test_serial.cc temporarily disabled due to
 # complex variable naming issues
-foreach(test_file test_serial_builder_validation.cc test_serial_loopback.cc
-                  test_serial_timeout.cc test_serial_stop_in_callback.cc
+foreach(
+  test_file
+  test_serial_builder_validation.cc test_serial_loopback.cc
+  test_serial_timeout.cc test_serial_stop_in_callback.cc
+  test_serial_stop_completion.cc test_serial_stop_admission.cc
 )
   get_filename_component(test_name ${test_file} NAME_WE)
   wirestead_add_integration_gtest(
