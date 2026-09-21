@@ -209,7 +209,9 @@ TEST(ServerCallbackErrorTest, Udp) {
   PressuredServer<UdpServerLoopbackHarness> target;
   ASSERT_TRUE(target.start());
   boost::asio::io_context io;
-  boost::asio::ip::udp::socket occupied(io, {boost::asio::ip::udp::v4(), 0});
+  // Bind the exact address used below: Windows may allow a specific-address
+  // bind alongside a wildcard bind on the same port.
+  boost::asio::ip::udp::socket occupied(io, {boost::asio::ip::make_address("127.0.0.1"), 0});
   config::UdpConfig cfg;
   cfg.bind_address = "127.0.0.1";
   cfg.local_port = occupied.local_endpoint().port();
