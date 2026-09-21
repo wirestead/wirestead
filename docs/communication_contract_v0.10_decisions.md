@@ -2,10 +2,10 @@
 
 Decision proposals for the common differences in
 [the audit](communication_contract_v0.10_audit.md) section 9.1.
-**Implementation status:** D-1 for TCP is being implemented in PR #652 under
-the agreed executor criterion and caller preconditions below. Other D-1
-targets and D-2/D-3 are separate work; approving a decision does not make it
-implemented across all targets.
+**Implementation status:** TCP D-1 landed in PR #652. This follow-up applies
+the same executor criterion and caller preconditions to UDS client/server.
+UDP, UDP server, serial and D-2/D-3 remain separate work; approving a decision
+does not make it implemented across all targets.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.
@@ -110,6 +110,17 @@ a stopped context or a timeout. External executors must keep progressing as
 required above. Outstanding cancellation/retry handlers retain their own
 lifetime and are rejected by their run generation or the closed session;
 this does not permit deferred cleanup to mutate a restarted transport.
+
+The UDS follow-up uses the same completion boundary. Its client also orders
+accepted write submissions before the cleanup request, and retains I/O
+completion ownership until cancellation handlers finish. Its server collects
+completion from every session strand before releasing its socket-path
+ownership. UDS interface callbacks explicitly dispatch onto the owning strand:
+passing a bound handler through `std::function` alone does not preserve its
+associated executor. Synchronous startup validation/bind failures have no run
+to drain and can complete shutdown without starting an executor.
+
+See [UDS validation](uds_d1_validation.md) for target-specific evidence.
 
 ### Verification
 

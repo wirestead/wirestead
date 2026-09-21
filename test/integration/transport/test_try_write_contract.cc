@@ -325,7 +325,8 @@ void activate_backpressure(Transport& transport, net::io_context& ioc) {
 }
 
 void stop_uds_client(std::shared_ptr<UdsClient>& client, StallingUdsSocket* socket, net::io_context& ioc) {
-  client->stop();
+  // Request on the target executor, then explicitly release the fake writes.
+  net::post(ioc, [client] { client->stop(); });
   ioc.restart();
   ioc.poll();
   while (socket && socket->pending_write_count() > 0) {
@@ -333,6 +334,7 @@ void stop_uds_client(std::shared_ptr<UdsClient>& client, StallingUdsSocket* sock
     ioc.restart();
     ioc.poll();
   }
+  wirestead::test::stop_with_context(client, ioc);
   client.reset();
 }
 

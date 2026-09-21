@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
 #include "test/mocks/mock_uds_acceptor.hpp"
 #include "test/mocks/mock_uds_socket.hpp"
 #include "test_utils.hpp"
@@ -153,7 +154,7 @@ TEST(UdsClientWrapperLifecycleTest, AutoManageStartsInjectedTransport) {
 
   EXPECT_TRUE(client.connected());
 
-  client.stop();
+  wirestead::test::stop_wrapper_with_context(client, ioc);
   ioc.restart();
   ioc.run_for(50ms);
 }
@@ -180,7 +181,7 @@ TEST(UdsClientWrapperLifecycleTest, StartFutureReflectsTransportFailure) {
   ASSERT_EQ(started.wait_for(0ms), std::future_status::ready);
   EXPECT_FALSE(started.get());
 
-  client.stop();
+  wirestead::test::stop_wrapper_with_context(client, ioc);
   ioc.restart();
   ioc.run_for(50ms);
 }
@@ -235,7 +236,7 @@ TEST(UdsServerWrapperLifecycleTest, AutoManageStartsInjectedTransport) {
 
   EXPECT_TRUE(server.listening());
 
-  server.stop();
+  wirestead::test::stop_wrapper_with_context(server, ioc);
   ioc.restart();
   ioc.run_for(50ms);
 }
@@ -265,7 +266,7 @@ TEST(UdsServerWrapperLifecycleTest, StartFutureReflectsBindFailure) {
   EXPECT_FALSE(started.get());
   EXPECT_FALSE(server.listening());
 
-  server.stop();
+  wirestead::test::stop_wrapper_with_context(server, ioc);
   ioc.restart();
   ioc.run_for(50ms);
 }
@@ -718,7 +719,7 @@ TEST(UdsServerWrapperContractTest, ConnectHandlerReplacementUsesLatestCallback) 
   ASSERT_TRUE(wirestead::test::TestUtils::waitForCondition([&]() { return count.load() > 0; }, 5000));
   EXPECT_EQ(count.load(), 2);
 
-  server.stop();
+  wirestead::test::stop_wrapper_with_context(server, ioc);
   ioc.restart();
   ioc.run_for(50ms);
 }

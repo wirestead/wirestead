@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
 #include "test/mocks/mock_uds_acceptor.hpp"
 #include "test_constants.hpp"
 #include "test_utils.hpp"
@@ -48,7 +49,7 @@ class TransportUdsServerTest : public ::testing::Test {
   }
 
   void TearDown() override {
-    server->stop();
+    wirestead::test::stop_with_context(server, ioc);
     TestUtils::removeFileIfExists(cfg.socket_path);
     TestUtils::waitFor(constants::kShortTimeout.count());
   }

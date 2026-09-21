@@ -26,6 +26,7 @@
 #include <thread>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
 #include "test/mocks/mock_uds_socket.hpp"
 #include "test_constants.hpp"
 #include "test_utils.hpp"
@@ -63,7 +64,7 @@ class TransportUdsClientTest : public ::testing::Test {
 
   void TearDown() override {
     if (client) {
-      client->stop();
+      wirestead::test::stop_with_context(client, ioc);
       client.reset();
     }
     TestUtils::removeFileIfExists(cfg.socket_path);
@@ -267,7 +268,7 @@ TEST_F(TransportUdsClientTest, InvalidConfigMovesToErrorAndRecordsLastError) {
   ASSERT_TRUE(local_client->last_error_info().has_value());
   EXPECT_EQ(local_client->last_error_info()->category, diagnostics::ErrorCategory::CONFIGURATION);
 
-  local_client->stop();
+  wirestead::test::stop_with_context(local_client, ioc);
 }
 
 TEST_F(TransportUdsClientTest, ConnectionTimeoutRecordsLastError) {
@@ -301,7 +302,7 @@ TEST_F(TransportUdsClientTest, ConnectionTimeoutRecordsLastError) {
   ASSERT_TRUE(local_client->last_error_info().has_value());
   EXPECT_EQ(local_client->last_error_info()->operation, "connect");
 
-  local_client->stop();
+  wirestead::test::stop_with_context(local_client, ioc);
 }
 
 TEST_F(TransportUdsClientTest, ReadCallbackReceivesDataThenCloseSchedulesRetry) {
@@ -439,7 +440,7 @@ TEST_F(TransportUdsClientTest, BackpressureCallbackExceptionsAreSwallowed) {
   });
   EXPECT_TRUE(local_client->is_backpressure_active());
 
-  local_client->stop();
+  wirestead::test::stop_with_context(local_client, ioc);
 }
 
 // #446: UdsClient's move ctor/assignment are defaulted (and public, unlike

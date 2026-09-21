@@ -20,6 +20,7 @@
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <boost/asio/strand.hpp>
 #include <chrono>
 #include <mutex>
 #include <optional>
@@ -46,6 +47,33 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
   mutable std::shared_mutex mutex_;
   std::mutex bp_mutex_;
   std::condition_variable bp_cv_;
+  // D-1: admission gate for this object's user callbacks. Admission, the
+  // running count and the closed flag are one decision, so a stop() cannot
+  // observe an empty gate while a callback is about to start, and a callback
+  // left over from a previous run is refused after a restart.
+  detail::CallbackGate callback_gate_;
+  std::mutex stop_finalize_mutex_;
+  bool injected_channel_ = false;
+  std::atomic<uint64_t> callback_generation_{0};
+
+  // True when this thread is one the target's shutdown needs: a callback of
+  // this object, or any thread currently running the external io_context this
+  // channel was built on (which a callback of another channel sharing it is).
+  // Such a caller requests the shutdown and returns; it cannot wait for work
+  // its own thread has to perform.
+  bool shutdown_needs_this_thread() const {
+    if (callback_gate_.active_on_this_thread()) return true;
+    if (external_ioc_ && external_ioc_->get_executor().running_in_this_thread()) return true;
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (!channel_) return false;
+    const auto executor = channel_->get_executor();
+    using IoExecutor = boost::asio::io_context::executor_type;
+    if (auto* io = executor.target<IoExecutor>()) return io->running_in_this_thread();
+    if (auto* strand = executor.target<boost::asio::strand<IoExecutor>>())
+      return strand->get_inner_executor().running_in_this_thread();
+    return false;
+  }
+
   std::string socket_path_;
   std::shared_ptr<interface::Channel> channel_;
   std::shared_ptr<boost::asio::io_context> external_ioc_;
@@ -102,6 +130,7 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
 
   explicit Impl(std::shared_ptr<interface::Channel> channel)
       : socket_path_(""), channel_(std::move(channel)), started_(false) {
+    injected_channel_ = true;
     // #450: setup_internal_handlers() captures weak_from_this() - calling it
     // from inside this constructor would capture an empty weak_ptr, since
     // enable_shared_from_this isn't wired up until make_shared() finishes
@@ -126,7 +155,9 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
     pending_promises_.clear();
   }
 
-  void flush_batches() {
+  void flush_batches(uint64_t generation) {
+    auto lease = callback_gate_.enter(generation);
+    if (!lease.admitted()) return;
     std::unique_lock<std::shared_mutex> lock(mutex_);
     if (!data_batch_queue_.empty()) {
       auto handler = data_batch_handler_;
@@ -153,17 +184,17 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
     }
   }
 
-  void schedule_batch_timer() {
+  void schedule_batch_timer(uint64_t generation) {
     if (!batch_timer_) return;
     batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait([this, weak_impl = weak_from_this(),
+    batch_timer_->async_wait([this, generation, weak_impl = weak_from_this(),
                               weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
       if (ec) return;
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
-      flush_batches();
+      flush_batches(generation);
     });
   }
 
@@ -184,6 +215,7 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
       return f;
     }
 
+    if (!alive_marker_) alive_marker_ = std::make_shared<bool>(true);
     if (!channel_) {
       config::UdsClientConfig cfg;
       cfg.socket_path = socket_path_;
@@ -194,85 +226,72 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
       cfg.read_buffer_size = read_buffer_size_;
       cfg.backpressure_strategy = backpressure_strategy_;
 
-      if (use_external_context_) {
-        channel_ = factory::ChannelFactory::create(cfg, external_ioc_);
-        if (manage_external_context_ && !external_thread_.joinable()) {
-          if (external_ioc_ && external_ioc_->stopped()) {
-            external_ioc_->restart();
-          }
-          work_guard_ = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
-              boost::asio::make_work_guard(*external_ioc_));
-          external_thread_ = std::jthread([ioc = external_ioc_](std::stop_token st) {
-            wirestead::concurrency::run_io_thread_init();
-            try {
-              std::stop_callback cb(st, [ioc] { ioc->stop(); });
-              ioc->run();
-            } catch (...) {
-            }
-          });
-        }
-      } else {
-        channel_ = factory::ChannelFactory::create(cfg);
-      }
-      setup_internal_handlers();
+      channel_ = use_external_context_ ? factory::ChannelFactory::create(cfg, external_ioc_)
+                                       : factory::ChannelFactory::create(cfg);
     }
+    setup_internal_handlers();
     started_.store(true);
-
-    lock.unlock();  // UNLOCK BEFORE START
-    channel_->start();
-    lock.lock();
-
+    if (use_external_context_.load() && manage_external_context_.load() && !external_thread_.joinable()) {
+      if (external_ioc_ && external_ioc_->stopped()) {
+        external_ioc_->restart();
+      }
+      work_guard_ = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
+          external_ioc_->get_executor());
+      external_thread_ = std::jthread([ioc = external_ioc_](std::stop_token st) {
+        wirestead::concurrency::run_io_thread_init();
+        try {
+          std::stop_callback cb(st, [ioc] { ioc->stop(); });
+          ioc->run();
+        } catch (...) {
+        }
+      });
+    }
+    auto channel_copy = channel_;
+    lock.unlock();
+    channel_copy->start();
     return f;
   }
 
   void stop() {
-    std::unique_lock<std::shared_mutex> lock(mutex_);
-    if (!started_.load()) {
+    const bool request_only = shutdown_needs_this_thread();
+    callback_gate_.close();
+    std::shared_ptr<interface::Channel> channel;
+    {
+      std::unique_lock<std::shared_mutex> lock(mutex_);
+      started_.store(false);
+      bp_cv_.notify_all();
       fulfill_all_locked(false);
-      return;
+      channel = channel_;
     }
-    started_.store(false);
-    bp_cv_.notify_all();
+    // Do not hold wrapper locks while the transport waits for callbacks.
+    if (channel) channel->stop();
+    if (request_only) return;
 
-    if (batch_timer_) {
-      batch_timer_->cancel();
-      batch_timer_.reset();
-    }
-
-    // RELEASE LOCK before calling channel_->stop() because it might trigger
-    // callbacks that try to acquire this same lock (e.g., on_state -> fulfill_all)
-    if (channel_) {
-      channel_->on_bytes(nullptr);
-      channel_->on_state(nullptr);
-      channel_->on_backpressure(nullptr);
-      lock.unlock();
-      channel_->stop();
-      lock.lock();
-    }
-
-    if (work_guard_) {
-      work_guard_.reset();
-    }
-
-    if (use_external_context_ && manage_external_context_ && external_ioc_) {
-      external_ioc_->stop();
-    }
-
-    if (external_thread_.joinable()) {
-      if (std::this_thread::get_id() != external_thread_.get_id()) {
-        lock.unlock();  // RELEASE LOCK BEFORE JOINING
-        external_thread_.request_stop();
-        external_thread_.join();
-        lock.lock();  // RE-ACQUIRE
-      } else {
-        external_thread_.detach();
+    callback_gate_.wait_until_idle();
+    // All outside callers pass this lock, including those that found the
+    // channel already cleared. Joining and final state reset happen once.
+    std::lock_guard<std::mutex> finalize_lock(stop_finalize_mutex_);
+    {
+      std::unique_lock<std::shared_mutex> lock(mutex_);
+      alive_marker_.reset();
+      if (batch_timer_) {
+        batch_timer_->cancel();
+        batch_timer_.reset();
       }
+      if (channel_) {
+        channel_->on_bytes(nullptr);
+        channel_->on_state(nullptr);
+        channel_->on_backpressure(nullptr);
+      }
+      if (!injected_channel_) channel_.reset();
+      data_batch_queue_.clear();
+      message_batch_queue_.clear();
+      if (framer_) framer_->reset();
     }
-
-    fulfill_all_locked(false);
-    channel_.reset();
-    if (framer_) {
-      framer_->reset();
+    if (use_external_context_.load() && manage_external_context_.load()) {
+      if (work_guard_) work_guard_.reset();
+      if (external_ioc_) external_ioc_->stop();
+      if (external_thread_.joinable()) external_thread_.join();
     }
   }
 
@@ -409,12 +428,16 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
 
     std::weak_ptr<bool> weak_alive = alive_marker_;
     std::weak_ptr<Impl> weak_impl = weak_from_this();
+    const auto generation = callback_gate_.open_new_generation();
+    callback_generation_.store(generation);
 
-    channel_->on_state([this, weak_impl, weak_alive](base::LinkState state) {
+    channel_->on_state([this, generation, weak_impl, weak_alive](base::LinkState state) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
 
       if (state == base::LinkState::Connected) {
         ConnectionHandler handler;
@@ -448,11 +471,13 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
       }
     });
 
-    channel_->on_bytes([this, weak_impl, weak_alive](memory::ConstByteSpan data) {
+    channel_->on_bytes([this, generation, weak_impl, weak_alive](memory::ConstByteSpan data) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
 
       // #449: everything below runs synchronously on this io thread - mark
       // it so a blocking send() called from within one of these callbacks
@@ -487,7 +512,7 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
             batch = std::move(data_batch_queue_);
             data_batch_queue_.clear();
           } else if (data_batch_queue_.size() == 1) {
-            schedule_batch_timer();
+            schedule_batch_timer(generation);
           }
         }
         detail::invoke_user_callback("uds_client", "on_data_batch", flush_handler, batch);
@@ -498,12 +523,14 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
       if (framer_to_push) framer_to_push->push_bytes(data);
     });
 
-    channel_->on_backpressure([this, weak_impl, weak_alive](size_t queued) {
-      bp_cv_.notify_all();
+    channel_->on_backpressure([this, generation, weak_impl, weak_alive](size_t queued) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
+      bp_cv_.notify_all();
       auto alive = weak_alive.lock();
       if (!alive) return;
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
       std::function<void(size_t)> handler;
       {
         std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -518,6 +545,8 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
   void attach_framer_callback() {
     if (!framer_) return;
     framer_->on_message([this](memory::ConstByteSpan msg) {
+      // Framing runs under the enclosing data callback lease.
+      const auto generation = callback_generation_.load();
       // #441: snapshot under a shared_lock (pure read), build the copy
       // before taking the exclusive lock for queue mutation.
       bool batch_mode;
@@ -540,7 +569,7 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
             batch = std::move(message_batch_queue_);
             message_batch_queue_.clear();
           } else if (message_batch_queue_.size() == 1) {
-            schedule_batch_timer();
+            schedule_batch_timer(generation);
           }
         }
         detail::invoke_user_callback("uds_client", "on_message_batch", flush_handler, batch);

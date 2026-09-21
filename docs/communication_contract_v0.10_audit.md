@@ -451,3 +451,14 @@ Current verification results and limitations are recorded in
 [the TCP D-1 validation note](tcp_d1_validation.md). Earlier reports of pre-D1
 pass/fail counts and 0/400 ms timings are not reused as measurements of this
 follow-up.
+
+
+### UDS D-1 follow-up
+
+The UDS client/server observations above remain the historical audit at its
+stated baseline. The follow-up after TCP PR #652 adds callback admission and
+generation gates, outside-caller cleanup completion, target-executor
+request-only shutdown and session-strand completion. It preserves the socket
+path ownership checks. [UDS validation](uds_d1_validation.md) records the new
+tests and the failures reproduced against the unchanged pre-fix UDS sources;
+the historical rows are not retroactively changed.

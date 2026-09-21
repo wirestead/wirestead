@@ -25,6 +25,13 @@ and ABI policy.
 
 ### Fixed
 
+- UDS client/server outside `stop()` callers now wait for transport cleanup
+  and admitted callbacks; target-executor calls request shutdown without
+  blocking. Restart rejects previous-run callbacks, client cancellation retains
+  active I/O storage, and server cleanup waits for every session strand.
+  Never-started and failed-start servers stop without requiring an executor;
+  socket-path ownership protections remain in place.
+
 - `stop()` called from inside a serial callback threw instead of stopping.
 
   The callback runs on the transport's own io thread, and `stop()` joined that
