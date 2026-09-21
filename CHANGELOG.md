@@ -54,6 +54,11 @@ and ABI policy.
 
 ### Fixed
 
+- UDP server Reliable sends and explicit blocking sends use ordinary write
+  admission after waiting, accepting payloads above the pressure watermark
+  when they fit the hard queue limit. Explicit try-send and BestEffort sends
+  retain their nonblocking watermark limit.
+
 - Blocking-capable sends on all seven wrappers bypass capacity waits when a
   payload exceeds the transport's reported whole-queue hard limit. Existing
   transport rejection and accounting are retained.

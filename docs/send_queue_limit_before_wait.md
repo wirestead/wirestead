@@ -64,7 +64,14 @@ policy rather than changing it.
   CMAKE_BUILD_PARALLEL_LEVEL=2 and a fresh Debug build/install.
 - Repository clang-format and git diff --check passed.
 
-## Scope limits
+## Later UDP admission update
+
+The subsequent [UDP server admission fix](udp_server_reliable_admission.md)
+replaces the blocking path's try-write submission with ordinary write
+admission. Its exact-hard-limit test now expects acceptance on UDP as well.
+The paragraph below records the limitation when PR #661 landed.
+
+## Scope limits at PR #661
 
 UDP server's blocking send still calls async_try_write_to, which rejects a
 request above its lower pressure threshold even when it fits under the whole
