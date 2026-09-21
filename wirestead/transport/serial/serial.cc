@@ -751,6 +751,7 @@ void Serial::stop() {
 
 bool Serial::is_connected() const { return get_impl()->opened_.load(); }
 bool Serial::is_backpressure_active() const { return get_impl()->backpressure_active_.load(); }
+std::optional<size_t> Serial::write_queue_limit() const { return get_impl()->bp_limit_; }
 wrapper::RuntimeStats Serial::stats() const {
   auto impl = get_impl();
   return impl->stats_.snapshot(impl->queued_bytes_.load(std::memory_order_relaxed),

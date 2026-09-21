@@ -60,6 +60,7 @@ class WIRESTEAD_API UdpChannel : public interface::Channel, public std::enable_s
   void stop() override;
   bool is_connected() const override;
   bool is_backpressure_active() const override;
+  std::optional<size_t> write_queue_limit() const override;
   wrapper::RuntimeStats stats() const override;
   void reset_stats() override;
   std::optional<diagnostics::ErrorInfo> last_error_info() const override;

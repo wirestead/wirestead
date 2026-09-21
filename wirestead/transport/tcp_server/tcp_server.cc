@@ -711,6 +711,13 @@ bool TcpServer::is_backpressure_active(ClientId client_id) const {
   return false;
 }
 
+std::optional<size_t> TcpServer::write_queue_limit(ClientId client_id) const {
+  std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
+  auto it = impl_->sessions_.find(client_id);
+  if (it == impl_->sessions_.end() || !it->second) return std::nullopt;
+  return it->second->write_queue_limit();
+}
+
 boost::asio::any_io_executor TcpServer::get_executor() { return impl_->strand_; }
 
 wrapper::RuntimeStats TcpServer::stats() const {

@@ -24,10 +24,15 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "wirestead/interface/channel.hpp"
+#include "wirestead/transport/serial/serial.hpp"
+#include "wirestead/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/transport/udp/udp.hpp"
+#include "wirestead/transport/uds/uds_client.hpp"
 #include "wrapper_contract_test_utils.hpp"
 using namespace wirestead;
 using namespace wirestead::test::wrapper_support;
@@ -39,6 +44,8 @@ class ValidationChannel : public interface::Channel {
   std::atomic<bool> pressure{true}, ready{false};
   mutable std::atomic<int> probes{0};
   std::atomic<int> failures{0};
+  std::optional<size_t> limit;
+  std::optional<size_t> write_queue_limit() const override { return limit; }
   boost::asio::io_context io;
   OnState state;
   void start() override { ready = true; }
@@ -50,7 +57,7 @@ class ValidationChannel : public interface::Channel {
   }
   boost::asio::any_io_executor get_executor() override { return io.get_executor(); }
   bool validate(size_t size) {
-    if (!ready || size == 0 || size > kMax) {
+    if (!ready || size == 0 || size > kMax || (limit && size > *limit)) {
       ++failures;
       return false;
     }
@@ -332,6 +339,136 @@ TYPED_TEST(ServerSendValidationBeforeWaitTest, UnknownClientDoesNotWaitForCapaci
     EXPECT_EQ(result.wait_for(2s), std::future_status::ready);
     t.unblock();
     EXPECT_FALSE(result.get());
+  }
+}
+
+template <typename W>
+bool send_sized(W& w, int api, size_t size) {
+  const std::string payload(size, 'x');
+  switch (api) {
+    case 0:
+      return w.send(payload);
+    case 1:
+      return w.send_blocking(payload);
+    case 2:
+      return w.send_line(std::string_view(payload).substr(1));
+    case 3:
+      return w.send_line_blocking(std::string_view(payload).substr(1));
+    case 4:
+      return w.send_move(std::vector<uint8_t>(size, 1));
+    default:
+      return w.send_shared(std::make_shared<const std::vector<uint8_t>>(size, 1));
+  }
+}
+TYPED_TEST(SendValidationBeforeWaitTest, AboveQueueLimitDoesNotWait) {
+  auto c = std::make_shared<ValidationChannel>();
+  c->limit = 256;
+  TypeParam w(c);
+  w.backpressure_strategy(base::constants::BackpressureStrategy::Reliable);
+  auto started = w.start();
+  c->state(base::LinkState::Connected);
+  ASSERT_TRUE(started.get());
+  for (int api = 0; api < 6; ++api) {
+    SCOPED_TRACE(api);
+    c->pressure = true;
+    c->failures = 0;
+    auto result = std::async(std::launch::async, [&] { return send_sized(w, api, 257); });
+    EXPECT_EQ(result.wait_for(2s), std::future_status::ready);
+    c->pressure = false;
+    EXPECT_FALSE(result.get());
+    EXPECT_GT(c->failures, 0) << "transport must retain rejection accounting";
+  }
+  w.stop();
+}
+TYPED_TEST(SendValidationBeforeWaitTest, ExactQueueLimitStillWaits) {
+  auto c = std::make_shared<ValidationChannel>();
+  c->limit = 256;
+  TypeParam w(c);
+  w.backpressure_strategy(base::constants::BackpressureStrategy::Reliable);
+  auto started = w.start();
+  c->state(base::LinkState::Connected);
+  ASSERT_TRUE(started.get());
+  for (int api = 0; api < 6; ++api) {
+    SCOPED_TRACE(api);
+    c->pressure = true;
+    c->probes = 0;
+    auto result = std::async(std::launch::async, [&] { return send_sized(w, api, 256); });
+    const auto end = std::chrono::steady_clock::now() + 2s;
+    while (c->probes == 0 && std::chrono::steady_clock::now() < end) std::this_thread::yield();
+    EXPECT_GT(c->probes, 0);
+    EXPECT_EQ(result.wait_for(50ms), std::future_status::timeout);
+    c->pressure = false;
+    EXPECT_TRUE(result.get());
+  }
+  w.stop();
+}
+TYPED_TEST(ServerSendValidationBeforeWaitTest, AboveQueueLimitDoesNotWait) {
+  // HeldServer uses a 1 KiB pressure threshold; the hard cap has a 1 MiB floor.
+  constexpr size_t limit = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD;
+  const std::string payload(limit + 1, 'x');
+  for (int api = 0; api < 3; ++api) {
+    SCOPED_TRACE(api);
+    HeldServer<TypeParam> t;
+    ASSERT_TRUE(t.start());
+    auto result = std::async(std::launch::async, [&] {
+      if (api == 0) return t.server->send_to(t.id, payload);
+      if (api == 1) return t.server->send_to_blocking(t.id, payload);
+      return t.server->send_to_line(t.id, std::string_view(payload).substr(1));
+    });
+    EXPECT_EQ(result.wait_for(2s), std::future_status::ready);
+    t.unblock();
+    EXPECT_FALSE(result.get());
+  }
+}
+TYPED_TEST(ServerSendValidationBeforeWaitTest, ExactQueueLimitStillWaits) {
+  constexpr size_t limit = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD;
+  const std::string payload(limit, 'x');
+  for (int api = 0; api < 3; ++api) {
+    SCOPED_TRACE(api);
+    HeldServer<TypeParam> t;
+    ASSERT_TRUE(t.start());
+    std::promise<void> entered;
+    auto entry = entered.get_future();
+    auto result = std::async(std::launch::async, [&] {
+      entered.set_value();
+      if (api == 0) return t.server->send_to(t.id, payload);
+      if (api == 1) return t.server->send_to_blocking(t.id, payload);
+      return t.server->send_to_line(t.id, std::string_view(payload).substr(1));
+    });
+    EXPECT_EQ(entry.wait_for(2s), std::future_status::ready);
+    EXPECT_EQ(result.wait_for(100ms), std::future_status::timeout);
+    t.unblock();
+    // UDP server still submits through its try-write path, whose pressure
+    // threshold is stricter than the hard queue cap. Preserve that refusal.
+    if constexpr (std::is_same_v<TypeParam, UdpServerLoopbackHarness>) {
+      EXPECT_FALSE(result.get());
+    } else {
+      EXPECT_TRUE(result.get());
+    }
+  }
+}
+TEST(WriteQueueLimitTest, ConcreteClientTransportsReportConfiguredHardCap) {
+  boost::asio::io_context io;
+  for (size_t threshold : {size_t{1024}, size_t{2 * 1024 * 1024}}) {
+    const size_t expected = threshold == 1024 ? size_t{1024 * 1024} : size_t{8 * 1024 * 1024};
+    config::TcpClientConfig tcp;
+    tcp.host = "127.0.0.1";
+    tcp.port = 12345;
+    tcp.backpressure_threshold = threshold;
+    config::UdsClientConfig uds;
+    uds.socket_path = "/tmp/wirestead-limit-test.sock";
+    uds.backpressure_threshold = threshold;
+    config::UdpConfig udp;
+    udp.backpressure_threshold = threshold;
+    config::SerialConfig serial;
+    serial.device = "queue-limit-test";
+    serial.backpressure_threshold = threshold;
+    std::vector<std::shared_ptr<interface::Channel>> channels{
+        transport::TcpClient::create(tcp, io), transport::UdsClient::create(uds, io),
+        transport::UdpChannel::create(udp, io), transport::Serial::create(serial, io)};
+    for (const auto& channel : channels) {
+      EXPECT_EQ(channel->write_queue_limit(), std::optional<size_t>(expected));
+    }
   }
 }
 

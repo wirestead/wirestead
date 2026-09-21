@@ -81,6 +81,7 @@ class WIRESTEAD_API TcpServerSession : public std::enable_shared_from_this<TcpSe
   void on_close(OnClose cb);
   bool alive() const;
   bool is_backpressure_active() const { return backpressure_active_.load(); }
+  size_t write_queue_limit() const { return bp_limit_; }
   wrapper::RuntimeStats stats() const;
   void reset_stats();
   void stop();

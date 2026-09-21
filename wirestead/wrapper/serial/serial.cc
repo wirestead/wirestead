@@ -343,9 +343,11 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
   // deadlock forever rather than eventually clear (#449).
   bool wait_for_backpressure_clear(std::unique_lock<std::mutex>& bp_lock, size_t payload_size) {
     if (!detail::payload_needs_capacity(payload_size)) return true;
-    auto predicate = [this] {
+    auto predicate = [this, payload_size] {
       std::shared_lock<std::shared_mutex> lock(mutex_);
-      return !started_.load() || !channel || !channel->is_connected() || !channel->is_backpressure_active();
+      return !started_.load() || !channel || !channel->is_connected() ||
+             !detail::payload_needs_capacity(payload_size, channel->write_queue_limit()) ||
+             !channel->is_backpressure_active();
     };
     if (predicate()) return true;
     if (detail::in_data_callback()) return false;

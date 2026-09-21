@@ -592,9 +592,10 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   bool send_to_blocking(ClientId client_id, std::string_view data) {
     for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
       std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      auto predicate = [this, client_id] {
+      auto predicate = [this, client_id, payload_size = data.size()] {
         std::shared_lock<std::shared_mutex> lock(mutex);
         return !started.load() || !channel || sessions.find(client_id) == sessions.end() ||
+               !detail::payload_needs_capacity(payload_size, channel->write_queue_limit()) ||
                !channel->is_backpressure_active();
       };
       if (detail::payload_needs_capacity(data.size())) {

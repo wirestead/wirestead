@@ -4,9 +4,10 @@ Decision proposals for the common differences in
 [the audit](communication_contract_v0.10_audit.md) section 9.1.
 **Implementation status:** D-1 landed for TCP in PR #652, UDS in PR #654,
 UDP in PR #655 and serial in PR #656. D-2 landed in PR #657, and payload-size
-validation before waiting landed in PR #658. This follow-up repairs TCP
-readiness and UDP server target checks before capacity waiting. Structured
-results, whole-queue limits and connection-instance fencing remain separate work.
+validation before waiting landed in PR #658. PR #659 repaired TCP
+readiness and UDP server target checks before capacity waiting. This follow-up
+adds reported whole-queue hard limits to validation before waiting. Structured
+results and connection-instance fencing remain separate work.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.
@@ -383,3 +384,16 @@ This covers a target that is unavailable on entry or stays unavailable when
 the waiter next checks it. A disconnect/reconnect entirely between checks,
 restart generation fencing and stable cancellation reasons are still D-3
 work. See [readiness validation](send_readiness_before_wait.md).
+
+## Whole-queue-limit follow-up
+
+Blocking-capable sends on all seven wrappers bypass capacity waiting when the
+payload is larger than the concrete transport's reported whole-queue hard
+limit. The transport retains rejection and accounting. Custom channels may
+report no limit; their existing behavior is preserved until they implement
+the optional query.
+
+This does not change UDP server's existing try-write submission path, which
+also applies its lower pressure threshold. Nor does it complete the
+synchronized state/connection decision or structured results. See
+[queue-limit validation](send_queue_limit_before_wait.md).
