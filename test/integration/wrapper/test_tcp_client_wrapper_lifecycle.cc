@@ -215,14 +215,26 @@ TEST_F(TcpClientWrapperLifecycleTest, DestroyingClientWhileHandlerInFlightOnExte
     ASSERT_TRUE(cb_cv.wait_for(lock, 2s, [&] { return handler_entered; }));
   }
 
-  client->stop();
-  client.reset();  // the exact "stop() then destroy" sequence the docs say is safe
+  // D-1: stop() from outside now returns only once no callback of this object
+  // is running, so the handler is released from another thread rather than
+  // after stop() returns - which would wait for itself. The property this test
+  // is about, "stop() then destroy is safe", is unchanged and now stronger:
+  // stop() itself guarantees the handler has finished.
+  std::atomic<bool> released_at{false};
+  std::thread releaser([&] {
+    std::this_thread::sleep_for(100ms);
+    {
+      std::lock_guard<std::mutex> lock(cb_mutex);
+      release_handler = true;
+    }
+    released_at = true;
+    cb_cv.notify_all();
+  });
 
-  {
-    std::lock_guard<std::mutex> lock(cb_mutex);
-    release_handler = true;
-  }
-  cb_cv.notify_all();
+  client->stop();
+  EXPECT_TRUE(released_at.load()) << "stop() returned while the on_connect handler was still running";
+  client.reset();  // the exact "stop() then destroy" sequence the docs say is safe
+  releaser.join();
 
   // Reaching here without crashing/UB (verified under ASAN separately) means
   // the in-flight callback's own lifetime-extension kept Impl alive for its

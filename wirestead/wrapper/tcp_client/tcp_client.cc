@@ -20,6 +20,7 @@
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <boost/asio/strand.hpp>
 #include <chrono>
 #include <mutex>
 #include <shared_mutex>
@@ -45,6 +46,33 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   mutable std::shared_mutex mutex_;
   std::mutex bp_mutex_;
   std::condition_variable bp_cv_;
+  // D-1: admission gate for this object's user callbacks. Admission, the
+  // running count and the closed flag are one decision, so a stop() cannot
+  // observe an empty gate while a callback is about to start, and a callback
+  // left over from a previous run is refused after a restart.
+  detail::CallbackGate callback_gate_;
+  std::mutex stop_finalize_mutex_;
+  bool injected_channel_ = false;
+  std::atomic<uint64_t> callback_generation_{0};
+
+  // True when this thread is one the target's shutdown needs: a callback of
+  // this object, or any thread currently running the external io_context this
+  // channel was built on (which a callback of another channel sharing it is).
+  // Such a caller requests the shutdown and returns; it cannot wait for work
+  // its own thread has to perform.
+  bool shutdown_needs_this_thread() const {
+    if (callback_gate_.active_on_this_thread()) return true;
+    if (external_ioc_ && external_ioc_->get_executor().running_in_this_thread()) return true;
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (!channel_) return false;
+    const auto executor = channel_->get_executor();
+    using IoExecutor = boost::asio::io_context::executor_type;
+    if (auto* io = executor.target<IoExecutor>()) return io->running_in_this_thread();
+    if (auto* strand = executor.target<boost::asio::strand<IoExecutor>>())
+      return strand->get_inner_executor().running_in_this_thread();
+    return false;
+  }
+
   std::string host_;
   uint16_t port_;
   std::shared_ptr<interface::Channel> channel_;
@@ -111,6 +139,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   explicit Impl(std::shared_ptr<interface::Channel> channel)
       : host_(""), port_(0), channel_(std::move(channel)), started_(false) {
+    injected_channel_ = true;
     // #450: setup_internal_handlers() captures weak_from_this() - calling it
     // from inside this constructor would capture an empty weak_ptr, since
     // enable_shared_from_this isn't wired up until make_shared() finishes
@@ -135,7 +164,9 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     pending_promises_.clear();
   }
 
-  void flush_batches() {
+  void flush_batches(uint64_t generation) {
+    auto lease = callback_gate_.enter(generation);
+    if (!lease.admitted()) return;
     std::unique_lock<std::shared_mutex> lock(mutex_);
     if (!data_batch_queue_.empty()) {
       auto handler = data_batch_handler_;
@@ -162,10 +193,10 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     }
   }
 
-  void schedule_batch_timer() {
+  void schedule_batch_timer(uint64_t generation) {
     if (!batch_timer_) return;
     batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait([this, weak_impl = weak_from_this(),
+    batch_timer_->async_wait([this, generation, weak_impl = weak_from_this(),
                               weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
       if (ec) return;
       // #450: keep Impl alive for the duration of this callback - on an
@@ -175,7 +206,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
-      flush_batches();
+      flush_batches(generation);
     });
   }
 
@@ -195,7 +226,6 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     if (!alive_marker_) {
       alive_marker_ = std::make_shared<bool>(true);
     }
-
     if (!channel_) {
       config::TcpClientConfig config;
       config.host = host_;
@@ -215,8 +245,13 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       config.receive_buffer_size = receive_buffer_size_;
       config.read_buffer_size = read_buffer_size_;
       channel_ = factory::ChannelFactory::create(config, external_ioc_);
-      setup_internal_handlers();
     }
+
+    // D-1: the new run's generation is opened and the gate admits again in
+    // one step, so no callback of the previous run can be admitted in
+    // between. Handlers are (re-)registered for this generation, including on
+    // an injected channel, where the same object serves every run.
+    setup_internal_handlers();
 
     started_.store(true);
     channel_->start();
@@ -239,52 +274,46 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   void stop() {
-    bool should_join = false;
+    const bool request_only = shutdown_needs_this_thread();
+    callback_gate_.close();
+    std::shared_ptr<interface::Channel> channel;
     {
       std::unique_lock<std::shared_mutex> lock(mutex_);
-      if (!started_.load()) {
-        fulfill_all_locked(false);
-        return;
-      }
       started_.store(false);
       bp_cv_.notify_all();
+      fulfill_all_locked(false);
+      channel = channel_;
+    }
+    // Do not hold wrapper locks while the transport waits for callbacks.
+    if (channel) channel->stop();
+    if (request_only) return;
+
+    callback_gate_.wait_until_idle();
+    // All outside callers pass this lock, including those that found the
+    // channel already cleared. Joining and final state reset happen once.
+    std::lock_guard<std::mutex> finalize_lock(stop_finalize_mutex_);
+    {
+      std::unique_lock<std::shared_mutex> lock(mutex_);
       alive_marker_.reset();
       if (batch_timer_) {
         batch_timer_->cancel();
         batch_timer_.reset();
       }
       if (channel_) {
-        auto ch = channel_;
-        lock.unlock();
-        ch->stop();
-        lock.lock();
-        if (channel_ == ch) {
-          channel_->on_bytes(nullptr);
-          channel_->on_state(nullptr);
-          channel_->on_backpressure(nullptr);
-        }
+        channel_->on_bytes(nullptr);
+        channel_->on_state(nullptr);
+        channel_->on_backpressure(nullptr);
       }
-      if (use_external_context_.load() && manage_external_context_.load()) {
-        if (work_guard_) work_guard_.reset();
-        if (external_ioc_) external_ioc_->stop();
-        should_join = true;
-      }
-      fulfill_all_locked(false);
+      if (!injected_channel_) channel_.reset();
+      data_batch_queue_.clear();
+      message_batch_queue_.clear();
+      if (framer_) framer_->reset();
     }
-    if (should_join && external_thread_.joinable()) {
-      try {
-        if (std::this_thread::get_id() != external_thread_.get_id()) {
-          external_thread_.request_stop();
-          external_thread_.join();
-        } else {
-          external_thread_.detach();
-        }
-      } catch (...) {
-      }
+    if (use_external_context_.load() && manage_external_context_.load()) {
+      if (work_guard_) work_guard_.reset();
+      if (external_ioc_) external_ioc_->stop();
+      if (external_thread_.joinable()) external_thread_.join();
     }
-    std::unique_lock<std::shared_mutex> lock(mutex_);
-    channel_.reset();
-    if (framer_) framer_->reset();
   }
 
   bool try_send(std::string_view data) {
@@ -435,8 +464,13 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
     std::weak_ptr<bool> weak_alive = alive_marker_;
     std::weak_ptr<Impl> weak_impl = weak_from_this();
+    // Opening the generation and admitting again are the same step, under the
+    // gate's lock: a handler of an earlier run can never be admitted into
+    // this one.
+    const uint64_t generation = callback_gate_.open_new_generation();
+    callback_generation_.store(generation);
 
-    channel_->on_bytes([this, weak_impl, weak_alive](memory::ConstByteSpan data) {
+    channel_->on_bytes([this, generation, weak_impl, weak_alive](memory::ConstByteSpan data) {
       // #450: keep Impl alive for the duration of this callback - on an
       // externally-owned io_context, stop() doesn't join/wait for in-flight
       // handlers, so a bare `this` could otherwise dangle.
@@ -451,6 +485,8 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       // thread. Mark it so a blocking send() called from within one of
       // these callbacks fails fast instead of deadlocking waiting for this
       // same thread to clear backpressure.
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
       detail::CallbackGuard callback_guard;
 
       // #441: snapshot the handler/framer pointers under a shared_lock (not
@@ -481,7 +517,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
             batch = std::move(data_batch_queue_);
             data_batch_queue_.clear();
           } else if (data_batch_queue_.size() == 1) {
-            schedule_batch_timer();
+            schedule_batch_timer(generation);
           }
         }
         detail::invoke_user_callback("tcp_client", "on_data_batch", flush_handler, batch);
@@ -492,11 +528,13 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       if (framer_to_push) framer_to_push->push_bytes(data);
     });
 
-    channel_->on_state([this, weak_impl, weak_alive](base::LinkState state) {
+    channel_->on_state([this, generation, weak_impl, weak_alive](base::LinkState state) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
       ConnectionHandler connect_handler;
       ConnectionHandler disconnect_handler;
       ErrorHandler error_handler;
@@ -531,12 +569,14 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       }
     });
 
-    channel_->on_backpressure([this, weak_impl, weak_alive](size_t queued) {
+    channel_->on_backpressure([this, generation, weak_impl, weak_alive](size_t queued) {
       bp_cv_.notify_all();
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
       auto alive = weak_alive.lock();
       if (!alive) return;
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
       std::function<void(size_t)> handler;
       {
         std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -548,7 +588,13 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   void attach_framer_callback() {
     if (!framer_) return;
+    // Framed messages are produced inside the on_bytes dispatch, which already
+    // holds a lease for the run that is delivering them, so this reads the
+    // current generation at call time. Capturing it here instead would pin
+    // the generation of whenever the framer happened to be attached - before
+    // the first start(), for a framer set on the builder.
     framer_->on_message([this](memory::ConstByteSpan msg) {
+      const uint64_t generation = callback_generation_.load();
       // #441: snapshot under a shared_lock (pure read), build the copy
       // before taking the exclusive lock for queue mutation.
       bool batch_mode;
@@ -571,7 +617,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
             batch = std::move(message_batch_queue_);
             message_batch_queue_.clear();
           } else if (message_batch_queue_.size() == 1) {
-            schedule_batch_timer();
+            schedule_batch_timer(generation);
           }
         }
         detail::invoke_user_callback("tcp_client", "on_message_batch", flush_handler, batch);

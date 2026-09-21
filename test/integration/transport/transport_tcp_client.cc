@@ -27,6 +27,7 @@
 #include <thread>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
 #include "test/utils/test_utils.hpp"
 #include "wirestead/base/constants.hpp"
 #include "wirestead/config/tcp_client_config.hpp"
@@ -156,7 +157,7 @@ TEST_F(TransportTcpClientTest, StopPreventsReconnectAfterManualStop) {
   ioc.run_for(std::chrono::milliseconds(20));
 
   stop_called.store(true);
-  client_->stop();
+  stop_with_context(client_, ioc);
 
   // Run longer than retry interval; should not see Connecting after stop
   ioc.run_for(std::chrono::milliseconds(100));
@@ -178,7 +179,7 @@ TEST_F(TransportTcpClientTest, ExternalIoContextFlowsThroughLifecycle) {
   ASSERT_NO_THROW({
     client_->start();
     ioc.run_for(std::chrono::milliseconds(10));
-    client_->stop();
+    stop_with_context(client_, ioc);
     ioc.run_for(std::chrono::milliseconds(10));
   });
 
@@ -199,10 +200,10 @@ TEST_F(TransportTcpClientTest, StartStopIdempotent) {
   EXPECT_NO_THROW({
     client_->start();
     client_->start();
-    client_->stop();
-    client_->stop();
+    stop_with_context(client_, ioc);
+    stop_with_context(client_, ioc);
     client_->start();
-    client_->stop();
+    stop_with_context(client_, ioc);
   });
 
   // Destroy client before io_context is torn down to avoid dangling pointer
@@ -240,7 +241,7 @@ TEST_F(TransportTcpClientTest, QueueLimitDropsMessage) {
   EXPECT_EQ(stats.dropped_messages, 0u);
   EXPECT_EQ(stats.dropped_bytes, 0u);
 
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -284,7 +285,7 @@ TEST_F(TransportTcpClientTest, OnBytesExceptionTriggersReconnect) {
   // At least two Connecting states: initial + post-exception reconnect attempt
   EXPECT_GE(connecting_events.load(), 2);
 
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -310,7 +311,7 @@ TEST_F(TransportTcpClientTest, MoveWriteRespectsQueueLimit) {
 
   EXPECT_TRUE(backpressure_seen.load());
 
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -336,7 +337,7 @@ TEST_F(TransportTcpClientTest, SharedWriteRespectsQueueLimit) {
 
   EXPECT_TRUE(backpressure_seen.load());
 
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -404,7 +405,7 @@ TEST_F(TransportTcpClientTest, ConnectionRefusedTriggersRetry) {
 
   EXPECT_GE(connecting_count.load(), 2);
 
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -431,7 +432,7 @@ TEST_F(TransportTcpClientTest, ResolveFailureTriggersRetry) {
 
   EXPECT_GE(connecting_count.load(), 2);
 
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -493,7 +494,7 @@ TEST_F(TransportTcpClientTest, MaxRetriesStopsReconnection) {
 
   EXPECT_TRUE(error_state.load());
 
-  client_->stop();
+  stop_with_context(client_, ioc);
 
   client_.reset();
 }
@@ -523,7 +524,7 @@ TEST_F(TransportTcpClientTest, ConnectionTimeoutTriggersRetry) {
 
   EXPECT_GE(connecting_count.load(), 3);
 
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -554,7 +555,7 @@ TEST_F(TransportTcpClientTest, UnlimitedRetriesKeepsConnecting) {
 
   EXPECT_GE(connecting_count.load(), 5);
 
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -606,7 +607,7 @@ TEST_F(TransportTcpClientTest, WriteRejectsInvalidPayloads) {
   auto too_large_shared = std::make_shared<const std::vector<uint8_t>>(base::constants::MAX_BUFFER_SIZE + 1, 0x02);
   EXPECT_FALSE(client_->async_write_shared(too_large_shared));
 
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -617,7 +618,7 @@ TEST_F(TransportTcpClientTest, WritesAfterStopReturnFalse) {
   cfg.port = TestUtils::getAvailableTestPort();
 
   client_ = TcpClient::create(cfg, ioc);
-  client_->stop();
+  stop_with_context(client_, ioc);
 
   std::vector<uint8_t> payload = {0x01, 0x02};
   EXPECT_FALSE(client_->async_write_copy(memory::ConstByteSpan(payload.data(), payload.size())));
@@ -653,7 +654,7 @@ TEST_F(TransportTcpClientTest, SettersAndClearedReconnectPolicyAffectRetry) {
   EXPECT_TRUE(error_state.load());
 
   client_->on_state(nullptr);
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -678,7 +679,7 @@ TEST_F(TransportTcpClientTest, CallbackExceptionsAreSwallowed) {
 
   client_->on_state(nullptr);
   client_->on_backpressure(nullptr);
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -740,7 +741,7 @@ TEST_F(TransportTcpClientTest, SharedWriteSendsPayloadWhenConnected) {
   EXPECT_EQ(received, "shared");
 
   client_->on_state(nullptr);
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -781,6 +782,6 @@ TEST_F(TransportTcpClientTest, UnknownOnBytesExceptionTriggersReconnect) {
 
   client_->on_state(nullptr);
   client_->on_bytes(nullptr);
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }

@@ -433,3 +433,21 @@ With the fix, the reproduction reports `stop-returned-normally` in both
    ([9.2](#92-differences-between-api-families-inside-one-target),
    [9.3](#93-transport-specific-differences)) until the common rules are
    decided; several of them disappear once the shared layers are settled.
+
+
+## TCP D-1 follow-up in PR #652 (separate from the baseline audit)
+
+The tables above retain their historical observations and verdicts. The TCP
+implementation is being updated after reviewed head `757bd87e3`; that commit's
+external-executor path did not wait for transport cleanup. Reference ownership
+alone did not establish isolation from a later run.
+
+The follow-up waits for actual client/server cleanup, including session cleanup,
+keeps the wrapper channel until an outside caller observes completion, and
+serializes server accept/retry/cleanup with generation checks for delayed work.
+Callback admission and generation switching remain one locked decision.
+
+Current verification results and limitations are recorded in
+[the TCP D-1 validation note](tcp_d1_validation.md). Earlier reports of pre-D1
+pass/fail counts and 0/400 ms timings are not reused as measurements of this
+follow-up.

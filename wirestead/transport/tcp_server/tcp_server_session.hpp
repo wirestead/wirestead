@@ -84,6 +84,7 @@ class WIRESTEAD_API TcpServerSession : public std::enable_shared_from_this<TcpSe
   wrapper::RuntimeStats stats() const;
   void reset_stats();
   void stop();
+  void async_stop(std::function<void()> completion);
   void cancel();
 
  private:

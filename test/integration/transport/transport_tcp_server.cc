@@ -24,6 +24,7 @@
 #include <thread>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
 #include "test_constants.hpp"
 #include "test_utils.hpp"
 #include "wirestead/config/tcp_server_config.hpp"
@@ -429,7 +430,7 @@ TEST_F(TransportTcpServerTest, InvalidBindAddressMovesToErrorAndSwallowsStateExc
   EXPECT_EQ(server_->state(), base::LinkState::Error);
 
   server_->on_state(nullptr);
-  server_->stop();
+  stop_with_context(server_, ioc);
   server_.reset();
 }
 
@@ -454,7 +455,7 @@ TEST_F(TransportTcpServerTest, InjectedAcceptorOpenFailureMovesToError) {
   ASSERT_TRUE(server_->last_error_info().has_value());
   EXPECT_EQ(server_->last_error_info()->component, "tcp_server");
 
-  server_->stop();
+  stop_with_context(server_, ioc);
   server_.reset();
 }
 
@@ -476,7 +477,7 @@ TEST_F(TransportTcpServerTest, InjectedAcceptorListenFailureMovesToError) {
 
   EXPECT_TRUE(error_seen.load());
 
-  server_->stop();
+  stop_with_context(server_, ioc);
   server_.reset();
 }
 
@@ -498,7 +499,7 @@ TEST_F(TransportTcpServerTest, InjectedAcceptErrorMovesToError) {
 
   EXPECT_TRUE(error_seen.load());
 
-  server_->stop();
+  stop_with_context(server_, ioc);
   server_.reset();
 }
 

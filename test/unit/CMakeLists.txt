@@ -162,6 +162,12 @@ foreach(
   )
 endforeach()
 
+# Callback gate (D-1)
+wirestead_add_unit_gtest(
+  run_unit_wrapper_callback_gate
+  ${CMAKE_CURRENT_SOURCE_DIR}/wrapper/test_callback_gate.cc "unit_wrapper" 30
+)
+
 # Wrapper serial config mapping
 wirestead_add_unit_gtest(
   run_unit_wrapper_serial_config_mapping

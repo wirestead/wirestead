@@ -8,6 +8,21 @@ and ABI policy.
 
 ## Unreleased
 
+### Changed
+
+- **Breaking behavior:** TCP client and server outside `stop()` callers,
+  including concurrent callers, wait for transport cleanup and for running
+  callbacks to finish. Server completion includes each live session's cleanup.
+  A call on the target executor requests shutdown and returns without waiting;
+  a call from an independent executor still waits. External executors must
+  keep running during that wait.
+- TCP restart opens a new callback generation atomically. Delayed callbacks,
+  accepts and retries from the previous run cannot enter the restarted run.
+  The stopping thread does not poll a shared executor or use a timeout as
+  evidence that cleanup is safe.
+- These changes apply D-1 to TCP only. UDS, UDP, serial, blocking-send policy
+  (D-2), and structured send results (D-3) remain separate work.
+
 ### Fixed
 
 - `stop()` called from inside a serial callback threw instead of stopping.
