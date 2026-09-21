@@ -67,12 +67,17 @@ void UdsServerSession::start() {
   });
 }
 
-void UdsServerSession::stop() {
-  if (closing_.exchange(true)) return;
-  net::post(strand_, [this, self = shared_from_this()]() {
-    on_bytes_ = nullptr;
-    on_bp_ = nullptr;
-    do_close();
+void UdsServerSession::stop() { async_stop({}); }
+
+void UdsServerSession::async_stop(std::function<void()> completion) {
+  closing_.store(true);
+  net::post(strand_, [self = shared_from_this(), completion = std::move(completion)] {
+    self->on_bytes_ = nullptr;
+    self->on_bp_ = nullptr;
+    self->on_close_ = nullptr;
+    self->idle_timer_.cancel();
+    self->do_close();
+    if (completion) completion();
   });
 }
 
@@ -294,52 +299,55 @@ void UdsServerSession::on_close(OnClose cb) {
 }
 
 void UdsServerSession::start_read() {
-  socket_->async_read_some(
-      net::buffer(rx_.data(), rx_.size()),
-      net::bind_executor(strand_, [this, self = shared_from_this()](const boost::system::error_code& ec, size_t bytes) {
-        if (closing_ || !alive_) return;
-        if (ec) {
-          do_close();
-          return;
-        }
-        if (bytes > 0) stats_.record_received(bytes);
-        if (on_bytes_) on_bytes_(memory::ConstByteSpan(rx_.data(), bytes));
-        reset_idle_timer();
-        start_read();
-      }));
+  if (closing_ || !alive_) return;
+  socket_->async_read_some(net::buffer(rx_.data(), rx_.size()),
+                           [self = shared_from_this()](const boost::system::error_code& ec, size_t bytes) {
+                             net::dispatch(self->strand_, [self, ec, bytes] {
+                               if (self->closing_ || !self->alive_) return;
+                               if (ec) {
+                                 self->do_close();
+                                 return;
+                               }
+                               if (bytes > 0) self->stats_.record_received(bytes);
+                               if (self->on_bytes_) self->on_bytes_(memory::ConstByteSpan(self->rx_.data(), bytes));
+                               if (self->closing_ || !self->alive_) return;
+                               self->reset_idle_timer();
+                               self->start_read();
+                             });
+                           });
 }
 
 void UdsServerSession::do_write() {
-  if (tx_.empty() || writing_) return;
+  if (closing_ || !alive_ || tx_.empty() || writing_) return;
   writing_ = true;
-  // Drain several queued buffers into one scatter-gather write rather than one
-  // send syscall per message. `writing_` keeps do_write() from re-entering.
   const size_t bytes_to_write = queue_util::take_gather_batch(tx_, current_write_batch_, current_write_views_);
-
-  socket_->async_write(current_write_views_,
-                       net::bind_executor(strand_, [this, self = shared_from_this(), bytes_to_write](
-                                                       const boost::system::error_code& ec, size_t written) {
-                         if (closing_ || !alive_) return;
-                         writing_ = false;
-                         current_write_batch_.clear();
-                         queue_bytes_ = (queue_bytes_ >= bytes_to_write) ? (queue_bytes_ - bytes_to_write) : 0;
-                         report_backpressure(queue_bytes_);
-
-                         if (ec) {
-                           do_close();
-                           return;
-                         }
-                         stats_.record_sent(written);
-                         if (!tx_.empty()) do_write();
-                       }));
+  socket_->async_write(current_write_views_, [self = shared_from_this(), bytes_to_write](
+                                                 const boost::system::error_code& ec, size_t written) {
+    net::dispatch(self->strand_, [self, bytes_to_write, ec, written] {
+      self->current_write_batch_.clear();
+      self->writing_ = false;
+      if (self->closing_ || !self->alive_) return;
+      self->queue_bytes_ = self->queue_bytes_ >= bytes_to_write ? self->queue_bytes_ - bytes_to_write : 0;
+      self->report_backpressure(self->queue_bytes_);
+      if (ec) {
+        self->do_close();
+        return;
+      }
+      self->stats_.record_sent(written);
+      if (!self->tx_.empty()) self->do_write();
+    });
+  });
 }
 
 void UdsServerSession::do_close() {
-  if (!closing_.exchange(true) && !alive_) return;
+  if (cleanup_done_) return;
+  cleanup_done_ = true;
+  closing_ = true;
   alive_ = false;
   auto close_cb = std::move(on_close_);
 
   boost::system::error_code ec;
+  idle_timer_.cancel();
   socket_->close(ec);
 
   // Drain queued/pending writes and unconditionally clear backpressure,
@@ -353,7 +361,7 @@ void UdsServerSession::do_close() {
     auto f = bp_fields();
     queue_util::drain_and_clear_backpressure(f, on_bp_, [&]() {
       tx_.clear();
-      current_write_batch_.clear();
+      // In-flight write buffers stay owned until its completion runs.
       queue_bytes_ = 0;
       pending_.clear();
       pending_bytes_ = 0;

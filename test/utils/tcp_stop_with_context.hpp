@@ -33,4 +33,15 @@ void stop_with_context(const std::shared_ptr<Channel>& channel, boost::asio::io_
   runner.join();
   io.restart();
 }
+template <typename Wrapper>
+void stop_wrapper_with_context(Wrapper& wrapper, boost::asio::io_context& io) {
+  if (io.stopped()) io.restart();
+  auto work = boost::asio::make_work_guard(io);
+  std::jthread runner([&] { io.run(); });
+  wrapper.stop();
+  work.reset();
+  io.stop();
+  runner.join();
+  io.restart();
+}
 }  // namespace wirestead::test

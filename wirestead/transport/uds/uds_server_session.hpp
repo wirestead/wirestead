@@ -84,6 +84,7 @@ class WIRESTEAD_API UdsServerSession : public std::enable_shared_from_this<UdsSe
   wrapper::RuntimeStats stats() const;
   void reset_stats();
   void stop();
+  void async_stop(std::function<void()> completion);
 
  private:
   void start_read();
@@ -144,6 +145,7 @@ class WIRESTEAD_API UdsServerSession : public std::enable_shared_from_this<UdsSe
   OnClose on_close_;
   std::atomic<bool> alive_{false};
   std::atomic<bool> closing_{false};
+  bool cleanup_done_ = false;  // Accessed only on strand_.
 };
 }  // namespace transport
 }  // namespace wirestead

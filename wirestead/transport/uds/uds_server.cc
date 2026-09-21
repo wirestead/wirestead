@@ -22,9 +22,9 @@
 #include <atomic>
 #include <boost/asio.hpp>
 #include <cerrno>
+#include <condition_variable>
 #include <cstdio>
 #include <cstring>
-#include <future>
 #include <mutex>
 #include <stop_token>
 #include <string_view>
@@ -40,6 +40,7 @@
 #include "wirestead/diagnostics/runtime_stats_counter.hpp"
 #include "wirestead/interface/iuds_acceptor.hpp"
 #include "wirestead/transport/base/error_info_holder.hpp"
+#include "wirestead/transport/base/stop_test_hook.hpp"
 #include "wirestead/transport/uds/boost_uds_acceptor.hpp"
 #include "wirestead/transport/uds/uds_server_session.hpp"
 
@@ -99,12 +100,40 @@ std::string existing_uds_path_blocks_bind(const std::string& path) {
 struct UdsServer::Impl {
   std::unique_ptr<net::io_context> owned_ioc_;
   net::io_context* ioc_ = nullptr;
+  net::strand<net::io_context::executor_type> strand_;
+  std::atomic<uint64_t> generation_{0};
+  bool run_dispatched_ = false;
+  std::atomic<bool> cleanup_started_{false};
   std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> work_guard_;
   std::jthread ioc_thread_;
   bool owns_ioc_ = true;
 
   std::atomic<bool> stopping_{false};
   std::atomic<ClientId> next_client_id_{0};
+  std::mutex stop_mtx_;
+  std::condition_variable stop_cv_;
+  bool cleanup_done_ = false;
+  std::mutex join_mtx_;
+
+  void mark_cleanup_done() {
+    detail::stop_test_hook(this, true);
+    {
+      std::lock_guard<std::mutex> lock(stop_mtx_);
+      cleanup_done_ = true;
+    }
+    stop_cv_.notify_all();
+  }
+
+  // Waits for the teardown that was dispatched onto the context, and nothing
+  // more: the contract's precondition is that the context's owner keeps it
+  // running, and running it here would execute unrelated handlers - another
+  // channel's user callbacks included - on the stopping thread.
+  void wait_for_cleanup() {
+    detail::stop_test_hook(this, false);
+    std::unique_lock<std::mutex> lock(stop_mtx_);
+    stop_cv_.wait(lock, [this] { return cleanup_done_; });
+  }
+
   // #438: only this instance's own successful bind() may remove the socket
   // file on cleanup. Without this, a second UdsServer pointed at the same
   // path whose start() failed before ever binding (e.g. because a live
@@ -137,6 +166,7 @@ struct UdsServer::Impl {
   Impl(const config::UdsServerConfig& cfg, net::io_context* ioc_ptr)
       : owned_ioc_(ioc_ptr ? nullptr : std::make_unique<net::io_context>()),
         ioc_(ioc_ptr ? ioc_ptr : owned_ioc_.get()),
+        strand_(net::make_strand(*ioc_)),
         owns_ioc_(!ioc_ptr),
         cfg_(cfg) {
     cfg_.validate_and_clamp();
@@ -163,100 +193,70 @@ struct UdsServer::Impl {
       std::remove(cfg_.socket_path.c_str());
     }
   }
-  void do_accept(std::shared_ptr<UdsServer> self);
+  void do_accept(std::shared_ptr<UdsServer> self, uint64_t generation);
   void notify_state();
 
-  void perform_cleanup() {
-    try {
-      boost::system::error_code ec;
-      if (acceptor_) {
-        acceptor_->close(ec);
-      }
+  void finish_cleanup() {
+    if (bound_.exchange(false)) std::remove(cfg_.socket_path.c_str());
+    state_.set(base::LinkState::Idle);
+    if (owns_ioc_) work_guard_.reset();
+    mark_cleanup_done();
+  }
 
-      std::vector<std::shared_ptr<UdsServerSession>> sessions_to_stop;
-      {
-        std::lock_guard<std::mutex> lock(sessions_mutex_);
-        for (auto& pair : sessions_) {
-          sessions_to_stop.push_back(pair.second);
-        }
-        sessions_.clear();
-      }
-
-      for (auto& session : sessions_to_stop) {
-        if (session) {
-          session->stop();
-        }
-      }
-
-      if (bound_.exchange(false)) {
-        std::remove(cfg_.socket_path.c_str());
-      }
-
-      state_.set(base::LinkState::Idle);
-      notify_state();
-    } catch (...) {
+  void perform_cleanup(std::shared_ptr<UdsServer> self = {}) {
+    if (cleanup_started_.exchange(true)) return;
+    boost::system::error_code ec;
+    if (acceptor_) acceptor_->close(ec);
+    std::vector<std::shared_ptr<UdsServerSession>> sessions;
+    {
+      std::lock_guard<std::mutex> lock(sessions_mutex_);
+      for (auto& entry : sessions_) sessions.push_back(entry.second);
+      sessions_.clear();
+    }
+    if (sessions.empty()) {
+      finish_cleanup();
+      return;
+    }
+    // Completion includes every session's callback body and cleanup. Each
+    // session owns its outstanding I/O; final state changes are serialized
+    // with accept/retry handlers on the server's management strand.
+    auto remaining = std::make_shared<size_t>(sessions.size());
+    for (auto& session : sessions) {
+      session->async_stop([this, self, remaining] {
+        net::post(strand_, [this, self, remaining] {
+          if (--*remaining == 0) finish_cleanup();
+        });
+      });
     }
   }
 
   void stop(std::shared_ptr<UdsServer> self) {
-    if (stopping_.exchange(true)) {
-      return;
-    }
-
-    {
-      std::lock_guard<std::mutex> lock(sessions_mutex_);
-      on_bytes_ = nullptr;
-      on_state_ = nullptr;
-      on_bp_ = nullptr;
-      on_multi_connect_ = nullptr;
-      on_multi_data_ = nullptr;
-      on_multi_disconnect_ = nullptr;
-    }
-
-    if (ioc_->get_executor().running_in_this_thread()) {
-      perform_cleanup();
-      if (owns_ioc_) {
-        work_guard_.reset();
-        ioc_->stop();
+    const bool on_executor = ioc_->get_executor().running_in_this_thread();
+    const bool first = !stopping_.exchange(true);
+    if (first) {
+      {
+        std::lock_guard<std::mutex> lock(sessions_mutex_);
+        on_bytes_ = nullptr;
+        on_state_ = nullptr;
+        on_bp_ = nullptr;
+        on_multi_connect_ = nullptr;
+        on_multi_data_ = nullptr;
+        on_multi_disconnect_ = nullptr;
       }
-      return;
-    }
-
-    bool has_active_ioc = owns_ioc_ || !ioc_->stopped();
-
-    if (has_active_ioc && self) {
-      auto cleanup_promise = std::make_shared<std::promise<void>>();
-      auto cleanup_future = cleanup_promise->get_future();
-
-      std::weak_ptr<UdsServer> weak_self = self;
-      net::dispatch(*ioc_, [weak_self, cleanup_promise]() {
-        if (auto shared_self = weak_self.lock()) {
-          auto* cleanup_impl = shared_self->get_impl();
-          cleanup_impl->perform_cleanup();
-        }
-        cleanup_promise->set_value();
-      });
-
-      if (cleanup_future.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
-        perform_cleanup();
-      }
-    } else {
-      perform_cleanup();
-    }
-
-    if (owns_ioc_) {
-      work_guard_.reset();
-      ioc_->stop();
-    }
-
-    if (owns_ioc_ && ioc_thread_.joinable()) {
-      if (std::this_thread::get_id() != ioc_thread_.get_id()) {
-        ioc_thread_.join();
+      if (!run_dispatched_) {
+        perform_cleanup(self);
       } else {
-        ioc_thread_.detach();
+        net::post(strand_, [this, self] { perform_cleanup(self); });
       }
-      ioc_->restart();
     }
+    if (on_executor) return;
+    wait_for_cleanup();
+    std::lock_guard<std::mutex> join_lock(join_mtx_);
+    join_owned_thread();
+  }
+
+  void join_owned_thread() {
+    if (owns_ioc_ && ioc_thread_.joinable()) ioc_thread_.join();
   }
 };
 
@@ -278,7 +278,7 @@ UdsServer::UdsServer(const config::UdsServerConfig& cfg, std::unique_ptr<interfa
 }
 
 UdsServer::~UdsServer() {
-  if (impl_ && impl_->state_.get() != base::LinkState::Idle) {
+  if (impl_) {
     impl_->stop(nullptr);
   }
 }
@@ -289,7 +289,14 @@ UdsServer& UdsServer::operator=(UdsServer&&) noexcept = default;
 void UdsServer::start() {
   if (impl_->state_.get() == base::LinkState::Listening) return;
 
+  const auto generation = impl_->generation_.fetch_add(1) + 1;
   impl_->stopping_ = false;
+  impl_->run_dispatched_ = false;
+  impl_->cleanup_started_ = false;
+  {
+    std::lock_guard<std::mutex> lock(impl_->stop_mtx_);
+    impl_->cleanup_done_ = false;
+  }
   // Restart contract (#444): stats() resets on restart. The server-level
   // counters now outlive the sessions that fed them, so clearing them here is
   // what keeps that promise - before absorption they were empty and a restart
@@ -387,6 +394,7 @@ void UdsServer::start() {
 
   impl_->state_.set(base::LinkState::Listening);
   impl_->notify_state();
+  if (impl_->stopping_) return;
 
   if (impl_->owns_ioc_ && !impl_->ioc_thread_.joinable()) {
     if (impl_->ioc_->stopped()) {
@@ -404,10 +412,11 @@ void UdsServer::start() {
     });
   }
 
-  net::post(impl_->ioc_->get_executor(), [self = shared_from_this()]() { self->impl_->do_accept(self); });
+  impl_->run_dispatched_ = true;
+  net::post(impl_->strand_, [self = shared_from_this(), generation]() { self->impl_->do_accept(self, generation); });
 }
 
-void UdsServer::stop() { impl_->stop(shared_from_this()); }
+void UdsServer::stop() { impl_->stop(weak_from_this().lock()); }
 
 bool UdsServer::is_connected() const { return impl_->state_.get() == base::LinkState::Listening; }
 bool UdsServer::is_backpressure_active() const { return false; }
@@ -421,7 +430,7 @@ bool UdsServer::is_backpressure_active(ClientId client_id) const {
   return false;
 }
 
-boost::asio::any_io_executor UdsServer::get_executor() { return impl_->ioc_->get_executor(); }
+boost::asio::any_io_executor UdsServer::get_executor() { return impl_->strand_; }
 
 wrapper::RuntimeStats UdsServer::stats() const {
   auto aggregate = impl_->stats_.snapshot(0, 0, false);
@@ -630,111 +639,117 @@ void UdsServer::on_multi_disconnect(MultiClientDisconnectHandler handler) {
 
 base::LinkState UdsServer::state() const { return impl_->state_.get(); }
 
-void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self) {
-  acceptor_->async_accept([self](const boost::system::error_code& ec, uds::socket socket) {
-    if (!self || self->impl_->stopping_) return;
+void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self, uint64_t generation) {
+  if (stopping_ || generation != generation_) return;
+  acceptor_->async_accept([self, generation](const boost::system::error_code& ec, uds::socket socket) {
+    net::dispatch(self->impl_->strand_, [self, generation, ec, socket = std::move(socket)]() mutable {
+      if (self->impl_->stopping_ || generation != self->impl_->generation_) return;
 
-    if (!ec) {
-      ClientId client_id;
-      {
-        std::lock_guard<std::mutex> lock(self->impl_->sessions_mutex_);
-        if (self->impl_->cfg_.max_connections > 0 &&
-            self->impl_->sessions_.size() >= static_cast<size_t>(self->impl_->cfg_.max_connections)) {
-          boost::system::error_code ignored;
-          socket.close(ignored);
-          auto* impl = self->impl_.get();
-          impl->do_accept(self);
-          return;
-        }
-        client_id = self->impl_->next_client_id_++;
-      }
-
-      auto session = std::make_shared<UdsServerSession>(
-          *self->impl_->ioc_, std::move(socket), self->impl_->cfg_.backpressure_threshold,
-          self->impl_->cfg_.idle_timeout_ms, self->impl_->cfg_.backpressure_strategy,
-          self->impl_->cfg_.enable_memory_pool, self->impl_->cfg_.read_buffer_size);
-
-      std::weak_ptr<UdsServer> weak_self = self;
-      session->on_bytes([weak_self, client_id](memory::ConstByteSpan data) {
-        auto s = weak_self.lock();
-        if (!s) return;
-        interface::SharedCallback<MultiClientDataHandler> data_handler;
-        interface::SharedCallback<OnBytes> bytes_handler;
+      if (!ec) {
+        ClientId client_id;
         {
-          std::lock_guard<std::mutex> lock(s->impl_->sessions_mutex_);
-          data_handler = s->impl_->on_multi_data_;
-          bytes_handler = s->impl_->on_bytes_;
-        }
-        if (data_handler) (*data_handler)(client_id, data);
-        if (bytes_handler) (*bytes_handler)(data);
-      });
-
-      session->on_close([weak_self, client_id]() {
-        auto s = weak_self.lock();
-        if (!s || s->impl_->stopping_) return;
-
-        MultiClientDisconnectHandler disconnect_handler;
-        {
-          std::lock_guard<std::mutex> lock(s->impl_->sessions_mutex_);
-          if (s->impl_->stopping_) return;  // Double check inside lock
-          // Carry the session's totals over to the server before it goes away,
-          // so stats() keeps reporting what this connection did. Tied to the
-          // erase below, which makes it exactly once even if on_close re-fires.
-          auto it = s->impl_->sessions_.find(client_id);
-          if (it != s->impl_->sessions_.end() && it->second) {
-            s->impl_->stats_.absorb(it->second->stats());
+          std::lock_guard<std::mutex> lock(self->impl_->sessions_mutex_);
+          if (self->impl_->cfg_.max_connections > 0 &&
+              self->impl_->sessions_.size() >= static_cast<size_t>(self->impl_->cfg_.max_connections)) {
+            boost::system::error_code ignored;
+            socket.close(ignored);
+            auto* impl = self->impl_.get();
+            impl->do_accept(self, generation);
+            return;
           }
-          s->impl_->sessions_.erase(client_id);
-          disconnect_handler = s->impl_->on_multi_disconnect_;
+          client_id = self->impl_->next_client_id_++;
         }
-        if (disconnect_handler) disconnect_handler(client_id);
-      });
 
-      // alive_ must be true before the session enters sessions_, so that
-      // broadcast() callers who observe client_count() >= 1 are guaranteed
-      // to pass the alive() check inside async_try_write_shared().
-      session->start();
+        auto session = std::make_shared<UdsServerSession>(
+            *self->impl_->ioc_, std::move(socket), self->impl_->cfg_.backpressure_threshold,
+            self->impl_->cfg_.idle_timeout_ms, self->impl_->cfg_.backpressure_strategy,
+            self->impl_->cfg_.enable_memory_pool, self->impl_->cfg_.read_buffer_size);
 
-      {
-        std::lock_guard<std::mutex> lock(self->impl_->sessions_mutex_);
-        self->impl_->sessions_[client_id] = session;
-      }
-
-      MultiClientConnectHandler connect_handler;
-      {
-        std::lock_guard<std::mutex> lock(self->impl_->sessions_mutex_);
-        connect_handler = self->impl_->on_multi_connect_;
-      }
-      if (connect_handler) connect_handler(client_id, "UDS Client");
-
-      // Continue accepting
-      auto* impl = self->impl_.get();
-      impl->do_accept(self);
-    } else {
-      auto* impl = self->impl_.get();
-      if (impl->stopping_.load()) return;
-
-      // Log only real errors, not operation_aborted
-      if (ec != boost::asio::error::operation_aborted) {
-        std::string msg = fmt::format("Accept failed: {}", ec.message());
-        WIRESTEAD_LOG_ERROR("uds_server", "accept", msg);
-        impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION,
-                                              "accept", ec, msg, true, 0);
-        impl->state_.set(base::LinkState::Error);
-        impl->notify_state();
-      }
-
-      if (!impl->stopping_.load()) {
-        auto timer = std::make_shared<net::steady_timer>(*impl->ioc_);
-        timer->expires_after(std::chrono::milliseconds(100));
-        timer->async_wait([self, timer](const boost::system::error_code&) {
-          auto* retry_impl = self->impl_.get();
-          if (!retry_impl->stopping_.load()) {
-            retry_impl->do_accept(self);
+        std::weak_ptr<UdsServer> weak_self = self;
+        session->on_bytes([weak_self, client_id, generation](memory::ConstByteSpan data) {
+          auto s = weak_self.lock();
+          if (!s || s->impl_->stopping_ || generation != s->impl_->generation_) return;
+          interface::SharedCallback<MultiClientDataHandler> data_handler;
+          interface::SharedCallback<OnBytes> bytes_handler;
+          {
+            std::lock_guard<std::mutex> lock(s->impl_->sessions_mutex_);
+            data_handler = s->impl_->on_multi_data_;
+            bytes_handler = s->impl_->on_bytes_;
           }
+          if (data_handler) (*data_handler)(client_id, data);
+          if (bytes_handler) (*bytes_handler)(data);
         });
+
+        session->on_close([weak_self, client_id, generation]() {
+          auto s = weak_self.lock();
+          if (!s) return;
+          net::post(s->impl_->strand_, [s, client_id, generation] {
+            if (s->impl_->stopping_ || generation != s->impl_->generation_) return;
+
+            MultiClientDisconnectHandler disconnect_handler;
+            {
+              std::lock_guard<std::mutex> lock(s->impl_->sessions_mutex_);
+              if (s->impl_->stopping_) return;  // Double check inside lock
+              // Carry the session's totals over to the server before it goes away,
+              // so stats() keeps reporting what this connection did. Tied to the
+              // erase below, which makes it exactly once even if on_close re-fires.
+              auto it = s->impl_->sessions_.find(client_id);
+              if (it != s->impl_->sessions_.end() && it->second) {
+                s->impl_->stats_.absorb(it->second->stats());
+              }
+              s->impl_->sessions_.erase(client_id);
+              disconnect_handler = s->impl_->on_multi_disconnect_;
+            }
+            if (disconnect_handler) disconnect_handler(client_id);
+          });
+        });
+
+        // alive_ must be true before the session enters sessions_, so that
+        // broadcast() callers who observe client_count() >= 1 are guaranteed
+        // to pass the alive() check inside async_try_write_shared().
+        session->start();
+
+        {
+          std::lock_guard<std::mutex> lock(self->impl_->sessions_mutex_);
+          self->impl_->sessions_[client_id] = session;
+        }
+
+        MultiClientConnectHandler connect_handler;
+        {
+          std::lock_guard<std::mutex> lock(self->impl_->sessions_mutex_);
+          connect_handler = self->impl_->on_multi_connect_;
+        }
+        if (connect_handler) connect_handler(client_id, "UDS Client");
+
+        // Continue accepting
+        auto* impl = self->impl_.get();
+        impl->do_accept(self, generation);
+      } else {
+        auto* impl = self->impl_.get();
+        if (impl->stopping_.load()) return;
+
+        // Log only real errors, not operation_aborted
+        if (ec != boost::asio::error::operation_aborted) {
+          std::string msg = fmt::format("Accept failed: {}", ec.message());
+          WIRESTEAD_LOG_ERROR("uds_server", "accept", msg);
+          impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION,
+                                                "accept", ec, msg, true, 0);
+          impl->state_.set(base::LinkState::Error);
+          impl->notify_state();
+        }
+
+        if (!impl->stopping_.load()) {
+          auto timer = std::make_shared<net::steady_timer>(impl->strand_);
+          timer->expires_after(std::chrono::milliseconds(100));
+          timer->async_wait([self, timer, generation](const boost::system::error_code& ec) {
+            auto* retry_impl = self->impl_.get();
+            if (!ec && !retry_impl->stopping_.load() && generation == retry_impl->generation_) {
+              retry_impl->do_accept(self, generation);
+            }
+          });
+        }
       }
-    }
+    });
   });
 }
 
