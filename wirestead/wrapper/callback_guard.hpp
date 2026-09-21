@@ -31,16 +31,11 @@
 
 #include "wirestead/diagnostics/logger.hpp"
 
-// #449: a blocking send (Reliable-mode send()/send_blocking()/send_move()/
-// send_shared()) called from inside a data/message callback deadlocks -
-// clearing backpressure requires progress on the same io thread that a
-// blocking wait would now be stuck on. This thread_local flag, set for the
-// duration of any data/message callback dispatch, lets the blocking-send
-// path detect that scenario and fail fast (return false) instead of
-// blocking forever. It intentionally isn't scoped per-channel: if the
-// current thread is inside ANY callback dispatch, that thread can't make
-// progress on I/O regardless of which channel triggered the callback -
-// including a second channel sharing the same io_context/thread.
+// D-2: a blocking send must not wait for capacity while the calling thread
+// executes any user callback, including callbacks from another channel.
+// The common invocation below marks callback scope; capacity available sends
+// still follow their ordinary acceptance rules. Existing receive-path guards
+// remain compatible because this counter supports nested scopes.
 namespace wirestead {
 namespace wrapper {
 namespace detail {
@@ -61,6 +56,7 @@ class CallbackGuard {
   CallbackGuard& operator=(const CallbackGuard&) = delete;
 };
 
+// Historical internal name; covers every user-callback kind (D-2).
 inline bool in_data_callback() { return g_callback_depth > 0; }
 
 // Admission gate for one wrapper object's user callbacks (D-1 in
@@ -177,19 +173,15 @@ class CallbackGate {
   std::vector<std::thread::id> threads_;
 };
 
-// Invokes a user-supplied wrapper callback (on_data/on_message/on_connect/
-// on_disconnect/on_error/on_backpressure and their batch variants) and
-// prevents an exception escaping it from propagating further. All channels
-// share one process-wide IoContextManager thread by default
-// (concurrency/io_context_manager.cc); an uncaught exception here would
-// otherwise escape the un-guarded handler call, propagate out of
-// io_context::run(), and stop I/O for every channel sharing that context -
-// not just the one whose callback misbehaved.
+// Invokes every wrapper callback under the D-2 nonwaiting-send guard and
+// contains user exceptions so they cannot escape io_context::run(). The guard
+// is restored before exception logging, including for nested callbacks.
 template <typename Callback, typename... Args>
 void invoke_user_callback(std::string_view component, std::string_view operation, const Callback& callback,
                           Args&&... args) {
   if (!callback) return;
   try {
+    CallbackGuard guard;
     callback(std::forward<Args>(args)...);
   } catch (const std::exception& e) {
     WIRESTEAD_LOG_ERROR(component, operation, "Uncaught exception in user callback: " + std::string(e.what()));

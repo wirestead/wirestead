@@ -680,6 +680,20 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self, uint64_t genera
           if (bytes_handler) (*bytes_handler)(data);
         });
 
+        // Forward each session's pressure transitions through the current
+        // server handler, just like data. The snapshot permits replacement
+        // after connect and invokes user code outside sessions_mutex_.
+        session->on_backpressure([weak_self, generation](size_t queued) {
+          auto s = weak_self.lock();
+          if (!s || s->impl_->stopping_ || generation != s->impl_->generation_) return;
+          interface::SharedCallback<OnBackpressure> handler;
+          {
+            std::lock_guard<std::mutex> lock(s->impl_->sessions_mutex_);
+            handler = s->impl_->on_bp_;
+          }
+          if (handler) (*handler)(queued);
+        });
+
         session->on_close([weak_self, client_id, generation]() {
           auto s = weak_self.lock();
           if (!s) return;

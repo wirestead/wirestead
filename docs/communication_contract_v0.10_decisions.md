@@ -2,11 +2,10 @@
 
 Decision proposals for the common differences in
 [the audit](communication_contract_v0.10_audit.md) section 9.1.
-**Implementation status:** TCP D-1 landed in PR #652, UDS in PR #654,
-and UDP in PR #655. This follow-up applies the same executor criterion and
-caller preconditions to serial, the remaining D-1 target. D-2/D-3 remain
-separate work; approving a decision does not make it implemented across all
-targets.
+**Implementation status:** D-1 landed for TCP in PR #652, UDS in PR #654,
+UDP in PR #655 and serial in PR #656. This follow-up implements D-2 through
+the common wrapper callback invocation. D-3 remains separate work; approving
+a decision does not make it implemented across all targets.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.
@@ -187,13 +186,13 @@ Reliable strategy, `send_blocking()`/`send_line_blocking()`, `send_move()` and
   does not.
 - The data and message callbacks already behave this way, so the common case is
   unchanged.
-- Implementation scope is not settled by this decision. The existing guard is
-  set at each dispatch site, which is why four callback kinds are uncovered.
-  Moving it into the shared user-callback invocation is the obvious candidate,
-  but the scope needs checking first: whether every callback path really goes
-  through that invocation, whether the depth counter is restored when a
-  callback leaves through an exception, and how nested callbacks on one thread
-  behave.
+- Implementation: every listed callback path in the seven wrappers reaches
+  detail::invoke_user_callback, including timer batch flushes. That common
+  invocation now holds a depth-counted guard during the user call and restores
+  it before exception logging. Existing receive-path scopes remain in place
+  to preserve their prior extent; nesting does not clear an outer guard.
+  D-1 callback admission and target-executor shutdown detection are unchanged.
+  See [D-2 validation](callback_d2_validation.md) for evidence and limits.
 
 ### Verification
 

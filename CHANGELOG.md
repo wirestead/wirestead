@@ -10,6 +10,13 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking behavior:** Blocking-capable sends never wait for capacity inside
+  any wrapper user callback, including connect, disconnect, error,
+  backpressure and timer-delivered batches. They return false under pressure;
+  with capacity available, normal acceptance still applies, including sends
+  to another channel. Outside-callback waiting and try-send behavior are
+  unchanged.
+
 - **Breaking behavior:** TCP client and server outside `stop()` callers,
   including concurrent callers, wait for transport cleanup and for running
   callbacks to finish. Server completion includes each live session's cleanup.
@@ -21,7 +28,7 @@ and ABI policy.
   The stopping thread does not poll a shared executor or use a timeout as
   evidence that cleanup is safe.
 - D-1 also applies to UDS, UDP client/server and serial in the follow-ups
-  below. Blocking-send policy (D-2) and structured send results (D-3) remain
+  below. D-2 follows in this release; structured send results (D-3) remain
   separate work.
 - **Breaking behavior:** UDP client/server outside `stop()` callers now wait for
   every admitted callback and transport cleanup, including cancelled I/O.
@@ -42,6 +49,10 @@ and ABI policy.
   retain their identity and regain handlers on restart.
 
 ### Fixed
+
+- UDS server session backpressure transitions now reach the registered server
+  callback. Handler snapshots allow replacement after connection and callbacks
+  run outside the session-map mutex.
 
 - UDP restart refuses old callback and timer generations, including batch
   delivery and server peer expiry. Injected transports retain their identity
