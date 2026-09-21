@@ -506,3 +506,14 @@ ID. Regression coverage checks all four client wrappers and all three server
 wrappers. This does not establish connection-instance fencing or the full
 synchronized acceptance decision. See
 [readiness validation](send_readiness_before_wait.md).
+
+## Post-audit update: whole-queue hard limits before waiting
+
+For the built-in transports, the remaining whole-queue hard-limit portion of
+C-3.1-1b now bypasses capacity waiting. All seven wrappers use limits reported
+by the transport/session rather than reconstructing them from wrapper
+configuration. Existing transport rejection and accounting remain in place.
+Custom channels without metadata retain the previous behavior. Lower
+path-specific thresholds, structured reasons and connection fencing are not
+covered by this update. See
+[queue-limit validation](send_queue_limit_before_wait.md).

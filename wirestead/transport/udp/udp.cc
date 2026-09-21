@@ -872,6 +872,7 @@ void UdpChannel::stop() {
 
 bool UdpChannel::is_connected() const { return get_impl()->connected_.load(); }
 bool UdpChannel::is_backpressure_active() const { return get_impl()->backpressure_active_.load(); }
+std::optional<size_t> UdpChannel::write_queue_limit() const { return get_impl()->bp_limit_; }
 wrapper::RuntimeStats UdpChannel::stats() const {
   auto impl = get_impl();
   return impl->stats_.snapshot(impl->queue_bytes_.load(std::memory_order_relaxed),

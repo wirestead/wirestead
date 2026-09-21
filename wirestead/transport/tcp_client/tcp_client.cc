@@ -411,6 +411,7 @@ void TcpClient::stop() {
 
 bool TcpClient::is_connected() const { return get_impl()->connected_.load(); }
 bool TcpClient::is_backpressure_active() const { return get_impl()->backpressure_active_.load(); }
+std::optional<size_t> TcpClient::write_queue_limit() const { return impl_->bp_limit_; }
 wrapper::RuntimeStats TcpClient::stats() const {
   return impl_->stats_.snapshot(impl_->queue_bytes_.load(std::memory_order_relaxed),
                                 impl_->pending_bytes_.load(std::memory_order_relaxed),

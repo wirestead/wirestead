@@ -10,6 +10,10 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking ABI:** Channel gains a default virtual write_queue_limit() query, and
+  concrete transports report their admission limit. Custom Channel subclasses
+  remain source-compatible, but libraries and consumers must be rebuilt.
+
 - **Breaking behavior:** Blocking-capable sends never wait for capacity inside
   any wrapper user callback, including connect, disconnect, error,
   backpressure and timer-delivered batches. They return false under pressure;
@@ -49,6 +53,10 @@ and ABI policy.
   retain their identity and regain handlers on restart.
 
 ### Fixed
+
+- Blocking-capable sends on all seven wrappers bypass capacity waits when a
+  payload exceeds the transport's reported whole-queue hard limit. Existing
+  transport rejection and accounting are retained.
 
 - TCP blocking sends now check connection readiness before waiting and before
   submitting a copied payload. A disconnected channel with stale pressure no

@@ -66,6 +66,9 @@ class WIRESTEAD_API UdsServer : public interface::Channel, public std::enable_sh
   bool is_connected() const override;
   bool is_backpressure_active() const override;
   bool is_backpressure_active(ClientId client_id) const;
+  // Per-session hard queue limit; nullopt if the client ID is absent.
+  std::optional<size_t> write_queue_limit(ClientId client_id) const;
+  using interface::Channel::write_queue_limit;
   boost::asio::any_io_executor get_executor() override;
   bool async_write_copy(memory::ConstByteSpan data) override;
   bool async_write_move(std::vector<uint8_t>&& data) override;

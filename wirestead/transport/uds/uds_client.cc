@@ -354,6 +354,7 @@ void UdsClient::stop() {
 
 bool UdsClient::is_connected() const { return impl_->connected_.load(); }
 bool UdsClient::is_backpressure_active() const { return impl_->backpressure_active_.load(); }
+std::optional<size_t> UdsClient::write_queue_limit() const { return impl_->bp_limit_; }
 wrapper::RuntimeStats UdsClient::stats() const {
   return impl_->stats_.snapshot(impl_->queue_bytes_.load(std::memory_order_relaxed),
                                 impl_->pending_bytes_.load(std::memory_order_relaxed),

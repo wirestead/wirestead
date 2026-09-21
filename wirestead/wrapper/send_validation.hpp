@@ -16,11 +16,14 @@
 
 #pragma once
 #include <cstddef>
+#include <optional>
 
 #include "wirestead/base/constants.hpp"
 namespace wirestead::wrapper::detail {
 // Invalid payload sizes must reach transport validation immediately rather
 // than waiting for queue capacity. The transport still owns rejection,
 // error callbacks and failure accounting. A line's size includes its newline.
-inline bool payload_needs_capacity(std::size_t size) { return size != 0 && size <= base::constants::MAX_BUFFER_SIZE; }
+inline bool payload_needs_capacity(std::size_t size, std::optional<size_t> queue_limit = std::nullopt) {
+  return size != 0 && size <= base::constants::MAX_BUFFER_SIZE && (!queue_limit || size <= *queue_limit);
+}
 }  // namespace wirestead::wrapper::detail

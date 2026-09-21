@@ -42,6 +42,11 @@ class WIRESTEAD_API Channel {
   virtual void stop() = 0;
   virtual bool is_connected() const = 0;
   virtual bool is_backpressure_active() const = 0;
+
+  // Hard byte limit of the entire write queue, not its currently free space.
+  // nullopt means unavailable (including custom channels that do not report it).
+  // A reported limit must match write admission; it is not an acceptance promise.
+  virtual std::optional<size_t> write_queue_limit() const { return std::nullopt; }
   virtual wrapper::RuntimeStats stats() const { return {}; }
   virtual void reset_stats() {}
 
