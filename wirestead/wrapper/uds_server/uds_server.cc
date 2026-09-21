@@ -18,6 +18,7 @@
 #include "wirestead/transport/uds/uds_server.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
+#include "wirestead/wrapper/send_validation.hpp"
 
 namespace wirestead {
 namespace wrapper {
@@ -208,8 +209,10 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
         auto ts = std::dynamic_pointer_cast<transport::UdsServer>(server_);
         return !started_.load() || !ts || !ts->is_backpressure_active(client_id);
       };
-      if (!predicate() && detail::in_data_callback()) return false;
-      while (!bp_cv_.wait_for(lock, std::chrono::milliseconds(50), predicate)) {
+      if (detail::payload_needs_capacity(data.size())) {
+        if (!predicate() && detail::in_data_callback()) return false;
+        while (!bp_cv_.wait_for(lock, std::chrono::milliseconds(50), predicate)) {
+        }
       }
       lock.unlock();
       std::shared_lock<std::shared_mutex> rlock(mutex_);

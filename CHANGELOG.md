@@ -50,6 +50,12 @@ and ABI policy.
 
 ### Fixed
 
+- Reliable and explicit blocking sends no longer wait for queue capacity
+  before rejecting an empty payload or a payload above MAX_BUFFER_SIZE.
+  This applies to all seven wrappers, including newline-appending calls.
+  Transport rejection, error callbacks and failure accounting remain in
+  place; valid payloads retain their existing waiting behavior.
+
 - UDS server session backpressure transitions now reach the registered server
   callback. Handler snapshots allow replacement after connection and callbacks
   run outside the session-map mutex.

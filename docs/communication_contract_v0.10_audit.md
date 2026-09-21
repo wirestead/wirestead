@@ -486,3 +486,14 @@ gather-write storage stays valid until its operation releases it.
 [Serial validation](serial_d1_validation.md) records PTY and injected-port
 tests, a source-verified before/after comparison, and local validation.
 D-2/D-3 and actual serial-hardware validation remain separate.
+
+## Post-audit update: payload validation before waiting
+
+C-3.1-1b now bypasses capacity waiting for empty raw payloads and payloads above
+MAX_BUFFER_SIZE on all seven wrappers. The existing transport path still
+performs the rejection and its accounting. An appended newline counts toward
+the maximum and an empty line remains valid. The original observations above
+describe the audited baseline; this update covers the payload-shape and
+per-message-size subset only. Whole-queue-limit validation, state ordering and
+D-3 result reasons remain outstanding. See
+[validation evidence](send_validation_before_wait.md).

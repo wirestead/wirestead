@@ -38,6 +38,7 @@
 #include "wirestead/transport/serial/serial.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
+#include "wirestead/wrapper/send_validation.hpp"
 
 namespace wirestead {
 namespace wrapper {
@@ -340,7 +341,8 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
   // from inside an on_data/on_message callback. Clearing backpressure
   // requires that same io thread to make progress, so blocking here would
   // deadlock forever rather than eventually clear (#449).
-  bool wait_for_backpressure_clear(std::unique_lock<std::mutex>& bp_lock) {
+  bool wait_for_backpressure_clear(std::unique_lock<std::mutex>& bp_lock, size_t payload_size) {
+    if (!detail::payload_needs_capacity(payload_size)) return true;
     auto predicate = [this] {
       std::shared_lock<std::shared_mutex> lock(mutex_);
       return !started_.load() || !channel || !channel->is_connected() || !channel->is_backpressure_active();
@@ -363,7 +365,7 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
     if (backpressure_strategy == base::constants::BackpressureStrategy::Reliable) {
       for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
         std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-        if (!wait_for_backpressure_clear(bp_lock)) return false;
+        if (!wait_for_backpressure_clear(bp_lock, data.size())) return false;
         bp_lock.unlock();
         std::shared_lock<std::shared_mutex> lock(mutex_);
         if (!started_.load() || !channel || !channel->is_connected()) return false;
@@ -379,7 +381,7 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
     if (backpressure_strategy == base::constants::BackpressureStrategy::Reliable) {
       for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
         std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-        if (!wait_for_backpressure_clear(bp_lock)) return false;
+        if (!wait_for_backpressure_clear(bp_lock, data->size())) return false;
         bp_lock.unlock();
         std::shared_lock<std::shared_mutex> lock(mutex_);
         if (!started_.load() || !channel || !channel->is_connected()) return false;
@@ -402,7 +404,7 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
     memory::ConstByteSpan span(binary_view.first, binary_view.second);
     for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
       std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      if (!wait_for_backpressure_clear(bp_lock)) return false;
+      if (!wait_for_backpressure_clear(bp_lock, data.size())) return false;
       bp_lock.unlock();
       std::shared_lock<std::shared_mutex> lock(mutex_);
       if (!started_.load() || !channel || !channel->is_connected()) return false;
