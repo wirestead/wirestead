@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
 #include "wirestead/base/common.hpp"
 #include "wirestead/config/udp_config.hpp"
 #include "wirestead/memory/safe_span.hpp"
@@ -71,7 +72,7 @@ TEST(TransportUdpErrorTest, SendOversizedPacket) {
   ASSERT_TRUE(channel->last_error_info().has_value());
   EXPECT_EQ(channel->last_error_info()->component, "udp");
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST(TransportUdpErrorTest, BackpressureClearsAfterWriteErrorWithQueuedWrites) {
@@ -117,7 +118,7 @@ TEST(TransportUdpErrorTest, BackpressureClearsAfterWriteErrorWithQueuedWrites) {
       << "Backpressure must clear once the channel errors out, otherwise a Reliable-mode "
          "sender blocked waiting on it deadlocks forever (see wirestead#427)";
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST(TransportUdpErrorTest, BackpressureClearsAfterWriteErrorWithPendingOverflow) {
@@ -168,5 +169,5 @@ TEST(TransportUdpErrorTest, BackpressureClearsAfterWriteErrorWithPendingOverflow
       << "Backpressure must clear once the channel errors out even when many Reliable-mode "
          "writes had overflowed into the pending_ queue (see wirestead#427)";
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }

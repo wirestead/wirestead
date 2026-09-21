@@ -21,6 +21,7 @@
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <boost/asio/strand.hpp>
 #include <iostream>
 #include <mutex>
 #include <shared_mutex>
@@ -73,6 +74,32 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   mutable std::shared_mutex mutex;
   std::mutex bp_mutex_;
   std::condition_variable bp_cv_;
+  // D-1: admission gate for this object's user callbacks. Admission, the
+  // running count and the closed flag are one decision, so a stop() cannot
+  // observe an empty gate while a callback is about to start, and a callback
+  // left over from a previous run is refused after a restart.
+  detail::CallbackGate callback_gate_;
+  std::mutex stop_finalize_mutex_;
+  std::atomic<uint64_t> callback_generation_{0};
+
+  // True when this thread is one the target's shutdown needs: a callback of
+  // this object, or any thread currently running the external io_context this
+  // channel was built on (which a callback of another channel sharing it is).
+  // Such a caller requests the shutdown and returns; it cannot wait for work
+  // its own thread has to perform.
+  bool shutdown_needs_this_thread() const {
+    if (callback_gate_.active_on_this_thread()) return true;
+    if (external_ioc && external_ioc->get_executor().running_in_this_thread()) return true;
+    std::shared_lock<std::shared_mutex> lock(mutex);
+    if (!channel) return false;
+    const auto executor = channel->get_executor();
+    using IoExecutor = boost::asio::io_context::executor_type;
+    if (auto* io = executor.target<IoExecutor>()) return io->running_in_this_thread();
+    if (auto* strand = executor.target<boost::asio::strand<IoExecutor>>())
+      return strand->get_inner_executor().running_in_this_thread();
+    return false;
+  }
+
   std::vector<std::promise<bool>> pending_promises;
   std::atomic<bool> started{false};
   std::atomic<bool> is_listening{false};
@@ -105,6 +132,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   interface::SharedCallback<MessageHandler> on_message;
   interface::SharedCallback<BatchMessageHandler> on_message_batch_;
 
+  bool factory_managed_channel_ = true;
   std::shared_ptr<bool> is_alive{std::make_shared<bool>(true)};
 
   // Batching logic
@@ -118,7 +146,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   Impl(const config::UdpConfig& config, std::shared_ptr<boost::asio::io_context> ioc)
       : cfg(config), external_ioc(std::move(ioc)), use_external_context(external_ioc != nullptr) {}
   explicit Impl(std::shared_ptr<interface::Channel> ch)
-      : channel(std::dynamic_pointer_cast<transport::UdpChannel>(ch)) {
+      : channel(std::dynamic_pointer_cast<transport::UdpChannel>(ch)), factory_managed_channel_(false) {
     // #450: setup_internal_handlers() captures weak_from_this() - calling it
     // from inside this constructor would capture an empty weak_ptr, since
     // enable_shared_from_this isn't wired up until make_shared() finishes
@@ -127,7 +155,6 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   ~Impl() {
-    *is_alive = false;
     try {
       stop();
     } catch (...) {
@@ -144,7 +171,9 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
     pending_promises.clear();
   }
 
-  void flush_batches() {
+  void flush_batches(uint64_t generation) {
+    auto lease = callback_gate_.enter(generation);
+    if (!lease.admitted()) return;
     std::unique_lock<std::shared_mutex> lock(mutex);
     if (!data_batch_queue_.empty()) {
       auto handler = on_data_batch_;
@@ -171,10 +200,10 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
     }
   }
 
-  void schedule_batch_timer() {
+  void schedule_batch_timer(uint64_t generation) {
     if (!batch_timer_) return;
     batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait([this, weak_impl = weak_from_this(),
+    batch_timer_->async_wait([this, generation, weak_impl = weak_from_this(),
                               alive = std::weak_ptr<bool>(is_alive)](const boost::system::error_code& ec) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
@@ -182,12 +211,12 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
       if (!lock || !(*lock)) return;
 
       if (!ec) {
-        flush_batches();
+        flush_batches(generation);
       }
     });
   }
 
-  void schedule_reaper() {
+  void schedule_reaper(uint64_t generation) {
     if (!started.load() || !reaper_timer || session_timeout.count() <= 0) return;
 
     // Run reaper at interval proportional to timeout (min 100ms, max 5s)
@@ -195,7 +224,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         std::max(std::chrono::milliseconds(100), std::min(std::chrono::milliseconds(5000), session_timeout / 2));
 
     reaper_timer->expires_after(interval);
-    reaper_timer->async_wait([this, weak_impl = weak_from_this(),
+    reaper_timer->async_wait([this, generation, weak_impl = weak_from_this(),
                               alive = std::weak_ptr<bool>(is_alive)](const boost::system::error_code& ec) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
@@ -203,21 +232,23 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
       if (!lock || !(*lock)) return;
 
       if (!ec) {
+        auto lease = callback_gate_.enter(generation);
+        if (!lease.admitted()) return;
         run_reaper();
-        schedule_reaper();
+        std::unique_lock<std::shared_mutex> guard(mutex);
+        schedule_reaper(generation);
       }
     });
   }
 
   void run_reaper() {
-    if (session_timeout.count() <= 0) return;
-
     std::vector<std::pair<ClientId, std::string>> to_remove_with_info;
     auto now = std::chrono::steady_clock::now();
 
     ConnectionHandler disconnect_handler;
     {
       std::unique_lock<std::shared_mutex> lock(mutex);
+      if (session_timeout.count() <= 0) return;
       for (auto it = sessions.begin(); it != sessions.end();) {
         if (now - it->second.last_seen > session_timeout) {
           std::string info =
@@ -244,145 +275,151 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
     batch_timer_ = std::make_unique<boost::asio::steady_timer>(channel->get_executor());
 
     std::weak_ptr<Impl> weak_impl = weak_from_this();
+    const auto generation = callback_gate_.open_new_generation();
+    callback_generation_.store(generation);
 
-    channel->on_bytes_from([this, weak_impl](memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& ep) {
-      // #450: keep Impl alive for the duration of this callback - on an
-      // externally-owned io_context, stop() doesn't join/wait for in-flight
-      // handlers, so a bare `this` could otherwise dangle.
-      auto impl_keepalive = weak_impl.lock();
-      if (!impl_keepalive) return;
+    channel->on_bytes_from(
+        [this, generation, weak_impl](memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& ep) {
+          // Retain Impl even when an old handler is delayed before admission.
+          // A completed stop may leave such a refused handler to return later.
+          auto impl_keepalive = weak_impl.lock();
+          if (!impl_keepalive) return;
+          auto lease = callback_gate_.enter(generation);
+          if (!lease.admitted()) return;
 
-      // #449: everything below runs synchronously on this io thread - mark
-      // it so a blocking send_to() called from within one of these
-      // callbacks fails fast instead of deadlocking.
-      detail::CallbackGuard callback_guard;
+          // #449: everything below runs synchronously on this io thread - mark
+          // it so a blocking send_to() called from within one of these
+          // callbacks fails fast instead of deadlocking.
+          detail::CallbackGuard callback_guard;
 
-      ClientId client_id = 0;
-      bool is_new = false;
-      ConnectionHandler connect_handler_copy{nullptr};
+          ClientId client_id = 0;
+          bool is_new = false;
+          ConnectionHandler connect_handler_copy{nullptr};
 
-      {
-        std::unique_lock<std::shared_mutex> lock(mutex);
-        auto it = endpoint_to_id.find(ep);
-        if (it == endpoint_to_id.end()) {
-          if (client_limit_enabled.load() && sessions.size() >= max_clients_limit.load()) {
-            return;
-          }
-          client_id = next_client_id++;
-          endpoint_to_id[ep] = client_id;
-          SessionEntry entry;
-          entry.endpoint = ep;
-          entry.last_seen = std::chrono::steady_clock::now();
-          is_new = true;
-
-          // Create framer for new session
-          if (framer_factory) {
-            auto framer = framer_factory();
-            if (framer) {
-              framer->on_message([this, client_id](memory::ConstByteSpan msg) {
-                // #441: snapshot under a shared_lock (pure read), build the
-                // copy before taking the exclusive lock for queue mutation.
-                bool batch_mode;
-                interface::SharedCallback<MessageHandler> on_message_handler;
-                {
-                  std::shared_lock<std::shared_mutex> lock(mutex);
-                  batch_mode = static_cast<bool>(on_message_batch_);
-                  on_message_handler = on_message;
-                }
-
-                if (batch_mode) {
-                  MessageContext ctx(client_id, memory::SafeDataBuffer(msg));
-                  interface::SharedCallback<BatchMessageHandler> flush_handler;
-                  std::vector<MessageContext> batch;
-                  {
-                    std::unique_lock<std::shared_mutex> lock(mutex);
-                    message_batch_queue_.emplace_back(std::move(ctx));
-                    if (message_batch_queue_.size() >= max_batch_size_) {
-                      flush_handler = on_message_batch_;
-                      batch = std::move(message_batch_queue_);
-                      message_batch_queue_.clear();
-                    } else if (message_batch_queue_.size() == 1) {
-                      schedule_batch_timer();
-                    }
-                  }
-                  detail::invoke_user_callback("udp_server", "on_message_batch", flush_handler, batch);
-                  return;
-                }
-
-                detail::invoke_user_callback("udp_server", "on_message", on_message_handler,
-                                             MessageContext(client_id, msg));
-              });
-              entry.framer = std::move(framer);
-            }
-          }
-          sessions[client_id] = std::move(entry);
-        } else {
-          client_id = it->second;
-          sessions[client_id].last_seen = std::chrono::steady_clock::now();
-        }
-        connect_handler_copy = on_connect;
-      }
-
-      if (is_new) {
-        detail::invoke_user_callback(
-            "udp_server", "on_connect", connect_handler_copy,
-            ConnectionContext(client_id, fmt::format("{}:{}", ep.address().to_string(), ep.port())));
-      }
-
-      {
-        // #441: snapshot the handler under a shared_lock (not unique_lock) -
-        // this is a pure read, matching try_send's locking level so it no
-        // longer blocks concurrent sends even briefly.
-        bool batch_mode;
-        interface::SharedCallback<MessageHandler> data_handler_copy;
-        {
-          std::shared_lock<std::shared_mutex> lock(mutex);
-          batch_mode = static_cast<bool>(on_data_batch_);
-          data_handler_copy = on_data;
-        }
-
-        if (batch_mode) {
-          // #441: build the copy before taking the exclusive lock, so the
-          // lock is only held for the queue mutation itself, not the
-          // allocation.
-          MessageContext ctx(client_id, memory::SafeDataBuffer(data));
-          interface::SharedCallback<BatchMessageHandler> flush_handler;
-          std::vector<MessageContext> batch;
           {
             std::unique_lock<std::shared_mutex> lock(mutex);
-            data_batch_queue_.emplace_back(std::move(ctx));
-            if (data_batch_queue_.size() >= max_batch_size_) {
-              flush_handler = on_data_batch_;
-              batch = std::move(data_batch_queue_);
-              data_batch_queue_.clear();
-            } else if (data_batch_queue_.size() == 1) {
-              schedule_batch_timer();
+            auto it = endpoint_to_id.find(ep);
+            if (it == endpoint_to_id.end()) {
+              if (client_limit_enabled.load() && sessions.size() >= max_clients_limit.load()) {
+                return;
+              }
+              client_id = next_client_id++;
+              endpoint_to_id[ep] = client_id;
+              SessionEntry entry;
+              entry.endpoint = ep;
+              entry.last_seen = std::chrono::steady_clock::now();
+              is_new = true;
+
+              // Create framer for new session
+              if (framer_factory) {
+                auto framer = framer_factory();
+                if (framer) {
+                  framer->on_message([this, client_id, generation](memory::ConstByteSpan msg) {
+                    // #441: snapshot under a shared_lock (pure read), build the
+                    // copy before taking the exclusive lock for queue mutation.
+                    bool batch_mode;
+                    interface::SharedCallback<MessageHandler> on_message_handler;
+                    {
+                      std::shared_lock<std::shared_mutex> lock(mutex);
+                      batch_mode = static_cast<bool>(on_message_batch_);
+                      on_message_handler = on_message;
+                    }
+
+                    if (batch_mode) {
+                      MessageContext ctx(client_id, memory::SafeDataBuffer(msg));
+                      interface::SharedCallback<BatchMessageHandler> flush_handler;
+                      std::vector<MessageContext> batch;
+                      {
+                        std::unique_lock<std::shared_mutex> lock(mutex);
+                        message_batch_queue_.emplace_back(std::move(ctx));
+                        if (message_batch_queue_.size() >= max_batch_size_) {
+                          flush_handler = on_message_batch_;
+                          batch = std::move(message_batch_queue_);
+                          message_batch_queue_.clear();
+                        } else if (message_batch_queue_.size() == 1) {
+                          schedule_batch_timer(generation);
+                        }
+                      }
+                      detail::invoke_user_callback("udp_server", "on_message_batch", flush_handler, batch);
+                      return;
+                    }
+
+                    detail::invoke_user_callback("udp_server", "on_message", on_message_handler,
+                                                 MessageContext(client_id, msg));
+                  });
+                  entry.framer = std::move(framer);
+                }
+              }
+              sessions[client_id] = std::move(entry);
+            } else {
+              client_id = it->second;
+              sessions[client_id].last_seen = std::chrono::steady_clock::now();
+            }
+            connect_handler_copy = on_connect;
+          }
+
+          if (is_new) {
+            detail::invoke_user_callback(
+                "udp_server", "on_connect", connect_handler_copy,
+                ConnectionContext(client_id, fmt::format("{}:{}", ep.address().to_string(), ep.port())));
+          }
+
+          {
+            // #441: snapshot the handler under a shared_lock (not unique_lock) -
+            // this is a pure read, matching try_send's locking level so it no
+            // longer blocks concurrent sends even briefly.
+            bool batch_mode;
+            interface::SharedCallback<MessageHandler> data_handler_copy;
+            {
+              std::shared_lock<std::shared_mutex> lock(mutex);
+              batch_mode = static_cast<bool>(on_data_batch_);
+              data_handler_copy = on_data;
+            }
+
+            if (batch_mode) {
+              // #441: build the copy before taking the exclusive lock, so the
+              // lock is only held for the queue mutation itself, not the
+              // allocation.
+              MessageContext ctx(client_id, memory::SafeDataBuffer(data));
+              interface::SharedCallback<BatchMessageHandler> flush_handler;
+              std::vector<MessageContext> batch;
+              {
+                std::unique_lock<std::shared_mutex> lock(mutex);
+                data_batch_queue_.emplace_back(std::move(ctx));
+                if (data_batch_queue_.size() >= max_batch_size_) {
+                  flush_handler = on_data_batch_;
+                  batch = std::move(data_batch_queue_);
+                  data_batch_queue_.clear();
+                } else if (data_batch_queue_.size() == 1) {
+                  schedule_batch_timer(generation);
+                }
+              }
+              detail::invoke_user_callback("udp_server", "on_data_batch", flush_handler, batch);
+            } else {
+              detail::invoke_user_callback("udp_server", "on_data", data_handler_copy, MessageContext(client_id, data));
             }
           }
-          detail::invoke_user_callback("udp_server", "on_data_batch", flush_handler, batch);
-        } else {
-          detail::invoke_user_callback("udp_server", "on_data", data_handler_copy, MessageContext(client_id, data));
-        }
-      }
 
-      // Push to framer
-      std::shared_ptr<framer::IFramer> target_framer;
-      {
-        std::shared_lock<std::shared_mutex> lock(mutex);
-        auto it = sessions.find(client_id);
-        if (it != sessions.end()) {
-          target_framer = it->second.framer;
-        }
-      }
-      if (target_framer) {
-        target_framer->push_bytes(data);
-      }
-    });
+          // Push to framer
+          std::shared_ptr<framer::IFramer> target_framer;
+          {
+            std::shared_lock<std::shared_mutex> lock(mutex);
+            auto it = sessions.find(client_id);
+            if (it != sessions.end()) {
+              target_framer = it->second.framer;
+            }
+          }
+          if (target_framer) {
+            target_framer->push_bytes(data);
+          }
+        });
 
-    channel->on_backpressure([this, weak_impl](size_t queued) {
-      bp_cv_.notify_all();
+    channel->on_backpressure([this, generation, weak_impl](size_t queued) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
+      bp_cv_.notify_all();
       std::function<void(size_t)> handler;
       {
         std::shared_lock<std::shared_mutex> lock(mutex);
@@ -391,9 +428,11 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
       detail::invoke_user_callback("udp_server", "on_backpressure", handler, queued);
     });
 
-    channel->on_state([this, weak_impl](base::LinkState state) {
+    channel->on_state([this, generation, weak_impl](base::LinkState state) {
       auto impl_keepalive = weak_impl.lock();
       if (!impl_keepalive) return;
+      auto lease = callback_gate_.enter(generation);
+      if (!lease.admitted()) return;
       ErrorHandler error_handler_copy{nullptr};
       if (state == base::LinkState::Listening || state == base::LinkState::Connected) {
         is_listening.store(true);
@@ -431,15 +470,18 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
       return fut;
     }
 
+    if (!is_alive) is_alive = std::make_shared<bool>(true);
     if (!channel) {
       channel = std::dynamic_pointer_cast<transport::UdpChannel>(factory::ChannelFactory::create(cfg, external_ioc));
-      setup_internal_handlers();
     }
+    setup_internal_handlers();
 
+    auto channel_copy = channel;
     lock.unlock();
-    channel->start();
+    channel_copy->start();
 
     lock.lock();
+    if (!started.load()) return fut;
     if (use_external_context.load() && manage_external_context.load() && !external_thread.joinable()) {
       if (external_ioc->stopped()) external_ioc->restart();
       work_guard = std::make_unique<boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>(
@@ -456,74 +498,57 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
 
     if (channel && session_timeout.count() > 0) {
       reaper_timer = std::make_unique<boost::asio::steady_timer>(channel->get_executor());
-      schedule_reaper();
+      schedule_reaper(callback_generation_.load());
     }
 
     return fut;
   }
 
   void stop() {
-    bool should_join = false;
+    const bool request_only = shutdown_needs_this_thread();
+    callback_gate_.close();
+    std::shared_ptr<transport::UdpChannel> channel_copy;
     {
       std::unique_lock<std::shared_mutex> lock(mutex);
-      if (!started.exchange(false)) {
-        is_listening.store(false);
-        fulfill_all_locked(false);
-        return;
-      }
+      started.store(false);
+      is_listening.store(false);
       bp_cv_.notify_all();
+      fulfill_all_locked(false);
+      channel_copy = channel;
+    }
+    if (channel_copy) channel_copy->stop();
+    if (request_only) return;
 
-      if (reaper_timer) {
-        reaper_timer->cancel();
-        reaper_timer.reset();
-      }
-
+    callback_gate_.wait_until_idle();
+    std::lock_guard<std::mutex> finalize_lock(stop_finalize_mutex_);
+    {
+      std::unique_lock<std::shared_mutex> lock(mutex);
+      is_alive.reset();
       if (batch_timer_) {
         batch_timer_->cancel();
         batch_timer_.reset();
       }
-
+      if (reaper_timer) {
+        reaper_timer->cancel();
+        reaper_timer.reset();
+      }
       if (channel) {
-        lock.unlock();
-        channel->stop();
-        // Clear callbacks after stop() rather than before: the
-        // transport-level fix (#436) already synchronizes callback reads
-        // against these setters, but clearing after stop() means no
-        // in-flight handler can observe a null callback mid-shutdown in the
-        // first place - belt and braces once the underlying race is fixed
-        // at the source. Also now clears on_backpressure, which this path
-        // previously never did at all.
         channel->on_bytes_from(nullptr);
         channel->on_state(nullptr);
         channel->on_backpressure(nullptr);
-        lock.lock();
       }
-
-      if (use_external_context.load() && manage_external_context.load()) {
-        if (external_ioc) external_ioc->stop();
-        should_join = true;
-      }
-
-      is_listening.store(false);
+      if (factory_managed_channel_) channel.reset();
+      data_batch_queue_.clear();
+      message_batch_queue_.clear();
       endpoint_to_id.clear();
       sessions.clear();
       next_client_id = 1;
-      fulfill_all_locked(false);
     }
-
-    if (should_join && external_thread.joinable()) {
-      try {
-        if (std::this_thread::get_id() != external_thread.get_id()) {
-          external_thread.request_stop();
-          external_thread.join();
-        } else {
-          external_thread.detach();
-        }
-      } catch (...) {
-      }
+    if (use_external_context && manage_external_context) {
+      work_guard.reset();
+      if (external_ioc) external_ioc->stop();
+      if (external_thread.joinable()) external_thread.join();
     }
-    std::unique_lock<std::shared_mutex> lock(mutex);
-    channel.reset();
   }
 
   bool send_to(ClientId client_id, std::string_view data) {
@@ -732,7 +757,7 @@ UdpServer& UdpServer::idle_timeout(std::chrono::milliseconds timeout) {
   }
   if (impl_->started.load() && impl_->channel && !impl_->reaper_timer) {
     impl_->reaper_timer = std::make_unique<boost::asio::steady_timer>(impl_->channel->get_executor());
-    impl_->schedule_reaper();
+    impl_->schedule_reaper(impl_->callback_generation_.load());
   }
   return *this;
 }

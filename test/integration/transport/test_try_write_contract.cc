@@ -381,7 +381,7 @@ TEST(TryWriteTransportContractTest, UdpReliableTryWriteRejectsWithoutPending) {
 
   expect_reliable_try_write_rejects_without_pending(*channel);
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST(TryWriteTransportContractTest, UdsClientReliableTryWriteRejectsWithoutPending) {
@@ -434,7 +434,7 @@ TEST(TryWriteTransportContractTest, UdpBestEffortTryWriteCountsDrop) {
 
   expect_best_effort_try_write_counts_drop(*channel);
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST(TryWriteTransportContractTest, UdsClientBestEffortTryWriteCountsDrop) {
@@ -485,7 +485,7 @@ TEST(TryWriteTransportContractTest, UdpTryWriteTrueReturnRemainsAccepted) {
 
   expect_try_write_true_return_remains_accepted(*channel, ioc);
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST(TryWriteTransportContractTest, UdsClientTryWriteTrueReturnRemainsAccepted) {

@@ -21,6 +21,7 @@
 #include <chrono>
 #include <memory>
 
+#include "tcp_stop_with_context.hpp"
 #include "test_utils.hpp"
 #include "wirestead/builder/udp_builder.hpp"
 #include "wirestead/config/udp_config.hpp"
@@ -100,8 +101,8 @@ TEST_F(UdpOptionsTest, AutoManageStartsInjectedTransport) {
 
   EXPECT_TRUE(sender.connected());
 
-  sender.stop();
-  receiver.stop();
+  stop_wrapper_with_context(sender, sender_ioc);
+  stop_wrapper_with_context(receiver, receiver_ioc);
 }
 
 TEST_F(UdpOptionsTest, StartFutureReflectsBindFailure) {
