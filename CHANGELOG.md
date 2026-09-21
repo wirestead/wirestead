@@ -10,31 +10,18 @@ and ABI policy.
 
 ### Changed
 
-- **Breaking behavior:** `stop()` on the TCP client and TCP server now returns
-  only when the shutdown is complete, and a second concurrent `stop()` waits
-  for the first instead of returning early.
-
-  "Complete" here means no user callback of that object is still running and
-  none from that run will start - which a caller previously could not rely on
-  at all with an externally run `io_context`, where the library has no thread
-  to join. Called from inside one of the object's own callbacks, `stop()`
-  still requests the shutdown and returns immediately, since waiting there
-  would wait for itself.
-
-  Previously a `stop()` could return while a callback of that object was
-  still running: measured on the previous release, with a callback in
-  progress, the first `stop()` returned immediately and a second one 400 ms
-  later, and on an externally run `io_context` `stop()` returned immediately
-  in both cases.
-
-  Two things change for callers. A `stop()` on a channel whose shutdown needs
-  the calling thread - a callback of another channel sharing its executor -
-  now requests the shutdown instead of waiting for itself. And code that
-  released a slow callback *after* `stop()` returned has to release it from
-  another thread; the library's own lifecycle test was updated the same way.
-
-  This is D-1 of `docs/communication_contract_v0.10_decisions.md`, applied to
-  the TCP targets. UDS, UDP and serial follow in their own changes.
+- **Breaking behavior:** TCP client and server outside `stop()` callers,
+  including concurrent callers, wait for transport cleanup and for running
+  callbacks to finish. Server completion includes each live session's cleanup.
+  A call on the target executor requests shutdown and returns without waiting;
+  a call from an independent executor still waits. External executors must
+  keep running during that wait.
+- TCP restart opens a new callback generation atomically. Delayed callbacks,
+  accepts and retries from the previous run cannot enter the restarted run.
+  The stopping thread does not poll a shared executor or use a timeout as
+  evidence that cleanup is safe.
+- These changes apply D-1 to TCP only. UDS, UDP, serial, blocking-send policy
+  (D-2), and structured send results (D-3) remain separate work.
 
 ### Fixed
 

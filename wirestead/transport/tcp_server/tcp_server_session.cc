@@ -345,16 +345,18 @@ void TcpServerSession::reset_stats() {
   stats_.reset(queue_bytes_.load(std::memory_order_relaxed) + pending_bytes_.load(std::memory_order_relaxed));
 }
 
-void TcpServerSession::stop() {
-  if (closing_.exchange(true)) return;
+void TcpServerSession::stop() { async_stop({}); }
+
+void TcpServerSession::async_stop(std::function<void()> completion) {
+  closing_.store(true);
   auto self = shared_from_this();
-  net::post(strand_, [self] {
-    // Clear callbacks on the strand to block further user callbacks after stop.
+  net::post(strand_, [self, completion = std::move(completion)] {
     self->on_bytes_ = nullptr;
     self->on_bp_ = nullptr;
     self->on_close_ = nullptr;
     self->idle_timer_.cancel();
     self->do_close();
+    if (completion) completion();
   });
 }
 

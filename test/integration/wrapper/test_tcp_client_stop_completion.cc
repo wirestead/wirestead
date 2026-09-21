@@ -29,6 +29,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -46,17 +47,22 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
+struct StopTestCleanup {
+  std::function<void()> cleanup;
+  ~StopTestCleanup() { cleanup(); }
+};
+
 // Joins a thread however the test leaves the scope, so a failed assertion
-// does not terminate the process on a still-joinable std::thread.
+// does not terminate the process on a still-joinable std::jthread.
 class JoinOnExit {
  public:
-  explicit JoinOnExit(std::thread& thread) : thread_(thread) {}
+  explicit JoinOnExit(std::jthread& thread) : thread_(thread) {}
   ~JoinOnExit() {
     if (thread_.joinable()) thread_.join();
   }
 
  private:
-  std::thread& thread_;
+  std::jthread& thread_;
 };
 
 // One-shot event.
@@ -133,6 +139,11 @@ TEST_F(TcpClientStopCompletionTest, ConcurrentOutsideStopsBothWaitForACallbackTo
     callback_finished = true;
   });
 
+  StopTestCleanup cleanup{[&] {
+    release_callback.notify();
+    client->stop();
+  }};
+
   ASSERT_TRUE(client->start_sync());
   push("hello\n");
   ASSERT_TRUE(in_callback.wait()) << "the callback never ran";
@@ -140,7 +151,7 @@ TEST_F(TcpClientStopCompletionTest, ConcurrentOutsideStopsBothWaitForACallbackTo
   std::atomic<int> entered{0};
   std::atomic<int> returns{0};
   std::atomic<int> returns_before_callback_finished{0};
-  std::vector<std::thread> stoppers;
+  std::vector<std::jthread> stoppers;
   for (int i = 0; i < 2; ++i) {
     stoppers.emplace_back([&] {
       entered.fetch_add(1);
@@ -184,6 +195,11 @@ TEST_F(TcpClientStopCompletionTest, CallbackRequestsStopWhileOutsideCallersWaitF
     callback_finished = true;
   });
 
+  StopTestCleanup cleanup{[&] {
+    release_callback.notify();
+    client->stop();
+  }};
+
   ASSERT_TRUE(client->start_sync());
   push("hello\n");
   ASSERT_TRUE(in_callback.wait()) << "the callback never ran";
@@ -193,7 +209,7 @@ TEST_F(TcpClientStopCompletionTest, CallbackRequestsStopWhileOutsideCallersWaitF
   std::atomic<int> entered{0};
   std::atomic<int> returns{0};
   std::atomic<int> returns_before_callback_finished{0};
-  std::vector<std::thread> stoppers;
+  std::vector<std::jthread> stoppers;
   for (int i = 0; i < 2; ++i) {
     stoppers.emplace_back([&] {
       entered.fetch_add(1);
@@ -216,6 +232,9 @@ TEST_F(TcpClientStopCompletionTest, CallbackRequestsStopWhileOutsideCallersWaitF
   // Rule 4, after a shutdown that was requested from a callback: restart and
   // receive again.
   std::atomic<int> received{0};
+  StopTestCleanup restart_cleanup{[&] {
+    if (client) client->stop();
+  }};
   client->on_data([&](const wrapper::MessageContext&) { received.fetch_add(1); });
   ASSERT_TRUE(client->start_sync()) << "restart after a callback-initiated stop failed";
   push("again\n");
@@ -239,6 +258,8 @@ TEST_F(TcpClientStopCompletionTest, StopFromConnectCallbackReturnsAndDoesNotThro
     }
   });
 
+  StopTestCleanup cleanup{[&] { client->stop(); }};
+
   client->start();
   EXPECT_TRUE(TestUtils::waitForCondition([&] { return returned.load() || threw.load(); }, 5000));
   EXPECT_FALSE(threw.load());
@@ -256,7 +277,12 @@ TEST_F(TcpClientStopCompletionTest, RestartAfterStopReceivesDataAgain) {
   auto client = make_client();
 
   std::atomic<int> received{0};
+  StopTestCleanup restart_cleanup{[&] {
+    if (client) client->stop();
+  }};
   client->on_data([&](const wrapper::MessageContext&) { received.fetch_add(1); });
+
+  StopTestCleanup cleanup{[&] { client->stop(); }};
 
   ASSERT_TRUE(client->start_sync());
   push("first\n");
@@ -277,7 +303,7 @@ TEST_F(TcpClientStopCompletionTest, RestartAfterStopReceivesDataAgain) {
 TEST_F(TcpClientStopCompletionTest, OutsideStopWaitsOnAnExternallyRunContext) {
   auto ioc = std::make_shared<boost::asio::io_context>();
   auto work = boost::asio::make_work_guard(*ioc);
-  std::thread ioc_thread([&] { ioc->run(); });
+  std::jthread ioc_thread([&] { ioc->run(); });
 
   auto client = std::make_shared<wrapper::TcpClient>("127.0.0.1", port_, ioc);
   Signal in_callback, release_callback;
@@ -290,13 +316,20 @@ TEST_F(TcpClientStopCompletionTest, OutsideStopWaitsOnAnExternallyRunContext) {
     callback_finished = true;
   });
 
+  StopTestCleanup cleanup{[&] {
+    release_callback.notify();
+    if (client) client->stop();
+    work.reset();
+    ioc->stop();
+  }};
+
   ASSERT_TRUE(client->start_sync());
   push("hello\n");
   ASSERT_TRUE(in_callback.wait()) << "the callback never ran";
 
   std::atomic<bool> entered{false};
   std::atomic<bool> returned{false};
-  std::thread stopper([&] {
+  std::jthread stopper([&] {
     entered = true;
     client->stop();
     returned = true;
@@ -322,16 +355,18 @@ TEST_F(TcpClientStopCompletionTest, OutsideStopWaitsOnAnExternallyRunContext) {
 TEST_F(TcpClientStopCompletionTest, StoppingAnotherChannelFromACallback) {
   auto shared_ioc = std::make_shared<boost::asio::io_context>();
   auto work = boost::asio::make_work_guard(*shared_ioc);
-  std::vector<std::thread> ioc_threads;
+  std::vector<std::jthread> ioc_threads;
   for (int i = 0; i < 2; ++i) ioc_threads.emplace_back([&] { shared_ioc->run(); });
   // Released on every exit path, so a failed assertion cannot leave the gates
   // shut or the io threads running.
   struct SharedContextCleanup {
-    std::vector<std::thread>& threads;
+    std::vector<std::jthread>& threads;
     std::shared_ptr<boost::asio::io_context> ioc;
     std::vector<Signal*> gates;
+    std::function<void()> finish;
     ~SharedContextCleanup() {
       for (auto* gate : gates) gate->notify();
+      finish();
       ioc->stop();
       for (auto& thread : threads) {
         if (thread.joinable()) thread.join();
@@ -350,7 +385,12 @@ TEST_F(TcpClientStopCompletionTest, StoppingAnotherChannelFromACallback) {
   std::atomic<bool> shared_stop_returned_while_peer_running{false};
   std::atomic<bool> independent_stop_waited{false};
 
-  SharedContextCleanup cleanup{ioc_threads, shared_ioc, {&release_peer, &release_independent, &driver_may_proceed}};
+  SharedContextCleanup cleanup{
+      ioc_threads, shared_ioc, {&release_peer, &release_independent, &driver_may_proceed}, [&] {
+        if (driver) driver->stop();
+        if (shared_peer) shared_peer->stop();
+        if (independent_peer) independent_peer->stop();
+      }};
 
   shared_peer->on_data([&](const wrapper::MessageContext&) {
     if (peer_in_callback.is_set()) return;
@@ -396,7 +436,7 @@ TEST_F(TcpClientStopCompletionTest, StoppingAnotherChannelFromACallback) {
   ASSERT_TRUE(independent_in_callback.wait()) << "the independent peer's callback never ran";
   driver_may_proceed.notify();
 
-  std::thread releaser([&] {
+  std::jthread releaser([&] {
     std::this_thread::sleep_for(kNotYetWindow);
     release_independent.notify();
   });

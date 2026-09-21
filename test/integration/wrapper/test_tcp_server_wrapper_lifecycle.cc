@@ -359,20 +359,17 @@ TEST_F(TcpServerWrapperLifecycleTest, PortRetryConfiguration) {
   EXPECT_TRUE(server_->listening());
 }
 
-TEST_F(TcpServerWrapperLifecycleTest, ConcurrentStartStop) {
+// D-1 permits concurrent stops. Restart waits until ALL those calls have
+// returned; overlapping start/stop is explicitly a caller precondition.
+TEST_F(TcpServerWrapperLifecycleTest, RestartAfterConcurrentStops) {
   server_ = wirestead::tcp_server(test_port_).on_data([](auto&&) {}).on_error([](auto&&) {}).build();
-  std::vector<std::thread> threads;
-  for (int i = 0; i < 2; ++i) {  // Reduced count for stability
-    threads.emplace_back([this]() {
-      for (int j = 0; j < 5; ++j) {
-        auto f = server_->start();
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        server_->stop();
-      }
-    });
+  for (int cycle = 0; cycle < 5; ++cycle) {
+    ASSERT_TRUE(server_->start_sync());
+    std::vector<std::jthread> stoppers;
+    for (int caller = 0; caller < 2; ++caller) stoppers.emplace_back([this] { server_->stop(); });
+    for (auto& stopper : stoppers) stopper.join();
+    EXPECT_FALSE(server_->listening());
   }
-  for (auto& t : threads) t.join();
-  SUCCEED();
 }
 
 TEST_F(TcpServerWrapperLifecycleTest, HandlerReplacement) {

@@ -1,10 +1,11 @@
 # v0.10 Contract Decisions
 
 Decision proposals for the common differences in
-[the audit](communication_contract_v0.10_audit.md) section 9.1. **Status:
-proposed, pending approval.** Nothing here is implemented yet, and approving a
-decision does not schedule its implementation: each is meant to be built on its
-own.
+[the audit](communication_contract_v0.10_audit.md) section 9.1.
+**Implementation status:** D-1 for TCP is being implemented in PR #652 under
+the agreed executor criterion and caller preconditions below. Other D-1
+targets and D-2/D-3 are separate work; approving a decision does not make it
+implemented across all targets.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.
@@ -93,18 +94,22 @@ precondition above is what decides where a destructor may run at all.
 
 ### What completion is evidenced by
 
-The evidence differs by who runs the executor, and the difference is part of
-the decision rather than an implementation detail:
+The definition in section 1 of the draft applies to both owned and external
+executors. Keeping queued work alive is necessary but not sufficient: that
+work must also be isolated from the next run.
 
-| Configuration | What says the shutdown is complete |
-| --- | --- |
-| The library owns the io thread | No callback of the object is running (the wrapper's gate), and the thread has exited, which is only after its handlers have run |
-| An externally run io_context | No callback of the object is running (the gate). Internal work still queued on that context is allowed to remain: contract section 1 permits outstanding work that holds its own lifetime, and it does |
+For the TCP implementation in PR #652, outside callers wait for the transport
+cleanup signal and for the wrapper callback gate to become idle. Client completion includes cancelled I/O handler exit; server cleanup
+includes completion on every live session's strand. An owned thread is then
+joined. A caller executing the target's io_context requests cleanup without
+waiting; a subsequent outside stop observes its completion. A never-started
+transport has no run to drain and can finish cleanup inline.
 
-A stopping thread never runs the caller's executor to force the teardown
-through. Doing so would execute unrelated handlers - another channel's user
-callbacks among them - on the stopping thread, and would take a lock order the
-caller never agreed to.
+A stopping thread never polls the caller's executor or infers completion from
+a stopped context or a timeout. External executors must keep progressing as
+required above. Outstanding cancellation/retry handlers retain their own
+lifetime and are rejected by their run generation or the closed session;
+this does not permit deferred cleanup to mutate a restarted transport.
 
 ### Verification
 

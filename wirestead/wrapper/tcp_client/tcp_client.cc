@@ -20,6 +20,7 @@
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
+#include <boost/asio/strand.hpp>
 #include <chrono>
 #include <mutex>
 #include <shared_mutex>
@@ -50,6 +51,8 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   // observe an empty gate while a callback is about to start, and a callback
   // left over from a previous run is refused after a restart.
   detail::CallbackGate callback_gate_;
+  std::mutex stop_finalize_mutex_;
+  bool injected_channel_ = false;
   std::atomic<uint64_t> callback_generation_{0};
 
   // True when this thread is one the target's shutdown needs: a callback of
@@ -59,11 +62,17 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   // its own thread has to perform.
   bool shutdown_needs_this_thread() const {
     if (callback_gate_.active_on_this_thread()) return true;
-    if (use_external_context_.load() && external_ioc_) {
-      return external_ioc_->get_executor().running_in_this_thread();
-    }
+    if (external_ioc_ && external_ioc_->get_executor().running_in_this_thread()) return true;
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    if (!channel_) return false;
+    const auto executor = channel_->get_executor();
+    using IoExecutor = boost::asio::io_context::executor_type;
+    if (auto* io = executor.target<IoExecutor>()) return io->running_in_this_thread();
+    if (auto* strand = executor.target<boost::asio::strand<IoExecutor>>())
+      return strand->get_inner_executor().running_in_this_thread();
     return false;
   }
+
   std::string host_;
   uint16_t port_;
   std::shared_ptr<interface::Channel> channel_;
@@ -130,6 +139,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   explicit Impl(std::shared_ptr<interface::Channel> channel)
       : host_(""), port_(0), channel_(std::move(channel)), started_(false) {
+    injected_channel_ = true;
     // #450: setup_internal_handlers() captures weak_from_this() - calling it
     // from inside this constructor would capture an empty weak_ptr, since
     // enable_shared_from_this isn't wired up until make_shared() finishes
@@ -264,70 +274,45 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   void stop() {
-    bool should_join = false;
-    bool needs_teardown = true;
-    // D-1 rule 2: a caller on a thread the shutdown needs requests it and
-    // returns. Everyone else waits for completion, even when it finds nothing
-    // left to tear down - a callback of this object may still be running.
     const bool request_only = shutdown_needs_this_thread();
-    // Closed before anything else, so no callback can be admitted between the
-    // teardown below and the wait at the end.
     callback_gate_.close();
+    std::shared_ptr<interface::Channel> channel;
     {
       std::unique_lock<std::shared_mutex> lock(mutex_);
-      const bool was_started = started_.exchange(false);
-      if (!was_started && !channel_) {
-        // Nothing left to tear down, but a callback of this object may still
-        // be running - shutdown is not complete until it is not, so this
-        // caller still waits below.
-        fulfill_all_locked(false);
-        needs_teardown = false;
-      }
-      if (needs_teardown) {
-        bp_cv_.notify_all();
-        alive_marker_.reset();
-        if (batch_timer_) {
-          batch_timer_->cancel();
-          batch_timer_.reset();
-        }
-        if (channel_) {
-          auto ch = channel_;
-          lock.unlock();
-          ch->stop();
-          lock.lock();
-          if (channel_ == ch) {
-            channel_->on_bytes(nullptr);
-            channel_->on_state(nullptr);
-            channel_->on_backpressure(nullptr);
-          }
-        }
-        if (use_external_context_.load() && manage_external_context_.load()) {
-          if (work_guard_) work_guard_.reset();
-          if (external_ioc_) external_ioc_->stop();
-          should_join = true;
-        }
-        fulfill_all_locked(false);
-      }
+      started_.store(false);
+      bp_cv_.notify_all();
+      fulfill_all_locked(false);
+      channel = channel_;
     }
-    if (needs_teardown && should_join && external_thread_.joinable()) {
-      try {
-        if (std::this_thread::get_id() != external_thread_.get_id()) {
-          external_thread_.request_stop();
-          external_thread_.join();
-        } else {
-          external_thread_.detach();
-        }
-      } catch (...) {
-      }
-    }
-    if (needs_teardown) {
+    // Do not hold wrapper locks while the transport waits for callbacks.
+    if (channel) channel->stop();
+    if (request_only) return;
+
+    callback_gate_.wait_until_idle();
+    // All outside callers pass this lock, including those that found the
+    // channel already cleared. Joining and final state reset happen once.
+    std::lock_guard<std::mutex> finalize_lock(stop_finalize_mutex_);
+    {
       std::unique_lock<std::shared_mutex> lock(mutex_);
-      channel_.reset();
+      alive_marker_.reset();
+      if (batch_timer_) {
+        batch_timer_->cancel();
+        batch_timer_.reset();
+      }
+      if (channel_) {
+        channel_->on_bytes(nullptr);
+        channel_->on_state(nullptr);
+        channel_->on_backpressure(nullptr);
+      }
+      if (!injected_channel_) channel_.reset();
+      data_batch_queue_.clear();
+      message_batch_queue_.clear();
       if (framer_) framer_->reset();
     }
-
-    if (!request_only) {
-      callback_gate_.wait_until_idle();
+    if (use_external_context_.load() && manage_external_context_.load()) {
+      if (work_guard_) work_guard_.reset();
+      if (external_ioc_) external_ioc_->stop();
+      if (external_thread_.joinable()) external_thread_.join();
     }
   }
 

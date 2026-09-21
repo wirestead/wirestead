@@ -17,6 +17,7 @@
 #include "wirestead/transport/tcp_client/tcp_client.hpp"
 
 #include "wirestead/concurrency/io_thread_hook.hpp"
+#include "wirestead/transport/base/stop_test_hook.hpp"
 
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic ignored "-Wsign-conversion"
@@ -167,11 +168,27 @@ struct TcpClient::Impl {
   std::mutex stop_mtx_;
   std::condition_variable stop_cv_;
   bool cleanup_done_ = false;
+  std::atomic<bool> cleanup_started_{false};
+  // Strand-confined. Cancellation does not mean its completion handler has
+  // run; keep the run closed until those handlers have left the old buffers.
+  size_t pending_io_ = 0;
+  bool cleanup_finished_ = false;
+  struct IoCompletion {
+    Impl* impl;
+    ~IoCompletion() {
+      if (impl->cleanup_finished_ && impl->pending_io_ == 1) {
+        if (auto hook = detail::g_tcp_io_completion_hook.load()) hook();
+      }
+      if (--impl->pending_io_ == 0 && impl->cleanup_finished_) impl->mark_cleanup_done();
+    }
+  };
+
   // Serializes the join itself: joining a thread from two callers is not
   // allowed, and the second caller must not return before the first has.
   std::mutex join_mtx_;
 
   void mark_cleanup_done() {
+    detail::stop_test_hook(this, true);
     {
       std::lock_guard<std::mutex> lock(stop_mtx_);
       cleanup_done_ = true;
@@ -184,6 +201,7 @@ struct TcpClient::Impl {
   // running, so this waits and nothing more: running the caller's executor
   // here would execute other channels' handlers on the stopping thread.
   void wait_for_cleanup() {
+    detail::stop_test_hook(this, false);
     std::unique_lock<std::mutex> lock(stop_mtx_);
     stop_cv_.wait(lock, [this] { return cleanup_done_; });
   }
@@ -329,6 +347,7 @@ void TcpClient::start() {
 
   const auto seq = impl_->lifecycle_seq_.fetch_add(1) + 1;
   impl_->current_seq_.store(seq);
+  impl_->reset_start_state();
 
   if (impl_->owns_ioc_ && impl_->ioc_) {
     impl_->work_guard_ =
@@ -353,7 +372,6 @@ void TcpClient::start() {
         if (seq <= self->impl_->stop_seq_.load()) {
           return;
         }
-        self->impl_->reset_start_state();
         self->impl_->connected_.store(false);
         self->impl_->reset_io_objects();
         self->impl_->transition_to(LinkState::Connecting);
@@ -366,52 +384,29 @@ void TcpClient::start() {
 }
 
 void TcpClient::stop() {
-  // D-1. A caller on the executor the shutdown needs can only request it;
-  // anyone else leaves with the shutdown complete, including a caller that
-  // finds one already requested.
-  const bool on_executor = impl_->ioc_ && impl_->ioc_->get_executor().running_in_this_thread();
+  const bool on_executor = impl_->ioc_->get_executor().running_in_this_thread();
   const bool first = !impl_->stop_requested_.exchange(true);
-
   if (first) {
     impl_->stopping_.store(true);
     impl_->stop_seq_.store(impl_->current_seq_.load());
-  }
-
-  if (!impl_->ioc_) return;
-
-  // The teardown is posted to the strand, where it also releases the work
-  // guard - which is what lets an owned io thread's run() return, so the post
-  // has to happen before any join. `self` keeps the object alive for the
-  // handler; in ~TcpClient() there is no `self` to take, and the caller's
-  // precondition there is that the shutdown is already complete.
-  if (first) {
-    if (auto self = weak_from_this().lock()) {
-      net::post(impl_->strand_, [self]() { self->impl_->perform_stop_cleanup(); });
-    } else {
+    // Only a never-started transport has no executor work to serialize with.
+    if (impl_->current_seq_.load() == 0) {
       impl_->perform_stop_cleanup();
+    } else {
+      // A waiting destructor keeps Impl alive until this handler completes.
+      // Ordinary requests retain the transport across request-only returns.
+      auto self = weak_from_this().lock();
+      auto* impl = impl_.get();
+      net::post(impl_->strand_, [self, impl] { impl->perform_stop_cleanup(); });
     }
   }
-
   if (on_executor) return;
 
-  if (impl_->owns_ioc_) {
-    // The thread returns from run() only after its handlers, the teardown
-    // included, have finished, so its exit is the completion evidence. The
-    // mutex makes a second caller wait for the first rather than join a
-    // thread it does not own; the teardown below is a no-op once it has run.
-    std::lock_guard<std::mutex> join_lock(impl_->join_mtx_);
-    impl_->join_ioc_thread(false);
-    impl_->perform_stop_cleanup();
-  }
-
-  // External context: the teardown is queued on a context this library does
-  // not run, so waiting for it here would mean either waiting on a caller
-  // that may not be running it, or running it ourselves - which would execute
-  // unrelated handlers, another channel's user callbacks included, on the
-  // stopping thread. Neither is this layer's to do: the queued teardown holds
-  // its own lifetime, which contract section 1 allows outstanding internal
-  // work to do, and the wrapper's callback gate is what establishes that no
-  // user callback of the object is running.
+  // External executors must keep progressing, as required by D-1. Never
+  // poll them here or infer completion from stopped()/elapsed time.
+  impl_->wait_for_cleanup();
+  std::lock_guard<std::mutex> join_lock(impl_->join_mtx_);
+  impl_->join_ioc_thread(false);
 }
 
 bool TcpClient::is_connected() const { return get_impl()->connected_.load(); }
@@ -429,6 +424,7 @@ void TcpClient::reset_stats() {
 boost::asio::any_io_executor TcpClient::get_executor() { return impl_->socket_.get_executor(); }
 
 bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
+  const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
     impl_->stats_.record_failed_send();
@@ -464,7 +460,8 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
         }
         impl_->stats_.record_accepted(added);
         net::dispatch(impl_->strand_,
-                      [self = shared_from_this(), buf = std::move(pooled_buffer), added, reliable]() mutable {
+                      [self = shared_from_this(), buf = std::move(pooled_buffer), added, reliable, seq]() mutable {
+                        if (seq != self->impl_->current_seq_.load()) return;
                         self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
                       });
         return true;
@@ -486,13 +483,15 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
   }
   impl_->stats_.record_accepted(added);
 
-  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, reliable]() mutable {
+  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, reliable, seq]() mutable {
+    if (seq != self->impl_->current_seq_.load()) return;
     self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
   });
   return true;
 }
 
 bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
+  const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
     impl_->stats_.record_failed_send();
@@ -520,13 +519,15 @@ bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
     return false;
   }
   impl_->stats_.record_accepted(added);
-  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable]() mutable {
+  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq]() mutable {
+    if (seq != self->impl_->current_seq_.load()) return;
     self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
   });
   return true;
 }
 
 bool TcpClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
     impl_->stats_.record_failed_send();
@@ -554,7 +555,8 @@ bool TcpClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> d
     return false;
   }
   impl_->stats_.record_accepted(added);
-  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable]() mutable {
+  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq]() mutable {
+    if (seq != self->impl_->current_seq_.load()) return;
     self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
   });
   return true;
@@ -573,6 +575,7 @@ bool TcpClient::async_try_write_copy(memory::ConstByteSpan data) {
 }
 
 bool TcpClient::async_try_write_move(std::vector<uint8_t>&& data) {
+  const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
     impl_->stats_.record_failed_send();
@@ -602,7 +605,8 @@ bool TcpClient::async_try_write_move(std::vector<uint8_t>&& data) {
   }
   impl_->stats_.record_accepted(added);
 
-  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
+  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq]() mutable {
+    if (seq != self->impl_->current_seq_.load()) return;
     auto impl = self->impl_.get();
     if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||
         impl->state_.is_state(LinkState::Error)) {
@@ -620,6 +624,7 @@ bool TcpClient::async_try_write_move(std::vector<uint8_t>&& data) {
 }
 
 bool TcpClient::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  const auto seq = impl_->current_seq_.load();
   if (!data || data->empty()) {
     impl_->stats_.record_failed_send();
     return false;
@@ -653,7 +658,8 @@ bool TcpClient::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t
   }
   impl_->stats_.record_accepted(added);
 
-  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
+  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq]() mutable {
+    if (seq != self->impl_->current_seq_.load()) return;
     auto impl = self->impl_.get();
     if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||
         impl->state_.is_state(LinkState::Error)) {
@@ -765,8 +771,10 @@ void TcpClient::Impl::apply_socket_options() {
 }
 
 void TcpClient::Impl::do_resolve_connect(std::shared_ptr<TcpClient> self, uint64_t seq) {
+  ++pending_io_;
   resolver_.async_resolve(
       cfg_.host, fmt::format("{}", cfg_.port), [self, seq](auto ec, tcp::resolver::results_type results) {
+        IoCompletion completion{self->impl_.get()};
         if (ec == net::error::operation_aborted || seq != self->impl_->current_seq_.load()) {
           return;
         }
@@ -793,7 +801,9 @@ void TcpClient::Impl::do_resolve_connect(std::shared_ptr<TcpClient> self, uint64
           connection_timeout_ms = self->impl_->cfg_.connection_timeout_ms;
         }
         self->impl_->connect_timer_.expires_after(std::chrono::milliseconds(connection_timeout_ms));
+        ++self->impl_->pending_io_;
         self->impl_->connect_timer_.async_wait([self, seq](const boost::system::error_code& timer_ec) {
+          IoCompletion completion{self->impl_.get()};
           if (timer_ec == net::error::operation_aborted || seq != self->impl_->current_seq_.load()) {
             return;
           }
@@ -817,7 +827,9 @@ void TcpClient::Impl::do_resolve_connect(std::shared_ptr<TcpClient> self, uint64
           }
         });
 
+        ++self->impl_->pending_io_;
         net::async_connect(self->impl_->socket_, results, [self, seq](auto ec2, const auto&) {
+          IoCompletion completion{self->impl_.get()};
           if (ec2 == net::error::operation_aborted || seq != self->impl_->current_seq_.load()) {
             return;
           }
@@ -909,8 +921,10 @@ void TcpClient::Impl::handshake_then(std::shared_ptr<TcpClient> self, uint64_t s
       return;
     }
 
+    ++pending_io_;
     tls_->async_handshake(ssl::stream_base::client,
                           net::bind_executor(strand_, [this, self, seq, next](const boost::system::error_code& ec) {
+                            IoCompletion completion{this};
                             if (seq != current_seq_.load() || stop_requested_.load() || stopping_.load()) return;
                             if (ec) {
                               WIRESTEAD_LOG_ERROR("tcp_client", "handshake", "TLS handshake failed: " + ec.message());
@@ -1017,7 +1031,9 @@ void TcpClient::Impl::schedule_retry(std::shared_ptr<TcpClient> self, uint64_t s
                      fmt::format("Scheduling retry in {:.3f}s", static_cast<double>(delay.count()) / 1000.0));
 
   retry_timer_.expires_after(delay);
+  ++pending_io_;
   retry_timer_.async_wait([self, seq](const boost::system::error_code& ec) {
+    IoCompletion completion{self->impl_.get()};
     // Clear pending flag regardless of result (fired or aborted)
     self->impl_->reconnect_pending_.store(false);
 
@@ -1030,7 +1046,9 @@ void TcpClient::Impl::schedule_retry(std::shared_ptr<TcpClient> self, uint64_t s
 }
 
 void TcpClient::Impl::start_read(std::shared_ptr<TcpClient> self, uint64_t seq) {
+  ++pending_io_;
   auto on_read = [self, seq](auto ec, std::size_t n) {
+    IoCompletion completion{self->impl_.get()};
     if (ec == net::error::operation_aborted || seq != self->impl_->current_seq_.load()) {
       return;
     }
@@ -1103,7 +1121,9 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq) {
 
   const auto queued_bytes = queue_util::take_gather_batch(tx_, current_write_batch_, current_write_views_);
 
+  ++pending_io_;
   auto on_write = [self, queued_bytes, seq](auto ec, std::size_t bytes_written) {
+    IoCompletion completion{self->impl_.get()};
     if (ec == net::error::operation_aborted || seq != self->impl_->current_seq_.load()) {
       self->impl_->current_write_batch_.clear();
       self->impl_->queue_bytes_ =
@@ -1372,10 +1392,14 @@ void TcpClient::Impl::transition_to(LinkState next, const boost::system::error_c
 }
 
 void TcpClient::Impl::perform_stop_cleanup() {
+  if (cleanup_started_.exchange(true)) return;
   // Signals completion on every exit, including the error paths below.
   struct CompletionSignal {
     Impl* impl;
-    ~CompletionSignal() { impl->mark_cleanup_done(); }
+    ~CompletionSignal() {
+      impl->cleanup_finished_ = true;
+      if (impl->pending_io_ == 0) impl->mark_cleanup_done();
+    }
   } completion_signal{this};
   try {
     retry_timer_.cancel();
@@ -1417,6 +1441,9 @@ void TcpClient::Impl::perform_stop_cleanup() {
 }
 
 void TcpClient::Impl::reset_start_state() {
+  cleanup_started_.store(false);
+  cleanup_finished_ = false;
+  inflight_bytes_.store(0);
   {
     std::lock_guard<std::mutex> lock(stop_mtx_);
     cleanup_done_ = false;
@@ -1524,7 +1551,9 @@ void TcpClient::Impl::reset_idle_timer(std::shared_ptr<TcpClient> self, uint64_t
 
   idle_timer_.cancel();
   idle_timer_.expires_after(std::chrono::milliseconds(idle_timeout_ms));
+  ++pending_io_;
   idle_timer_.async_wait([self, seq](const boost::system::error_code& ec) {
+    IoCompletion completion{self->impl_.get()};
     if (ec == net::error::operation_aborted || seq != self->impl_->current_seq_.load()) {
       return;
     }

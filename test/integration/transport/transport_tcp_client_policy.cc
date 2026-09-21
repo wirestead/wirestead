@@ -22,6 +22,8 @@
 #include <memory>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
+
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -112,7 +114,7 @@ TEST_F(TransportTcpClientPolicyTest, FixedIntervalPolicyRetriesWithDelay) {
 
   // Prevent callback accessing destroyed attempt_times
   client_->on_state(nullptr);
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -141,7 +143,7 @@ TEST_F(TransportTcpClientPolicyTest, ExponentialBackoffPolicyIncreasesDelay) {
 
   // Prevent callback accessing destroyed attempt_times
   client_->on_state(nullptr);
-  client_->stop();
+  stop_with_context(client_, ioc);
 
   // Debounce attempt times to filter out rapid-fire Connecting states (e.g. from handle_close -> schedule_retry)
   std::vector<std::chrono::steady_clock::time_point> filtered_times;
@@ -198,7 +200,7 @@ TEST_F(TransportTcpClientPolicyTest, PolicyCanStopRetries) {
   EXPECT_TRUE(error_state.load());
 
   client_->on_state(nullptr);
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -251,7 +253,7 @@ TEST_F(TransportTcpClientPolicyTest, ResetAttemptCountOnSuccess) {
   EXPECT_GE(connecting_count.load(), 3);
 
   client_->on_state(nullptr);
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -297,7 +299,7 @@ TEST_F(TransportTcpClientPolicyTest, MaxRetriesEnforcedOverPolicy) {
   EXPECT_TRUE(error_state.load());
 
   client_->on_state(nullptr);
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -357,6 +359,6 @@ TEST_F(TransportTcpClientPolicyTest, NonRetryableErrorPreventsRetry) {
   EXPECT_TRUE(backpressure_seen.load());
 
   client_->on_state(nullptr);
-  client_->stop();
+  stop_with_context(client_, ioc);
   client_.reset();
 }

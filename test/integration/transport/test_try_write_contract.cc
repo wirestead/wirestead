@@ -25,6 +25,7 @@
 #include <thread>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
 #include "test_utils.hpp"
 #include "wirestead/base/constants.hpp"
 #include "wirestead/config/serial_config.hpp"
@@ -368,7 +369,7 @@ TEST(TryWriteTransportContractTest, TcpClientReliableTryWriteRejectsWithoutPendi
 
   expect_reliable_try_write_rejects_without_pending(*client);
 
-  client->stop();
+  wirestead::test::stop_with_context(client, ioc);
 }
 
 TEST(TryWriteTransportContractTest, UdpReliableTryWriteRejectsWithoutPending) {
@@ -421,7 +422,7 @@ TEST(TryWriteTransportContractTest, TcpClientBestEffortTryWriteCountsDrop) {
 
   expect_best_effort_try_write_counts_drop(*client);
 
-  client->stop();
+  wirestead::test::stop_with_context(client, ioc);
 }
 
 TEST(TryWriteTransportContractTest, UdpBestEffortTryWriteCountsDrop) {
@@ -473,7 +474,7 @@ TEST(TryWriteTransportContractTest, TcpClientTryWriteTrueReturnRemainsAccepted) 
 
   expect_try_write_true_return_remains_accepted(*client, ioc);
 
-  client->stop();
+  wirestead::test::stop_with_context(client, ioc);
 }
 
 TEST(TryWriteTransportContractTest, UdpTryWriteTrueReturnRemainsAccepted) {

@@ -26,6 +26,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -42,6 +43,11 @@ using namespace std::chrono_literals;
 namespace {
 
 using Clock = std::chrono::steady_clock;
+
+struct StopTestCleanup {
+  std::function<void()> cleanup;
+  ~StopTestCleanup() { cleanup(); }
+};
 
 // One-shot event. The tests fix their order with these rather than with
 // sleeps; a sleep appears only as the window in which a caller must *not*
@@ -106,6 +112,11 @@ TEST_F(TcpServerStopCompletionTest, OutsideStopsWaitForASessionCallbackToFinish)
     callback_finished = true;
   });
 
+  StopTestCleanup cleanup{[&] {
+    release_callback.notify();
+    server->stop();
+  }};
+
   ASSERT_TRUE(server->start_sync());
   auto slow_client = connect_client();
   ASSERT_NE(slow_client, nullptr);
@@ -119,7 +130,7 @@ TEST_F(TcpServerStopCompletionTest, OutsideStopsWaitForASessionCallbackToFinish)
   std::atomic<int> entered{0};
   std::atomic<int> returns{0};
   std::atomic<int> returns_before_callback_finished{0};
-  std::vector<std::thread> stoppers;
+  std::vector<std::jthread> stoppers;
   for (int i = 0; i < 2; ++i) {
     stoppers.emplace_back([&] {
       entered.fetch_add(1);
@@ -162,6 +173,11 @@ TEST_F(TcpServerStopCompletionTest, SessionCallbackRequestsStopWhileOutsideCalle
     callback_finished = true;
   });
 
+  StopTestCleanup cleanup{[&] {
+    release_callback.notify();
+    server->stop();
+  }};
+
   ASSERT_TRUE(server->start_sync());
   auto client = connect_client();
   ASSERT_NE(client, nullptr);
@@ -175,7 +191,7 @@ TEST_F(TcpServerStopCompletionTest, SessionCallbackRequestsStopWhileOutsideCalle
   std::atomic<int> entered{0};
   std::atomic<int> returns{0};
   std::atomic<int> returns_before_callback_finished{0};
-  std::vector<std::thread> stoppers;
+  std::vector<std::jthread> stoppers;
   for (int i = 0; i < 2; ++i) {
     stoppers.emplace_back([&] {
       entered.fetch_add(1);
@@ -194,8 +210,20 @@ TEST_F(TcpServerStopCompletionTest, SessionCallbackRequestsStopWhileOutsideCalle
 
   EXPECT_EQ(returns.load(), 2);
   EXPECT_EQ(returns_before_callback_finished.load(), 0);
-
   client->stop();
+
+  std::atomic<int> received{0};
+  StopTestCleanup restart_cleanup{[&] {
+    if (server) server->stop();
+  }};
+  server->on_data([&](const wrapper::MessageContext&) { ++received; });
+  ASSERT_TRUE(server->start_sync());
+  auto restarted_client = connect_client();
+  ASSERT_NE(restarted_client, nullptr);
+  ASSERT_TRUE(restarted_client->send("after callback stop"));
+  EXPECT_TRUE(TestUtils::waitForCondition([&] { return received.load() > 0; }, 3000));
+  restarted_client->stop();
+  server->stop();
 }
 
 // Rule 3, then rule 4: a further stop() is immediate, and the server restarts
@@ -203,7 +231,12 @@ TEST_F(TcpServerStopCompletionTest, SessionCallbackRequestsStopWhileOutsideCalle
 TEST_F(TcpServerStopCompletionTest, RestartAfterStopAcceptsAndReceivesAgain) {
   auto server = wirestead::tcp_server(port_).on_error([](auto&&) {}).build();
   std::atomic<int> received{0};
+  StopTestCleanup restart_cleanup{[&] {
+    if (server) server->stop();
+  }};
   server->on_data([&](const wrapper::MessageContext&) { received.fetch_add(1); });
+
+  StopTestCleanup cleanup{[&] { server->stop(); }};
 
   ASSERT_TRUE(server->start_sync());
   auto first_client = connect_client();
@@ -237,7 +270,7 @@ TEST_F(TcpServerStopCompletionTest, RestartAfterStopAcceptsAndReceivesAgain) {
 TEST_F(TcpServerStopCompletionTest, OutsideStopWaitsOnAnExternallyRunContext) {
   auto ioc = std::make_shared<boost::asio::io_context>();
   auto work = boost::asio::make_work_guard(*ioc);
-  std::thread ioc_thread([&] { ioc->run(); });
+  std::jthread ioc_thread([&] { ioc->run(); });
 
   auto server = std::make_shared<wrapper::TcpServer>(port_, ioc);
   Signal in_callback, release_callback;
@@ -250,6 +283,13 @@ TEST_F(TcpServerStopCompletionTest, OutsideStopWaitsOnAnExternallyRunContext) {
     callback_finished = true;
   });
 
+  StopTestCleanup cleanup{[&] {
+    release_callback.notify();
+    if (server) server->stop();
+    work.reset();
+    ioc->stop();
+  }};
+
   ASSERT_TRUE(server->start_sync());
   auto client = connect_client();
   ASSERT_NE(client, nullptr);
@@ -260,7 +300,7 @@ TEST_F(TcpServerStopCompletionTest, OutsideStopWaitsOnAnExternallyRunContext) {
 
   std::atomic<bool> entered{false};
   std::atomic<bool> returned{false};
-  std::thread stopper([&] {
+  std::jthread stopper([&] {
     entered = true;
     server->stop();
     returned = true;
