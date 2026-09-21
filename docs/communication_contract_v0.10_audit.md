@@ -474,3 +474,15 @@ distinction and existing datagram filtering are preserved.
 [UDP validation](udp_d1_validation.md) records the real-I/O regression tests,
 before/after source comparison and local validation. Serial and D-2/D-3 remain
 separate work.
+
+### Serial D-1 follow-up
+
+The serial rows above remain observations at the original audit baseline.
+The follow-up after UDP PR #655 extends the narrower callback-stop fix from
+PR #650 to every outside caller and to external/shared executors. Completion
+includes admitted wrapper callbacks, transport cleanup and tracked cancelled
+I/O. Retry and receive-idle callbacks are explicitly dispatched on the strand;
+gather-write storage stays valid until its operation releases it.
+[Serial validation](serial_d1_validation.md) records PTY and injected-port
+tests, a source-verified before/after comparison, and local validation.
+D-2/D-3 and actual serial-hardware validation remain separate.

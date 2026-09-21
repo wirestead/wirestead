@@ -2,10 +2,11 @@
 
 Decision proposals for the common differences in
 [the audit](communication_contract_v0.10_audit.md) section 9.1.
-**Implementation status:** TCP D-1 landed in PR #652 and UDS D-1 in PR #654.
-This follow-up applies the same executor criterion and caller preconditions
-to UDP client/server. Serial and D-2/D-3 remain separate work; approving a decision
-does not make it implemented across all targets.
+**Implementation status:** TCP D-1 landed in PR #652, UDS in PR #654,
+and UDP in PR #655. This follow-up applies the same executor criterion and
+caller preconditions to serial, the remaining D-1 target. D-2/D-3 remain
+separate work; approving a decision does not make it implemented across all
+targets.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.

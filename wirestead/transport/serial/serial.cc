@@ -21,6 +21,7 @@
 #include <atomic>
 #include <boost/asio.hpp>
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <deque>
 #include <memory>
@@ -45,6 +46,7 @@
 #include "wirestead/transport/base/bp_state_machine.hpp"
 #include "wirestead/transport/base/bp_utils.hpp"
 #include "wirestead/transport/base/error_info_holder.hpp"
+#include "wirestead/transport/base/stop_test_hook.hpp"
 #include "wirestead/transport/serial/boost_serial_port.hpp"
 
 namespace wirestead {
@@ -58,7 +60,7 @@ using BufferVariant =
     std::variant<memory::PooledBuffer, std::vector<uint8_t>, std::shared_ptr<const std::vector<uint8_t>>>;
 
 struct Serial::Impl {
-  bool started_ = false;
+  std::atomic<bool> started_{false};
   std::atomic<bool> stopping_{false};
   std::unique_ptr<net::io_context> owned_ioc_;
   net::io_context& ioc_;
@@ -101,10 +103,51 @@ struct Serial::Impl {
   // reservation both go through write_reserve_mtx_ - see bp_utils.hpp.
   std::atomic<size_t> inflight_bytes_{0};
   std::mutex write_reserve_mtx_;
-  // Serializes the waiting half of stop(), so concurrent callers from outside
-  // the io thread all return with the shutdown complete rather than with one
-  // of them returning early.
   std::mutex stop_mtx_;
+  std::condition_variable stop_cv_;
+  bool cleanup_done_ = false;
+  bool cleanup_started_ = false;
+  bool cleanup_finished_ = false;
+  size_t pending_io_ = 0;  // Strand-confined, including handler destruction.
+  std::mutex join_mtx_;
+  std::mutex submission_mtx_;
+  std::atomic<uint64_t> generation_{0};
+
+  void mark_cleanup_done() {
+    // A discarded fake completion can also release the last tracked operation.
+    // Only now is it safe to release the gather-write storage.
+    current_write_batch_.clear();
+    current_write_views_.clear();
+    detail::stop_test_hook(this, true);
+    work_guard_.reset();
+    started_ = false;
+    {
+      std::lock_guard<std::mutex> lock(stop_mtx_);
+      cleanup_done_ = true;
+    }
+    stop_cv_.notify_all();
+  }
+
+  // The serial interface erases executor associations into std::function.
+  // Explicit dispatch preserves serialization. The lifetime also accounts for
+  // test ports that discard an operation instead of invoking its handler.
+  template <typename Handler>
+  auto track_io(std::shared_ptr<Serial> self, Handler handler) {
+    ++pending_io_;
+    std::shared_ptr<void> lifetime(nullptr, [self](void*) {
+      net::dispatch(self->impl_->strand_, [self] {
+        auto* impl = self->impl_.get();
+        if (impl->cleanup_finished_ && impl->pending_io_ == 1) {
+          if (auto hook = detail::g_serial_io_completion_hook.load()) hook();
+        }
+        if (--impl->pending_io_ == 0 && impl->cleanup_finished_) impl->mark_cleanup_done();
+      });
+    });
+    return [self, lifetime, handler = std::move(handler)](auto... args) {
+      net::dispatch(self->impl_->strand_, [lifetime, handler, args...]() mutable { handler(args...); });
+    };
+  }
+
   // Atomic rather than mutex-guarded: read both from the strand and from
   // arbitrary caller threads (async_try_write_* fast-fail prechecks) - a
   // strand-post/dispatch here would only protect the former (#436).
@@ -170,6 +213,10 @@ struct Serial::Impl {
   // the *pooled*-buffer path in async_write_copy did not, for no documented
   // reason. All 4 call sites now behave identically.
   void route_enqueued_buffer(std::shared_ptr<Serial> self, BufferVariant&& buf, size_t added) {
+    if (stopping_) {
+      queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
+      return;
+    }
     const bool reliable_pending_active =
         bp_strategy_.load(std::memory_order_relaxed) == base::constants::BackpressureStrategy::Reliable &&
         backpressure_active_.load(std::memory_order_relaxed);
@@ -267,6 +314,7 @@ struct Serial::Impl {
   }
 
   void open_and_configure(std::shared_ptr<Serial> self) {
+    if (stopping_) return;
     boost::system::error_code ec;
     port_->open(cfg_.device, ec);
     if (ec) {
@@ -362,9 +410,11 @@ struct Serial::Impl {
   }
 
   void start_read(std::shared_ptr<Serial> self) {
+    if (stopping_) return;
     port_->async_read_some(
-        net::buffer(rx_.data(), rx_.size()), net::bind_executor(strand_, [self](auto ec, std::size_t n) {
+        net::buffer(rx_.data(), rx_.size()), track_io(self, [self](auto ec, std::size_t n) {
           auto impl = self->get_impl();
+          if (impl->stopping_) return;
           if (ec) {
             impl->handle_error(self, "read", ec);
             return;
@@ -451,7 +501,7 @@ struct Serial::Impl {
       impl->do_write(self);
     };
 
-    port_->async_write(current_write_views_, net::bind_executor(strand_, on_write));
+    port_->async_write(current_write_views_, track_io(self, std::move(on_write)));
   }
 
   void perform_cleanup() {
@@ -471,14 +521,19 @@ struct Serial::Impl {
     }
   }
 
+  void perform_stop_cleanup() {
+    if (cleanup_started_) return;
+    cleanup_started_ = true;
+    perform_cleanup();
+    backpressure_active_ = false;
+    cleanup_finished_ = true;
+    if (pending_io_ == 0) mark_cleanup_done();
+  }
+
   void handle_error(std::shared_ptr<Serial> self, const char* where, const boost::system::error_code& ec) {
+    if (stopping_) return;
     if (ec == boost::asio::error::eof) {
       if (self) start_read(self);
-      return;
-    }
-
-    if (stopping_.load()) {
-      perform_cleanup();
       return;
     }
 
@@ -518,9 +573,9 @@ struct Serial::Impl {
     WIRESTEAD_LOG_INFO("serial", "retry", fmt::format("Scheduling retry at {}", where));
     if (stopping_.load()) return;
     retry_timer_.expires_after(std::chrono::milliseconds(retry_interval_ms_.load()));
-    retry_timer_.async_wait([self](auto e) {
-      if (!e && self && !self->get_impl()->stopping_.load()) self->get_impl()->open_and_configure(self);
-    });
+    retry_timer_.async_wait(track_io(self, [self](auto e) {
+      if (!e && !self->get_impl()->stopping_.load()) self->get_impl()->open_and_configure(self);
+    }));
   }
 
   // Rearmed by every read that carried bytes, so the deadline always measures
@@ -531,7 +586,7 @@ struct Serial::Impl {
     if (timeout_ms == 0 || stopping_.load()) return;
 
     rx_idle_timer_.expires_after(std::chrono::milliseconds(timeout_ms));
-    rx_idle_timer_.async_wait(net::bind_executor(strand_, [self, timeout_ms](const boost::system::error_code& e) {
+    rx_idle_timer_.async_wait(track_io(self, [self, timeout_ms](const boost::system::error_code& e) {
       if (e) return;  // rearmed or cancelled
       auto impl = self->get_impl();
       if (impl->stopping_.load() || !impl->opened_.load()) return;
@@ -621,14 +676,7 @@ Serial::Serial(const config::SerialConfig& cfg, std::unique_ptr<interface::Seria
     : impl_(std::make_unique<Impl>(cfg, std::move(port), ioc)) {}
 
 Serial::~Serial() {
-  if (impl_ && impl_->started_ && !impl_->state_.is_state(LinkState::Closed)) {
-    // In destructor, stop without shared_from_this
-    impl_->stopping_.store(true);
-    impl_->perform_cleanup();
-    if (impl_->owns_ioc_ && impl_->ioc_thread_.joinable()) {
-      impl_->ioc_thread_.join();
-    }
-  }
+  if (impl_) stop();
 }
 
 Serial::Serial(Serial&&) noexcept = default;
@@ -637,13 +685,25 @@ Serial& Serial::operator=(Serial&&) noexcept = default;
 void Serial::start() {
   auto impl = get_impl();
   if (impl->started_) return;
-  impl->stopping_.store(false);
-  WIRESTEAD_LOG_INFO("serial", "start", fmt::format("Starting device: {}", impl->cfg_.device));
+  if (impl->ioc_thread_.joinable()) impl->ioc_thread_.join();
+  if (impl->owns_ioc_ && impl->ioc_.stopped()) impl->ioc_.restart();
   if (impl->uses_shared_context_) {
     auto& manager = concurrency::IoContextManager::instance();
     if (!manager.is_running()) manager.start();
-    if (impl->ioc_.stopped()) impl->ioc_.restart();
   }
+  const auto generation = impl->generation_.fetch_add(1) + 1;
+  {
+    std::lock_guard<std::mutex> lock(impl->stop_mtx_);
+    impl->cleanup_done_ = false;
+  }
+  impl->cleanup_started_ = false;
+  impl->cleanup_finished_ = false;
+  impl->stopping_ = false;
+  impl->opened_ = false;
+  impl->backpressure_active_ = false;
+  impl->inflight_bytes_ = 0;
+  impl->state_.set(LinkState::Idle);
+  impl->started_ = true;
   impl->work_guard_ =
       std::make_unique<net::executor_work_guard<net::io_context::executor_type>>(impl->ioc_.get_executor());
   if (impl->owns_ioc_) {
@@ -656,53 +716,37 @@ void Serial::start() {
       }
     });
   }
-  auto self = shared_from_this();
-  net::post(impl->strand_, [self] {
+  net::post(impl->strand_, [self = shared_from_this(), generation] {
     auto impl = self->get_impl();
-    if (!impl->stopping_.load()) {
-      impl->state_.set(LinkState::Connecting);
-      impl->notify_state();
-      impl->open_and_configure(self);
-    }
+    if (generation != impl->generation_ || impl->stopping_) return;
+    impl->state_.set(LinkState::Connecting);
+    impl->notify_state();
+    impl->open_and_configure(self);
   });
-  impl->started_ = true;
 }
 
 void Serial::stop() {
   auto impl = get_impl();
-
-  // A callback runs on the io thread that a waiting stop() would have to join,
-  // so a stop() from there can only *request* the shutdown. Joining it would
-  // be a self-join, which throws EDEADLK rather than waiting, and would then
-  // unwind through the rest of the shutdown (jwsung91/wirestead#649).
-  const bool on_io_thread =
-      impl->owns_ioc_ && impl->ioc_thread_.joinable() && impl->ioc_thread_.get_id() == std::this_thread::get_id();
-
-  if (!impl->started_ && !impl->stopping_.load()) {
-    impl->state_.set(LinkState::Closed);
-    return;
+  const bool on_executor = impl->ioc_.get_executor().running_in_this_thread();
+  {
+    std::lock_guard<std::mutex> lock(impl->submission_mtx_);
+    if (!impl->stopping_.exchange(true)) {
+      if (impl->generation_.load() == 0) {
+        impl->perform_stop_cleanup();
+      } else {
+        auto self = weak_from_this().lock();
+        net::post(impl->strand_, [self, impl] { impl->perform_stop_cleanup(); });
+      }
+    }
   }
-
-  if (!impl->stopping_.exchange(true)) {
-    auto self = shared_from_this();
-    net::post(impl->strand_, [self] {
-      auto impl = self->get_impl();
-      impl->perform_cleanup();
-      if (impl->owns_ioc_) impl->ioc_.stop();
-    });
+  if (on_executor) return;
+  detail::stop_test_hook(impl, false);
+  {
+    std::unique_lock<std::mutex> lock(impl->stop_mtx_);
+    impl->stop_cv_.wait(lock, [impl] { return impl->cleanup_done_; });
   }
-
-  if (on_io_thread) return;
-
-  // Every caller from outside the io thread leaves this function with the
-  // shutdown complete, including one that found a shutdown already requested -
-  // it waits on the mutex while the first caller joins.
-  std::lock_guard<std::mutex> lock(impl->stop_mtx_);
-  if (impl->owns_ioc_ && impl->ioc_thread_.joinable()) {
-    impl->ioc_thread_.join();
-    impl->ioc_.restart();
-  }
-  impl->started_ = false;
+  std::lock_guard<std::mutex> join_lock(impl->join_mtx_);
+  if (impl->ioc_thread_.joinable()) impl->ioc_thread_.join();
 }
 
 bool Serial::is_connected() const { return get_impl()->opened_.load(); }
@@ -727,6 +771,12 @@ boost::asio::any_io_executor Serial::get_executor() { return impl_->strand_; }
 
 bool Serial::async_write_copy(memory::ConstByteSpan data) {
   auto impl = get_impl();
+  std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
+  const auto generation = impl->generation_.load();
+  if (!impl->started_) {
+    impl->stats_.record_failed_send();
+    return false;
+  }
   if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
     impl->stats_.record_failed_send();
     return false;
@@ -753,8 +803,9 @@ bool Serial::async_write_copy(memory::ConstByteSpan data) {
         return false;
       }
       impl->stats_.record_accepted(n);
-      net::post(impl->strand_, [self = shared_from_this(), buf = std::move(pooled)]() mutable {
+      net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(pooled)]() mutable {
         auto impl = self->get_impl();
+        if (generation != impl->generation_) return;
         const auto added = buf.size();
         impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
       });
@@ -769,8 +820,9 @@ bool Serial::async_write_copy(memory::ConstByteSpan data) {
   }
   std::vector<uint8_t> fallback(data.begin(), data.end());
   impl->stats_.record_accepted(n);
-  net::post(impl->strand_, [self = shared_from_this(), buf = std::move(fallback)]() mutable {
+  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(fallback)]() mutable {
     auto impl = self->get_impl();
+    if (generation != impl->generation_) return;
     const auto added = buf.size();
     impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
@@ -779,6 +831,12 @@ bool Serial::async_write_copy(memory::ConstByteSpan data) {
 
 bool Serial::async_write_move(std::vector<uint8_t>&& data) {
   auto impl = get_impl();
+  std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
+  const auto generation = impl->generation_.load();
+  if (!impl->started_) {
+    impl->stats_.record_failed_send();
+    return false;
+  }
   if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
     impl->stats_.record_failed_send();
     return false;
@@ -794,8 +852,9 @@ bool Serial::async_write_move(std::vector<uint8_t>&& data) {
     return false;
   }
   impl->stats_.record_accepted(added);
-  net::post(impl->strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
+  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), added]() mutable {
     auto impl = self->get_impl();
+    if (generation != impl->generation_) return;
     impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
   return true;
@@ -803,6 +862,12 @@ bool Serial::async_write_move(std::vector<uint8_t>&& data) {
 
 bool Serial::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
   auto impl = get_impl();
+  std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
+  const auto generation = impl->generation_.load();
+  if (!impl->started_) {
+    impl->stats_.record_failed_send();
+    return false;
+  }
   if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
     impl->stats_.record_failed_send();
     return false;
@@ -818,8 +883,9 @@ bool Serial::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data
     return false;
   }
   impl->stats_.record_accepted(added);
-  net::post(impl->strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
+  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), added]() mutable {
     auto impl = self->get_impl();
+    if (generation != impl->generation_) return;
     impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
   return true;
@@ -835,6 +901,12 @@ bool Serial::async_try_write_copy(memory::ConstByteSpan data) {
 
 bool Serial::async_try_write_move(std::vector<uint8_t>&& data) {
   auto impl = get_impl();
+  std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
+  const auto generation = impl->generation_.load();
+  if (!impl->started_) {
+    impl->stats_.record_failed_send();
+    return false;
+  }
   if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
     impl->stats_.record_failed_send();
     return false;
@@ -863,8 +935,9 @@ bool Serial::async_try_write_move(std::vector<uint8_t>&& data) {
   }
   impl->stats_.record_accepted(added);
 
-  net::post(impl->strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
+  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), added]() mutable {
     auto impl = self->get_impl();
+    if (generation != impl->generation_) return;
     if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
       queue_util::release_reserved_write_bytes(impl->queued_bytes_, added);
       impl->stats_.record_failed_send();
@@ -881,6 +954,12 @@ bool Serial::async_try_write_move(std::vector<uint8_t>&& data) {
 
 bool Serial::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
   auto impl = get_impl();
+  std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
+  const auto generation = impl->generation_.load();
+  if (!impl->started_) {
+    impl->stats_.record_failed_send();
+    return false;
+  }
   if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error) ||
       !data || data->empty()) {
     impl->stats_.record_failed_send();
@@ -910,8 +989,9 @@ bool Serial::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> 
   }
   impl->stats_.record_accepted(added);
 
-  net::post(impl->strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
+  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), added]() mutable {
     auto impl = self->get_impl();
+    if (generation != impl->generation_) return;
     if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
       queue_util::release_reserved_write_bytes(impl->queued_bytes_, added);
       impl->stats_.record_failed_send();

@@ -23,6 +23,7 @@
 #include <memory>
 #include <optional>
 
+#include "tcp_stop_with_context.hpp"
 #include "wirestead/config/serial_config.hpp"
 #include "wirestead/interface/iserial_port.hpp"
 #include "wirestead/memory/safe_span.hpp"
@@ -193,7 +194,7 @@ TEST(TransportSerialTest, CreateProvidesSharedFromThis) {
     auto self = serial->shared_from_this();
     EXPECT_EQ(self.get(), serial.get());
   });
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
 }
 
 // The whole point of cfg_.low_latency is that it reaches the driver, and that a
@@ -216,12 +217,7 @@ TEST(TransportSerialTest, LowLatencyIsRequestedByDefault) {
 
   EXPECT_EQ(port_raw->low_latency_requests(), 1);
   EXPECT_TRUE(connected.load());
-  serial->stop();
-  // stop() only posts its cleanup when the io_context is external, and that
-  // handler owns a shared_ptr to the transport. Leaving it unrun keeps the
-  // transport alive until ~io_context destroys the handler - which runs
-  // perform_cleanup(), and so the state callback, after the locals it
-  // captures are gone. Drain here instead.
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
 }
 
@@ -237,12 +233,7 @@ TEST(TransportSerialTest, LowLatencyDisabledLeavesTheDriverAlone) {
   ioc.run_for(20ms);
 
   EXPECT_EQ(port_raw->low_latency_requests(), 0);
-  serial->stop();
-  // stop() only posts its cleanup when the io_context is external, and that
-  // handler owns a shared_ptr to the transport. Leaving it unrun keeps the
-  // transport alive until ~io_context destroys the handler - which runs
-  // perform_cleanup(), and so the state callback, after the locals it
-  // captures are gone. Drain here instead.
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
 }
 
@@ -267,12 +258,7 @@ TEST(TransportSerialTest, UnsupportedLowLatencyStillConnects) {
   EXPECT_EQ(port_raw->low_latency_requests(), 1);
   EXPECT_TRUE(connected.load());
   EXPECT_FALSE(errored.load());
-  serial->stop();
-  // stop() only posts its cleanup when the io_context is external, and that
-  // handler owns a shared_ptr to the transport. Leaving it unrun keeps the
-  // transport alive until ~io_context destroys the handler - which runs
-  // perform_cleanup(), and so the state callback, after the locals it
-  // captures are gone. Drain here instead.
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
 }
 
@@ -302,12 +288,7 @@ TEST(TransportSerialTest, RxIdleTimeoutReopensASilentPort) {
   ioc.run_for(150ms);
 
   EXPECT_GE(connects.load(), 2) << "the silent port was closed but never reopened";
-  serial->stop();
-  // stop() only posts its cleanup when the io_context is external, and that
-  // handler owns a shared_ptr to the transport. Leaving it unrun keeps the
-  // transport alive until ~io_context destroys the handler - which runs
-  // perform_cleanup(), and so the state callback, after the locals it
-  // captures are gone. Drain here instead.
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
 }
 
@@ -327,12 +308,7 @@ TEST(TransportSerialTest, RxIdleTimeoutIsOffByDefault) {
   ioc.run_for(150ms);
 
   EXPECT_EQ(connects.load(), 1) << "a silent port was torn down with the watchdog disabled";
-  serial->stop();
-  // stop() only posts its cleanup when the io_context is external, and that
-  // handler owns a shared_ptr to the transport. Leaving it unrun keeps the
-  // transport alive until ~io_context destroys the handler - which runs
-  // perform_cleanup(), and so the state callback, after the locals it
-  // captures are gone. Drain here instead.
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
 }
 
@@ -362,12 +338,7 @@ TEST(TransportSerialTest, ReceivedDataRearmsTheRxIdleTimeout) {
   }
 
   EXPECT_EQ(connects.load(), 1) << "a stream arriving every 10ms tripped a 30ms watchdog";
-  serial->stop();
-  // stop() only posts its cleanup when the io_context is external, and that
-  // handler owns a shared_ptr to the transport. Leaving it unrun keeps the
-  // transport alive until ~io_context destroys the handler - which runs
-  // perform_cleanup(), and so the state callback, after the locals it
-  // captures are gone. Drain here instead.
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
 }
 
@@ -395,7 +366,7 @@ TEST(TransportSerialTest, Rs485SettingsReachTheDriver) {
   EXPECT_TRUE(port_raw->rs485_rx_during_tx());
   EXPECT_EQ(port_raw->rs485_delay_before(), 2u);
   EXPECT_EQ(port_raw->rs485_delay_after(), 3u);
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
 }
 
@@ -410,7 +381,7 @@ TEST(TransportSerialTest, Rs485IsNotRequestedUnlessEnabled) {
   ioc.run_for(20ms);
 
   EXPECT_EQ(port_raw->rs485_requests(), 0);
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
 }
 
@@ -436,7 +407,7 @@ TEST(TransportSerialTest, UnsupportedRs485StillConnects) {
 
   EXPECT_EQ(port_raw->rs485_requests(), 1);
   EXPECT_TRUE(connected.load());
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
 }
 
@@ -453,7 +424,7 @@ TEST(TransportSerialTest, ModemLinesAreOnlyTouchedWhenSet) {
   ioc.run_for(20ms);
 
   EXPECT_EQ(port_raw->modem_requests(), 0) << "an unset line was still written";
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
 }
 
@@ -473,7 +444,7 @@ TEST(TransportSerialTest, ModemLinesAreAppliedWhenSet) {
   ASSERT_TRUE(port_raw->modem_dtr().has_value());
   EXPECT_FALSE(*port_raw->modem_dtr());
   EXPECT_FALSE(port_raw->modem_rts().has_value()) << "RTS was written despite being unset";
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
 }
 
@@ -499,7 +470,7 @@ TEST(TransportSerialTest, StopPreventsReopenAfterOperationAborted) {
   ioc.run_for(5ms);  // allow open/configure and first read to post
 
   stop_called.store(true);
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
 
   // Simulate read completion with operation_aborted after stop
   port_raw->emit_operation_aborted();
@@ -530,7 +501,7 @@ TEST(TransportSerialTest, QueueLimitRejectsMessage) {
   ioc.run_for(50ms);
 
   EXPECT_FALSE(error_seen.load());
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }
 
@@ -565,7 +536,7 @@ TEST(TransportSerialTest, OpenAndConfigureFailuresMoveToError) {
     // #445: last_error_info() should now report detail for this transport too.
     ASSERT_TRUE(serial->last_error_info().has_value());
     EXPECT_EQ(serial->last_error_info()->component, "serial");
-    serial->stop();
+    wirestead::test::stop_with_context(serial, ioc);
     ioc.restart();
     ioc.run_for(5ms);
   }
@@ -593,7 +564,7 @@ TEST(TransportSerialTest, MoveWriteRespectsQueueLimit) {
   ioc.run_for(50ms);
 
   EXPECT_FALSE(error_seen.load());
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }
 
@@ -619,7 +590,7 @@ TEST(TransportSerialTest, SharedWriteRespectsQueueLimit) {
   ioc.run_for(50ms);
 
   EXPECT_FALSE(error_seen.load());
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }
 
@@ -649,7 +620,7 @@ TEST(TransportSerialTest, CallbackExceptionStopsWhenConfigured) {
   ioc.run_for(20ms);
 
   EXPECT_TRUE(error_seen.load());
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }
 
@@ -682,7 +653,7 @@ TEST(TransportSerialTest, CallbackExceptionRetriesWhenAllowed) {
 
   EXPECT_EQ(error_events.load(), 0);
   EXPECT_GE(connecting_events.load(), 2);  // initial start + retry attempt
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }
 
@@ -709,7 +680,7 @@ TEST(TransportSerialTest, CallbackUnknownExceptionRetriesWhenAllowed) {
   ioc.run_for(40ms);
 
   EXPECT_GE(connecting_events.load(), 2);
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }
 
@@ -735,7 +706,7 @@ TEST(TransportSerialTest, WriteErrorMovesToErrorWhenRetryDisabled) {
   ioc.run_for(30ms);
 
   EXPECT_TRUE(error_seen.load());
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }
 
@@ -778,7 +749,7 @@ TEST(TransportSerialTest, BestEffortDropsOldestWhileWriteIsInFlight) {
   ioc.run_for(30ms);
 
   EXPECT_FALSE(bp_events.empty());
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }
 
@@ -804,6 +775,6 @@ TEST(TransportSerialTest, BackpressureReliefAfterDrain) {
   EXPECT_GE(events.front(), cfg.backpressure_threshold);
   EXPECT_LE(events.back(), cfg.backpressure_threshold / 2);
 
-  serial->stop();
+  wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }

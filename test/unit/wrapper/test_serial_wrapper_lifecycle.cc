@@ -26,6 +26,7 @@
 #include <thread>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
 #include "test/utils/test_utils.hpp"
 #include "wirestead/config/serial_config.hpp"
 #include "wirestead/framer/line_framer.hpp"
@@ -324,7 +325,7 @@ TEST_F(SerialWrapperLifecycleTest, AutoManageStartsInjectedTransport) {
 
   EXPECT_TRUE(serial.connected());
 
-  serial.stop();
+  wirestead::test::stop_wrapper_with_context(serial, ioc);
   ioc.restart();
   ioc.run_for(50ms);
 }
@@ -348,7 +349,7 @@ TEST_F(SerialWrapperLifecycleTest, StartFutureReflectsTransportFailure) {
   EXPECT_FALSE(started.get());
   EXPECT_FALSE(serial.connected());
 
-  serial.stop();
+  wirestead::test::stop_wrapper_with_context(serial, ioc);
   ioc.restart();
   ioc.run_for(50ms);
 }

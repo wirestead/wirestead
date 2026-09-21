@@ -20,15 +20,26 @@ and ABI policy.
   accepts and retries from the previous run cannot enter the restarted run.
   The stopping thread does not poll a shared executor or use a timeout as
   evidence that cleanup is safe.
-- D-1 also applies to UDS and UDP client/server in the follow-ups below.
-  Serial, blocking-send policy (D-2), and structured send results (D-3)
-  remain separate work.
+- D-1 also applies to UDS, UDP client/server and serial in the follow-ups
+  below. Blocking-send policy (D-2) and structured send results (D-3) remain
+  separate work.
 - **Breaking behavior:** UDP client/server outside `stop()` callers now wait for
   every admitted callback and transport cleanup, including cancelled I/O.
   Calls on the target executor request shutdown and return; external contexts
   must continue running until outside stop completes. Before-start writes
   reject without retaining work; restart discards a learned peer while keeping
   the configured destination.
+
+- **Breaking behavior:** Serial outside stop callers, including concurrent
+  callers and callers on unrelated executors, now wait for transport cleanup
+  and admitted callbacks on owned, external and shared contexts. Calls on the
+  target executor request shutdown and return; external contexts must keep
+  running while outside callers wait. Before-start writes reject without
+  retaining executor work.
+- Serial tracks cancellation through read/write, retry and receive-idle timer
+  completion, retains active gather-write buffers until release, and refuses
+  previous-run wrapper callbacks and batches after restart. Injected channels
+  retain their identity and regain handlers on restart.
 
 ### Fixed
 
