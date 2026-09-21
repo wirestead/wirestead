@@ -8,6 +8,13 @@ and ABI policy.
 
 ## Unreleased
 
+### Added
+
+- SendResult and SendRejection provide the D-3 acceptance-result value type:
+  explicit accept/reject factories, accepted(), an explicit bool conversion,
+  and a reason() accessor for rejected values. Existing send APIs still return
+  bool; this is the result-type foundation, not the transport migration.
+
 ### Changed
 
 - **Breaking ABI:** Channel gains a default virtual write_queue_limit() query, and

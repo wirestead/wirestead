@@ -28,6 +28,7 @@
 #include "wirestead/wrapper/ichannel.hpp"
 #include "wirestead/wrapper/iserver.hpp"
 #include "wirestead/wrapper/runtime_stats.hpp"
+#include "wirestead/wrapper/send_result.hpp"
 
 // Wrapper implementations
 #include "wirestead/wrapper/serial/serial.hpp"
@@ -79,6 +80,8 @@ using MessageContext = wrapper::MessageContext;
 using ConnectionContext = wrapper::ConnectionContext;
 using ErrorContext = wrapper::ErrorContext;
 using RuntimeStats = wrapper::RuntimeStats;
+using SendResult = wrapper::SendResult;
+using SendRejection = wrapper::SendRejection;
 
 // === Public Builder API Convenience Functions ===
 

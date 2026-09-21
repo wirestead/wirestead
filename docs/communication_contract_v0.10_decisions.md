@@ -6,9 +6,10 @@ Decision proposals for the common differences in
 UDP in PR #655 and serial in PR #656. D-2 landed in PR #657, and payload-size
 validation before waiting landed in PR #658. PR #659 repaired TCP
 readiness and UDP server target checks before capacity waiting. PR #661
-added reported whole-queue hard limits to validation before waiting. This
-follow-up aligns UDP server blocking admission with ordinary writes.
-Structured results and connection-instance fencing remain separate work.
+added reported whole-queue hard limits to validation before waiting. PR #662
+aligned UDP server blocking admission with ordinary writes. This follow-up
+adds the SendResult/SendRejection value types. Send APIs still return bool;
+reason mapping, connection-instance fencing and aggregate results remain work.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.
@@ -218,7 +219,7 @@ Every send API returns a structured result that reports **acceptance only**:
 the request was accepted, or it was rejected for one stated reason. The result
 never describes anything that happens after acceptance.
 
-Shape (names to settle in review):
+Public value-type shape (implemented; send APIs are not migrated yet):
 
 ```cpp
 enum class SendRejection {
@@ -228,6 +229,8 @@ enum class SendRejection {
 
 class SendResult {
  public:
+  static SendResult accept();
+  static SendResult reject(SendRejection reason);
   bool accepted() const;
   SendRejection reason() const;         // only meaningful when !accepted()
   explicit operator bool() const;       // accepted()
@@ -411,3 +414,18 @@ send_to keep async_try_write_to and its watermark refusal.
 This closes the lower-threshold exception recorded in the whole-queue-limit
 follow-up above. Acceptance still does not guarantee delivery. See
 [UDP admission validation](udp_server_reliable_admission.md).
+
+## D-3 result-type foundation
+
+The public wrapper/send_result.hpp now defines SendResult and SendRejection,
+also exposed as wirestead::SendResult and wirestead::SendRejection through
+the umbrella header. Explicit accept/reject factories prevent an accidental
+default outcome; accepted() and explicit bool conversion report acceptance,
+and reason() has the precondition !accepted(). The implementation is
+constexpr, noexcept and a trivially copyable value type.
+
+This is not a bool-to-SendResult API conversion or an implementation of the
+reason table. No existing send returns the new type in this change. Mapping
+each transport's synchronized admission decision, pinning the connection
+instance, recording stable wait-release causes, updating bindings and adding
+fanout aggregates still remain. See [result-type usage](send_result.md).
