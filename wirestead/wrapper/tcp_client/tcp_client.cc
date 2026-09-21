@@ -365,7 +365,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     if (!detail::payload_needs_capacity(payload_size)) return true;
     auto predicate = [this] {
       std::shared_lock<std::shared_mutex> lock(mutex_);
-      return !started_.load() || !channel_ || !channel_->is_backpressure_active();
+      return !started_.load() || !channel_ || !channel_->is_connected() || !channel_->is_backpressure_active();
     };
     if (predicate()) return true;
     if (detail::in_data_callback()) return false;
@@ -436,7 +436,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       if (!wait_for_backpressure_clear(bp_lock, data.size())) return false;
       bp_lock.unlock();
       std::shared_lock<std::shared_mutex> lock(mutex_);
-      if (!started_.load() || !channel_) return false;
+      if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
       if (channel_->async_write_copy(span)) return true;
     }
     return false;

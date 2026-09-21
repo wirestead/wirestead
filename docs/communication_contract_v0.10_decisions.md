@@ -3,9 +3,10 @@
 Decision proposals for the common differences in
 [the audit](communication_contract_v0.10_audit.md) section 9.1.
 **Implementation status:** D-1 landed for TCP in PR #652, UDS in PR #654,
-UDP in PR #655 and serial in PR #656. D-2 landed in PR #657. This follow-up
-addresses payload validation before capacity waiting, a prerequisite for D-3.
-Structured results and the remaining stage-1 checks are separate work.
+UDP in PR #655 and serial in PR #656. D-2 landed in PR #657, and payload-size
+validation before waiting landed in PR #658. This follow-up repairs TCP
+readiness and UDP server target checks before capacity waiting. Structured
+results, whole-queue limits and connection-instance fencing remain separate work.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.
@@ -370,3 +371,15 @@ payload larger than a transport's configured whole-queue limit, readiness
 before waiting, connection-instance fencing and structured reasons remain
 part of the subsequent D-3 work. See
 [validation evidence](send_validation_before_wait.md).
+
+## Readiness-before-wait follow-up
+
+TCP now observes disconnected state in its capacity predicate, matching the
+other three client wrappers, and checks readiness again before submitting a
+copied payload. UDP server waiting now observes whether the target client ID
+still exists, matching the absent-session behavior of TCP and UDS servers.
+
+This covers a target that is unavailable on entry or stays unavailable when
+the waiter next checks it. A disconnect/reconnect entirely between checks,
+restart generation fencing and stable cancellation reasons are still D-3
+work. See [readiness validation](send_readiness_before_wait.md).

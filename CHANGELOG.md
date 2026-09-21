@@ -50,6 +50,12 @@ and ABI policy.
 
 ### Fixed
 
+- TCP blocking sends now check connection readiness before waiting and before
+  submitting a copied payload. A disconnected channel with stale pressure no
+  longer holds the caller until that pressure clears.
+- UDP server blocking sends to an unknown client ID no longer wait for the
+  shared channel's queue pressure to clear.
+
 - Reliable and explicit blocking sends no longer wait for queue capacity
   before rejecting an empty payload or a payload above MAX_BUFFER_SIZE.
   This applies to all seven wrappers, including newline-appending calls.
