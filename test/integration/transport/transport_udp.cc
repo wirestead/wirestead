@@ -27,6 +27,7 @@
 #include <thread>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
 #include "test/utils/test_utils.hpp"
 #include "wirestead/config/udp_config.hpp"
 #include "wirestead/memory/safe_span.hpp"
@@ -362,7 +363,7 @@ TEST_F(TransportUdpTest, QueueLimitMovesToError) {
 
   EXPECT_TRUE(error_seen.load());
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST_F(TransportUdpTest, StopCancelsInFlightHandlers) {
@@ -447,7 +448,7 @@ TEST_F(TransportUdpTest, ExplicitDestinationWriteWithoutRemote) {
       1000);
   EXPECT_TRUE(received);
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 // async_try_write_to() is the try_ half of the explicit-destination pair and
@@ -492,7 +493,7 @@ TEST_F(TransportUdpTest, ExplicitDestinationTryWriteWithoutRemote) {
       },
       1000));
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 // enable_broadcast sets SO_BROADCAST during open_socket(), a block no test
@@ -543,7 +544,7 @@ TEST_F(TransportUdpTest, BroadcastOptionOpensAWorkingSocket) {
       },
       1000));
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 // reset_stats() is on the Channel contract - "cleared by reset_stats(), and by
@@ -590,7 +591,7 @@ TEST_F(TransportUdpTest, ResetStatsClearsCumulativeCounters) {
   EXPECT_EQ(after.messages_accepted, 0u);
   EXPECT_EQ(after.bytes_accepted, 0u);
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST_F(TransportUdpTest, MemoryPoolExplicitDestinationWriteWithoutRemote) {
@@ -633,7 +634,7 @@ TEST_F(TransportUdpTest, MemoryPoolExplicitDestinationWriteWithoutRemote) {
       1000);
   EXPECT_TRUE(received);
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST_F(TransportUdpTest, BytesFromExceptionStopsWhenConfigured) {

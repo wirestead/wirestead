@@ -24,6 +24,7 @@
 #include <thread>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
 #include "wirestead/base/common.hpp"
 #include "wirestead/config/udp_config.hpp"
 #include "wirestead/memory/safe_span.hpp"
@@ -76,7 +77,7 @@ TEST(TransportUdpExtendedTest, AsyncWriteMove) {
 
   EXPECT_TRUE(wait_for_condition(ioc, [&] { return received_bytes == payload_size; }, 2000ms));
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST(TransportUdpExtendedTest, AsyncWriteShared) {
@@ -108,7 +109,7 @@ TEST(TransportUdpExtendedTest, AsyncWriteShared) {
 
   EXPECT_TRUE(wait_for_condition(ioc, [&] { return received_bytes == payload_size; }, 2000ms));
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST(TransportUdpExtendedTest, PooledBufferWrite) {
@@ -141,7 +142,7 @@ TEST(TransportUdpExtendedTest, PooledBufferWrite) {
 
   EXPECT_TRUE(wait_for_condition(ioc, [&] { return received_bytes == payload.size(); }, 2000ms));
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST(TransportUdpExtendedTest, BackpressureReporting) {
@@ -188,7 +189,7 @@ TEST(TransportUdpExtendedTest, BackpressureReporting) {
   EXPECT_TRUE(bp_triggered);
   EXPECT_TRUE(bp_cleared);
 
-  channel->stop();
+  wirestead::test::stop_with_context(channel, ioc);
 }
 
 TEST(TransportUdpExtendedTest, CallbackExceptionSafety) {
@@ -213,5 +214,5 @@ TEST(TransportUdpExtendedTest, CallbackExceptionSafety) {
   // Should still be running/usable
   EXPECT_TRUE(ok);
   EXPECT_GT(calls, 0);
-  EXPECT_NO_THROW(channel->stop());
+  EXPECT_NO_THROW(wirestead::test::stop_with_context(channel, ioc));
 }

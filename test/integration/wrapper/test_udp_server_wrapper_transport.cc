@@ -20,6 +20,7 @@
 #include <boost/asio.hpp>
 #include <chrono>
 
+#include "tcp_stop_with_context.hpp"
 #include "wirestead/config/udp_config.hpp"
 #include "wirestead/transport/udp/udp.hpp"
 #include "wirestead/wrapper/udp/udp_server.hpp"
@@ -42,7 +43,7 @@ TEST(UdpServerWrapperTransportTest, AutoManageStartsInjectedTransport) {
 
   EXPECT_TRUE(server.listening());
 
-  server.stop();
+  wirestead::test::stop_wrapper_with_context(server, ioc);
 }
 
 TEST(UdpServerWrapperTransportTest, StartFutureReflectsBindFailure) {

@@ -23,6 +23,7 @@ namespace wirestead::transport::detail {
 // signal or observe callers reaching its wait; production leaves this null.
 inline std::atomic<void (*)()> g_tcp_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_uds_io_completion_hook{nullptr};
+inline std::atomic<void (*)()> g_udp_io_completion_hook{nullptr};
 using StopTestHook = void (*)(const void*, bool);
 inline std::atomic<StopTestHook> g_stop_test_hook{nullptr};
 inline void stop_test_hook(const void* object, bool completing) {

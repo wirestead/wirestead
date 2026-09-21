@@ -462,3 +462,15 @@ request-only shutdown and session-strand completion. It preserves the socket
 path ownership checks. [UDS validation](uds_d1_validation.md) records the new
 tests and the failures reproduced against the unchanged pre-fix UDS sources;
 the historical rows are not retroactively changed.
+
+### UDP D-1 follow-up
+
+The UDP and UDP-server rows above retain the original audit baseline. The
+follow-up after UDS PR #654 gives every outside caller a completion boundary
+for transport cleanup, cancelled I/O and admitted wrapper callbacks. It adds
+run-generation admission to data, state, backpressure, batching and peer-expiry
+paths; target-executor calls remain request-only. The configured/learned peer
+distinction and existing datagram filtering are preserved.
+[UDP validation](udp_d1_validation.md) records the real-I/O regression tests,
+before/after source comparison and local validation. Serial and D-2/D-3 remain
+separate work.
