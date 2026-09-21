@@ -100,8 +100,9 @@ class TcpServerLoopbackHarness {
 
   ~TcpServerLoopbackHarness() { stop_all(); }
 
-  std::shared_ptr<wrapper::TcpServer> start_server() {
+  std::shared_ptr<wrapper::TcpServer> start_server(size_t threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD) {
     server_ = std::make_shared<wrapper::TcpServer>(port_);
+    server_->backpressure_threshold(threshold);
     auto started = server_->start();
     if (!started.get()) {
       throw std::runtime_error("Failed to start TCP test server");
@@ -157,8 +158,9 @@ class UdsServerLoopbackHarness {
     TestUtils::removeFileIfExists(socket_path_);
   }
 
-  std::shared_ptr<wrapper::UdsServer> start_server() {
+  std::shared_ptr<wrapper::UdsServer> start_server(size_t threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD) {
     server_ = std::make_shared<wrapper::UdsServer>(socket_path_);
+    server_->backpressure_threshold(threshold);
     auto started = server_->start();
     if (!started.get()) {
       throw std::runtime_error("Failed to start UDS test server");
@@ -208,12 +210,13 @@ class UdpServerLoopbackHarness {
 
   ~UdpServerLoopbackHarness() { stop_all(); }
 
-  std::shared_ptr<wrapper::UdpServer> start_server() {
+  std::shared_ptr<wrapper::UdpServer> start_server(size_t threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD) {
     config::UdpConfig server_cfg;
     server_cfg.bind_address = "127.0.0.1";
     server_cfg.local_port = port_;
 
     server_ = std::make_shared<wrapper::UdpServer>(server_cfg);
+    server_->backpressure_threshold(threshold);
     auto started = server_->start();
     if (!started.get()) {
       throw std::runtime_error("Failed to start UDP test server");

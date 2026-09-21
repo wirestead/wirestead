@@ -108,8 +108,19 @@ thread to keep making progress. Calling a blocking send from within a
 callback while backpressure is active would deadlock the entire channel,
 since the thread that would clear it is the one now waiting.
 
-To prevent this, a blocking send called from inside a callback while
-backpressure is active returns `false` immediately instead of blocking:
+This applies to all seven wrappers and all user callback kinds: data,
+message, both batch forms (including timer delivery), connect, disconnect,
+error and backpressure. During any such callback, blocking-capable sends
+return false immediately if they would need to wait for capacity, including
+sends to a different channel. With capacity available, normal acceptance and
+readiness checks still apply; callback scope alone does not reject a send.
+
+The rule includes Reliable send()/send_line()/send_move()/send_shared(),
+explicit send_blocking()/send_line_blocking(), and server Reliable
+send_to()/send_to_line() and send_to_blocking(). Outside callbacks these
+APIs retain their existing waiting behavior. The try_send*() APIs are unchanged.
+
+For example:
 
 ```cpp
 client->on_data([&](const wirestead::MessageContext& ctx) {
