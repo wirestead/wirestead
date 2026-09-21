@@ -69,6 +69,8 @@ struct TcpServer::Impl {
   net::io_context& ioc_;
   net::strand<net::io_context::executor_type> strand_;
   std::atomic<uint64_t> generation_{0};
+  // start() may fail validation before dispatching any executor work.
+  bool run_dispatched_ = false;
   std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> work_guard_;
   std::jthread ioc_thread_;
 
@@ -557,7 +559,7 @@ struct TcpServer::Impl {
         on_multi_data_ = nullptr;
         on_multi_disconnect_ = nullptr;
       }
-      if (generation_.load() == 0) {
+      if (!run_dispatched_) {
         perform_cleanup(self);
       } else {
         net::post(strand_, [this, self] { perform_cleanup(self); });
@@ -616,6 +618,7 @@ void TcpServer::start() {
     return;
   }
   const auto generation = impl->generation_.fetch_add(1) + 1;
+  impl->run_dispatched_ = false;
   impl->stopping_.store(false);
   impl->cleanup_started_.store(false);
   {
@@ -670,6 +673,7 @@ void TcpServer::start() {
       }
     });
   }
+  impl->run_dispatched_ = true;
   auto self = shared_from_this();
   net::dispatch(impl->strand_, [self, generation] {
     auto* impl = self->get_impl();

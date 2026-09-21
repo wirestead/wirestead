@@ -43,8 +43,8 @@ ctest --test-dir build --output-on-failure -j2
 git diff --check
 ```
 
-Final full-suite result: 841 discovered cases, 829 passed, 12 skipped,
-0 failed (41.49 seconds). The skips are the existing UDP 4 KiB/16 KiB
+Final full-suite result: 842 discovered cases, 830 passed, 12 skipped,
+0 failed (41.37 seconds). The skips are the existing UDP 4 KiB/16 KiB
 large-payload cases; they are not reported as passed.
 
 AddressSanitizer uses a separate build with BOTH
@@ -52,7 +52,7 @@ AddressSanitizer uses a separate build with BOTH
 The library compile flags are checked for `-fsanitize=address`.
 The three D-1 executables run with `ASAN_OPTIONS=detect_leaks=1`.
 
-Final ASan result: 19/19 cases passed (9 admission/cleanup cases, 6 client
+Final ASan result: 20/20 cases passed (10 admission/cleanup cases, 6 client
 loopback cases, 4 server loopback cases), with no reported address or leak
 sanitizer errors.
 
@@ -90,8 +90,8 @@ No UDS, UDP, or serial implementation changes; no D-2/D-3 implementation.
 No guarantee of flush or peer delivery. No destruction from an object's own
 callback. External executors must keep running; restart waits for all stop
 callers. TLS-enabled syntax checks passed for the three changed transport translation
-units. Local Windows/MSVC, macOS, TLS runtime, and ThreadSanitizer runs are
-not part of this validation. The remote head's CI result must be reported separately
+units. Local Windows/MSVC, macOS, and ThreadSanitizer runs are not part of this
+validation. The remote head's CI result must be reported separately
 from these local measurements.
 
 
@@ -100,3 +100,21 @@ from these local measurements.
 Build/test logs and comparison metadata are retained outside the repository in
 `../log/codex-d1-validation/`. The normal and ASan builds use distinct
 directories, and the baseline executable comes from its detached worktree.
+
+
+## CI follow-up: validation failure before executor dispatch
+
+CI on `5fbc57be9` exposed a shutdown deadlock in two TLS configuration-error
+tests. The server incremented its run generation before TLS validation, but
+validation could return before any I/O thread or start handler existed.
+Stop therefore queued cleanup onto an executor that would never run.
+
+The server now tracks whether start actually dispatched I/O work. A failed
+validation follows the same inline cleanup path as a never-started transport.
+A regression test covers owned and external contexts, repeated failed starts,
+and release of the transport without queued references, even with TLS off.
+
+A separate TLS-enabled build ran all five `TcpTlsLoopbackTest` cases and all
+ten admission/cleanup cases successfully. This adds TLS runtime evidence to
+the earlier syntax-only check; it does not reclassify the failed CI attempt
+as successful.

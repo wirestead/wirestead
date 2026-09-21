@@ -294,6 +294,30 @@ TEST_P(TcpStopAdmissionTest, NeverStartedStopNeedsNoExecutorAndRetainsNoWork) {
   EXPECT_EQ(io.poll(), 0u);
 }
 
+// Validation can fail before any I/O work is dispatched. This must not
+// wait on an owned thread that was never created or an unused external context.
+TEST(TcpFailedStartStopTest, ValidationFailureNeedsNoExecutorForCleanup) {
+  for (bool external : {false, true}) {
+    boost::asio::io_context io;
+    config::TcpServerConfig cfg;
+    cfg.port = test::TestUtils::getAvailableTestPort();
+    cfg.tls_certificate_file = "unused-certificate";
+    // A certificate without a key is invalid even in builds with TLS off.
+    auto server = external ? transport::TcpServer::create(cfg, std::make_unique<transport::BoostTcpAcceptor>(io), io)
+                           : transport::TcpServer::create(cfg);
+    std::weak_ptr<transport::TcpServer> weak = server;
+    for (int cycle = 0; cycle < 2; ++cycle) {
+      server->start();
+      ASSERT_EQ(server->state(), base::LinkState::Error);
+      server->stop();
+      EXPECT_EQ(server->state(), base::LinkState::Closed);
+    }
+    server.reset();
+    EXPECT_TRUE(weak.expired());
+    EXPECT_EQ(io.poll(), 0u);
+  }
+}
+
 // Closing the socket is not the same event as leaving its cancelled read
 // handler. Keep that last handler alive and check both outside callers.
 TEST(TcpCancelledIoCompletionTest, OutsideStopsWaitForTheLastCancelledHandler) {
