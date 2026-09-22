@@ -22,6 +22,8 @@ namespace wirestead::transport::detail {
 // Internal scheduling seam. Tests can stop immediately before the completion
 // signal or observe callers reaching its wait; production leaves this null.
 inline std::atomic<void (*)()> g_tcp_io_completion_hook{nullptr};
+// Pauses a TCP write after its state check, before reservation/submission.
+inline std::atomic<void (*)()> g_tcp_write_admission_hook{nullptr};
 inline std::atomic<void (*)()> g_uds_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_udp_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_serial_io_completion_hook{nullptr};

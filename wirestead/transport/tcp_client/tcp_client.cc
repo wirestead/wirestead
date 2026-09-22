@@ -134,6 +134,9 @@ struct TcpClient::Impl {
   net::steady_timer connect_timer_;
   net::steady_timer idle_timer_;
   bool owns_ioc_ = true;
+  // Orders caller-side write admission and strand submission before stop.
+  // Never run strand handlers/user callbacks while holding this mutex.
+  std::mutex submission_mtx_;
   std::atomic<bool> stop_requested_{false};
   std::atomic<bool> stopping_{false};
   std::atomic<bool> terminal_state_notified_{false};
@@ -385,10 +388,16 @@ void TcpClient::start() {
 
 void TcpClient::stop() {
   const bool on_executor = impl_->ioc_->get_executor().running_in_this_thread();
-  const bool first = !impl_->stop_requested_.exchange(true);
+  bool first;
+  {
+    std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
+    first = !impl_->stop_requested_.exchange(true);
+    if (first) {
+      impl_->stopping_.store(true);
+      impl_->stop_seq_.store(impl_->current_seq_.load());
+    }
+  }
   if (first) {
-    impl_->stopping_.store(true);
-    impl_->stop_seq_.store(impl_->current_seq_.load());
     // Only a never-started transport has no executor work to serialize with.
     if (impl_->current_seq_.load() == 0) {
       impl_->perform_stop_cleanup();
@@ -425,12 +434,14 @@ void TcpClient::reset_stats() {
 boost::asio::any_io_executor TcpClient::get_executor() { return impl_->socket_.get_executor(); }
 
 bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
+  std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
     impl_->stats_.record_failed_send();
     return false;
   }
+  if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
 
   size_t size = data.size();
   if (size == 0) {
@@ -460,11 +471,11 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
           return false;
         }
         impl_->stats_.record_accepted(added);
-        net::dispatch(impl_->strand_,
-                      [self = shared_from_this(), buf = std::move(pooled_buffer), added, reliable, seq]() mutable {
-                        if (seq != self->impl_->current_seq_.load()) return;
-                        self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
-                      });
+        net::post(impl_->strand_,
+                  [self = shared_from_this(), buf = std::move(pooled_buffer), added, reliable, seq]() mutable {
+                    if (seq != self->impl_->current_seq_.load()) return;
+                    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
+                  });
         return true;
       }
     } catch (const std::exception& e) {
@@ -484,7 +495,7 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
   }
   impl_->stats_.record_accepted(added);
 
-  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, reliable, seq]() mutable {
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, reliable, seq]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
   });
@@ -492,12 +503,14 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
 }
 
 bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
+  std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
     impl_->stats_.record_failed_send();
     return false;
   }
+  if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   const auto size = data.size();
   if (size == 0) {
     WIRESTEAD_LOG_WARNING("tcp_client", "async_write_move", "Ignoring zero-length write");
@@ -520,7 +533,7 @@ bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
     return false;
   }
   impl_->stats_.record_accepted(added);
-  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq]() mutable {
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
   });
@@ -528,12 +541,14 @@ bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
 }
 
 bool TcpClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
     impl_->stats_.record_failed_send();
     return false;
   }
+  if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   if (!data || data->empty()) {
     WIRESTEAD_LOG_WARNING("tcp_client", "async_write_shared", "Ignoring empty shared buffer");
     impl_->stats_.record_failed_send();
@@ -556,7 +571,7 @@ bool TcpClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> d
     return false;
   }
   impl_->stats_.record_accepted(added);
-  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq]() mutable {
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
   });
@@ -576,12 +591,14 @@ bool TcpClient::async_try_write_copy(memory::ConstByteSpan data) {
 }
 
 bool TcpClient::async_try_write_move(std::vector<uint8_t>&& data) {
+  std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
     impl_->stats_.record_failed_send();
     return false;
   }
+  if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   const auto added = data.size();
   if (added == 0 || added > base::constants::MAX_BUFFER_SIZE) {
     impl_->stats_.record_failed_send();
@@ -606,7 +623,7 @@ bool TcpClient::async_try_write_move(std::vector<uint8_t>&& data) {
   }
   impl_->stats_.record_accepted(added);
 
-  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq]() mutable {
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     auto impl = self->impl_.get();
     if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||
@@ -625,6 +642,7 @@ bool TcpClient::async_try_write_move(std::vector<uint8_t>&& data) {
 }
 
 bool TcpClient::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   if (!data || data->empty()) {
     impl_->stats_.record_failed_send();
@@ -647,6 +665,7 @@ bool TcpClient::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t
     impl_->stats_.record_failed_send();
     return false;
   }
+  if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   if (impl_->backpressure_active_.load() || impl_->queue_bytes_ + added > impl_->bp_high_ ||
       impl_->queue_bytes_ + impl_->pending_bytes_ + added > impl_->bp_limit_) {
     reject_for_pressure();
@@ -659,7 +678,7 @@ bool TcpClient::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t
   }
   impl_->stats_.record_accepted(added);
 
-  net::dispatch(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq]() mutable {
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     auto impl = self->impl_.get();
     if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||

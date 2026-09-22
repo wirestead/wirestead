@@ -359,3 +359,101 @@ TEST(TcpCancelledIoCompletionTest, OutsideStopsWaitForTheLastCancelledHandler) {
 INSTANTIATE_TEST_SUITE_P(ClientAndServer, TcpStopAdmissionTest, ::testing::Bool());
 
 }  // namespace
+
+namespace {
+class TcpWriteStopAdmissionTest : public ::testing::TestWithParam<int> {};
+TEST_P(TcpWriteStopAdmissionTest, StopCannotOvertakeCheckedWrite) {
+  Context context;
+  const auto port = test::TestUtils::getAvailableTestPort();
+  auto server = wirestead::tcp_server(port).build();
+  ASSERT_TRUE(server->start_sync());
+  config::TcpClientConfig cfg;
+  cfg.port = port;
+  auto client = transport::TcpClient::create(cfg, *context.io);
+  client->start();
+  ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return client->is_connected(); }, 3000));
+  AdmissionPark park;
+  std::future<bool> write;
+  std::future<void> stopping;
+  Signal stop_entered;
+  OnExit cleanup{[&] {
+    park.release.notify();
+    if (write.valid()) write.wait();
+    if (stopping.valid()) stopping.wait();
+    transport::detail::g_tcp_write_admission_hook.store(nullptr);
+    admission_park.store(nullptr);
+    client->stop();
+    server->stop();
+  }};
+  admission_park.store(&park);
+  transport::detail::g_tcp_write_admission_hook.store(&park_admission);
+  write = std::async(std::launch::async, [&] {
+    std::vector<uint8_t> data(32, 42);
+    auto shared = std::make_shared<const std::vector<uint8_t>>(data);
+    switch (GetParam()) {
+      case 0:
+        return client->async_write_copy(memory::ConstByteSpan(data.data(), data.size()));
+      case 1:
+        return client->async_write_move(std::move(data));
+      case 2:
+        return client->async_write_shared(shared);
+      case 3:
+        return client->async_try_write_copy(memory::ConstByteSpan(data.data(), data.size()));
+      case 4:
+        return client->async_try_write_move(std::move(data));
+      default:
+        return client->async_try_write_shared(shared);
+    }
+  });
+  ASSERT_TRUE(park.entered.wait());
+  stopping = std::async(std::launch::async, [&] {
+    stop_entered.notify();
+    client->stop();
+  });
+  ASSERT_TRUE(stop_entered.wait());
+  EXPECT_EQ(stopping.wait_for(100ms), std::future_status::timeout);
+  park.release.notify();
+  EXPECT_EQ(write.wait_for(3s), std::future_status::ready);
+  EXPECT_TRUE(write.get());
+  EXPECT_EQ(stopping.wait_for(3s), std::future_status::ready);
+  stopping.get();
+  const auto stats = client->stats();
+  EXPECT_EQ(stats.messages_accepted, 1u);
+  EXPECT_EQ(stats.queued_bytes, 0u);
+  EXPECT_EQ(stats.pending_bytes, 0u);
+  std::vector<uint8_t> after(1, 42);
+  EXPECT_FALSE(client->async_write_move(std::move(after)));
+  EXPECT_EQ(client->stats().messages_accepted, 1u);
+}
+INSTANTIATE_TEST_SUITE_P(AllWriteForms, TcpWriteStopAdmissionTest, ::testing::Range(0, 6));
+
+TEST(TcpWriteStopAdmissionCallbackTest, BackpressureCanRequestStopFromExecutorWrite) {
+  Context context;
+  const auto port = test::TestUtils::getAvailableTestPort();
+  auto server = wirestead::tcp_server(port).build();
+  ASSERT_TRUE(server->start_sync());
+  config::TcpClientConfig cfg;
+  cfg.port = port;
+  cfg.backpressure_threshold = 1024;
+  auto client = transport::TcpClient::create(cfg, *context.io);
+  client->start();
+  ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return client->is_connected(); }, 3000));
+  Signal callback_returned, writer_returned;
+  std::atomic<bool> accepted{false};
+  client->on_backpressure([&](size_t queued) {
+    if (queued < 1024) return;
+    client->stop();
+    callback_returned.notify();
+  });
+  boost::asio::post(client->get_executor(), [&] {
+    accepted = client->async_write_move(std::vector<uint8_t>(1024, 42));
+    writer_returned.notify();
+  });
+  EXPECT_TRUE(writer_returned.wait());
+  EXPECT_TRUE(callback_returned.wait());
+  EXPECT_TRUE(accepted);
+  client->stop();
+  client->on_backpressure(nullptr);
+  server->stop();
+}
+}  // namespace
