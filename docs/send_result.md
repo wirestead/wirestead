@@ -5,9 +5,10 @@ wirestead/wrapper/send_result.hpp in the wirestead::wrapper namespace, or
 through wirestead/wirestead.hpp as wirestead::SendResult and
 wirestead::SendRejection.
 
-**Current status:** this change introduces the value type only. Existing
-send APIs still return bool and do not populate a SendResult. The mapping
-from transport decisions to reasons is a separate implementation step.
+**Current status:** the value type landed in PR #663. Shared wrapper
+payload-size validation now uses it internally for InvalidArgument and
+TooLarge. Existing send APIs still return bool and do not expose a
+SendResult. State/capacity mapping and final admission remain later steps.
 
 ## Constructing an outcome
 
@@ -67,8 +68,8 @@ The value type carries all eight reasons from the
 | InvalidArgument | Empty/null or otherwise invalid input |
 | CancelledWhileWaiting | Stop released a capacity waiter |
 
-These are the intended mappings, not claims that current bool-returning
-transports distinguish them yet. The enum can grow; switches should include
+Only the internal payload-size InvalidArgument/TooLarge checks currently use
+these mappings; bool-returning transports do not expose the reasons yet. The enum can grow; switches should include
 a default branch.
 
 ## Validation and migration

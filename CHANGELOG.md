@@ -10,6 +10,11 @@ and ABI policy.
 
 ### Added
 
+- Shared wrapper payload-size validation now produces SendResult internally:
+  InvalidArgument for empty input and TooLarge for message/queue size limits.
+  Public sends still return bool; transport rejection and accounting remain
+  unchanged while D-3 migration continues.
+
 - SendResult and SendRejection provide the D-3 acceptance-result value type:
   explicit accept/reject factories, accepted(), an explicit bool conversion,
   and a reason() accessor for rejected values. Existing send APIs still return

@@ -7,9 +7,10 @@ UDP in PR #655 and serial in PR #656. D-2 landed in PR #657, and payload-size
 validation before waiting landed in PR #658. PR #659 repaired TCP
 readiness and UDP server target checks before capacity waiting. PR #661
 added reported whole-queue hard limits to validation before waiting. PR #662
-aligned UDP server blocking admission with ordinary writes. This follow-up
-adds the SendResult/SendRejection value types. Send APIs still return bool;
-reason mapping, connection-instance fencing and aggregate results remain work.
+aligned UDP server blocking admission with ordinary writes. PR #663 added
+the SendResult/SendRejection value types. This follow-up connects payload-size
+validation to InvalidArgument/TooLarge internally. Send APIs still return
+bool; state/capacity reasons, connection fencing and aggregates remain work.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.
@@ -429,3 +430,17 @@ reason table. No existing send returns the new type in this change. Mapping
 each transport's synchronized admission decision, pinning the connection
 instance, recording stable wait-release causes, updating bindings and adding
 fanout aggregates still remain. See [result-type usage](send_result.md).
+
+## D-3 payload-size reason mapping
+
+The shared wrapper validation now returns an internal SendResult:
+InvalidArgument for zero bytes, TooLarge above MAX_BUFFER_SIZE or a known
+whole-queue hard limit, and acceptance of the size check otherwise. Zero
+bytes take precedence even when the reported queue limit is zero. An absent
+queue limit remains unknown and does not restrict an otherwise valid size.
+
+The existing payload_needs_capacity adapter reads accepted() from that
+result. All seven wrappers continue to use it, leaving actual rejection,
+callbacks and accounting in the transport. This is validation-stage success,
+not acceptance by the queue, and the public sends still return bool.
+See [payload reason validation](send_payload_reasons.md).
