@@ -361,16 +361,17 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   // from inside an on_data/on_message callback. Clearing backpressure
   // requires that same io thread to make progress, so blocking here would
   // deadlock forever rather than eventually clear (#449).
-  bool wait_for_backpressure_clear(std::unique_lock<std::mutex>& bp_lock, size_t payload_size) {
+  bool wait_for_backpressure_clear(std::unique_lock<std::mutex>& bp_lock, size_t payload_size, uint64_t generation) {
     if (!detail::payload_needs_capacity(payload_size)) return true;
-    auto predicate = [this, payload_size] {
+    auto predicate = [this, payload_size, generation] {
       std::shared_lock<std::shared_mutex> lock(mutex_);
-      return !started_.load() || !channel_ || !channel_->is_connected() ||
+      return callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected() ||
              !detail::payload_needs_capacity(payload_size, channel_->write_queue_limit()) ||
              !channel_->is_backpressure_active();
     };
     if (predicate()) return true;
     if (detail::in_data_callback()) return false;
+    if (auto hook = detail::g_tcp_capacity_wait_hook.load()) hook();
     while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), predicate)) {
     }
     return true;
@@ -391,12 +392,14 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   bool send_move(std::vector<uint8_t>&& data) {
     if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) {
+      const auto generation = callback_generation_.load();
       for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
         std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-        if (!wait_for_backpressure_clear(bp_lock, data.size())) return false;
+        if (!wait_for_backpressure_clear(bp_lock, data.size(), generation)) return false;
         bp_lock.unlock();
         std::shared_lock<std::shared_mutex> lock(mutex_);
-        if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
+        if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected())
+          return false;
         // async_write_move only actually moves from `data` on success (see
         // TcpClient::async_write_move), so retrying with the same `data`
         // after a `false` return is safe.
@@ -410,12 +413,14 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   bool send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
     if (!data || data->empty()) return false;
     if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) {
+      const auto generation = callback_generation_.load();
       for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
         std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-        if (!wait_for_backpressure_clear(bp_lock, data->size())) return false;
+        if (!wait_for_backpressure_clear(bp_lock, data->size(), generation)) return false;
         bp_lock.unlock();
         std::shared_lock<std::shared_mutex> lock(mutex_);
-        if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
+        if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected())
+          return false;
         if (channel_->async_write_shared(data)) return true;
       }
       return false;
@@ -433,12 +438,15 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   bool send_blocking(std::string_view data) {
     auto binary_view = base::safe_convert::string_to_bytes(data);
     memory::ConstByteSpan span(binary_view.first, binary_view.second);
+    // Pin the run once, including all capacity waits and bounded retries.
+    const auto generation = callback_generation_.load();
     for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
       std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      if (!wait_for_backpressure_clear(bp_lock, data.size())) return false;
+      if (!wait_for_backpressure_clear(bp_lock, data.size(), generation)) return false;
       bp_lock.unlock();
       std::shared_lock<std::shared_mutex> lock(mutex_);
-      if (!started_.load() || !channel_ || !channel_->is_connected()) return false;
+      if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected())
+        return false;
       if (channel_->async_write_copy(span)) return true;
     }
     return false;

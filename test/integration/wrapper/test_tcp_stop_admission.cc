@@ -530,3 +530,64 @@ TEST_P(TcpWriteReadinessTest, RejectsConnectingAndConnectionLossCallbacks) {
 }
 INSTANTIATE_TEST_SUITE_P(AllWriteForms, TcpWriteReadinessTest, ::testing::Range(0, 6));
 }  // namespace
+
+namespace {
+class PressuredRunChannel : public SavedChannel {
+ public:
+  std::atomic<bool> pressure{true};
+  bool is_backpressure_active() const override { return pressure.load(); }
+};
+class TcpCapacityWaitRunTest : public ::testing::TestWithParam<int> {};
+TEST_P(TcpCapacityWaitRunTest, OldWaitCannotResumeInRestartedRun) {
+  auto channel = std::make_shared<PressuredRunChannel>();
+  wrapper::TcpClient client(channel);
+  auto start = [&] {
+    auto ready = client.start();
+    channel->state(base::LinkState::Connected);
+    EXPECT_TRUE(ready.get());
+  };
+  start();
+  AdmissionPark park;
+  std::future<bool> writer;
+  OnExit cleanup{[&] {
+    park.release.notify();
+    channel->pressure = false;
+    if (writer.valid()) writer.wait();
+    wrapper::detail::g_tcp_capacity_wait_hook.store(nullptr);
+    admission_park.store(nullptr);
+    client.stop();
+  }};
+  auto send = [&] {
+    switch (GetParam() % 6) {
+      case 0:
+        return client.send("old");
+      case 1:
+        return client.send_line("old");
+      case 2:
+        return client.send_blocking("old");
+      case 3:
+        return client.send_line_blocking("old");
+      case 4:
+        return client.send_move(std::vector<uint8_t>{1, 2, 3});
+      default:
+        return client.send_shared(std::make_shared<const std::vector<uint8_t>>(3, 42));
+    }
+  };
+  admission_park.store(&park);
+  wrapper::detail::g_tcp_capacity_wait_hook.store(&park_admission);
+  writer = std::async(std::launch::async, send);
+  ASSERT_TRUE(park.entered.wait());
+  client.stop();
+  if (GetParam() >= 6) start();
+  channel->pressure = GetParam() >= 12;
+  park.release.notify();
+  // Restart must not hide the stop even if the new run is also pressured.
+  EXPECT_EQ(writer.wait_for(300ms), std::future_status::ready);
+  channel->pressure = false;
+  EXPECT_FALSE(writer.get());
+  if (GetParam() >= 6) {
+    EXPECT_TRUE(send());
+  }
+}
+INSTANTIATE_TEST_SUITE_P(StopAndRestartWithPressure, TcpCapacityWaitRunTest, ::testing::Range(0, 18));
+}  // namespace

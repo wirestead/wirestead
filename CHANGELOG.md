@@ -76,6 +76,10 @@ and ABI policy.
 
 ### Fixed
 
+- TCP blocking/Reliable sends now pin their wrapper run across capacity waits
+  and retries. A stop followed by restart cannot resume an old send in the new
+  run, even if the replacement run is also under backpressure.
+
 - TCP client write admission now serializes state checks, queue reservation and
   strand submission with explicit stop requests. A checked write cannot be
   admitted after stop cleanup. Executor-origin writes now post their routing
