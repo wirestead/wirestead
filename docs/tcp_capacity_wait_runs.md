@@ -38,7 +38,8 @@ each attempt. No new public methods, return types or ABI changes are introduced.
 ## Remaining work
 
 A wrapper run is not a TCP connection instance. Automatic disconnect/reconnect
-without an explicit stop still requires connection-pinned waiting and a final
-transport admission check against that connection. Structured, stable
+without an explicit stop is handled for the built-in transport by the
+[connection-wait follow-up](tcp_capacity_wait_connections.md), including its
+final transport admission check. Structured, stable
 CancelledWhileWaiting/NotReady results are not implemented by this bool fix.
 Other transports, fanout results and bindings remain separate D-3 work.

@@ -12,13 +12,15 @@ the SendResult/SendRejection value types. PR #664 connected payload-size
 validation to InvalidArgument/TooLarge internally. PR #665 serialized TCP
 client write admission with explicit stop requests. PR #666 required usable
 TCP readiness under the same admission mutex. PR #667 fenced accepted TCP
-writes by connection and discarded old queued data on loss. This follow-up
-pins TCP capacity waits to the wrapper run across stop/restart; see
+writes by connection and discarded old queued data on loss. PR #668 pinned
+TCP capacity waits to the wrapper run across stop/restart. This follow-up
+pins those waits to a built-in TCP connection and checks it at admission; see
+[tcp_capacity_wait_connections.md](tcp_capacity_wait_connections.md),
 [tcp_capacity_wait_runs.md](tcp_capacity_wait_runs.md),
 [tcp_reconnect_write_fencing.md](tcp_reconnect_write_fencing.md),
 [tcp_write_admission.md](tcp_write_admission.md) and
 [tcp_write_readiness.md](tcp_write_readiness.md). Send APIs still return bool;
-state/capacity reasons, wrapper wait fencing and aggregates remain work.
+structured state/capacity reasons, other targets and aggregates remain work.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.

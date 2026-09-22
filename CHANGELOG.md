@@ -76,6 +76,11 @@ and ABI policy.
 
 ### Fixed
 
+- Blocking/Reliable sends using the built-in TCP client now pin the connection
+  across capacity waits and retries. A reconnect ends the old wait, and the
+  expected connection is checked under the transport admission mutex so a
+  replacement connection cannot accept the old payload.
+
 - TCP blocking/Reliable sends now pin their wrapper run across capacity waits
   and retries. A stop followed by restart cannot resume an old send in the new
   run, even if the replacement run is also under backpressure.

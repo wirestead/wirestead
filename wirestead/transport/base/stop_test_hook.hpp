@@ -24,6 +24,8 @@ namespace wirestead::transport::detail {
 inline std::atomic<void (*)()> g_tcp_io_completion_hook{nullptr};
 // Pauses a TCP write after its state check, before reservation/submission.
 inline std::atomic<void (*)()> g_tcp_write_admission_hook{nullptr};
+// Pauses a connection-pinned write before acquiring the admission mutex.
+inline std::atomic<void (*)()> g_tcp_pinned_write_hook{nullptr};
 inline std::atomic<void (*)()> g_uds_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_udp_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_serial_io_completion_hook{nullptr};
