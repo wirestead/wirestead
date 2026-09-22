@@ -234,12 +234,20 @@ config::TcpClientConfig tcp_client_config(BackpressureStrategy strategy) {
   return cfg;
 }
 
-std::shared_ptr<TcpClient> started_tcp_client(net::io_context& ioc, BackpressureStrategy strategy) {
-  auto client = TcpClient::create(tcp_client_config(strategy), ioc);
+std::shared_ptr<TcpClient> started_tcp_client(net::io_context& ioc, const net::ip::tcp::acceptor& acceptor,
+                                              BackpressureStrategy strategy) {
+  auto cfg = tcp_client_config(strategy);
+  cfg.port = acceptor.local_endpoint().port();
+  auto client = TcpClient::create(cfg, ioc);
   client->on_backpressure([](size_t) {});
   client->start();
   ioc.restart();
-  ioc.poll_one();
+  const auto deadline = std::chrono::steady_clock::now() + 3s;
+  while (!client->is_connected() && std::chrono::steady_clock::now() < deadline) {
+    ioc.restart();
+    ioc.run_for(10ms);
+  }
+  EXPECT_TRUE(client->is_connected());
   return client;
 }
 
@@ -369,8 +377,10 @@ void stop_serial(std::shared_ptr<Serial>& serial, StallingSerialPort* port, net:
 
 TEST(TryWriteTransportContractTest, TcpClientReliableTryWriteRejectsWithoutPending) {
   net::io_context ioc;
-  auto client = started_tcp_client(ioc, BackpressureStrategy::Reliable);
-  activate_backpressure(*client, ioc);
+  net::ip::tcp::acceptor acceptor(ioc, net::ip::tcp::endpoint(net::ip::tcp::v4(), 0));
+  auto client = started_tcp_client(ioc, acceptor, BackpressureStrategy::Reliable);
+  // Reserve the high watermark before running the executor, so it cannot drain.
+  ASSERT_TRUE(client->async_try_write_move(std::vector<uint8_t>(kBpHigh, 0xD1)));
 
   expect_reliable_try_write_rejects_without_pending(*client);
 
@@ -422,8 +432,10 @@ TEST(TryWriteTransportContractTest, SerialReliableTryWriteRejectsWithoutPending)
 
 TEST(TryWriteTransportContractTest, TcpClientBestEffortTryWriteCountsDrop) {
   net::io_context ioc;
-  auto client = started_tcp_client(ioc, BackpressureStrategy::BestEffort);
-  activate_backpressure(*client, ioc);
+  net::ip::tcp::acceptor acceptor(ioc, net::ip::tcp::endpoint(net::ip::tcp::v4(), 0));
+  auto client = started_tcp_client(ioc, acceptor, BackpressureStrategy::BestEffort);
+  // Reserve the high watermark before running the executor, so it cannot drain.
+  ASSERT_TRUE(client->async_try_write_move(std::vector<uint8_t>(kBpHigh, 0xD1)));
 
   expect_best_effort_try_write_counts_drop(*client);
 
@@ -475,7 +487,8 @@ TEST(TryWriteTransportContractTest, SerialBestEffortTryWriteCountsDrop) {
 
 TEST(TryWriteTransportContractTest, TcpClientTryWriteTrueReturnRemainsAccepted) {
   net::io_context ioc;
-  auto client = started_tcp_client(ioc, BackpressureStrategy::Reliable);
+  net::ip::tcp::acceptor acceptor(ioc, net::ip::tcp::endpoint(net::ip::tcp::v4(), 0));
+  auto client = started_tcp_client(ioc, acceptor, BackpressureStrategy::Reliable);
 
   expect_try_write_true_return_remains_accepted(*client, ioc);
 

@@ -9,9 +9,11 @@ readiness and UDP server target checks before capacity waiting. PR #661
 added reported whole-queue hard limits to validation before waiting. PR #662
 aligned UDP server blocking admission with ordinary writes. PR #663 added
 the SendResult/SendRejection value types. PR #664 connected payload-size
-validation to InvalidArgument/TooLarge internally. This follow-up serializes
-TCP client write admission with explicit stop requests; see
-[tcp_write_admission.md](tcp_write_admission.md). Send APIs still return bool;
+validation to InvalidArgument/TooLarge internally. PR #665 serialized TCP
+client write admission with explicit stop requests. This follow-up requires
+usable TCP connection readiness under the same admission mutex; see
+[tcp_write_admission.md](tcp_write_admission.md) and
+[tcp_write_readiness.md](tcp_write_readiness.md). Send APIs still return bool;
 state/capacity reasons, connection fencing and aggregates remain work.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is

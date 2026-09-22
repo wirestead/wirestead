@@ -22,6 +22,11 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking behavior:** TCP client writes now reject before a usable connection
+  exists, including before start, while connecting/TLS handshaking and after
+  connection loss. Readiness publication shares the write-admission mutex.
+  Callers that previously queued data offline must wait for connection readiness.
+
 - **Breaking ABI:** Channel gains a default virtual write_queue_limit() query, and
   concrete transports report their admission limit. Custom Channel subclasses
   remain source-compatible, but libraries and consumers must be rebuilt.
