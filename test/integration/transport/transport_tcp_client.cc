@@ -776,3 +776,123 @@ TEST_F(TransportTcpClientTest, UnknownOnBytesExceptionTriggersReconnect) {
   stop_with_context(client_, ioc);
   client_.reset();
 }
+
+namespace {
+struct ReconnectWritePeer {
+  net::io_context io;
+  tcp::acceptor acceptor{io, tcp::endpoint(tcp::v4(), 0)};
+  tcp::socket first{io}, second{io};
+  net::streambuf received;
+  std::shared_ptr<TcpClient> client;
+  int connections = 0;
+  bool read_done = false;
+  bool fresh_accepted = false;
+  boost::system::error_code read_error;
+
+  explicit ReconnectWritePeer(base::constants::BackpressureStrategy strategy, size_t threshold = 1024) {
+    acceptor.set_option(net::socket_base::receive_buffer_size(1024));
+    config::TcpClientConfig cfg;
+    cfg.port = acceptor.local_endpoint().port();
+    cfg.send_buffer_size = 1024;
+    cfg.backpressure_threshold = threshold;
+    cfg.backpressure_strategy = strategy;
+    cfg.retry_interval_ms = 20;
+    client = TcpClient::create(cfg, io);
+    client->on_state([this](base::LinkState state) {
+      if (state == base::LinkState::Connected && ++connections == 2) {
+        fresh_accepted = client->async_write_move(std::vector<uint8_t>{'n', 'e', 'w', '\n'});
+      }
+    });
+    client->on_bytes([](memory::ConstByteSpan) { throw std::runtime_error("end first connection"); });
+    acceptor.async_accept(first, [this](auto ec) {
+      if (ec) return;
+      acceptor.async_accept(second, [this](auto next_ec) {
+        if (next_ec) return;
+        net::async_read_until(second, received, '\n', [this](auto ec, size_t) {
+          read_error = ec;
+          read_done = true;
+        });
+      });
+    });
+    client->start();
+  }
+  ~ReconnectWritePeer() {
+    client->on_bytes(nullptr);
+    client->on_state(nullptr);
+    stop_with_context(client, io);
+  }
+  void trigger_loss() { net::write(first, net::buffer("!", 1)); }
+  std::string line() {
+    std::istream stream(&received);
+    std::string result;
+    std::getline(stream, result);
+    return result;
+  }
+};
+
+class TcpReconnectPostedWriteTest : public ::testing::TestWithParam<int> {};
+TEST_P(TcpReconnectPostedWriteTest, OldSubmissionNeverReachesNewConnection) {
+  using Strategy = base::constants::BackpressureStrategy;
+  ReconnectWritePeer peer(GetParam() < 6 ? Strategy::Reliable : Strategy::BestEffort);
+  ASSERT_TRUE(run_until(peer.io, [&] { return peer.connections == 1 && peer.first.is_open(); }));
+  bool old_accepted = false;
+  peer.client->on_bytes([&](memory::ConstByteSpan) {
+    std::vector<uint8_t> old{'o', 'l', 'd', '\n'};
+    auto shared = std::make_shared<const std::vector<uint8_t>>(old);
+    switch (GetParam() % 6) {
+      case 0:
+        old_accepted = peer.client->async_write_copy(memory::ConstByteSpan(old.data(), old.size()));
+        break;
+      case 1:
+        old_accepted = peer.client->async_write_move(std::move(old));
+        break;
+      case 2:
+        old_accepted = peer.client->async_write_shared(shared);
+        break;
+      case 3:
+        old_accepted = peer.client->async_try_write_copy(memory::ConstByteSpan(old.data(), old.size()));
+        break;
+      case 4:
+        old_accepted = peer.client->async_try_write_move(std::move(old));
+        break;
+      default:
+        old_accepted = peer.client->async_try_write_shared(shared);
+        break;
+    }
+    // The posted write cannot run until this callback closes the connection.
+    throw std::runtime_error("end first connection after submission");
+  });
+  peer.trigger_loss();
+  ASSERT_TRUE(run_until(peer.io, [&] { return peer.read_done; }));
+  EXPECT_FALSE(peer.read_error);
+  EXPECT_TRUE(old_accepted);
+  EXPECT_TRUE(peer.fresh_accepted);
+  EXPECT_EQ(peer.line(), "new");
+  EXPECT_EQ(peer.client->stats().dropped_messages, 1u);
+  EXPECT_EQ(peer.client->stats().dropped_bytes, 4u);
+}
+INSTANTIATE_TEST_SUITE_P(AllStrategiesAndWriteForms, TcpReconnectPostedWriteTest, ::testing::Range(0, 12));
+
+class TcpReconnectWriteTest : public ::testing::TestWithParam<bool> {};
+TEST_P(TcpReconnectWriteTest, DiscardsActiveAndWaitingDataBeforeReconnect) {
+  ReconnectWritePeer peer(base::constants::BackpressureStrategy::Reliable, GetParam() ? 1024 : 1024 * 1024);
+  ASSERT_TRUE(run_until(peer.io, [&] { return peer.connections == 1 && peer.first.is_open(); }));
+  constexpr size_t active_size = 512 * 1024;
+  EXPECT_TRUE(peer.client->async_write_move(std::vector<uint8_t>(active_size, 'x')));
+  EXPECT_TRUE(peer.client->async_write_move(std::vector<uint8_t>(32, 'y')));
+  ASSERT_TRUE(run_until(peer.io, [&] {
+    const auto stats = peer.client->stats();
+    return GetParam() ? stats.pending_bytes == 32 : stats.queued_bytes == active_size + 32;
+  }));
+  peer.trigger_loss();
+  ASSERT_TRUE(run_until(peer.io, [&] { return peer.read_done; }));
+  EXPECT_FALSE(peer.read_error);
+  EXPECT_TRUE(peer.fresh_accepted);
+  EXPECT_EQ(peer.line(), "new");
+  const auto stats = peer.client->stats();
+  EXPECT_EQ(stats.dropped_messages, 2u);
+  EXPECT_EQ(stats.dropped_bytes, active_size + 32);
+  EXPECT_EQ(stats.pending_bytes, 0u);
+}
+INSTANTIATE_TEST_SUITE_P(QueuedAndPending, TcpReconnectWriteTest, ::testing::Bool());
+}  // namespace
