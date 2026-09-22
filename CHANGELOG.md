@@ -66,6 +66,11 @@ and ABI policy.
 
 ### Fixed
 
+- TCP client write admission now serializes state checks, queue reservation and
+  strand submission with explicit stop requests. A checked write cannot be
+  admitted after stop cleanup. Executor-origin writes now post their routing
+  work so callbacks can request stop without reentering the admission mutex.
+
 - UDP server Reliable sends and explicit blocking sends use ordinary write
   admission after waiting, accepting payloads above the pressure watermark
   when they fit the hard queue limit. Explicit try-send and BestEffort sends

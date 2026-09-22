@@ -8,9 +8,11 @@ validation before waiting landed in PR #658. PR #659 repaired TCP
 readiness and UDP server target checks before capacity waiting. PR #661
 added reported whole-queue hard limits to validation before waiting. PR #662
 aligned UDP server blocking admission with ordinary writes. PR #663 added
-the SendResult/SendRejection value types. This follow-up connects payload-size
-validation to InvalidArgument/TooLarge internally. Send APIs still return
-bool; state/capacity reasons, connection fencing and aggregates remain work.
+the SendResult/SendRejection value types. PR #664 connected payload-size
+validation to InvalidArgument/TooLarge internally. This follow-up serializes
+TCP client write admission with explicit stop requests; see
+[tcp_write_admission.md](tcp_write_admission.md). Send APIs still return bool;
+state/capacity reasons, connection fencing and aggregates remain work.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.
