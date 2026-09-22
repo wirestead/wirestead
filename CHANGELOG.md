@@ -22,6 +22,11 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking behavior:** TCP reconnect no longer replays data accepted on the
+  previous connection. Posted writes, queued/pending buffers and unfinished
+  write batches are discarded and counted as dropped. Late completions retain
+  their own buffers and cannot alter the replacement connection.
+
 - **Breaking behavior:** TCP client writes now reject before a usable connection
   exists, including before start, while connecting/TLS handshaking and after
   connection loss. Readiness publication shares the write-admission mutex.

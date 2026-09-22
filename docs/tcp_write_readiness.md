@@ -43,7 +43,8 @@ clang-format and git diff --check passed.
 
 A readiness check does not identify a connection instance. A sender waiting
 across disconnect/reconnect still needs generation fencing and stable release
-reasons. Previously admitted queued data also still needs explicit discard
-across connection loss; this change does not implement that guarantee.
+reasons. The [fencing follow-up](tcp_reconnect_write_fencing.md) discards previously
+admitted TCP data across connection loss. This readiness change alone did not
+implement that guarantee.
 Public SendResult state/capacity reasons, fanout results and bindings remain
 D-3 work. Concurrent start/stop is not added as a supported operation.

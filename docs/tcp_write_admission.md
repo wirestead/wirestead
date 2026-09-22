@@ -36,8 +36,9 @@ Stop cleanup and completion waiting happen outside that mutex.
 
 This change synchronizes TCP client admission with explicit stop only.
 The [readiness follow-up](tcp_write_readiness.md) synchronizes usable
-connection state with admission. Connection loss/reconnect still needs a
-per-connection identity. Stable wait cancellation, structured state/capacity
+connection state with admission. The [reconnect follow-up](tcp_reconnect_write_fencing.md) adds a transport
+connection identity and discards accepted old data. Wrapper capacity waiters
+still need to pin that identity. Stable wait cancellation, structured state/capacity
 rejection reasons, public SendResult returns, fanout results and bindings
 remain D-3 work. Concurrent start/stop is not added as a supported operation.
 No public signature or ABI changes are introduced here.

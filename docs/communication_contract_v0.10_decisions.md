@@ -10,11 +10,13 @@ added reported whole-queue hard limits to validation before waiting. PR #662
 aligned UDP server blocking admission with ordinary writes. PR #663 added
 the SendResult/SendRejection value types. PR #664 connected payload-size
 validation to InvalidArgument/TooLarge internally. PR #665 serialized TCP
-client write admission with explicit stop requests. This follow-up requires
-usable TCP connection readiness under the same admission mutex; see
+client write admission with explicit stop requests. PR #666 required usable
+TCP readiness under the same admission mutex. This follow-up fences accepted
+TCP writes by connection and discards old queued data on loss; see
+[tcp_reconnect_write_fencing.md](tcp_reconnect_write_fencing.md),
 [tcp_write_admission.md](tcp_write_admission.md) and
 [tcp_write_readiness.md](tcp_write_readiness.md). Send APIs still return bool;
-state/capacity reasons, connection fencing and aggregates remain work.
+state/capacity reasons, wrapper wait fencing and aggregates remain work.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.
