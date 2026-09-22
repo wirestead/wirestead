@@ -35,7 +35,8 @@ Stop cleanup and completion waiting happen outside that mutex.
 ## Scope and remaining work
 
 This change synchronizes TCP client admission with explicit stop only.
-Connection loss/reconnect still needs synchronized readiness and a
+The [readiness follow-up](tcp_write_readiness.md) synchronizes usable
+connection state with admission. Connection loss/reconnect still needs a
 per-connection identity. Stable wait cancellation, structured state/capacity
 rejection reasons, public SendResult returns, fanout results and bindings
 remain D-3 work. Concurrent start/stop is not added as a supported operation.

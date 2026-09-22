@@ -250,6 +250,11 @@ struct TcpClient::Impl {
     init();
   }
 
+  void mark_disconnected() {
+    std::lock_guard<std::mutex> lock(submission_mtx_);
+    connected_.store(false);
+  }
+
   void init() {
     connected_ = false;
     writing_ = false;
@@ -375,7 +380,7 @@ void TcpClient::start() {
         if (seq <= self->impl_->stop_seq_.load()) {
           return;
         }
-        self->impl_->connected_.store(false);
+        self->impl_->mark_disconnected();
         self->impl_->reset_io_objects();
         self->impl_->transition_to(LinkState::Connecting);
         self->impl_->do_resolve_connect(self, seq);
@@ -437,7 +442,7 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
-      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
+      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
     return false;
   }
@@ -506,7 +511,7 @@ bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
-      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
+      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
     return false;
   }
@@ -544,7 +549,7 @@ bool TcpClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> d
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
-      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
+      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
     return false;
   }
@@ -594,7 +599,7 @@ bool TcpClient::async_try_write_move(std::vector<uint8_t>&& data) {
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
-      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
+      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
     return false;
   }
@@ -661,7 +666,7 @@ bool TcpClient::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t
     }
   };
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
-      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_) {
+      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
     return false;
   }
@@ -974,7 +979,11 @@ void TcpClient::Impl::finish_connect(std::shared_ptr<TcpClient> self, uint64_t s
   // has not finished is not a usable connection, and connected() is what
   // callers poll before sending. Reporting true for a peer that failed
   // verification would be worse than useless.
-  connected_.store(true);
+  {
+    std::lock_guard<std::mutex> lock(submission_mtx_);
+    if (seq != current_seq_.load() || stop_requested_.load() || stopping_.load()) return;
+    connected_.store(true);
+  }
   transition_to(LinkState::Connected);
   boost::system::error_code ep_ec;
   auto rep = socket_.remote_endpoint(ep_ec);
@@ -991,7 +1000,7 @@ void TcpClient::Impl::finish_connect(std::shared_ptr<TcpClient> self, uint64_t s
 }
 
 void TcpClient::Impl::schedule_retry(std::shared_ptr<TcpClient> self, uint64_t seq) {
-  connected_.store(false);
+  mark_disconnected();
   if (stop_requested_.load() || stopping_.load()) {
     return;
   }
@@ -1195,6 +1204,7 @@ void TcpClient::Impl::handle_close(std::shared_ptr<TcpClient> self, uint64_t seq
   if (ec == net::error::operation_aborted || seq != current_seq_.load()) {
     return;
   }
+  mark_disconnected();
   WIRESTEAD_LOG_INFO("tcp_client", "handle_close", fmt::format("Closing connection. Error: {}", ec.message()));
   if (ec) {
     bool has_policy;
@@ -1208,7 +1218,6 @@ void TcpClient::Impl::handle_close(std::shared_ptr<TcpClient> self, uint64_t seq
     record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "handle_close", ec,
                  fmt::format("Connection closed with error: {}", ec.message()), retryable, current_attempts);
   }
-  connected_.store(false);
   writing_ = false;
   cancel_idle_timer();
   connect_timer_.cancel();
@@ -1226,6 +1235,7 @@ void TcpClient::Impl::handle_idle_timeout(std::shared_ptr<TcpClient> self, uint6
     return;
   }
 
+  mark_disconnected();
   IdleTimeoutAction idle_timeout_action;
   unsigned idle_timeout_ms;
   bool has_policy;
@@ -1246,7 +1256,6 @@ void TcpClient::Impl::handle_idle_timeout(std::shared_ptr<TcpClient> self, uint6
   record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "idle_timeout", ec,
                "Idle timeout expired", should_reconnect, current_attempts);
 
-  connected_.store(false);
   writing_ = false;
   cancel_idle_timer();
   connect_timer_.cancel();
@@ -1434,7 +1443,7 @@ void TcpClient::Impl::perform_stop_cleanup() {
     pending_.clear();
     pending_bytes_ = 0;
     writing_ = false;
-    connected_.store(false);
+    mark_disconnected();
     // Deliberately does NOT fire on_bp_ here, unlike UDP/server sessions'
     // terminal drain (#434): this is an explicit, tested contract
     // (ContractComplianceTest.TcpClient_Backpressure_Contract) - a
@@ -1474,7 +1483,7 @@ void TcpClient::Impl::reset_start_state() {
   reconnect_pending_.store(false);
   retry_attempts_ = 0;
   reconnect_attempt_count_ = 0;
-  connected_.store(false);
+  mark_disconnected();
   writing_ = false;
   queue_bytes_ = 0;
   pending_.clear();

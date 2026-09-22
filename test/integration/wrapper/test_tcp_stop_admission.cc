@@ -457,3 +457,76 @@ TEST(TcpWriteStopAdmissionCallbackTest, BackpressureCanRequestStopFromExecutorWr
   server->stop();
 }
 }  // namespace
+
+namespace {
+bool readiness_write(const std::shared_ptr<transport::TcpClient>& client, int form) {
+  std::vector<uint8_t> data(32, 42);
+  switch (form) {
+    case 0:
+      return client->async_write_copy(memory::ConstByteSpan(data.data(), data.size()));
+    case 1:
+      return client->async_write_move(std::move(data));
+    case 2:
+      return client->async_write_shared(std::make_shared<const std::vector<uint8_t>>(data));
+    case 3:
+      return client->async_try_write_copy(memory::ConstByteSpan(data.data(), data.size()));
+    case 4:
+      return client->async_try_write_move(std::move(data));
+    default:
+      return client->async_try_write_shared(std::make_shared<const std::vector<uint8_t>>(data));
+  }
+}
+class TcpWriteReadinessTest : public ::testing::TestWithParam<int> {};
+TEST_P(TcpWriteReadinessTest, RejectsBeforeStartWithoutRetainingWork) {
+  Context context;
+  config::TcpClientConfig cfg;
+  auto client = transport::TcpClient::create(cfg, *context.io);
+  EXPECT_FALSE(readiness_write(client, GetParam()));
+  client->stop();
+  EXPECT_EQ(client->stats().messages_accepted, 0u);
+  EXPECT_EQ(client->stats().queued_bytes, 0u);
+  EXPECT_EQ(client->stats().pending_bytes, 0u);
+}
+TEST_P(TcpWriteReadinessTest, RejectsConnectingAndConnectionLossCallbacks) {
+  Context context;
+  const auto port = test::TestUtils::getAvailableTestPort();
+  auto server = wirestead::tcp_server(port).build();
+  ASSERT_TRUE(server->start_sync());
+  config::TcpClientConfig cfg;
+  cfg.port = port;
+  auto client = transport::TcpClient::create(cfg, *context.io);
+  Signal initial, lost;
+  std::atomic<bool> was_connected{false}, connected_accepted{false}, initial_accepted{true}, lost_accepted{true};
+  OnExit cleanup{[&] {
+    client->stop();
+    client->on_state(nullptr);
+    server->stop();
+  }};
+  client->on_state([&](base::LinkState state) {
+    if (state == base::LinkState::Connected) {
+      connected_accepted = readiness_write(client, GetParam());
+      was_connected = true;
+    }
+    if (state != base::LinkState::Connecting) return;
+    const bool accepted = readiness_write(client, GetParam());
+    if (was_connected) {
+      lost_accepted = accepted;
+      lost.notify();
+    } else {
+      initial_accepted = accepted;
+      initial.notify();
+    }
+  });
+  client->start();
+  ASSERT_TRUE(initial.wait());
+  EXPECT_FALSE(initial_accepted);
+  ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return was_connected.load(); }, 3000));
+  EXPECT_TRUE(connected_accepted);
+  server->stop();
+  ASSERT_TRUE(lost.wait());
+  EXPECT_FALSE(lost_accepted);
+  client->stop();
+  EXPECT_EQ(client->stats().messages_accepted, 1u);
+}
+INSTANTIATE_TEST_SUITE_P(AllWriteForms, TcpWriteReadinessTest, ::testing::Range(0, 6));
+}  // namespace

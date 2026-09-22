@@ -172,72 +172,29 @@ TEST_F(ContractComplianceTest, TcpServer_StopSemantics) {
 }
 
 TEST_F(ContractComplianceTest, TcpClient_Backpressure_Contract) {
+  boost::asio::ip::tcp::acceptor acceptor(*ioc_, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
   config::TcpClientConfig cfg;
-
-  cfg.host = "127.0.0.1";
-
-  cfg.port = 0;  // No connection
-
-  cfg.backpressure_threshold = 1024;  // 1KB
-
+  cfg.port = acceptor.local_endpoint().port();
+  cfg.backpressure_threshold = 1024;
   client_ = TcpClient::create(cfg, *ioc_);
-
-  // Use a local recorder to avoid shared state issues if any
-
   CallbackRecorder bp_recorder;
-
-  client_->on_backpressure(bp_recorder.get_backpressure_callback());
-
   client_->start();
-
-  // Queue enough data to trigger backpressure
-
-  std::vector<uint8_t> data(2048, 'A');  // 2KB > 1KB
-
-  client_->async_write_copy(memory::ConstByteSpan(data.data(), data.size()));
-
-  // Wait for backpressure event
-
-  ASSERT_TRUE(bp_recorder.wait_for_data(
-      0, std::chrono::milliseconds(100)));  // wait_for_data is not quite right, check events size
-
-  // Custom wait loop for events
-
-  auto start = std::chrono::steady_clock::now();
-
-  bool triggered = false;
-
-  while (std::chrono::steady_clock::now() - start < std::chrono::milliseconds(200)) {
-    if (!bp_recorder.get_events().empty()) {
-      triggered = true;
-
-      break;
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-  }
-
-  ASSERT_TRUE(triggered) << "Backpressure callback was not triggered";
-
-  auto events = bp_recorder.get_events();
-
-  ASSERT_EQ(events.size(), 1);
-
-  EXPECT_EQ(events[0].type, EventType::Backpressure);
-
-  EXPECT_GE(std::get<size_t>(events[0].data), 1024);
-
-  // Stop should NOT trigger relief callback (queue=0)
-
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return client_->is_connected(); }, 3000));
+  client_->on_backpressure([&](size_t queued) {
+    bp_recorder.get_backpressure_callback()(queued);
+    // Request stop while pressure is still active, before the write drains.
+    client_->stop();
+  });
+  std::vector<uint8_t> data(2048, 'A');
+  EXPECT_TRUE(client_->async_write_copy(memory::ConstByteSpan(data.data(), data.size())));
+  const bool triggered = TestUtils::waitForCondition([&] { return !bp_recorder.get_events().empty(); }, 3000);
   client_->stop();
-
-  auto stop_time = std::chrono::steady_clock::now();
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-  EXPECT_TRUE(bp_recorder.verify_no_events_after(stop_time))
-
-      << "TcpClient: Backpressure relief callback triggered after stop! Contract violation.";
+  client_->on_backpressure(nullptr);
+  EXPECT_TRUE(triggered);
+  const auto events = bp_recorder.get_events();
+  ASSERT_EQ(events.size(), 1u);
+  EXPECT_EQ(events[0].type, EventType::Backpressure);
+  EXPECT_GE(std::get<size_t>(events[0].data), 1024u);
 }
 
 TEST_F(ContractComplianceTest, Serial_Backpressure_Contract) {

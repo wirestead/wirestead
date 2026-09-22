@@ -83,32 +83,24 @@ class TransportTcpClientTest : public ::testing::Test {
   std::shared_ptr<TcpClient> client_;
 };
 
-TEST_F(TransportTcpClientTest, BackpressureTriggersWithoutConnection) {
+TEST_F(TransportTcpClientTest, BackpressureTriggersWhenConnected) {
+  net::io_context ioc;
+  tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), 0));
   config::TcpClientConfig cfg;
-  cfg.host = "127.0.0.1";
-  cfg.port = 0;                       // invalid/closed port, no real connection expected
-  cfg.backpressure_threshold = 1024;  // 1KB threshold
-
-  client_ = TcpClient::create(cfg);
-  std::atomic<bool> triggered{false};
+  cfg.port = acceptor.local_endpoint().port();
+  cfg.backpressure_threshold = 1024;
+  client_ = TcpClient::create(cfg, ioc);
+  client_->start();
+  ASSERT_TRUE(run_until(ioc, [&] { return client_->is_connected(); }));
   std::atomic<size_t> bytes_seen{0};
   client_->on_backpressure([&](size_t bytes) {
-    triggered = true;
-    bytes_seen = bytes;
+    if (bytes > bytes_seen.load()) bytes_seen = bytes;
   });
-
-  client_->start();
-
-  // Queue data larger than threshold to trigger backpressure on the queue
   std::vector<uint8_t> payload(cfg.backpressure_threshold * 4, 0xAA);
-  client_->async_write_copy(memory::ConstByteSpan(payload.data(), payload.size()));
-
-  bool observed = TestUtils::waitForCondition(
-      [&] { return triggered.load() && bytes_seen.load() >= cfg.backpressure_threshold; }, 500);
-
-  EXPECT_TRUE(observed);
-
-  client_->stop();
+  EXPECT_TRUE(client_->async_write_copy(memory::ConstByteSpan(payload.data(), payload.size())));
+  EXPECT_TRUE(run_until(ioc, [&] { return bytes_seen.load() >= cfg.backpressure_threshold; }));
+  client_->on_backpressure(nullptr);
+  stop_with_context(client_, ioc);
   client_.reset();
 }
 
@@ -291,12 +283,15 @@ TEST_F(TransportTcpClientTest, OnBytesExceptionTriggersReconnect) {
 
 TEST_F(TransportTcpClientTest, MoveWriteRespectsQueueLimit) {
   net::io_context ioc;
+  tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), 0));
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
-  cfg.port = TestUtils::getAvailableTestPort();  // no real server needed
-  cfg.backpressure_threshold = 1024;             // bp_high = 1KB
+  cfg.port = acceptor.local_endpoint().port();
+  cfg.backpressure_threshold = 1024;  // bp_high = 1KB
 
   client_ = TcpClient::create(cfg, ioc);
+  client_->start();
+  ASSERT_TRUE(run_until(ioc, [&] { return client_->is_connected(); }));
 
   std::atomic<bool> backpressure_seen{false};
   client_->on_backpressure([&](size_t bytes) {
@@ -317,12 +312,15 @@ TEST_F(TransportTcpClientTest, MoveWriteRespectsQueueLimit) {
 
 TEST_F(TransportTcpClientTest, SharedWriteRespectsQueueLimit) {
   net::io_context ioc;
+  tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), 0));
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
-  cfg.port = TestUtils::getAvailableTestPort();  // no real server needed
-  cfg.backpressure_threshold = 1024;             // bp_high = 1KB
+  cfg.port = acceptor.local_endpoint().port();
+  cfg.backpressure_threshold = 1024;  // bp_high = 1KB
 
   client_ = TcpClient::create(cfg, ioc);
+  client_->start();
+  ASSERT_TRUE(run_until(ioc, [&] { return client_->is_connected(); }));
 
   std::atomic<bool> backpressure_seen{false};
   client_->on_backpressure([&](size_t bytes) {
@@ -341,42 +339,28 @@ TEST_F(TransportTcpClientTest, SharedWriteRespectsQueueLimit) {
   client_.reset();
 }
 
-TEST_F(TransportTcpClientTest, BackpressureReliefEmitsAfterDrain) {
+TEST_F(TransportTcpClientTest, StopDoesNotEmitBackpressureRelief) {
   net::io_context ioc;
-  auto guard = net::make_work_guard(ioc);
-  std::thread ioc_thread([&]() { ioc.run(); });
-
+  tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), 0));
   config::TcpClientConfig cfg;
-  cfg.host = "127.0.0.1";
-  cfg.port = 0;  // no real socket use
+  cfg.port = acceptor.local_endpoint().port();
   cfg.backpressure_threshold = 1024;
-
   client_ = TcpClient::create(cfg, ioc);
-
+  client_->start();
+  ASSERT_TRUE(run_until(ioc, [&] { return client_->is_connected(); }));
   std::vector<size_t> bp_events;
-  client_->on_backpressure([&](size_t queued) { bp_events.push_back(queued); });
-
-  // Queue enough bytes to trigger backpressure
+  client_->on_backpressure([&](size_t queued) {
+    bp_events.push_back(queued);
+    client_->stop();
+  });
   std::vector<uint8_t> payload(cfg.backpressure_threshold * 2, 0xAB);
-  client_->async_write_copy(memory::ConstByteSpan(payload.data(), payload.size()));
-
-  ASSERT_TRUE(TestUtils::waitForCondition([&] { return !bp_events.empty(); }, 200));
-
-  // Stopping clears the queue and should NOT emit a relief notification according to the Contract
-  client_->stop();
-  // Wait a bit to ensure no trailing events
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-  // Expect only the initial backpressure trigger, no relief event after stop
-  ASSERT_EQ(bp_events.size(), 1);
-  EXPECT_GE(bp_events.front(), cfg.backpressure_threshold);
-
+  EXPECT_TRUE(client_->async_write_copy(memory::ConstByteSpan(payload.data(), payload.size())));
+  EXPECT_TRUE(run_until(ioc, [&] { return !bp_events.empty(); }));
+  stop_with_context(client_, ioc);
+  EXPECT_EQ(bp_events.size(), 1u);
+  if (!bp_events.empty()) EXPECT_GE(bp_events.front(), cfg.backpressure_threshold);
+  client_->on_backpressure(nullptr);
   client_.reset();
-  guard.reset();
-  ioc.stop();
-  if (ioc_thread.joinable()) {
-    ioc_thread.join();
-  }
 }
 
 TEST_F(TransportTcpClientTest, ConnectionRefusedTriggersRetry) {
@@ -588,11 +572,14 @@ TEST_F(TransportTcpClientTest, OwnedIoContextRestartAfterStopStart) {
 
 TEST_F(TransportTcpClientTest, WriteRejectsInvalidPayloads) {
   net::io_context ioc;
+  tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), 0));
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
-  cfg.port = TestUtils::getAvailableTestPort();
+  cfg.port = acceptor.local_endpoint().port();
 
   client_ = TcpClient::create(cfg, ioc);
+  client_->start();
+  ASSERT_TRUE(run_until(ioc, [&] { return client_->is_connected(); }));
 
   std::vector<uint8_t> empty;
   EXPECT_FALSE(client_->async_write_copy(memory::ConstByteSpan(empty.data(), empty.size())));
@@ -660,12 +647,15 @@ TEST_F(TransportTcpClientTest, SettersAndClearedReconnectPolicyAffectRetry) {
 
 TEST_F(TransportTcpClientTest, CallbackExceptionsAreSwallowed) {
   net::io_context ioc;
+  tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), 0));
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
-  cfg.port = TestUtils::getAvailableTestPort();
+  cfg.port = acceptor.local_endpoint().port();
   cfg.backpressure_threshold = 1024;
 
   client_ = TcpClient::create(cfg, ioc);
+  client_->start();
+  ASSERT_TRUE(run_until(ioc, [&] { return client_->is_connected(); }));
   client_->on_state([](base::LinkState) { throw std::runtime_error("state"); });
   client_->on_backpressure([](size_t) { throw std::runtime_error("backpressure"); });
 
@@ -673,7 +663,8 @@ TEST_F(TransportTcpClientTest, CallbackExceptionsAreSwallowed) {
   EXPECT_TRUE(client_->async_write_copy(memory::ConstByteSpan(payload.data(), payload.size())));
 
   EXPECT_NO_THROW({
-    client_->start();
+    boost::system::error_code ec;
+    acceptor.close(ec);
     ioc.run_for(100ms);
   });
 
