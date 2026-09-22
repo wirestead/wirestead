@@ -143,6 +143,7 @@ foreach(
   test_batch_latency_flush.cc
   test_backpressure_getters.cc
   test_callback_blocking_send.cc
+  test_send_result.cc
 )
   get_filename_component(test_name ${test_file} NAME_WE)
 
