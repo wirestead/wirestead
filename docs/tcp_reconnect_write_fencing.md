@@ -58,8 +58,9 @@ cancellation races. No throughput benchmark was run.
 
 ## Remaining work
 
-Wrapper callers that wait for capacity still need to pin the connection they
-waited on and retain a stable stop/loss reason. This transport fence applies
+The [run-wait follow-up](tcp_capacity_wait_runs.md) prevents TCP capacity
+waiters from crossing explicit stop/restart. Waiters still need to pin the
+connection within a run and retain a structured stop/loss reason. This transport fence applies
 after acceptance; it does not solve that pre-admission wait. Public SendResult
 state/capacity reasons, other transports, fanout results and bindings remain
 D-3 work. Per-batch ownership adds an allocation; throughput was not benchmarked.

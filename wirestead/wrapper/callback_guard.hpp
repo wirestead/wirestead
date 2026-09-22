@@ -78,6 +78,8 @@ inline bool in_data_callback() { return g_callback_depth > 0; }
 // window to happen by chance. Nothing in the library ever sets it.
 using PreAdmissionHook = void (*)();
 inline std::atomic<PreAdmissionHook> g_pre_admission_hook{nullptr};
+// Tests may park a TCP capacity waiter before registering its timed wait.
+inline std::atomic<PreAdmissionHook> g_tcp_capacity_wait_hook{nullptr};
 
 class CallbackGate {
  public:
