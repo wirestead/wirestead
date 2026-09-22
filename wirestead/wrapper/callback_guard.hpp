@@ -38,6 +38,7 @@
 // remain compatible because this counter supports nested scopes.
 namespace wirestead {
 namespace wrapper {
+class SendResult;
 namespace detail {
 
 // A depth counter rather than a bool so that a nested/reentrant
@@ -80,6 +81,8 @@ using PreAdmissionHook = void (*)();
 inline std::atomic<PreAdmissionHook> g_pre_admission_hook{nullptr};
 // Tests may park a TCP capacity waiter before registering its timed wait.
 inline std::atomic<PreAdmissionHook> g_tcp_capacity_wait_hook{nullptr};
+// Observes the frozen internal outcome after a capacity wait has ended.
+inline std::atomic<void (*)(const SendResult&)> g_tcp_capacity_wait_result_hook{nullptr};
 
 class CallbackGate {
  public:

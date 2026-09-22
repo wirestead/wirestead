@@ -59,7 +59,8 @@ exercise encrypted paths; exhaustive TLS reconnect scheduling is not claimed.
 
 ## Remaining work
 
-This bool result does not yet retain or expose a structured, stable
-CancelledWhileWaiting/NotReady reason. Public SendResult integration and
+The [wait-reason follow-up](tcp_wait_release_reasons.md) retains a structured,
+stable CancelledWhileWaiting/NotReady result internally. Public sends still
+return bool. Public SendResult integration and
 equivalent handling for other transports, custom channels, fanout and bindings
 remain D-3 work.

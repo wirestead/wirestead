@@ -64,6 +64,7 @@
 #include "wirestead/transport/base/bp_utils.hpp"
 #include "wirestead/transport/base/error_info_holder.hpp"
 #include "wirestead/transport/tcp_client/detail/reconnect_decider.hpp"
+#include "wirestead/transport/tcp_client/detail/write_wait.hpp"
 
 namespace wirestead {
 namespace transport {
@@ -88,6 +89,7 @@ struct TcpClient::Impl {
   std::atomic<uint64_t> current_seq_{0};
   // Changes when a usable connection ends, independently of start/stop runs.
   std::atomic<uint64_t> connection_seq_{0};
+  std::shared_ptr<detail::TcpWriteWait> write_wait_;
   tcp::resolver resolver_;
   tcp::socket socket_;
 
@@ -255,7 +257,10 @@ struct TcpClient::Impl {
 
   void mark_disconnected() {
     std::lock_guard<std::mutex> lock(submission_mtx_);
-    if (connected_.exchange(false)) connection_seq_.fetch_add(1);
+    if (connected_.exchange(false)) {
+      if (write_wait_) write_wait_->end(wrapper::SendRejection::NotReady);
+      connection_seq_.fetch_add(1);
+    }
   }
 
   void discard_connection_writes();
@@ -403,6 +408,7 @@ void TcpClient::stop() {
     std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
     first = !impl_->stop_requested_.exchange(true);
     if (first) {
+      if (impl_->write_wait_) impl_->write_wait_->end(wrapper::SendRejection::CancelledWhileWaiting);
       impl_->stopping_.store(true);
       impl_->stop_seq_.store(impl_->current_seq_.load());
     }
@@ -442,6 +448,27 @@ void TcpClient::reset_stats() {
 }
 
 boost::asio::any_io_executor TcpClient::get_executor() { return impl_->socket_.get_executor(); }
+
+std::shared_ptr<detail::TcpWriteWait> TcpClient::capture_write_wait() const {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (impl_->stop_requested_.load() || !impl_->connected_.load()) return {};
+  return impl_->write_wait_;
+}
+
+std::optional<wrapper::SendResult> TcpClient::poll_write_wait(const std::shared_ptr<detail::TcpWriteWait>& wait) const {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (!wait) return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  if (wait->ended_by) return wrapper::SendResult::reject(*wait->ended_by);
+  if (wait->sequence != impl_->connection_seq_.load() || !impl_->connected_.load())
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  if (!impl_->backpressure_active_.load()) return wrapper::SendResult::accept();
+  return std::nullopt;
+}
+
+void TcpClient::cancel_write_waits() {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (impl_->write_wait_) impl_->write_wait_->end(wrapper::SendRejection::CancelledWhileWaiting);
+}
 
 std::optional<uint64_t> TcpClient::write_connection() const {
   std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
@@ -1066,6 +1093,7 @@ void TcpClient::Impl::finish_connect(std::shared_ptr<TcpClient> self, uint64_t s
   {
     std::lock_guard<std::mutex> lock(submission_mtx_);
     if (seq != current_seq_.load() || stop_requested_.load() || stopping_.load()) return;
+    write_wait_ = std::make_shared<detail::TcpWriteWait>(connection_seq_.load());
     connected_.store(true);
   }
   rx_ = std::make_shared<std::vector<uint8_t>>(cfg_.read_buffer_size);

@@ -35,6 +35,7 @@
 #include "wirestead/config/tcp_client_config.hpp"
 #include "wirestead/diagnostics/error_mapping.hpp"
 #include "wirestead/factory/channel_factory.hpp"
+#include "wirestead/transport/tcp_client/detail/write_wait.hpp"
 #include "wirestead/transport/tcp_client/tcp_client.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
@@ -280,6 +281,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     std::shared_ptr<interface::Channel> channel;
     {
       std::unique_lock<std::shared_mutex> lock(mutex_);
+      if (auto tcp = std::dynamic_pointer_cast<transport::TcpClient>(channel_)) tcp->cancel_write_waits();
       started_.store(false);
       bp_cv_.notify_all();
       fulfill_all_locked(false);
@@ -350,17 +352,17 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   struct ConnectionPin {
     std::shared_ptr<transport::TcpClient> tcp;
-    std::optional<uint64_t> sequence;
+    std::shared_ptr<transport::detail::TcpWriteWait> wait;
   };
 
   ConnectionPin pin_connection() {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     auto tcp = std::dynamic_pointer_cast<transport::TcpClient>(channel_);
-    return {tcp, tcp ? tcp->write_connection() : std::nullopt};
+    return {tcp, tcp ? tcp->capture_write_wait() : nullptr};
   }
 
   bool connection_matches(const ConnectionPin& pin) const {
-    return !pin.tcp || (pin.sequence && pin.tcp->write_connection() == pin.sequence);
+    return !pin.tcp || (pin.wait && pin.tcp->write_connection() == pin.wait->sequence);
   }
 
   // channel_->on_backpressure() calls bp_cv_.notify_all() from the transport's io_context
@@ -371,27 +373,44 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   // unbounded wait() would block forever. Poll with a bounded timeout instead so a missed
   // notify only costs a short delay rather than a permanent hang (see #427, #431).
   //
-  // Returns false instead of waiting if called from the channel's own io
-  // thread while backpressure is active - e.g. a blocking send() called
-  // from inside an on_data/on_message callback. Clearing backpressure
-  // requires that same io thread to make progress, so blocking here would
-  // deadlock forever rather than eventually clear (#449).
-  bool wait_for_backpressure_clear(std::unique_lock<std::mutex>& bp_lock, size_t payload_size, uint64_t generation,
-                                   const ConnectionPin& connection) {
-    if (!detail::payload_needs_capacity(payload_size)) return true;
-    auto predicate = [this, payload_size, generation, &connection] {
+  // Callback scopes cannot wait for capacity: they may be running on the
+  // executor needed to drain their own or another channel's queue (D-2).
+  SendResult wait_for_backpressure_clear(std::unique_lock<std::mutex>& bp_lock, size_t payload_size,
+                                         uint64_t generation, const ConnectionPin& connection) {
+    if (!detail::payload_needs_capacity(payload_size)) return SendResult::accept();
+    auto immediate = [this, payload_size, generation, &connection] {
       std::shared_lock<std::shared_mutex> lock(mutex_);
       return callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected() ||
              !connection_matches(connection) ||
              !detail::payload_needs_capacity(payload_size, channel_->write_queue_limit()) ||
              !channel_->is_backpressure_active();
     };
-    if (predicate()) return true;
-    if (detail::in_data_callback()) return false;
+    // A bypass is not a completed capacity wait; final admission checks still apply.
+    if (immediate()) return SendResult::accept();
+    if (detail::in_data_callback()) return SendResult::reject(SendRejection::WouldBlock);
     if (auto hook = detail::g_tcp_capacity_wait_hook.load()) hook();
-    while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), predicate)) {
+    std::optional<SendResult> outcome;
+    auto released = [&] {
+      if (outcome) return true;
+      std::shared_lock<std::shared_mutex> lock(mutex_);
+      if (connection.tcp) {
+        // The connection record retains the first stop/loss cause. Sampling
+        // readiness and capacity uses the same mutex as those terminal events.
+        outcome = connection.tcp->poll_write_wait(connection.wait);
+      } else if (callback_generation_.load() != generation || !started_.load()) {
+        outcome = SendResult::reject(SendRejection::CancelledWhileWaiting);
+      } else if (!channel_ || !channel_->is_connected()) {
+        outcome = SendResult::reject(SendRejection::NotReady);
+      } else if (!detail::payload_needs_capacity(payload_size, channel_->write_queue_limit()) ||
+                 !channel_->is_backpressure_active()) {
+        outcome = SendResult::accept();
+      }
+      return outcome.has_value();
+    };
+    while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), released)) {
     }
-    return true;
+    if (auto hook = detail::g_tcp_capacity_wait_result_hook.load()) hook(*outcome);
+    return *outcome;
   }
 
   // #509: wait_for_backpressure_clear()'s condition (is_backpressure_active(),
@@ -413,7 +432,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       const auto connection = pin_connection();
       for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
         std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-        if (!wait_for_backpressure_clear(bp_lock, data.size(), generation, connection)) return false;
+        if (!wait_for_backpressure_clear(bp_lock, data.size(), generation, connection).accepted()) return false;
         bp_lock.unlock();
         std::shared_lock<std::shared_mutex> lock(mutex_);
         if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected() ||
@@ -422,7 +441,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
         // async_write_move only actually moves from `data` on success (see
         // TcpClient::async_write_move), so retrying with the same `data`
         // after a `false` return is safe.
-        if (connection.tcp ? connection.tcp->write_move(std::move(data), connection.sequence)
+        if (connection.tcp ? connection.tcp->write_move(std::move(data), connection.wait->sequence)
                            : channel_->async_write_move(std::move(data)))
           return true;
       }
@@ -438,13 +457,13 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       const auto connection = pin_connection();
       for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
         std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-        if (!wait_for_backpressure_clear(bp_lock, data->size(), generation, connection)) return false;
+        if (!wait_for_backpressure_clear(bp_lock, data->size(), generation, connection).accepted()) return false;
         bp_lock.unlock();
         std::shared_lock<std::shared_mutex> lock(mutex_);
         if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected() ||
             !connection_matches(connection))
           return false;
-        if (connection.tcp ? connection.tcp->write_shared(data, connection.sequence)
+        if (connection.tcp ? connection.tcp->write_shared(data, connection.wait->sequence)
                            : channel_->async_write_shared(data))
           return true;
       }
@@ -468,13 +487,14 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     const auto connection = pin_connection();
     for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
       std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      if (!wait_for_backpressure_clear(bp_lock, data.size(), generation, connection)) return false;
+      if (!wait_for_backpressure_clear(bp_lock, data.size(), generation, connection).accepted()) return false;
       bp_lock.unlock();
       std::shared_lock<std::shared_mutex> lock(mutex_);
       if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected() ||
           !connection_matches(connection))
         return false;
-      if (connection.tcp ? connection.tcp->write_copy(span, connection.sequence) : channel_->async_write_copy(span))
+      if (connection.tcp ? connection.tcp->write_copy(span, connection.wait->sequence)
+                         : channel_->async_write_copy(span))
         return true;
     }
     return false;
