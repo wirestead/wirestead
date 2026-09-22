@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -39,6 +40,9 @@ class io_context;
 }  // namespace boost
 
 namespace wirestead {
+namespace wrapper {
+class TcpClient;
+}
 namespace transport {
 
 using base::LinkState;
@@ -100,6 +104,13 @@ class WIRESTEAD_API TcpClient : public Channel, public std::enable_shared_from_t
   void set_reconnect_policy(ReconnectPolicy policy);
 
  private:
+  // The built-in wrapper pins capacity waits without extending Channel's ABI.
+  friend class wrapper::TcpClient;
+  std::optional<uint64_t> write_connection() const;
+  bool write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection);
+  bool write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection);
+  bool write_shared(std::shared_ptr<const std::vector<uint8_t>> data, std::optional<uint64_t> expected_connection);
+
   explicit TcpClient(const TcpClientConfig& cfg);
   explicit TcpClient(const TcpClientConfig& cfg, boost::asio::io_context& ioc);
 

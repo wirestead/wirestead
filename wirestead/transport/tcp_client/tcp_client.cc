@@ -443,10 +443,25 @@ void TcpClient::reset_stats() {
 
 boost::asio::any_io_executor TcpClient::get_executor() { return impl_->socket_.get_executor(); }
 
-bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
+std::optional<uint64_t> TcpClient::write_connection() const {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (impl_->stop_requested_.load() || !impl_->connected_.load()) return std::nullopt;
+  return impl_->connection_seq_.load();
+}
+
+bool TcpClient::async_write_copy(memory::ConstByteSpan data) { return write_copy(data, std::nullopt); }
+
+bool TcpClient::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection) {
+  if (expected_connection) {
+    if (auto hook = detail::g_tcp_pinned_write_hook.load()) hook();
+  }
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   const auto connection = impl_->connection_seq_.load();
+  if (expected_connection && *expected_connection != connection) {
+    impl_->stats_.record_failed_send();
+    return false;
+  }
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
@@ -527,10 +542,19 @@ bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
   return true;
 }
 
-bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
+bool TcpClient::async_write_move(std::vector<uint8_t>&& data) { return write_move(std::move(data), std::nullopt); }
+
+bool TcpClient::write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection) {
+  if (expected_connection) {
+    if (auto hook = detail::g_tcp_pinned_write_hook.load()) hook();
+  }
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   const auto connection = impl_->connection_seq_.load();
+  if (expected_connection && *expected_connection != connection) {
+    impl_->stats_.record_failed_send();
+    return false;
+  }
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
@@ -574,9 +598,21 @@ bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
 }
 
 bool TcpClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  return write_shared(std::move(data), std::nullopt);
+}
+
+bool TcpClient::write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
+                             std::optional<uint64_t> expected_connection) {
+  if (expected_connection) {
+    if (auto hook = detail::g_tcp_pinned_write_hook.load()) hook();
+  }
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   const auto connection = impl_->connection_seq_.load();
+  if (expected_connection && *expected_connection != connection) {
+    impl_->stats_.record_failed_send();
+    return false;
+  }
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();

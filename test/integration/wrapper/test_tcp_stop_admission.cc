@@ -591,3 +591,97 @@ TEST_P(TcpCapacityWaitRunTest, OldWaitCannotResumeInRestartedRun) {
 }
 INSTANTIATE_TEST_SUITE_P(StopAndRestartWithPressure, TcpCapacityWaitRunTest, ::testing::Range(0, 18));
 }  // namespace
+
+namespace {
+class TcpCapacityWaitConnectionTest : public ::testing::TestWithParam<int> {};
+TEST_P(TcpCapacityWaitConnectionTest, OldWaitCannotResumeAfterReconnect) {
+  Context context;
+  namespace net = boost::asio;
+  using tcp = net::ip::tcp;
+  net::io_context peer_io;
+  tcp::acceptor acceptor(peer_io, tcp::endpoint(tcp::v4(), 0));
+  acceptor.set_option(net::socket_base::receive_buffer_size(1024));
+  acceptor.non_blocking(true);
+  tcp::socket first(peer_io), second(peer_io);
+  config::TcpClientConfig cfg;
+  cfg.port = acceptor.local_endpoint().port();
+  cfg.send_buffer_size = 1024;
+  cfg.backpressure_threshold = 1024;
+  cfg.retry_interval_ms = 20;
+  auto transport = transport::TcpClient::create(cfg, *context.io);
+  wrapper::TcpClient client(transport);
+  std::atomic<int> connections{0};
+  AdmissionPark park;
+  std::future<bool> writer;
+  OnExit cleanup{[&] {
+    park.release.notify();
+    client.stop();
+    if (writer.valid()) writer.wait();
+    wrapper::detail::g_tcp_capacity_wait_hook.store(nullptr);
+    transport::detail::g_tcp_pinned_write_hook.store(nullptr);
+    admission_park.store(nullptr);
+  }};
+  auto accept = [&](tcp::socket& socket) {
+    return test::TestUtils::waitForCondition(
+        [&] {
+          boost::system::error_code ec;
+          acceptor.accept(socket, ec);
+          return !ec;
+        },
+        3000);
+  };
+  client.on_connect([&](const auto&) { ++connections; });
+  auto ready = client.start();
+  ASSERT_TRUE(accept(first));
+  ASSERT_EQ(ready.wait_for(3s), std::future_status::ready);
+  ASSERT_TRUE(ready.get());
+  if (GetParam() < 12) {
+    ASSERT_TRUE(transport->async_write_move(std::vector<uint8_t>(512 * 1024, 'x')));
+    ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_backpressure_active(); }, 3000));
+  }
+  admission_park.store(&park);
+  if (GetParam() < 12) {
+    wrapper::detail::g_tcp_capacity_wait_hook.store(&park_admission);
+  } else {
+    transport::detail::g_tcp_pinned_write_hook.store(&park_admission);
+  }
+  writer = std::async(std::launch::async, [&] {
+    switch (GetParam() % 6) {
+      case 0:
+        return client.send("old");
+      case 1:
+        return client.send_line("old");
+      case 2:
+        return client.send_blocking("old");
+      case 3:
+        return client.send_line_blocking("old");
+      case 4:
+        return client.send_move(std::vector<uint8_t>{1, 2, 3});
+      default:
+        return client.send_shared(std::make_shared<const std::vector<uint8_t>>(3, 42));
+    }
+  });
+  ASSERT_TRUE(park.entered.wait());
+  first.close();
+  ASSERT_TRUE(accept(second));
+  // The final-admission seam holds the wrapper lock: Connected delivery
+  // waits for the sender, but transport readiness is already published.
+  ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_connected(); }, 3000));
+  if (GetParam() >= 6 && GetParam() < 12) {
+    ASSERT_TRUE(transport->async_write_move(std::vector<uint8_t>(512 * 1024, 'y')));
+    ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_backpressure_active(); }, 3000));
+  }
+  const auto accepted_before = transport->stats().messages_accepted;
+  park.release.notify();
+  const auto status = writer.wait_for(300ms);
+  EXPECT_EQ(status, std::future_status::ready);
+  if (status != std::future_status::ready) client.stop();
+  EXPECT_FALSE(writer.get());
+  EXPECT_EQ(transport->stats().messages_accepted, accepted_before);
+  if (GetParam() < 6 || GetParam() >= 12) {
+    EXPECT_TRUE(client.send("new"));
+    EXPECT_EQ(transport->stats().messages_accepted, accepted_before + 1);
+  }
+}
+INSTANTIATE_TEST_SUITE_P(ReconnectFreeAndPressured, TcpCapacityWaitConnectionTest, ::testing::Range(0, 18));
+}  // namespace
