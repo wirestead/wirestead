@@ -19,11 +19,23 @@
 #include <optional>
 
 #include "wirestead/base/constants.hpp"
+#include "wirestead/wrapper/send_result.hpp"
 namespace wirestead::wrapper::detail {
-// Invalid payload sizes must reach transport validation immediately rather
-// than waiting for queue capacity. The transport still owns rejection,
-// error callbacks and failure accounting. A line's size includes its newline.
-inline bool payload_needs_capacity(std::size_t size, std::optional<size_t> queue_limit = std::nullopt) {
-  return size != 0 && size <= base::constants::MAX_BUFFER_SIZE && (!queue_limit || size <= *queue_limit);
+// Stage-1 size validation only: success means the payload passed this check,
+// not that a transport accepted it. Line callers include their delimiter.
+constexpr SendResult validate_payload_size(std::size_t size,
+                                           std::optional<std::size_t> queue_limit = std::nullopt) noexcept {
+  if (size == 0) return SendResult::reject(SendRejection::InvalidArgument);
+  if (size > base::constants::MAX_BUFFER_SIZE || (queue_limit && size > *queue_limit)) {
+    return SendResult::reject(SendRejection::TooLarge);
+  }
+  return SendResult::accept();
+}
+
+// Invalid sizes reach the transport without a capacity wait. It still owns
+// final rejection, callbacks and accounting until public send APIs migrate.
+constexpr bool payload_needs_capacity(std::size_t size,
+                                      std::optional<std::size_t> queue_limit = std::nullopt) noexcept {
+  return validate_payload_size(size, queue_limit).accepted();
 }
 }  // namespace wirestead::wrapper::detail
