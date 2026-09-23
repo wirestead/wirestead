@@ -22,6 +22,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -34,6 +35,7 @@
 #include "wirestead/config/tcp_server_config.hpp"
 #include "wirestead/memory/safe_span.hpp"
 #include "wirestead/transport/base/reconnect_policy.hpp"
+#include "wirestead/transport/base/stop_test_hook.hpp"
 #include "wirestead/transport/tcp_client/tcp_client.hpp"
 #include "wirestead/transport/tcp_server/tcp_server.hpp"
 
@@ -895,4 +897,131 @@ TEST_P(TcpReconnectWriteTest, DiscardsActiveAndWaitingDataBeforeReconnect) {
   EXPECT_EQ(stats.pending_bytes, 0u);
 }
 INSTANTIATE_TEST_SUITE_P(QueuedAndPending, TcpReconnectWriteTest, ::testing::Bool());
+}  // namespace
+
+namespace {
+thread_local std::optional<wrapper::SendResult> observed_admission;
+thread_local int admission_observations = 0;
+void observe_admission(const wrapper::SendResult& result) {
+  observed_admission = result;
+  ++admission_observations;
+}
+
+struct AdmissionPeer {
+  net::io_context io;
+  tcp::acceptor acceptor{io, tcp::endpoint(tcp::v4(), 0)};
+  std::shared_ptr<TcpClient> client;
+  explicit AdmissionPeer(bool best_effort, bool pooled) {
+    config::TcpClientConfig cfg;
+    cfg.port = acceptor.local_endpoint().port();
+    cfg.backpressure_threshold = 1024;
+    cfg.enable_memory_pool = pooled;
+    cfg.backpressure_strategy = best_effort ? base::constants::BackpressureStrategy::BestEffort
+                                            : base::constants::BackpressureStrategy::Reliable;
+    client = TcpClient::create(cfg, io);
+    detail::g_tcp_write_result_hook.store(observe_admission);
+  }
+  ~AdmissionPeer() {
+    detail::g_tcp_write_result_hook.store(nullptr);
+    stop_with_context(client, io);
+  }
+};
+
+class TcpAdmissionResultTest : public ::testing::TestWithParam<int> {};
+TEST_P(TcpAdmissionResultTest, RetainsDecisionAndExistingAccounting) {
+  const int form = GetParam() % 6;
+  const bool best_effort = (GetParam() / 6) % 2;
+  AdmissionPeer peer(best_effort, GetParam() >= 12);
+  auto write = [&](std::vector<uint8_t>& payload) {
+    observed_admission.reset();
+    admission_observations = 0;
+    const auto before = payload;
+    bool accepted = false;
+    switch (form) {
+      case 0:
+        accepted = peer.client->async_write_copy({payload.data(), payload.size()});
+        break;
+      case 1:
+        accepted = peer.client->async_write_move(std::move(payload));
+        break;
+      case 2:
+        accepted = peer.client->async_write_shared(std::make_shared<const std::vector<uint8_t>>(payload));
+        break;
+      case 3:
+        accepted = peer.client->async_try_write_copy({payload.data(), payload.size()});
+        break;
+      case 4:
+        accepted = peer.client->async_try_write_move(std::move(payload));
+        break;
+      case 5:
+        accepted = peer.client->async_try_write_shared(std::make_shared<const std::vector<uint8_t>>(payload));
+        break;
+    }
+    EXPECT_EQ(admission_observations, 1);
+    EXPECT_TRUE(observed_admission.has_value());
+    if (observed_admission) {
+      EXPECT_EQ(observed_admission->accepted(), accepted);
+    }
+    if (!accepted) {
+      EXPECT_EQ(payload, before) << "rejected move must preserve caller storage";
+    }
+    return accepted;
+  };
+  auto expect_reason = [&](wrapper::SendRejection expected) {
+    ASSERT_TRUE(observed_admission.has_value());
+    ASSERT_FALSE(observed_admission->accepted());
+    EXPECT_EQ(observed_admission->reason(), expected);
+  };
+
+  std::vector<uint8_t> payload(16, 'a');
+  EXPECT_FALSE(write(payload));
+  expect_reason(wrapper::SendRejection::NotReady);
+
+  peer.client->start();
+  ASSERT_TRUE(run_until(peer.io, [&] { return peer.client->is_connected(); }));
+  std::vector<uint8_t> empty;
+  EXPECT_FALSE(write(empty));
+  expect_reason(wrapper::SendRejection::InvalidArgument);
+  std::vector<uint8_t> oversized(base::constants::MAX_BUFFER_SIZE + 1, 'x');
+  EXPECT_FALSE(write(oversized));
+  expect_reason(wrapper::SendRejection::TooLarge);
+  oversized.clear();
+
+  // No executor progress after readiness: reservations cannot drain before the
+  // second call. Ordinary Reliable fills its hard cap; try writes fill high-water.
+  const size_t capacity = form < 3 ? *peer.client->write_queue_limit() : 1024;
+  std::vector<uint8_t> fill(capacity, 'f');
+  EXPECT_TRUE(write(fill));
+  ASSERT_TRUE(observed_admission->accepted());
+  const auto before_pressure = peer.client->stats();
+  EXPECT_EQ(before_pressure.messages_accepted, 1u);
+  EXPECT_EQ(before_pressure.failed_sends, 3u);
+  EXPECT_EQ(before_pressure.dropped_messages, 0u);
+  payload.assign(16, 'a');
+  const bool accepted_under_pressure = write(payload);
+  const bool ordinary_best_effort = form < 3 && best_effort;
+  EXPECT_EQ(accepted_under_pressure, ordinary_best_effort);
+  if (!ordinary_best_effort) expect_reason(wrapper::SendRejection::WouldBlock);
+  const auto after_pressure = peer.client->stats();
+  if (ordinary_best_effort) {
+    EXPECT_EQ(after_pressure.messages_accepted, 2u);
+  } else if (best_effort) {
+    EXPECT_EQ(after_pressure.dropped_messages, before_pressure.dropped_messages + 1);
+    EXPECT_EQ(after_pressure.failed_sends, before_pressure.failed_sends);
+  } else {
+    EXPECT_EQ(after_pressure.failed_sends, before_pressure.failed_sends + 1);
+    EXPECT_EQ(after_pressure.dropped_messages, before_pressure.dropped_messages);
+  }
+  // The result is a value, unaffected by the subsequent lifecycle transition.
+  const auto saved = *observed_admission;
+  stop_with_context(peer.client, peer.io);
+  EXPECT_EQ(saved.accepted(), accepted_under_pressure);
+  if (!saved.accepted()) {
+    EXPECT_EQ(saved.reason(), wrapper::SendRejection::WouldBlock);
+  }
+  payload.assign(16, 'a');
+  EXPECT_FALSE(write(payload));
+  expect_reason(wrapper::SendRejection::NotReady);
+}
+INSTANTIATE_TEST_SUITE_P(FormsStrategiesAndPool, TcpAdmissionResultTest, ::testing::Range(0, 24));
 }  // namespace

@@ -441,7 +441,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
         // async_write_move only actually moves from `data` on success (see
         // TcpClient::async_write_move), so retrying with the same `data`
         // after a `false` return is safe.
-        if (connection.tcp ? connection.tcp->write_move(std::move(data), connection.wait->sequence)
+        if (connection.tcp ? connection.tcp->write_move(std::move(data), connection.wait->sequence).accepted()
                            : channel_->async_write_move(std::move(data)))
           return true;
       }
@@ -463,7 +463,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
         if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected() ||
             !connection_matches(connection))
           return false;
-        if (connection.tcp ? connection.tcp->write_shared(data, connection.wait->sequence)
+        if (connection.tcp ? connection.tcp->write_shared(data, connection.wait->sequence).accepted()
                            : channel_->async_write_shared(data))
           return true;
       }
@@ -493,7 +493,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected() ||
           !connection_matches(connection))
         return false;
-      if (connection.tcp ? connection.tcp->write_copy(span, connection.wait->sequence)
+      if (connection.tcp ? connection.tcp->write_copy(span, connection.wait->sequence).accepted()
                          : channel_->async_write_copy(span))
         return true;
     }
