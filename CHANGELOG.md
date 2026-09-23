@@ -10,6 +10,10 @@ and ABI policy.
 
 ### Added
 
+- Internal TCP admission results distinguish a never-started or fully stopped
+  transport (NotStarted), requested but incomplete cleanup (Stopping), and an
+  active run without a usable connection (NotReady). Public sends remain bool.
+
 - TCP client native admission now retains an internal SendResult for copy,
   move and shared writes, including try variants. Readiness, payload and capacity
   rejections are preserved at their original decision point; public APIs still
