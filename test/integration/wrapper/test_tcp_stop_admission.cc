@@ -532,6 +532,16 @@ INSTANTIATE_TEST_SUITE_P(AllWriteForms, TcpWriteReadinessTest, ::testing::Range(
 }  // namespace
 
 namespace {
+std::atomic<int> observed_wait_result{-1};
+std::atomic<AdmissionPark*> wait_result_park{nullptr};
+void observe_wait_result(const wrapper::SendResult& result) {
+  if (auto park = wait_result_park.load()) {
+    park->entered.notify();
+    park->release.hold();
+  }
+  observed_wait_result = result.accepted() ? 100 : static_cast<int>(result.reason());
+}
+
 class PressuredRunChannel : public SavedChannel {
  public:
   std::atomic<bool> pressure{true};
@@ -554,6 +564,7 @@ TEST_P(TcpCapacityWaitRunTest, OldWaitCannotResumeInRestartedRun) {
     channel->pressure = false;
     if (writer.valid()) writer.wait();
     wrapper::detail::g_tcp_capacity_wait_hook.store(nullptr);
+    wrapper::detail::g_tcp_capacity_wait_result_hook.store(nullptr);
     admission_park.store(nullptr);
     client.stop();
   }};
@@ -573,6 +584,8 @@ TEST_P(TcpCapacityWaitRunTest, OldWaitCannotResumeInRestartedRun) {
         return client.send_shared(std::make_shared<const std::vector<uint8_t>>(3, 42));
     }
   };
+  observed_wait_result = -1;
+  wrapper::detail::g_tcp_capacity_wait_result_hook.store(&observe_wait_result);
   admission_park.store(&park);
   wrapper::detail::g_tcp_capacity_wait_hook.store(&park_admission);
   writer = std::async(std::launch::async, send);
@@ -585,6 +598,7 @@ TEST_P(TcpCapacityWaitRunTest, OldWaitCannotResumeInRestartedRun) {
   EXPECT_EQ(writer.wait_for(300ms), std::future_status::ready);
   channel->pressure = false;
   EXPECT_FALSE(writer.get());
+  EXPECT_EQ(observed_wait_result, static_cast<int>(wrapper::SendRejection::CancelledWhileWaiting));
   if (GetParam() >= 6) {
     EXPECT_TRUE(send());
   }
@@ -594,7 +608,7 @@ INSTANTIATE_TEST_SUITE_P(StopAndRestartWithPressure, TcpCapacityWaitRunTest, ::t
 
 namespace {
 class TcpCapacityWaitConnectionTest : public ::testing::TestWithParam<int> {};
-TEST_P(TcpCapacityWaitConnectionTest, OldWaitCannotResumeAfterReconnect) {
+TEST_P(TcpCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   Context context;
   namespace net = boost::asio;
   using tcp = net::ip::tcp;
@@ -611,13 +625,16 @@ TEST_P(TcpCapacityWaitConnectionTest, OldWaitCannotResumeAfterReconnect) {
   auto transport = transport::TcpClient::create(cfg, *context.io);
   wrapper::TcpClient client(transport);
   std::atomic<int> connections{0};
-  AdmissionPark park;
+  AdmissionPark park, result_park;
   std::future<bool> writer;
   OnExit cleanup{[&] {
     park.release.notify();
+    result_park.release.notify();
     client.stop();
     if (writer.valid()) writer.wait();
     wrapper::detail::g_tcp_capacity_wait_hook.store(nullptr);
+    wrapper::detail::g_tcp_capacity_wait_result_hook.store(nullptr);
+    wait_result_park.store(nullptr);
     transport::detail::g_tcp_pinned_write_hook.store(nullptr);
     admission_park.store(nullptr);
   }};
@@ -635,12 +652,15 @@ TEST_P(TcpCapacityWaitConnectionTest, OldWaitCannotResumeAfterReconnect) {
   ASSERT_TRUE(accept(first));
   ASSERT_EQ(ready.wait_for(3s), std::future_status::ready);
   ASSERT_TRUE(ready.get());
-  if (GetParam() < 12) {
+  if (GetParam() < 12 || GetParam() >= 18) {
     ASSERT_TRUE(transport->async_write_move(std::vector<uint8_t>(512 * 1024, 'x')));
     ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_backpressure_active(); }, 3000));
   }
+  observed_wait_result = -1;
+  wrapper::detail::g_tcp_capacity_wait_result_hook.store(&observe_wait_result);
+  if (GetParam() >= 30) wait_result_park.store(&result_park);
   admission_park.store(&park);
-  if (GetParam() < 12) {
+  if (GetParam() < 12 || GetParam() >= 18) {
     wrapper::detail::g_tcp_capacity_wait_hook.store(&park_admission);
   } else {
     transport::detail::g_tcp_pinned_write_hook.store(&park_admission);
@@ -662,26 +682,65 @@ TEST_P(TcpCapacityWaitConnectionTest, OldWaitCannotResumeAfterReconnect) {
     }
   });
   ASSERT_TRUE(park.entered.wait());
-  first.close();
-  ASSERT_TRUE(accept(second));
-  // The final-admission seam holds the wrapper lock: Connected delivery
-  // waits for the sender, but transport readiness is already published.
-  ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_connected(); }, 3000));
-  if (GetParam() >= 6 && GetParam() < 12) {
-    ASSERT_TRUE(transport->async_write_move(std::vector<uint8_t>(512 * 1024, 'y')));
-    ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_backpressure_active(); }, 3000));
+  if (GetParam() < 18) {
+    first.close();
+    ASSERT_TRUE(accept(second));
+    // Final-admission seam holds the wrapper lock; readiness precedes delivery.
+    ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_connected(); }, 3000));
+    if (GetParam() >= 6 && GetParam() < 12) {
+      ASSERT_TRUE(transport->async_write_move(std::vector<uint8_t>(512 * 1024, 'y')));
+      ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_backpressure_active(); }, 3000));
+    }
+  } else if (GetParam() < 24) {
+    // Prevent a replacement connection while proving loss-before-stop ordering.
+    acceptor.close();
+    first.close();
+    ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return !transport->is_connected(); }, 3000));
+    client.stop();
+  } else if (GetParam() < 30) {
+    if (GetParam() % 2 == 0)
+      transport->stop();
+    else
+      client.stop();
+    first.close();
+  } else {
+    // Drain the actual socket, then freeze the selected capacity result.
+    first.set_option(net::socket_base::receive_buffer_size(1024 * 1024));
+    first.non_blocking(true);
+    std::vector<uint8_t> buffer(512 * 1024);
+    size_t received = 0;
+    ASSERT_TRUE(test::TestUtils::waitForCondition(
+        [&] {
+          boost::system::error_code ec;
+          received += first.read_some(net::buffer(buffer.data(), buffer.size()), ec);
+          return received == 512 * 1024;
+        },
+        10000));
+    ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return !transport->is_backpressure_active(); }, 3000));
   }
   const auto accepted_before = transport->stats().messages_accepted;
   park.release.notify();
+  if (GetParam() >= 30) {
+    ASSERT_TRUE(result_park.entered.wait());
+    client.stop();
+    result_park.release.notify();
+  }
   const auto status = writer.wait_for(300ms);
   EXPECT_EQ(status, std::future_status::ready);
   if (status != std::future_status::ready) client.stop();
   EXPECT_FALSE(writer.get());
   EXPECT_EQ(transport->stats().messages_accepted, accepted_before);
-  if (GetParam() < 6 || GetParam() >= 12) {
+  if (GetParam() < 12 || (GetParam() >= 18 && GetParam() < 24)) {
+    EXPECT_EQ(observed_wait_result, static_cast<int>(wrapper::SendRejection::NotReady));
+  } else if (GetParam() >= 24 && GetParam() < 30) {
+    EXPECT_EQ(observed_wait_result, static_cast<int>(wrapper::SendRejection::CancelledWhileWaiting));
+  } else if (GetParam() >= 30) {
+    EXPECT_EQ(observed_wait_result, 100);
+  }
+  if (GetParam() < 6 || (GetParam() >= 12 && GetParam() < 18)) {
     EXPECT_TRUE(client.send("new"));
     EXPECT_EQ(transport->stats().messages_accepted, accepted_before + 1);
   }
 }
-INSTANTIATE_TEST_SUITE_P(ReconnectFreeAndPressured, TcpCapacityWaitConnectionTest, ::testing::Range(0, 18));
+INSTANTIATE_TEST_SUITE_P(ReconnectAndReleaseReasons, TcpCapacityWaitConnectionTest, ::testing::Range(0, 36));
 }  // namespace

@@ -10,6 +10,11 @@ and ABI policy.
 
 ### Added
 
+- Built-in TCP capacity waits retain their first stop/loss reason in an
+  internal SendResult: CancelledWhileWaiting for stop, NotReady for connection
+  loss. A selected capacity-release result also remains fixed. Public send
+  methods still return bool while the D-3 migration continues.
+
 - Shared wrapper payload-size validation now produces SendResult internally:
   InvalidArgument for empty input and TooLarge for message/queue size limits.
   Public sends still return bool; transport rejection and accounting remain
@@ -75,6 +80,9 @@ and ABI policy.
   retain their identity and regain handlers on restart.
 
 ### Fixed
+
+- TCP and UDS server statistics snapshot retained totals and live sessions under
+  the same lock, preventing transient counter loss during session retirement.
 
 - Blocking/Reliable sends using the built-in TCP client now pin the connection
   across capacity waits and retries. A reconnect ends the old wait, and the

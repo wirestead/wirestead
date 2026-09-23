@@ -31,6 +31,7 @@
 #include "wirestead/interface/channel.hpp"
 #include "wirestead/memory/memory_pool.hpp"
 #include "wirestead/transport/base/reconnect_policy.hpp"
+#include "wirestead/wrapper/send_result.hpp"
 
 // Forward declare boost components
 namespace boost {
@@ -42,8 +43,11 @@ class io_context;
 namespace wirestead {
 namespace wrapper {
 class TcpClient;
-}
+}  // namespace wrapper
 namespace transport {
+namespace detail {
+struct TcpWriteWait;
+}
 
 using base::LinkState;
 using config::TcpClientConfig;
@@ -107,6 +111,9 @@ class WIRESTEAD_API TcpClient : public Channel, public std::enable_shared_from_t
   // The built-in wrapper pins capacity waits without extending Channel's ABI.
   friend class wrapper::TcpClient;
   std::optional<uint64_t> write_connection() const;
+  std::shared_ptr<detail::TcpWriteWait> capture_write_wait() const;
+  std::optional<wrapper::SendResult> poll_write_wait(const std::shared_ptr<detail::TcpWriteWait>& wait) const;
+  void cancel_write_waits();
   bool write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection);
   bool write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection);
   bool write_shared(std::shared_ptr<const std::vector<uint8_t>> data, std::optional<uint64_t> expected_connection);

@@ -440,8 +440,10 @@ std::optional<size_t> UdsServer::write_queue_limit(ClientId client_id) const {
 boost::asio::any_io_executor UdsServer::get_executor() { return impl_->strand_; }
 
 wrapper::RuntimeStats UdsServer::stats() const {
-  auto aggregate = impl_->stats_.snapshot(0, 0, false);
+  // Snapshot retained totals and live sessions under the same lock as the
+  // disconnect transfer; otherwise a retiring session can disappear from both.
   std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
+  auto aggregate = impl_->stats_.snapshot(0, 0, false);
   for (const auto& pair : impl_->sessions_) {
     if (!pair.second) continue;
     const auto session_stats = pair.second->stats();
