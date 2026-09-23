@@ -84,6 +84,9 @@ inline std::atomic<PreAdmissionHook> g_tcp_capacity_wait_hook{nullptr};
 // Observes the frozen internal outcome after a capacity wait has ended.
 inline std::atomic<void (*)(const SendResult&)> g_tcp_capacity_wait_result_hook{nullptr};
 
+// Observes built-in TCP nonblocking wrapper outcomes at the bool boundary.
+inline std::atomic<void (*)(const SendResult&)> g_tcp_send_result_hook{nullptr};
+
 class CallbackGate {
  public:
   // Held for the duration of one callback. `admitted()` false means the gate
@@ -162,6 +165,11 @@ class CallbackGate {
   bool active_on_this_thread() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return std::find(threads_.begin(), threads_.end(), std::this_thread::get_id()) != threads_.end();
+  }
+
+  bool idle() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return running_ == 0;
   }
 
   void wait_until_idle() {

@@ -28,10 +28,13 @@
 #include <thread>
 #include <vector>
 
+#include "tcp_stop_with_context.hpp"
 #include "test_utils.hpp"
 #include "wirestead/framer/line_framer.hpp"
 #include "wirestead/interface/channel.hpp"
+#include "wirestead/transport/tcp_client/tcp_client.hpp"
 #include "wirestead/wirestead.hpp"
+#include "wirestead/wrapper/callback_guard.hpp"
 #include "wrapper_contract_test_utils.hpp"
 
 namespace {
@@ -648,4 +651,155 @@ TEST(TcpClientWrapperContractTest, StartWhileConnectedAndBestEffortWriteFailure)
   client.stop();
 }
 
+}  // namespace
+
+namespace {
+thread_local std::optional<wirestead::wrapper::SendResult> nonblocking_result;
+thread_local int nonblocking_observations = 0;
+void observe_nonblocking_result(const wirestead::wrapper::SendResult& result) {
+  nonblocking_result = result;
+  ++nonblocking_observations;
+}
+
+struct NonblockingResultPeer {
+  boost::asio::io_context io;
+  boost::asio::ip::tcp::acceptor acceptor{io, {boost::asio::ip::tcp::v4(), 0}};
+  std::shared_ptr<wirestead::transport::TcpClient> native;
+  std::unique_ptr<wirestead::wrapper::TcpClient> client;
+  explicit NonblockingResultPeer(bool best_effort) {
+    wirestead::config::TcpClientConfig cfg;
+    cfg.port = acceptor.local_endpoint().port();
+    cfg.backpressure_threshold = 1024;
+    cfg.backpressure_strategy = best_effort ? wirestead::base::constants::BackpressureStrategy::BestEffort
+                                            : wirestead::base::constants::BackpressureStrategy::Reliable;
+    native = wirestead::transport::TcpClient::create(cfg, io);
+    client = std::make_unique<wirestead::wrapper::TcpClient>(native);
+    client->backpressure_strategy(cfg.backpressure_strategy);
+    wirestead::wrapper::detail::g_tcp_send_result_hook.store(observe_nonblocking_result);
+  }
+  ~NonblockingResultPeer() {
+    wirestead::wrapper::detail::g_tcp_send_result_hook.store(nullptr);
+    wirestead::test::stop_wrapper_with_context(*client, io);
+  }
+  template <typename Predicate>
+  bool until(Predicate predicate) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!predicate()) {
+      if (std::chrono::steady_clock::now() >= deadline) return false;
+      if (io.stopped()) io.restart();
+      io.run_for(std::chrono::milliseconds(10));
+    }
+    return true;
+  }
+};
+
+class TcpNonblockingResultTest : public ::testing::TestWithParam<int> {};
+TEST_P(TcpNonblockingResultTest, OrdersValidationLifecycleAndCapacityReasons) {
+  using Rejection = wirestead::wrapper::SendRejection;
+  const bool best_effort = GetParam() >= 4 && GetParam() < 8;
+  const int form = GetParam() % 4;
+  // Explicit try methods must stay WouldBlock even on a BestEffort channel.
+  NonblockingResultPeer peer(GetParam() >= 4);
+  auto& client = *peer.client;
+  auto write = [&](std::string_view text) {
+    nonblocking_result.reset();
+    nonblocking_observations = 0;
+    bool accepted = false;
+    if (form == 0) {
+      accepted = best_effort ? client.send(text) : client.try_send(text);
+    } else if (form == 1) {
+      accepted = best_effort ? client.send_line(text) : client.try_send_line(text);
+    } else if (form == 2) {
+      std::vector<uint8_t> payload(text.begin(), text.end());
+      accepted = best_effort ? client.send_move(std::move(payload)) : client.try_send_move(std::move(payload));
+      if (!accepted) {
+        EXPECT_EQ(std::string(payload.begin(), payload.end()), text);
+      }
+    } else {
+      auto payload = std::make_shared<const std::vector<uint8_t>>(text.begin(), text.end());
+      accepted = best_effort ? client.send_shared(payload) : client.try_send_shared(payload);
+    }
+    EXPECT_EQ(nonblocking_observations, 1);
+    EXPECT_TRUE(nonblocking_result.has_value());
+    if (nonblocking_result) {
+      EXPECT_EQ(nonblocking_result->accepted(), accepted);
+    }
+    return accepted;
+  };
+  auto reason = [&](Rejection expected) {
+    ASSERT_TRUE(nonblocking_result.has_value());
+    ASSERT_FALSE(nonblocking_result->accepted());
+    EXPECT_EQ(nonblocking_result->reason(), expected);
+  };
+
+  EXPECT_FALSE(write("valid"));
+  reason(Rejection::NotStarted);
+  if (form != 1) {
+    EXPECT_FALSE(write(""));
+    reason(Rejection::InvalidArgument);
+  }
+  // Line delimiters count against the hard queue limit before state/capacity.
+  const std::string oversized(*peer.native->write_queue_limit() + (form == 1 ? 0 : 1), 'x');
+  EXPECT_FALSE(write(oversized));
+  reason(Rejection::TooLarge);
+  EXPECT_EQ(peer.native->stats().failed_sends, 0u);
+
+  auto started = client.start();
+  EXPECT_FALSE(write("valid"));
+  reason(Rejection::NotReady);
+  ASSERT_TRUE(peer.until([&] { return peer.native->is_connected(); }));
+  ASSERT_TRUE(started.get());
+  // Fill high-water without running the executor again.
+  ASSERT_TRUE(client.try_send(std::string(1024, 'f')));
+  EXPECT_FALSE(write("valid"));
+  reason(best_effort ? Rejection::QueueFull : Rejection::WouldBlock);
+  EXPECT_FALSE(write(oversized));
+  reason(Rejection::TooLarge);
+
+  bool stopped_on_executor = false;
+  boost::asio::post(peer.io, [&] {
+    client.stop();
+    EXPECT_FALSE(write("valid"));
+    reason(Rejection::Stopping);
+    EXPECT_FALSE(write(oversized));
+    reason(Rejection::TooLarge);
+    stopped_on_executor = true;
+  });
+  ASSERT_TRUE(peer.until([&] { return stopped_on_executor; }));
+  wirestead::test::stop_wrapper_with_context(client, peer.io);
+  EXPECT_FALSE(write("valid"));
+  reason(Rejection::NotStarted);
+  auto restarted = client.start();
+  EXPECT_FALSE(write("valid"));
+  reason(Rejection::NotReady);
+  ASSERT_TRUE(peer.until([&] { return peer.native->is_connected(); }));
+  ASSERT_TRUE(restarted.get());
+  EXPECT_TRUE(write("valid"));
+}
+
+INSTANTIATE_TEST_SUITE_P(TryAndBestEffortForms, TcpNonblockingResultTest, ::testing::Range(0, 12));
+
+TEST(TcpNonblockingResultContract, ConnectedNativeStillRequiresWrapperStart) {
+  using Rejection = wirestead::wrapper::SendRejection;
+  NonblockingResultPeer peer(false);
+  peer.native->start();
+  ASSERT_TRUE(peer.until([&] { return peer.native->is_connected(); }));
+  EXPECT_FALSE(peer.client->try_send("before wrapper start"));
+  ASSERT_TRUE(nonblocking_result.has_value());
+  EXPECT_EQ(nonblocking_result->reason(), Rejection::NotStarted);
+  EXPECT_EQ(peer.native->stats().messages_accepted, 0u);
+  ASSERT_TRUE(peer.client->start().get());
+  EXPECT_TRUE(peer.client->try_send("after wrapper start"));
+}
+
+TEST(TcpNonblockingResultContract, NullSharedPayloadIsInvalidBeforeStartAndAfterStop) {
+  NonblockingResultPeer peer(true);
+  EXPECT_FALSE(peer.client->send_shared(nullptr));
+  ASSERT_TRUE(nonblocking_result.has_value());
+  EXPECT_EQ(nonblocking_result->reason(), wirestead::wrapper::SendRejection::InvalidArgument);
+  peer.client->stop();
+  EXPECT_FALSE(peer.client->try_send_shared(nullptr));
+  ASSERT_TRUE(nonblocking_result.has_value());
+  EXPECT_EQ(nonblocking_result->reason(), wirestead::wrapper::SendRejection::InvalidArgument);
+}
 }  // namespace
