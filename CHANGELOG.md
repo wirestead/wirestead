@@ -10,6 +10,11 @@ and ABI policy.
 
 ### Added
 
+- Built-in TCP Reliable and explicit blocking sends now retain one internal
+  SendResult across validation, capacity waiting and pinned native admission.
+  Wait cancellation/loss reasons survive later state changes, and only native
+  capacity refusals are retried. Public sends still return bool.
+
 - Built-in TCP wrapper nonblocking sends combine payload validation, wrapper
   lifecycle and native admission into an internal SendResult. Explicit try sends
   report WouldBlock for capacity refusal; ordinary BestEffort sends report
@@ -40,6 +45,10 @@ and ABI policy.
   bool; this is the result-type foundation, not the transport migration.
 
 ### Changed
+
+- **Breaking behavior:** TCP Reliable and explicit blocking sends now reject invalid payloads before
+  native handoff, matching nonblocking sends; these early rejections do not
+  increment native failure/drop counters. Custom Channel delegation is unchanged.
 
 - **Breaking behavior:** Built-in TCP wrapper nonblocking sends validate before native handoff, so
   invalid payloads do not increment native transport failure/drop counters.

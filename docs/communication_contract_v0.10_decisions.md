@@ -18,8 +18,10 @@ those waits to a built-in TCP connection and checked it at admission. PR #670
 retained the first stop/loss cause and returned an internal SendResult from the
 wait stage. PR #671 retained native TCP admission results at their decision
 points. PR #672 distinguished native NotStarted, Stopping and NotReady using
-actual cleanup completion. Built-in TCP wrapper nonblocking sends now combine
-validation, wrapper lifecycle and native admission; see
+actual cleanup completion. PR #673 combined validation, wrapper lifecycle and
+native admission for nonblocking sends. Reliable and explicit blocking sends
+now also retain the final result, including the original wait-release cause;
+see [tcp_reliable_send_results.md](tcp_reliable_send_results.md),
 [tcp_wrapper_nonblocking_results.md](tcp_wrapper_nonblocking_results.md),
 [tcp_admission_results.md](tcp_admission_results.md) and
 [tcp_wait_release_reasons.md](tcp_wait_release_reasons.md),

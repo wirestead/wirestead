@@ -37,9 +37,10 @@ Their bool refusal is not assigned an invented typed reason. The internal
 observer hook runs after releasing the wrapper mutex and only reports the
 built-in/native path.
 
-Reliable blocking sends and explicit blocking sends still use their existing
-paths. Their retained wait results are not yet combined with this wrapper entry
-mapping. Public SendResult migration must account for the common ChannelInterface
+Reliable and explicit blocking sends now also combine wrapper entry checks,
+retained wait outcomes and native admission; see
+[tcp_reliable_send_results.md](tcp_reliable_send_results.md).
+Public SendResult migration must account for the common ChannelInterface
 and other implementations, and remains separate work.
 
 ## Regression coverage

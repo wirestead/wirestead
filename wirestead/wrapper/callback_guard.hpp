@@ -84,7 +84,7 @@ inline std::atomic<PreAdmissionHook> g_tcp_capacity_wait_hook{nullptr};
 // Observes the frozen internal outcome after a capacity wait has ended.
 inline std::atomic<void (*)(const SendResult&)> g_tcp_capacity_wait_result_hook{nullptr};
 
-// Observes built-in TCP nonblocking wrapper outcomes at the bool boundary.
+// Observes built-in TCP wrapper send outcomes at the bool boundary.
 inline std::atomic<void (*)(const SendResult&)> g_tcp_send_result_hook{nullptr};
 
 class CallbackGate {
