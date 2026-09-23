@@ -328,6 +328,28 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     }
   }
 
+  // Caller holds mutex_. Native readiness remains part of transport admission.
+  SendResult send_state(const std::shared_ptr<transport::TcpClient>& tcp) {
+    if (stop_callers_.load() != 0) return SendResult::reject(SendRejection::Stopping);
+    if (!started_.load()) {
+      if (stop_requested_) {
+        if (!callback_gate_.idle()) return SendResult::reject(SendRejection::Stopping);
+        if (tcp) {
+          const auto state = tcp->write_state();
+          if (!state.accepted() && state.reason() == SendRejection::Stopping) return state;
+        }
+      }
+      return SendResult::reject(SendRejection::NotStarted);
+    }
+    if (!tcp) return SendResult::reject(SendRejection::NotReady);
+    return SendResult::accept();
+  }
+
+  static bool finish_send(SendResult result) {
+    if (auto hook = detail::g_tcp_send_result_hook.load()) hook(result);
+    return result.accepted();
+  }
+
   template <typename NativeWrite, typename FallbackWrite>
   bool nonblocking_send(size_t size, bool best_effort_send, NativeWrite native_write, FallbackWrite fallback_write) {
     std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -337,18 +359,8 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     const auto result = [&]() -> SendResult {
       auto validation = detail::validate_payload_size(size, tcp ? tcp->write_queue_limit() : std::nullopt);
       if (!validation.accepted()) return validation;
-      if (stop_callers_.load() != 0) return SendResult::reject(SendRejection::Stopping);
-      if (!started_.load()) {
-        if (stop_requested_) {
-          if (!callback_gate_.idle()) return SendResult::reject(SendRejection::Stopping);
-          if (tcp) {
-            const auto state = tcp->write_state();
-            if (!state.accepted() && state.reason() == SendRejection::Stopping) return state;
-          }
-        }
-        return SendResult::reject(SendRejection::NotStarted);
-      }
-      if (!tcp) return SendResult::reject(SendRejection::NotReady);
+      const auto state = send_state(tcp);
+      if (!state.accepted()) return state;
       // The native call rechecks state and capacity together under its mutex.
       auto admitted = native_write(*tcp);
       if (best_effort_send && !admitted.accepted() && admitted.reason() == SendRejection::WouldBlock)
@@ -356,8 +368,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       return admitted;
     }();
     lock.unlock();
-    if (auto hook = detail::g_tcp_send_result_hook.load()) hook(result);
-    return result.accepted();
+    return finish_send(result);
   }
 
   bool try_send(std::string_view data, bool best_effort_send = false) {
@@ -389,12 +400,6 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     std::shared_ptr<transport::TcpClient> tcp;
     std::shared_ptr<transport::detail::TcpWriteWait> wait;
   };
-
-  ConnectionPin pin_connection() {
-    std::shared_lock<std::shared_mutex> lock(mutex_);
-    auto tcp = std::dynamic_pointer_cast<transport::TcpClient>(channel_);
-    return {tcp, tcp ? tcp->capture_write_wait() : nullptr};
-  }
 
   bool connection_matches(const ConnectionPin& pin) const {
     return !pin.tcp || (pin.wait && pin.tcp->write_connection() == pin.wait->sequence);
@@ -448,63 +453,89 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     return *outcome;
   }
 
-  // #509: wait_for_backpressure_clear()'s condition (is_backpressure_active(),
-  // tied to bp_high) and the transport's own hard queue-byte cap
-  // (bp_limit = bp_high * 4, rechecked inside each async_write_*) are
-  // different thresholds observed at different times - something else can
-  // refill the queue in the narrow window between the wait exiting and this
-  // write's own cap check, rejecting a write on an otherwise perfectly
-  // healthy channel. Retry a bounded number of times rather than giving up
-  // after one attempt, since the failure is almost always transient, not
-  // permanent. Bounded (rather than unbounded like the wait loop itself) so
-  // a payload that can never fit under a very small configured
-  // backpressure_threshold still fails in bounded time instead of hanging.
+  // #509: high-water pressure and hard-limit reservations are different
+  // thresholds. Capacity can be refilled between a wait and admission, so
+  // retry transient native WouldBlock at most five times. Validation and
+  // terminal state failures return immediately. Custom bool channels retain
+  // their existing bounded retry behavior.
   static constexpr int kMaxBlockingSendAttempts = 5;
 
-  bool send_move(std::vector<uint8_t>&& data) {
-    if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) {
-      const auto generation = callback_generation_.load();
-      const auto connection = pin_connection();
+  template <typename NativeWrite, typename FallbackWrite>
+  bool blocking_send(size_t size, NativeWrite native_write, FallbackWrite fallback_write) {
+    uint64_t generation;
+    ConnectionPin connection;
+    bool custom;
+    {
+      std::shared_lock<std::shared_mutex> lock(mutex_);
+      generation = callback_generation_.load();
+      connection.tcp = std::dynamic_pointer_cast<transport::TcpClient>(channel_);
+      custom = channel_ && !connection.tcp;
+    }
+    if (custom) {
+      // Preserve bool-only custom Channel admission, validation and accounting.
       for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
         std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-        if (!wait_for_backpressure_clear(bp_lock, data.size(), generation, connection).accepted()) return false;
+        if (!wait_for_backpressure_clear(bp_lock, size, generation, connection).accepted()) return false;
         bp_lock.unlock();
         std::shared_lock<std::shared_mutex> lock(mutex_);
-        if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected() ||
-            !connection_matches(connection))
+        if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected())
           return false;
-        // async_write_move only actually moves from `data` on success (see
-        // TcpClient::async_write_move), so retrying with the same `data`
-        // after a `false` return is safe.
-        if (connection.tcp ? connection.tcp->write_move(std::move(data), connection.wait->sequence).accepted()
-                           : channel_->async_write_move(std::move(data)))
-          return true;
+        if (fallback_write(*channel_)) return true;
       }
       return false;
     }
-    return try_send_move(std::move(data), true);
+
+    const auto result = [&]() -> SendResult {
+      {
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        // Select the run and native connection together at entry. Validation
+        // precedes state and waiting, including the line delimiter and hard cap.
+        generation = callback_generation_.load();
+        connection.tcp = std::dynamic_pointer_cast<transport::TcpClient>(channel_);
+        auto validation =
+            detail::validate_payload_size(size, connection.tcp ? connection.tcp->write_queue_limit() : std::nullopt);
+        if (!validation.accepted()) return validation;
+        auto state = send_state(connection.tcp);
+        if (!state.accepted()) return state;
+        state = connection.tcp->write_state();
+        if (!state.accepted()) return state;
+        connection.wait = connection.tcp->capture_write_wait();
+        if (!connection.wait) return SendResult::reject(SendRejection::NotReady);
+      }
+      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+        const auto released = wait_for_backpressure_clear(bp_lock, size, generation, connection);
+        if (!released.accepted()) return released;  // Never overwrite the cause of release.
+        bp_lock.unlock();
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        const auto state = send_state(connection.tcp);
+        if (!state.accepted()) return state;
+        if (callback_generation_.load() != generation) return SendResult::reject(SendRejection::NotReady);
+        const auto admitted = native_write(*connection.tcp, connection.wait->sequence);
+        if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock) return admitted;
+        // Only transient capacity refusal can be retried, never a terminal
+        // result. Callback callers must return without entering another wait.
+        if (detail::in_data_callback()) return admitted;
+      }
+      return SendResult::reject(SendRejection::WouldBlock);
+    }();
+    return finish_send(result);
+  }
+
+  bool send_move(std::vector<uint8_t>&& data) {
+    if (backpressure_strategy_ != base::constants::BackpressureStrategy::Reliable)
+      return try_send_move(std::move(data), true);
+    return blocking_send(
+        data.size(), [&](auto& tcp, uint64_t sequence) { return tcp.write_move(std::move(data), sequence); },
+        [&](auto& channel) { return channel.async_write_move(std::move(data)); });
   }
 
   bool send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
-    if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) {
-      if (!data || data->empty()) return false;
-      const auto generation = callback_generation_.load();
-      const auto connection = pin_connection();
-      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
-        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-        if (!wait_for_backpressure_clear(bp_lock, data->size(), generation, connection).accepted()) return false;
-        bp_lock.unlock();
-        std::shared_lock<std::shared_mutex> lock(mutex_);
-        if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected() ||
-            !connection_matches(connection))
-          return false;
-        if (connection.tcp ? connection.tcp->write_shared(data, connection.wait->sequence).accepted()
-                           : channel_->async_write_shared(data))
-          return true;
-      }
-      return false;
-    }
-    return try_send_shared(std::move(data), true);
+    if (backpressure_strategy_ != base::constants::BackpressureStrategy::Reliable)
+      return try_send_shared(std::move(data), true);
+    return blocking_send(
+        data ? data->size() : 0, [&](auto& tcp, uint64_t sequence) { return tcp.write_shared(data, sequence); },
+        [&](auto& channel) { return data && !data->empty() && channel.async_write_shared(data); });
   }
 
   bool send_line(std::string_view line) {
@@ -519,22 +550,9 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   bool send_blocking(std::string_view data) {
     auto binary_view = base::safe_convert::string_to_bytes(data);
     memory::ConstByteSpan span(binary_view.first, binary_view.second);
-    // Pin the run once, including all capacity waits and bounded retries.
-    const auto generation = callback_generation_.load();
-    const auto connection = pin_connection();
-    for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
-      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      if (!wait_for_backpressure_clear(bp_lock, data.size(), generation, connection).accepted()) return false;
-      bp_lock.unlock();
-      std::shared_lock<std::shared_mutex> lock(mutex_);
-      if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected() ||
-          !connection_matches(connection))
-        return false;
-      if (connection.tcp ? connection.tcp->write_copy(span, connection.wait->sequence).accepted()
-                         : channel_->async_write_copy(span))
-        return true;
-    }
-    return false;
+    return blocking_send(
+        data.size(), [&](auto& tcp, uint64_t sequence) { return tcp.write_copy(span, sequence); },
+        [&](auto& channel) { return channel.async_write_copy(span); });
   }
 
   bool send_line_blocking(std::string_view line) { return send_blocking(std::string(line) + "\n"); }

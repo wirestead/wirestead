@@ -802,4 +802,106 @@ TEST(TcpNonblockingResultContract, NullSharedPayloadIsInvalidBeforeStartAndAfter
   ASSERT_TRUE(nonblocking_result.has_value());
   EXPECT_EQ(nonblocking_result->reason(), wirestead::wrapper::SendRejection::InvalidArgument);
 }
+
+class TcpReliableResultTest : public ::testing::TestWithParam<int> {};
+TEST_P(TcpReliableResultTest, ValidatesBeforeStateAndPreservesPayload) {
+  using Rejection = wirestead::wrapper::SendRejection;
+  // The last two cases exercise explicit blocking under BestEffort.
+  NonblockingResultPeer peer(GetParam() >= 6);
+  const int form = GetParam() >= 6 ? GetParam() - 4 : GetParam();
+  auto& client = *peer.client;
+  auto write = [&](std::string_view text) {
+    nonblocking_result.reset();
+    nonblocking_observations = 0;
+    bool accepted = false;
+    if (form == 0)
+      accepted = client.send(text);
+    else if (form == 1)
+      accepted = client.send_line(text);
+    else if (form == 2)
+      accepted = client.send_blocking(text);
+    else if (form == 3)
+      accepted = client.send_line_blocking(text);
+    else if (form == 4) {
+      std::vector<uint8_t> payload(text.begin(), text.end());
+      accepted = client.send_move(std::move(payload));
+      if (!accepted) {
+        EXPECT_EQ(std::string(payload.begin(), payload.end()), text);
+      }
+    } else
+      accepted = client.send_shared(std::make_shared<const std::vector<uint8_t>>(text.begin(), text.end()));
+    EXPECT_EQ(nonblocking_observations, 1);
+    EXPECT_TRUE(nonblocking_result.has_value());
+    if (nonblocking_result) {
+      EXPECT_EQ(nonblocking_result->accepted(), accepted);
+    }
+    return accepted;
+  };
+  auto reason = [&](Rejection expected) {
+    ASSERT_TRUE(nonblocking_result.has_value());
+    ASSERT_FALSE(nonblocking_result->accepted());
+    EXPECT_EQ(nonblocking_result->reason(), expected);
+  };
+  const bool line = form == 1 || form == 3;
+  const std::string oversized(*peer.native->write_queue_limit() + (line ? 0 : 1), 'x');
+  EXPECT_FALSE(write(oversized));
+  reason(Rejection::TooLarge);
+  if (!line) {
+    EXPECT_FALSE(write(""));
+    reason(Rejection::InvalidArgument);
+  }
+  EXPECT_FALSE(write("valid"));
+  reason(Rejection::NotStarted);
+  EXPECT_EQ(peer.native->stats().failed_sends, 0u);
+  auto started = client.start();
+  EXPECT_FALSE(write("valid"));
+  reason(Rejection::NotReady);
+  ASSERT_TRUE(peer.until([&] { return peer.native->is_connected(); }));
+  ASSERT_TRUE(started.get());
+  EXPECT_FALSE(write(oversized));
+  reason(Rejection::TooLarge);
+  {
+    wirestead::wrapper::detail::CallbackGuard guard;
+    EXPECT_TRUE(write("capacity available in callback"));
+  }
+  wirestead::test::stop_wrapper_with_context(client, peer.io);
+  EXPECT_FALSE(write("valid"));
+  reason(Rejection::NotStarted);
+  EXPECT_FALSE(write(oversized));
+  reason(Rejection::TooLarge);
+  EXPECT_FALSE(client.send_shared(nullptr));
+  ASSERT_TRUE(nonblocking_result.has_value());
+  EXPECT_EQ(nonblocking_result->reason(), Rejection::InvalidArgument);
+}
+INSTANTIATE_TEST_SUITE_P(ReliableAndExplicitBlocking, TcpReliableResultTest, ::testing::Range(0, 8));
+
+TEST(TcpReliableResultContract, RetriesOnlyCapacityAndPreservesMoveStorage) {
+  NonblockingResultPeer peer(false);
+  auto started = peer.client->start();
+  ASSERT_TRUE(peer.until([&] { return peer.native->is_connected(); }));
+  ASSERT_TRUE(started.get());
+  // Keep the executor paused: inflight reservations fill the hard limit but
+  // have not yet published high-water pressure, exercising bounded retries.
+  ASSERT_TRUE(peer.native->async_write_move(std::vector<uint8_t>(*peer.native->write_queue_limit(), 'f')));
+  ASSERT_FALSE(peer.native->is_backpressure_active());
+  const auto failures = peer.native->stats().failed_sends;
+  for (int form = 0; form < 3; ++form) {
+    nonblocking_observations = 0;
+    std::vector<uint8_t> payload{1, 2, 3};
+    if (form == 0) {
+      EXPECT_FALSE(peer.client->send_blocking("copy"));
+    } else if (form == 1) {
+      EXPECT_FALSE(peer.client->send_move(std::move(payload)));
+      EXPECT_EQ(payload, (std::vector<uint8_t>{1, 2, 3}));
+    } else {
+      EXPECT_FALSE(peer.client->send_shared(std::make_shared<const std::vector<uint8_t>>(payload)));
+    }
+    ASSERT_TRUE(nonblocking_result.has_value());
+    EXPECT_EQ(nonblocking_observations, 1);
+    EXPECT_FALSE(nonblocking_result->accepted());
+    EXPECT_EQ(nonblocking_result->reason(), wirestead::wrapper::SendRejection::WouldBlock);
+    EXPECT_EQ(peer.native->stats().failed_sends, failures + 5 * (form + 1));
+    EXPECT_EQ(peer.native->stats().messages_accepted, 1u);
+  }
+}
 }  // namespace

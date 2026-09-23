@@ -532,6 +532,10 @@ INSTANTIATE_TEST_SUITE_P(AllWriteForms, TcpWriteReadinessTest, ::testing::Range(
 }  // namespace
 
 namespace {
+std::atomic<int> observed_send_result{-1};
+void observe_send_result(const wrapper::SendResult& result) {
+  observed_send_result = result.accepted() ? 100 : static_cast<int>(result.reason());
+}
 std::atomic<int> observed_wait_result{-1};
 std::atomic<AdmissionPark*> wait_result_park{nullptr};
 void observe_wait_result(const wrapper::SendResult& result) {
@@ -634,6 +638,7 @@ TEST_P(TcpCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
     if (writer.valid()) writer.wait();
     wrapper::detail::g_tcp_capacity_wait_hook.store(nullptr);
     wrapper::detail::g_tcp_capacity_wait_result_hook.store(nullptr);
+    wrapper::detail::g_tcp_send_result_hook.store(nullptr);
     wait_result_park.store(nullptr);
     transport::detail::g_tcp_pinned_write_hook.store(nullptr);
     admission_park.store(nullptr);
@@ -658,14 +663,14 @@ TEST_P(TcpCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   }
   observed_wait_result = -1;
   wrapper::detail::g_tcp_capacity_wait_result_hook.store(&observe_wait_result);
-  if (GetParam() >= 30) wait_result_park.store(&result_park);
+  if (GetParam() >= 30 && GetParam() < 36) wait_result_park.store(&result_park);
   admission_park.store(&park);
   if (GetParam() < 12 || GetParam() >= 18) {
     wrapper::detail::g_tcp_capacity_wait_hook.store(&park_admission);
   } else {
     transport::detail::g_tcp_pinned_write_hook.store(&park_admission);
   }
-  writer = std::async(std::launch::async, [&] {
+  auto send = [&] {
     switch (GetParam() % 6) {
       case 0:
         return client.send("old");
@@ -680,7 +685,17 @@ TEST_P(TcpCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
       default:
         return client.send_shared(std::make_shared<const std::vector<uint8_t>>(3, 42));
     }
-  });
+  };
+  observed_send_result = -1;
+  wrapper::detail::g_tcp_send_result_hook.store(&observe_send_result);
+  if (GetParam() >= 42) {
+    wrapper::detail::CallbackGuard guard;
+    EXPECT_FALSE(send());
+    EXPECT_EQ(observed_send_result, static_cast<int>(wrapper::SendRejection::WouldBlock));
+    EXPECT_EQ(observed_wait_result, -1);
+    return;
+  }
+  writer = std::async(std::launch::async, send);
   ASSERT_TRUE(park.entered.wait());
   if (GetParam() < 18) {
     first.close();
@@ -720,7 +735,7 @@ TEST_P(TcpCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   }
   const auto accepted_before = transport->stats().messages_accepted;
   park.release.notify();
-  if (GetParam() >= 30) {
+  if (GetParam() >= 30 && GetParam() < 36) {
     ASSERT_TRUE(result_park.entered.wait());
     client.stop();
     result_park.release.notify();
@@ -728,8 +743,14 @@ TEST_P(TcpCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   const auto status = writer.wait_for(300ms);
   EXPECT_EQ(status, std::future_status::ready);
   if (status != std::future_status::ready) client.stop();
-  EXPECT_FALSE(writer.get());
-  EXPECT_EQ(transport->stats().messages_accepted, accepted_before);
+  const bool capacity_accepted = GetParam() >= 36;
+  EXPECT_EQ(writer.get(), capacity_accepted);
+  EXPECT_EQ(transport->stats().messages_accepted, accepted_before + (capacity_accepted ? 1 : 0));
+  const auto expected_send = capacity_accepted  ? 100
+                             : GetParam() >= 30 ? static_cast<int>(wrapper::SendRejection::NotStarted)
+                             : GetParam() >= 24 ? static_cast<int>(wrapper::SendRejection::CancelledWhileWaiting)
+                                                : static_cast<int>(wrapper::SendRejection::NotReady);
+  EXPECT_EQ(observed_send_result, expected_send);
   if (GetParam() < 12 || (GetParam() >= 18 && GetParam() < 24)) {
     EXPECT_EQ(observed_wait_result, static_cast<int>(wrapper::SendRejection::NotReady));
   } else if (GetParam() >= 24 && GetParam() < 30) {
@@ -742,5 +763,5 @@ TEST_P(TcpCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
     EXPECT_EQ(transport->stats().messages_accepted, accepted_before + 1);
   }
 }
-INSTANTIATE_TEST_SUITE_P(ReconnectAndReleaseReasons, TcpCapacityWaitConnectionTest, ::testing::Range(0, 36));
+INSTANTIATE_TEST_SUITE_P(ReconnectAndReleaseReasons, TcpCapacityWaitConnectionTest, ::testing::Range(0, 48));
 }  // namespace
