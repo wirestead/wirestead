@@ -81,6 +81,9 @@ and ABI policy.
 
 ### Fixed
 
+- TCP and UDS server statistics snapshot retained totals and live sessions under
+  the same lock, preventing transient counter loss during session retirement.
+
 - Blocking/Reliable sends using the built-in TCP client now pin the connection
   across capacity waits and retries. A reconnect ends the old wait, and the
   expected connection is checked under the transport admission mutex so a

@@ -722,8 +722,10 @@ boost::asio::any_io_executor TcpServer::get_executor() { return impl_->strand_; 
 
 wrapper::RuntimeStats TcpServer::stats() const {
   auto impl = get_impl();
-  auto aggregate = impl->stats_.snapshot(0, 0, false);
+  // Snapshot retained totals and live sessions under the same lock as the
+  // disconnect transfer; otherwise a retiring session can disappear from both.
   std::lock_guard<std::mutex> lock(impl->sessions_mutex_);
+  auto aggregate = impl->stats_.snapshot(0, 0, false);
   for (const auto& entry : impl->sessions_) {
     if (!entry.second) continue;
     const auto session_stats = entry.second->stats();

@@ -57,6 +57,21 @@ before final validation.
 The new scheduling cases use plaintext sockets. Existing TLS tests cover
 encrypted paths, not exhaustive TLS cancellation scheduling.
 
+## Server statistics during disconnect
+
+Server statistics read retained totals and live sessions under the same session
+mutex used to transfer counters when a session is removed. Taking the retained
+snapshot before acquiring that lock allowed a concurrent disconnect to remove
+the session after the old totals were read, transiently omitting its counters.
+TCP and UDS use the same corrected lock ordering. Public statistics fields and
+reset semantics are unchanged.
+
+Validation after this correction: full Debug CTest passed (1071 passed,
+12 existing skips); the four TCP/UDS cumulative and per-session statistics
+tests each passed 30 repetitions; ASan with leak detection passed all 28
+TCP/UDS server lifecycle cases. The existing counter-retention assertions
+remain unchanged.
+
 ## Scope and remaining work
 
 The stable terminal record applies to built-in TCP transports, including an
