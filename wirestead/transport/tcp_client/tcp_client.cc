@@ -214,6 +214,22 @@ struct TcpClient::Impl {
     stop_cv_.wait(lock, [this] { return cleanup_done_; });
   }
 
+  // Called with submission_mtx_ held. Explicit stop and readiness publication
+  // use that mutex; cleanup completion has its own condition-variable mutex.
+  std::optional<wrapper::SendRejection> admission_rejection(
+      std::optional<uint64_t> expected_connection = std::nullopt) {
+    if (stop_requested_.load()) {
+      std::lock_guard<std::mutex> lock(stop_mtx_);
+      return cleanup_done_ ? wrapper::SendRejection::NotStarted : wrapper::SendRejection::Stopping;
+    }
+    if (current_seq_.load() == 0) return wrapper::SendRejection::NotStarted;
+    if ((expected_connection && *expected_connection != connection_seq_.load()) || state_.is_state(LinkState::Closed) ||
+        state_.is_state(LinkState::Error) || !ioc_ || !connected_.load()) {
+      return wrapper::SendRejection::NotReady;
+    }
+    return std::nullopt;
+  }
+
   // Atomic rather than mutex-guarded: read both from the strand and from
   // arbitrary caller threads (async_try_write_* fast-fail prechecks) (#436).
   std::atomic<base::constants::BackpressureStrategy> bp_strategy_{base::constants::BackpressureStrategy::Reliable};
@@ -489,14 +505,9 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   const auto connection = impl_->connection_seq_.load();
-  if (expected_connection && *expected_connection != connection) {
+  if (auto reason = impl_->admission_rejection(expected_connection)) {
     impl_->stats_.record_failed_send();
-    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
-  }
-  if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
-      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
-    impl_->stats_.record_failed_send();
-    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+    return wrapper::SendResult::reject(*reason);
   }
   if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
 
@@ -586,14 +597,9 @@ wrapper::SendResult TcpClient::write_move(std::vector<uint8_t>&& data, std::opti
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   const auto connection = impl_->connection_seq_.load();
-  if (expected_connection && *expected_connection != connection) {
+  if (auto reason = impl_->admission_rejection(expected_connection)) {
     impl_->stats_.record_failed_send();
-    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
-  }
-  if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
-      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
-    impl_->stats_.record_failed_send();
-    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+    return wrapper::SendResult::reject(*reason);
   }
   if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   const auto size = data.size();
@@ -646,14 +652,9 @@ wrapper::SendResult TcpClient::write_shared(std::shared_ptr<const std::vector<ui
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   const auto connection = impl_->connection_seq_.load();
-  if (expected_connection && *expected_connection != connection) {
+  if (auto reason = impl_->admission_rejection(expected_connection)) {
     impl_->stats_.record_failed_send();
-    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
-  }
-  if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
-      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
-    impl_->stats_.record_failed_send();
-    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+    return wrapper::SendResult::reject(*reason);
   }
   if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   if (!data || data->empty()) {
@@ -720,10 +721,9 @@ wrapper::SendResult TcpClient::try_write_move(std::vector<uint8_t>&& data) {
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   const auto connection = impl_->connection_seq_.load();
-  if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
-      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
+  if (auto reason = impl_->admission_rejection()) {
     impl_->stats_.record_failed_send();
-    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+    return wrapper::SendResult::reject(*reason);
   }
   if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   const auto added = data.size();
@@ -800,10 +800,9 @@ wrapper::SendResult TcpClient::try_write_shared(std::shared_ptr<const std::vecto
       impl_->stats_.record_failed_send();
     }
   };
-  if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
-      impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
+  if (auto reason = impl_->admission_rejection()) {
     impl_->stats_.record_failed_send();
-    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+    return wrapper::SendResult::reject(*reason);
   }
   if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   if (impl_->backpressure_active_.load() || impl_->queue_bytes_ + added > impl_->bp_high_ ||

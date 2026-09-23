@@ -16,8 +16,10 @@ writes by connection and discarded old queued data on loss. PR #668 pinned
 TCP capacity waits to the wrapper run across stop/restart. PR #669 pinned
 those waits to a built-in TCP connection and checked it at admission. PR #670
 retained the first stop/loss cause and returned an internal SendResult from the
-wait stage. Native TCP admission now also retains its result at the original
-decision point; see [tcp_admission_results.md](tcp_admission_results.md) and
+wait stage. PR #671 retained native TCP admission results at their decision
+points. Native results now distinguish NotStarted, Stopping and NotReady
+using the actual cleanup completion signal; see
+[tcp_admission_results.md](tcp_admission_results.md) and
 [tcp_wait_release_reasons.md](tcp_wait_release_reasons.md),
 [tcp_capacity_wait_connections.md](tcp_capacity_wait_connections.md),
 [tcp_capacity_wait_runs.md](tcp_capacity_wait_runs.md),

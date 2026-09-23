@@ -21,6 +21,7 @@
 #include <boost/asio.hpp>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -902,6 +903,7 @@ INSTANTIATE_TEST_SUITE_P(QueuedAndPending, TcpReconnectWriteTest, ::testing::Boo
 namespace {
 thread_local std::optional<wrapper::SendResult> observed_admission;
 thread_local int admission_observations = 0;
+std::function<void()> at_final_io_completion;
 void observe_admission(const wrapper::SendResult& result) {
   observed_admission = result;
   ++admission_observations;
@@ -922,6 +924,8 @@ struct AdmissionPeer {
     detail::g_tcp_write_result_hook.store(observe_admission);
   }
   ~AdmissionPeer() {
+    detail::g_tcp_io_completion_hook.store(nullptr);
+    at_final_io_completion = {};
     detail::g_tcp_write_result_hook.store(nullptr);
     stop_with_context(client, io);
   }
@@ -975,7 +979,7 @@ TEST_P(TcpAdmissionResultTest, RetainsDecisionAndExistingAccounting) {
 
   std::vector<uint8_t> payload(16, 'a');
   EXPECT_FALSE(write(payload));
-  expect_reason(wrapper::SendRejection::NotReady);
+  expect_reason(wrapper::SendRejection::NotStarted);
 
   peer.client->start();
   ASSERT_TRUE(run_until(peer.io, [&] { return peer.client->is_connected(); }));
@@ -1021,7 +1025,83 @@ TEST_P(TcpAdmissionResultTest, RetainsDecisionAndExistingAccounting) {
   }
   payload.assign(16, 'a');
   EXPECT_FALSE(write(payload));
-  expect_reason(wrapper::SendRejection::NotReady);
+  expect_reason(wrapper::SendRejection::NotStarted);
 }
+TEST_P(TcpAdmissionResultTest, DistinguishesRequestedStopFromCompletedStop) {
+  const int form = GetParam() % 6;
+  AdmissionPeer peer((GetParam() / 6) % 2, GetParam() >= 12);
+  auto write = [&] {
+    observed_admission.reset();
+    std::vector<uint8_t> payload(16, 'x');
+    switch (form) {
+      case 0:
+        return peer.client->async_write_copy({payload.data(), payload.size()});
+      case 1:
+        return peer.client->async_write_move(std::move(payload));
+      case 2:
+        return peer.client->async_write_shared(std::make_shared<const std::vector<uint8_t>>(payload));
+      case 3:
+        return peer.client->async_try_write_copy({payload.data(), payload.size()});
+      case 4:
+        return peer.client->async_try_write_move(std::move(payload));
+      default:
+        return peer.client->async_try_write_shared(std::make_shared<const std::vector<uint8_t>>(payload));
+    }
+  };
+  auto expect_reason = [&](wrapper::SendRejection expected) {
+    ASSERT_TRUE(observed_admission.has_value());
+    ASSERT_FALSE(observed_admission->accepted());
+    EXPECT_EQ(observed_admission->reason(), expected);
+  };
+  EXPECT_FALSE(write());
+  expect_reason(wrapper::SendRejection::NotStarted);
+  peer.client->start();
+  // A run was requested, but its connect handlers have not run yet.
+  EXPECT_FALSE(write());
+  expect_reason(wrapper::SendRejection::NotReady);
+  ASSERT_TRUE(run_until(peer.io, [&] { return peer.client->is_connected(); }));
+
+  std::atomic<bool> final_completion_observed{false};
+  at_final_io_completion = [&] {
+    // The link is already closed, but the last cancelled I/O completion has
+    // not published cleanup_done_. State::Closed must not mean NotStarted yet.
+    EXPECT_FALSE(peer.client->is_connected());
+    EXPECT_FALSE(write());
+    expect_reason(wrapper::SendRejection::Stopping);
+    final_completion_observed.store(true);
+  };
+  detail::g_tcp_io_completion_hook.store(+[] {
+    if (at_final_io_completion) at_final_io_completion();
+  });
+  bool requested = false;
+  std::optional<wrapper::SendResult> stopped_result;
+  net::post(peer.io, [&] {
+    // On this executor stop() only requests cleanup. Its posted handler cannot
+    // run until this callback returns, so Stopping is observed without sleeps.
+    peer.client->stop();
+    EXPECT_FALSE(write());
+    expect_reason(wrapper::SendRejection::Stopping);
+    stopped_result = observed_admission;
+    requested = true;
+  });
+  ASSERT_TRUE(run_until(peer.io, [&] { return requested; }));
+  stop_with_context(peer.client, peer.io);
+  EXPECT_FALSE(write());
+  expect_reason(wrapper::SendRejection::NotStarted);
+  EXPECT_TRUE(final_completion_observed.load());
+  detail::g_tcp_io_completion_hook.store(nullptr);
+  at_final_io_completion = {};
+  ASSERT_TRUE(stopped_result.has_value());
+  EXPECT_EQ(stopped_result->reason(), wrapper::SendRejection::Stopping);
+
+  peer.client->start();
+  EXPECT_FALSE(write());
+  expect_reason(wrapper::SendRejection::NotReady);
+  ASSERT_TRUE(run_until(peer.io, [&] { return peer.client->is_connected(); }));
+  EXPECT_TRUE(write());
+  ASSERT_TRUE(observed_admission.has_value());
+  EXPECT_TRUE(observed_admission->accepted());
+}
+
 INSTANTIATE_TEST_SUITE_P(FormsStrategiesAndPool, TcpAdmissionResultTest, ::testing::Range(0, 24));
 }  // namespace
