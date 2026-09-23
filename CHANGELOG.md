@@ -10,6 +10,11 @@ and ABI policy.
 
 ### Added
 
+- TCP client native admission now retains an internal SendResult for copy,
+  move and shared writes, including try variants. Readiness, payload and capacity
+  rejections are preserved at their original decision point; public APIs still
+  return bool while D-3 wrapper result mapping continues.
+
 - Built-in TCP capacity waits retain their first stop/loss reason in an
   internal SendResult: CancelledWhileWaiting for stop, NotReady for connection
   loss. A selected capacity-release result also remains fixed. Public send

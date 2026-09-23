@@ -114,9 +114,16 @@ class WIRESTEAD_API TcpClient : public Channel, public std::enable_shared_from_t
   std::shared_ptr<detail::TcpWriteWait> capture_write_wait() const;
   std::optional<wrapper::SendResult> poll_write_wait(const std::shared_ptr<detail::TcpWriteWait>& wait) const;
   void cancel_write_waits();
-  bool write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection);
-  bool write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection);
-  bool write_shared(std::shared_ptr<const std::vector<uint8_t>> data, std::optional<uint64_t> expected_connection);
+  // Native admission only: wrapper lifecycle, validation precedence and
+  // strategy-level reason mapping remain the wrapper's responsibility.
+  wrapper::SendResult write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection);
+  wrapper::SendResult write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection);
+  wrapper::SendResult write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
+                                   std::optional<uint64_t> expected_connection);
+
+  wrapper::SendResult try_write_copy(memory::ConstByteSpan data);
+  wrapper::SendResult try_write_move(std::vector<uint8_t>&& data);
+  wrapper::SendResult try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data);
 
   explicit TcpClient(const TcpClientConfig& cfg);
   explicit TcpClient(const TcpClientConfig& cfg, boost::asio::io_context& ioc);

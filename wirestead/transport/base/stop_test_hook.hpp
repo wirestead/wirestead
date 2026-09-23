@@ -18,6 +18,10 @@
 
 #include <atomic>
 
+namespace wirestead::wrapper {
+class SendResult;
+}
+
 namespace wirestead::transport::detail {
 // Internal scheduling seam. Tests can stop immediately before the completion
 // signal or observe callers reaching its wait; production leaves this null.
@@ -26,6 +30,8 @@ inline std::atomic<void (*)()> g_tcp_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_tcp_write_admission_hook{nullptr};
 // Pauses a connection-pinned write before acquiring the admission mutex.
 inline std::atomic<void (*)()> g_tcp_pinned_write_hook{nullptr};
+// Observe native admission outcomes after the submission lock is released.
+inline std::atomic<void (*)(const wrapper::SendResult&)> g_tcp_write_result_hook{nullptr};
 inline std::atomic<void (*)()> g_uds_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_udp_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_serial_io_completion_hook{nullptr};

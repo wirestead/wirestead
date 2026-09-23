@@ -476,9 +476,13 @@ std::optional<uint64_t> TcpClient::write_connection() const {
   return impl_->connection_seq_.load();
 }
 
-bool TcpClient::async_write_copy(memory::ConstByteSpan data) { return write_copy(data, std::nullopt); }
+bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
+  const auto result = write_copy(data, std::nullopt);
+  if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
 
-bool TcpClient::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection) {
+wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection) {
   if (expected_connection) {
     if (auto hook = detail::g_tcp_pinned_write_hook.load()) hook();
   }
@@ -487,12 +491,12 @@ bool TcpClient::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> e
   const auto connection = impl_->connection_seq_.load();
   if (expected_connection && *expected_connection != connection) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
   }
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
   }
   if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
 
@@ -500,14 +504,14 @@ bool TcpClient::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> e
   if (size == 0) {
     WIRESTEAD_LOG_WARNING("tcp_client", "async_write_copy", "Ignoring zero-length write");
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
 
   if (size > base::constants::MAX_BUFFER_SIZE) {
     WIRESTEAD_LOG_ERROR("tcp_client", "async_write_copy",
                         fmt::format("Write size exceeds maximum allowed ({} bytes)", size));
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
 
   if (size <= 65536 && impl_->cfg_.enable_memory_pool) {
@@ -521,7 +525,7 @@ bool TcpClient::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> e
             !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                                  impl_->inflight_bytes_, added, impl_->bp_limit_)) {
           impl_->stats_.record_failed_send();
-          return false;
+          return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
         }
         impl_->stats_.record_accepted(added);
         net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(pooled_buffer), added, reliable, seq,
@@ -536,7 +540,7 @@ bool TcpClient::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> e
           }
           self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
         });
-        return true;
+        return wrapper::SendResult::accept();
       }
     } catch (const std::exception& e) {
       WIRESTEAD_LOG_ERROR("tcp_client", "async_write_copy",
@@ -551,7 +555,7 @@ bool TcpClient::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> e
       !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                            impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
 
@@ -566,12 +570,16 @@ bool TcpClient::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> e
     }
     self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
-bool TcpClient::async_write_move(std::vector<uint8_t>&& data) { return write_move(std::move(data), std::nullopt); }
+bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
+  const auto result = write_move(std::move(data), std::nullopt);
+  if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
 
-bool TcpClient::write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection) {
+wrapper::SendResult TcpClient::write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection) {
   if (expected_connection) {
     if (auto hook = detail::g_tcp_pinned_write_hook.load()) hook();
   }
@@ -580,25 +588,25 @@ bool TcpClient::write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> 
   const auto connection = impl_->connection_seq_.load();
   if (expected_connection && *expected_connection != connection) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
   }
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
   }
   if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   const auto size = data.size();
   if (size == 0) {
     WIRESTEAD_LOG_WARNING("tcp_client", "async_write_move", "Ignoring zero-length write");
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
   if (size > base::constants::MAX_BUFFER_SIZE) {
     WIRESTEAD_LOG_ERROR("tcp_client", "async_write_move",
                         fmt::format("Write size exceeds maximum allowed ({} bytes)", size));
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
 
   const auto added = size;
@@ -607,7 +615,7 @@ bool TcpClient::write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> 
       !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                            impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
   net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq,
@@ -621,15 +629,17 @@ bool TcpClient::write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> 
     }
     self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool TcpClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
-  return write_shared(std::move(data), std::nullopt);
+  const auto result = write_shared(std::move(data), std::nullopt);
+  if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
+  return result.accepted();
 }
 
-bool TcpClient::write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
-                             std::optional<uint64_t> expected_connection) {
+wrapper::SendResult TcpClient::write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
+                                            std::optional<uint64_t> expected_connection) {
   if (expected_connection) {
     if (auto hook = detail::g_tcp_pinned_write_hook.load()) hook();
   }
@@ -638,25 +648,25 @@ bool TcpClient::write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
   const auto connection = impl_->connection_seq_.load();
   if (expected_connection && *expected_connection != connection) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
   }
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
   }
   if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   if (!data || data->empty()) {
     WIRESTEAD_LOG_WARNING("tcp_client", "async_write_shared", "Ignoring empty shared buffer");
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
   const auto size = data->size();
   if (size > base::constants::MAX_BUFFER_SIZE) {
     WIRESTEAD_LOG_ERROR("tcp_client", "async_write_shared",
                         fmt::format("Write size exceeds maximum allowed ({} bytes)", size));
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
 
   const auto added = size;
@@ -665,7 +675,7 @@ bool TcpClient::write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
       !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                            impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
   net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq,
@@ -679,35 +689,48 @@ bool TcpClient::write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
     }
     self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool TcpClient::async_try_write_copy(memory::ConstByteSpan data) {
+  const auto result = try_write_copy(data);
+  if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult TcpClient::try_write_copy(memory::ConstByteSpan data) {
   if (data.empty()) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
   if (data.size() > base::constants::MAX_BUFFER_SIZE) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
-  return async_try_write_move(std::vector<uint8_t>(data.begin(), data.end()));
+  return try_write_move(std::vector<uint8_t>(data.begin(), data.end()));
 }
 
 bool TcpClient::async_try_write_move(std::vector<uint8_t>&& data) {
+  const auto result = try_write_move(std::move(data));
+  if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult TcpClient::try_write_move(std::vector<uint8_t>&& data) {
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   const auto connection = impl_->connection_seq_.load();
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
   }
   if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   const auto added = data.size();
   if (added == 0 || added > base::constants::MAX_BUFFER_SIZE) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(added == 0 ? wrapper::SendRejection::InvalidArgument
+                                                  : wrapper::SendRejection::TooLarge);
   }
   const auto reject_for_pressure = [this, added]() {
     if (impl_->bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {
@@ -719,12 +742,12 @@ bool TcpClient::async_try_write_move(std::vector<uint8_t>&& data) {
   if (impl_->backpressure_active_.load() || impl_->queue_bytes_ + added > impl_->bp_high_ ||
       impl_->queue_bytes_ + impl_->pending_bytes_ + added > impl_->bp_limit_) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   if (!queue_util::try_reserve_write_bytes(impl_->queue_bytes_, impl_->pending_bytes_, impl_->backpressure_active_,
                                            added, impl_->bp_high_, impl_->bp_limit_)) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
 
@@ -748,20 +771,26 @@ bool TcpClient::async_try_write_move(std::vector<uint8_t>&& data) {
     impl->report_backpressure(self, impl->queue_bytes_);
     if (!impl->writing_) impl->do_write(self, impl->current_seq_.load());
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool TcpClient::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  const auto result = try_write_shared(std::move(data));
+  if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult TcpClient::try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
   std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
   const auto seq = impl_->current_seq_.load();
   const auto connection = impl_->connection_seq_.load();
   if (!data || data->empty()) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
   if (data->size() > base::constants::MAX_BUFFER_SIZE) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
   const auto added = data->size();
   const auto reject_for_pressure = [this, added]() {
@@ -774,18 +803,18 @@ bool TcpClient::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t
   if (impl_->stop_requested_.load() || impl_->state_.is_state(LinkState::Closed) ||
       impl_->state_.is_state(LinkState::Error) || !impl_->ioc_ || !impl_->connected_.load()) {
     impl_->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
   }
   if (auto hook = detail::g_tcp_write_admission_hook.load()) hook();
   if (impl_->backpressure_active_.load() || impl_->queue_bytes_ + added > impl_->bp_high_ ||
       impl_->queue_bytes_ + impl_->pending_bytes_ + added > impl_->bp_limit_) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   if (!queue_util::try_reserve_write_bytes(impl_->queue_bytes_, impl_->pending_bytes_, impl_->backpressure_active_,
                                            added, impl_->bp_high_, impl_->bp_limit_)) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
 
@@ -809,7 +838,7 @@ bool TcpClient::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t
     impl->report_backpressure(self, impl->queue_bytes_);
     if (!impl->writing_) impl->do_write(self, impl->current_seq_.load());
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 // Each setter builds the shared snapshot before taking the lock, so the

@@ -14,9 +14,10 @@ client write admission with explicit stop requests. PR #666 required usable
 TCP readiness under the same admission mutex. PR #667 fenced accepted TCP
 writes by connection and discarded old queued data on loss. PR #668 pinned
 TCP capacity waits to the wrapper run across stop/restart. PR #669 pinned
-those waits to a built-in TCP connection and checked it at admission. This
-follow-up retains the first stop/loss cause and returns an internal SendResult
-from the wait stage; see
+those waits to a built-in TCP connection and checked it at admission. PR #670
+retained the first stop/loss cause and returned an internal SendResult from the
+wait stage. Native TCP admission now also retains its result at the original
+decision point; see [tcp_admission_results.md](tcp_admission_results.md) and
 [tcp_wait_release_reasons.md](tcp_wait_release_reasons.md),
 [tcp_capacity_wait_connections.md](tcp_capacity_wait_connections.md),
 [tcp_capacity_wait_runs.md](tcp_capacity_wait_runs.md),
