@@ -10,6 +10,11 @@ and ABI policy.
 
 ### Added
 
+- Built-in TCP wrapper nonblocking sends combine payload validation, wrapper
+  lifecycle and native admission into an internal SendResult. Explicit try sends
+  report WouldBlock for capacity refusal; ordinary BestEffort sends report
+  QueueFull. Public methods still return bool during D-3 migration.
+
 - Internal TCP admission results distinguish a never-started or fully stopped
   transport (NotStarted), requested but incomplete cleanup (Stopping), and an
   active run without a usable connection (NotReady). Public sends remain bool.
@@ -35,6 +40,11 @@ and ABI policy.
   bool; this is the result-type foundation, not the transport migration.
 
 ### Changed
+
+- **Breaking behavior:** Built-in TCP wrapper nonblocking sends validate before native handoff, so
+  invalid payloads do not increment native transport failure/drop counters.
+  An independently connected injected TCP transport also requires wrapper
+  start before these sends can accept data.
 
 - **Breaking behavior:** TCP reconnect no longer replays data accepted on the
   previous connection. Posted writes, queued/pending buffers and unfinished

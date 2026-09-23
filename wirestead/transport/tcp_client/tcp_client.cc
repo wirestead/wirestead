@@ -492,6 +492,12 @@ std::optional<uint64_t> TcpClient::write_connection() const {
   return impl_->connection_seq_.load();
 }
 
+wrapper::SendResult TcpClient::write_state() {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (auto reason = impl_->admission_rejection()) return wrapper::SendResult::reject(*reason);
+  return wrapper::SendResult::accept();
+}
+
 bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
   const auto result = write_copy(data, std::nullopt);
   if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
