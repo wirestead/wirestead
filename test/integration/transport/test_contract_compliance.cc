@@ -22,6 +22,7 @@
 #include "test/utils/contract_utils.hpp"
 #include "test_utils.hpp"
 #include "wirestead/config/tcp_client_config.hpp"
+#include "wirestead/interface/iserial_port.hpp"
 #include "wirestead/memory/safe_span.hpp"
 #include "wirestead/transport/tcp_client/tcp_client.hpp"
 
@@ -197,26 +198,64 @@ TEST_F(ContractComplianceTest, TcpClient_Backpressure_Contract) {
   EXPECT_GE(std::get<size_t>(events[0].data), 1024u);
 }
 
+namespace {
+class PausedSerialPort final : public interface::SerialPortInterface {
+ public:
+  using Handler = std::function<void(const boost::system::error_code&, size_t)>;
+  bool opened = false;
+  Handler read, write;
+  void open(const std::string&, boost::system::error_code& ec) override {
+    opened = true;
+    ec.clear();
+  }
+  bool is_open() const override { return opened; }
+  void close(boost::system::error_code& ec) override {
+    opened = false;
+    ec.clear();
+    if (auto h = std::move(read)) h(boost::asio::error::operation_aborted, 0);
+    if (auto h = std::move(write)) h(boost::asio::error::operation_aborted, 0);
+  }
+  void set_option(const boost::asio::serial_port_base::baud_rate&, boost::system::error_code& ec) override {
+    ec.clear();
+  }
+  void set_option(const boost::asio::serial_port_base::character_size&, boost::system::error_code& ec) override {
+    ec.clear();
+  }
+  void set_option(const boost::asio::serial_port_base::stop_bits&, boost::system::error_code& ec) override {
+    ec.clear();
+  }
+  void set_option(const boost::asio::serial_port_base::parity&, boost::system::error_code& ec) override { ec.clear(); }
+  void set_option(const boost::asio::serial_port_base::flow_control&, boost::system::error_code& ec) override {
+    ec.clear();
+  }
+  void async_read_some(const boost::asio::mutable_buffer&, Handler h) override { read = std::move(h); }
+  void async_write(const boost::asio::const_buffer&, Handler h) override { write = std::move(h); }
+};
+}  // namespace
+
 TEST_F(ContractComplianceTest, Serial_Backpressure_Contract) {
   config::SerialConfig cfg;
-
-  cfg.device = "/dev/nonexistent";
 
   cfg.retry_interval_ms = 1000;
 
   cfg.backpressure_threshold = 1024;
 
-  auto serial = Serial::create(cfg, *ioc_);
+  auto serial = Serial::create(cfg, std::make_unique<PausedSerialPort>(), *ioc_);
 
   CallbackRecorder bp_recorder;
 
   serial->on_backpressure(bp_recorder.get_backpressure_callback());
 
+  struct StopOnExit {
+    std::shared_ptr<Serial> serial;
+    ~StopOnExit() { serial->stop(); }
+  } cleanup{serial};
   serial->start();
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return serial->is_connected(); }, 3000));
 
   std::vector<uint8_t> data(2048, 'B');
 
-  serial->async_write_copy(memory::ConstByteSpan(data.data(), data.size()));
+  ASSERT_TRUE(serial->async_write_copy(memory::ConstByteSpan(data.data(), data.size())));
 
   // Wait for backpressure event
 
