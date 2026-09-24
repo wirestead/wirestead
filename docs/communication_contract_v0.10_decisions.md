@@ -30,7 +30,7 @@ see [tcp_reliable_send_results.md](tcp_reliable_send_results.md),
 [tcp_reconnect_write_fencing.md](tcp_reconnect_write_fencing.md),
 [tcp_write_admission.md](tcp_write_admission.md) and
 [tcp_write_readiness.md](tcp_write_readiness.md). Send APIs still return bool;
-public structured results, other targets and aggregates remain work.
+client public structured results and aggregates remain work.
 The built-in UDS client now also combines native/wrapper results, pins waits and
 accepted writes to a connection, preserves the first stop/loss cause, and
 discards old connection data; see [uds_send_results.md](uds_send_results.md).
@@ -44,7 +44,9 @@ TCP/UDS server sessions and targeted wrapper sends now retain typed results,
 including Reliable/explicit blocking waits, first terminal causes and pinned
 final admission; see
 [server_target_send_results.md](server_target_send_results.md).
-Custom Channel result contracts, public interfaces and fanout remain pending;
+ServerInterface and TCP/UDS/UDP wrapper targeted sends now expose SendResult
+in place of bool; see the migration section in the server result document.
+Custom Channel result contracts, client public interfaces and fanout remain pending;
 these implementations do not complete D-3 by themselves.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is

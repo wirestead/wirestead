@@ -567,7 +567,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
     }
   }
 
-  bool send_to(ClientId client_id, std::string_view data) {
+  SendResult send_to(ClientId client_id, std::string_view data) {
     if (cfg.backpressure_strategy == base::constants::BackpressureStrategy::Reliable)
       return send_to_blocking(client_id, data);
     return try_send_to(client_id, data, true);
@@ -586,9 +586,9 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
 
   bool broadcast(std::string_view data) { return try_broadcast(data); }
 
-  static bool finish_send(SendResult result) {
+  static SendResult finish_send(SendResult result) {
     if (auto hook = detail::g_udp_server_send_result_hook.load()) hook(result);
-    return result.accepted();
+    return result;
   }
 
   // Caller holds mutex. The native call rechecks socket readiness at admission.
@@ -608,7 +608,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
     return channel->write_state(false);
   }
 
-  bool try_send_to(ClientId client_id, std::string_view data, bool best_effort_send = false) {
+  SendResult try_send_to(ClientId client_id, std::string_view data, bool best_effort_send = false) {
     const auto result = [&]() -> SendResult {
       std::shared_lock<std::shared_mutex> lock(mutex);
       auto validation =
@@ -627,7 +627,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
     return finish_send(result);
   }
 
-  bool send_to_blocking(ClientId client_id, std::string_view data) {
+  SendResult send_to_blocking(ClientId client_id, std::string_view data) {
     const auto result = [&]() -> SendResult {
       std::shared_ptr<transport::UdpChannel> native;
       std::shared_ptr<transport::detail::UdpWriteWait> wait;
@@ -715,19 +715,21 @@ void UdpServer::reset_stats() { impl_->reset_stats(); }
 
 bool UdpServer::broadcast(std::string_view data) { return impl_->broadcast(data); }
 bool UdpServer::try_broadcast(std::string_view data) { return impl_->try_broadcast(data); }
-bool UdpServer::send_to(ClientId client_id, std::string_view data) { return impl_->send_to(client_id, data); }
-bool UdpServer::try_send_to(ClientId client_id, std::string_view data) { return impl_->try_send_to(client_id, data); }
+SendResult UdpServer::send_to(ClientId client_id, std::string_view data) { return impl_->send_to(client_id, data); }
+SendResult UdpServer::try_send_to(ClientId client_id, std::string_view data) {
+  return impl_->try_send_to(client_id, data);
+}
 
-bool UdpServer::send_to_blocking(ClientId client_id, std::string_view data) {
+SendResult UdpServer::send_to_blocking(ClientId client_id, std::string_view data) {
   return impl_->send_to_blocking(client_id, data);
 }
 
 bool UdpServer::broadcast_line(std::string_view line) { return broadcast(std::string(line) + "\n"); }
-bool UdpServer::send_to_line(ClientId client_id, std::string_view line) {
+SendResult UdpServer::send_to_line(ClientId client_id, std::string_view line) {
   return send_to(client_id, std::string(line) + "\n");
 }
 bool UdpServer::try_broadcast_line(std::string_view line) { return try_broadcast(std::string(line) + "\n"); }
-bool UdpServer::try_send_to_line(ClientId client_id, std::string_view line) {
+SendResult UdpServer::try_send_to_line(ClientId client_id, std::string_view line) {
   return try_send_to(client_id, std::string(line) + "\n");
 }
 

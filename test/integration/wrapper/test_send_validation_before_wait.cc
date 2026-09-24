@@ -499,7 +499,7 @@ void verify_udp_reliable_delivery(bool wait_for_pressure) {
     }
     t.unblock();
     EXPECT_EQ(result.wait_for(3s), std::future_status::ready);
-    const bool accepted = result.get();
+    const bool accepted = static_cast<bool>(result.get());
     EXPECT_TRUE(accepted);
     if (accepted) {
       EXPECT_EQ(received.wait_for(3s), std::future_status::ready);

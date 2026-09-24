@@ -852,9 +852,20 @@ TEST_P(UdpServerResultTest, OrdersValidationStateTargetAndCapacity) {
   UdpServerResultPeer peer(GetParam() == 2);
   auto write = [&](auto id, std::string_view data) {
     nonblocking_result.reset();
-    if (GetParam() == 0) return peer.server->try_send_to(id, data);
-    if (GetParam() == 1) return peer.server->send_to_blocking(id, data);
-    return peer.server->send_to(id, data);
+    const auto result = [&] {
+      if (GetParam() == 0) return peer.server->try_send_to(id, data);
+      if (GetParam() == 1) return peer.server->send_to_blocking(id, data);
+      return peer.server->send_to(id, data);
+    }();
+    EXPECT_TRUE(nonblocking_result.has_value());
+    if (nonblocking_result) {
+      EXPECT_EQ(nonblocking_result->accepted(), result.accepted());
+      if (!result.accepted() && !nonblocking_result->accepted()) {
+        EXPECT_EQ(nonblocking_result->reason(), result.reason());
+      }
+    }
+    nonblocking_result = result;
+    return result;
   };
   auto reason = [&](wrapper::SendRejection expected) {
     ASSERT_TRUE(nonblocking_result);
@@ -908,7 +919,7 @@ TEST_P(UdpServerWaitResultTest, PinsSessionAndFirstTerminalCause) {
   ASSERT_EQ(peer.io.poll_one(), 1u);
   ASSERT_TRUE(peer.native->is_backpressure_active());
   AdmissionPark park;
-  std::future<bool> writer;
+  std::future<wrapper::SendResult> writer;
   OnExit cleanup{[&] {
     park.release.notify();
     test::stop_wrapper_with_context(*peer.server, peer.io);
@@ -943,11 +954,13 @@ TEST_P(UdpServerWaitResultTest, PinsSessionAndFirstTerminalCause) {
   const auto before = peer.native->stats().messages_accepted;
   park.release.notify();
   ASSERT_EQ(writer.wait_for(3s), std::future_status::ready);
-  EXPECT_FALSE(writer.get());
+  const auto result = writer.get();
+  ASSERT_FALSE(result.accepted());
   const auto expected = static_cast<int>(GetParam() < 2 ? wrapper::SendRejection::NotReady
                                                         : wrapper::SendRejection::CancelledWhileWaiting);
   EXPECT_EQ(udp_wait_result, expected);
   EXPECT_EQ(udp_final_result, expected);
+  EXPECT_EQ(static_cast<int>(result.reason()), expected);
   EXPECT_EQ(peer.native->stats().messages_accepted, before);
 }
 INSTANTIATE_TEST_SUITE_P(ExpiryStopAndReplacement, UdpServerWaitResultTest, ::testing::Range(0, 4));

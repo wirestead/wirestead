@@ -234,6 +234,13 @@ bool wait_until(Predicate&& predicate, std::chrono::milliseconds timeout) {
 
 int main() {
     umbrella_reaches_public_api();
+    wirestead::wrapper::TcpServer stopped_server(0);
+    wirestead::wrapper::ServerInterface& server_api = stopped_server;
+    const wirestead::wrapper::SendResult stopped = server_api.send_to(1, "probe");
+    if (stopped.accepted() || stopped.reason() != wirestead::wrapper::SendRejection::NotStarted) {
+        std::cerr << "installed server result contract mismatch\n";
+        return 10;
+    }
     const auto port = reserve_tcp_port();
     if (port == 0) {
         std::cerr << "failed to reserve a TCP loopback port\n";
@@ -248,7 +255,9 @@ int main() {
         .auto_start(false)
         .on_data([&](const wirestead::MessageContext& ctx) {
             server_received.fetch_add(1);
-            if (tcp_server) tcp_server->send_to(ctx.client_id(), "pong");
+            if (tcp_server && !tcp_server->send_to(ctx.client_id(), "pong")) {
+                std::cerr << "installed server rejected reply\n";
+            }
         })
         .on_error([](const wirestead::ErrorContext&) {})
         .build();

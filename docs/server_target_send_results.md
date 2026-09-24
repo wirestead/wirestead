@@ -1,8 +1,9 @@
 # TCP/UDS server target admission results
 
 TCP and UDS server sessions retain SendResult internally for copy, move and
-shared writes, including try forms. Public session, server and wrapper methods
-still return bool. Acceptance means local queue admission, not delivery.
+shared writes, including try forms. Native session/server methods retain bool
+adapters. TCP, UDS and UDP wrapper targeted sends expose SendResult publicly.
+Acceptance means local queue admission, not delivery.
 
 ## Native sessions and targeted sends
 
@@ -94,3 +95,44 @@ replacement peers, capacity release before stop/restart, callback refusal and
 late loss at final admission. Replacement-session accepted counters stay zero.
 Separate tests check five-attempt capacity retries, single callback attempts,
 and validation before waiting without incrementing native counters.
+
+
+## Public server API migration (v0.10)
+
+ServerInterface and TcpServer, UdsServer and UdpServer now return SendResult
+from send_to, try_send_to, send_to_blocking, send_to_line and
+try_send_to_line. These methods expose the existing admission decision
+directly, including first terminal causes selected during a wait. Broadcast
+methods still return bool pending the fanout aggregate API.
+
+This changes source and binary compatibility. Rebuild the library and all
+consumers together. Custom ServerInterface subclasses must update the five
+overrides to return truthful SendResult values; a false bool alone cannot
+identify the rejection reason.
+
+Contextual boolean checks continue to work:
+
+```cpp
+void reply(wirestead::wrapper::ServerInterface& server, wirestead::ClientId id) {
+  if (!server.send_to(id, "reply")) {
+    // Synchronous admission failed.
+  }
+  const auto result = server.try_send_to(id, "next");
+  if (!result.accepted()) {
+    const auto reason = result.reason(); // Only valid for rejection.
+    (void)reason;
+  }
+  bool accepted = server.send_to_line(id, "line").accepted();
+  (void)accepted;
+}
+```
+
+Replace implicit bool assignment, bool-returning forwarding functions and
+bool-valued futures with SendResult, or explicitly select accepted() when only
+acceptance is needed. The result does not promise peer receipt or survival of
+a later disconnect. No new overloads or parallel *_ex methods are introduced.
+
+The Python repository currently pins v0.9.6 and retains its bool API. Before
+updating its core reference to this API, its three server send_to bindings
+must explicitly convert acceptance or expose a documented Python result type.
+Client wrappers and custom Channel result contracts remain separate work.

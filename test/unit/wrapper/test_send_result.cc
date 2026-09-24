@@ -17,8 +17,12 @@
 #include <gtest/gtest.h>
 
 #include <type_traits>
+#include <utility>
 
 #include "wirestead/wrapper/send_result.hpp"
+#include "wirestead/wrapper/tcp_server/tcp_server.hpp"
+#include "wirestead/wrapper/udp/udp_server.hpp"
+#include "wirestead/wrapper/uds_server/uds_server.hpp"
 
 using wirestead::wrapper::SendRejection;
 using wirestead::wrapper::SendResult;
@@ -65,3 +69,44 @@ INSTANTIATE_TEST_SUITE_P(AllReasons, SendRejectionTest,
                          ::testing::Values(SendRejection::NotStarted, SendRejection::Stopping, SendRejection::NotReady,
                                            SendRejection::WouldBlock, SendRejection::QueueFull, SendRejection::TooLarge,
                                            SendRejection::InvalidArgument, SendRejection::CancelledWhileWaiting));
+
+namespace {
+template <typename Server>
+constexpr bool targeted_send_contract() {
+  using Id = wirestead::ClientId;
+  using View = std::string_view;
+  static_assert(std::is_same_v<decltype(std::declval<Server&>().send_to(Id{}, View{})), SendResult>);
+  static_assert(std::is_same_v<decltype(std::declval<Server&>().try_send_to(Id{}, View{})), SendResult>);
+  static_assert(std::is_same_v<decltype(std::declval<Server&>().send_to_blocking(Id{}, View{})), SendResult>);
+  static_assert(std::is_same_v<decltype(std::declval<Server&>().send_to_line(Id{}, View{})), SendResult>);
+  static_assert(std::is_same_v<decltype(std::declval<Server&>().try_send_to_line(Id{}, View{})), SendResult>);
+  return true;
+}
+static_assert(targeted_send_contract<wirestead::wrapper::ServerInterface>());
+static_assert(targeted_send_contract<wirestead::wrapper::TcpServer>());
+static_assert(targeted_send_contract<wirestead::wrapper::UdsServer>());
+static_assert(targeted_send_contract<wirestead::wrapper::UdpServer>());
+}  // namespace
+
+TEST(SendResultTest, ServerInterfaceExposesValidationAndLifecycleReasons) {
+  wirestead::wrapper::TcpServer tcp(0);
+  wirestead::wrapper::UdsServer uds("unused-send-result-test");
+  wirestead::wrapper::UdpServer udp(0);
+  wirestead::wrapper::ServerInterface* servers[] = {&tcp, &uds, &udp};
+  for (auto* server : servers) {
+    const auto invalid = server->send_to(1, "");
+    ASSERT_FALSE(invalid.accepted());
+    EXPECT_EQ(invalid.reason(), SendRejection::InvalidArgument);
+    for (auto send :
+         {&wirestead::wrapper::ServerInterface::send_to, &wirestead::wrapper::ServerInterface::try_send_to,
+          &wirestead::wrapper::ServerInterface::send_to_blocking, &wirestead::wrapper::ServerInterface::send_to_line,
+          &wirestead::wrapper::ServerInterface::try_send_to_line}) {
+      const auto stopped = (server->*send)(1, "payload");
+      ASSERT_FALSE(stopped.accepted());
+      EXPECT_EQ(stopped.reason(), SendRejection::NotStarted);
+    }
+    const auto empty_line = server->send_to_line(1, "");
+    ASSERT_FALSE(empty_line.accepted());
+    EXPECT_EQ(empty_line.reason(), SendRejection::NotStarted);
+  }
+}

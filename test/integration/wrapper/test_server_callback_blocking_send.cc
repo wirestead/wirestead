@@ -42,9 +42,9 @@ auto connect(Harness& h) {
 }
 template <typename S>
 bool send(S& s, ClientId id, int api) {
-  if (api == 0) return s.send_to(id, "reply");
-  if (api == 1) return s.send_to_blocking(id, "reply");
-  return s.send_to_line(id, "reply");
+  if (api == 0) return s.send_to(id, "reply").accepted();
+  if (api == 1) return s.send_to_blocking(id, "reply").accepted();
+  return s.send_to_line(id, "reply").accepted();
 }
 // A separate target keeps capacity unavailable while each source callback
 // runs. Its watchdog releases the queue on a regression, avoiding deadlock.

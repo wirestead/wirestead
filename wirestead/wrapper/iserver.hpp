@@ -28,6 +28,7 @@
 #include "wirestead/framer/iframer.hpp"
 #include "wirestead/wrapper/context.hpp"
 #include "wirestead/wrapper/runtime_stats.hpp"
+#include "wirestead/wrapper/send_result.hpp"
 
 namespace wirestead {
 namespace wrapper {
@@ -142,9 +143,9 @@ class WIRESTEAD_API ServerInterface {
    * BestEffort: non-blocking, drops if the client's send queue is full.
    * Reliable:   blocks until queue pressure is relieved, then enqueues.
    *
-   * @return true Data was accepted. @return false Dropped or client not found.
+   * @return Local queue acceptance or a synchronous rejection reason; not delivery.
    */
-  virtual bool send_to(ClientId client_id, std::string_view data) = 0;
+  [[nodiscard]] virtual SendResult send_to(ClientId client_id, std::string_view data) = 0;
 
   /**
    * @brief Send to all connected clients using non-blocking fan-out.
@@ -163,9 +164,10 @@ class WIRESTEAD_API ServerInterface {
    * backpressure does not clear. stop() from another thread is expected to unblock
    * waiting senders.
    *
-   * @return true Data was accepted. @return false Server stopped while waiting.
+   * @return Local queue acceptance or a synchronous rejection reason. A stopped wait returns
+   * CancelledWhileWaiting; a lost target returns NotReady.
    */
-  virtual bool send_to_blocking(ClientId client_id, std::string_view data) = 0;
+  [[nodiscard]] virtual SendResult send_to_blocking(ClientId client_id, std::string_view data) = 0;
 
   /**
    * @brief Non-blocking send_to that always drops on a full queue, ignoring strategy.
@@ -177,9 +179,9 @@ class WIRESTEAD_API ServerInterface {
    * send_to_blocking() when Reliable enqueue semantics are required for large
    * payloads.
    *
-   * @return true Data was accepted. @return false Dropped or client not found.
+   * @return Local queue acceptance or a synchronous rejection reason; not delivery.
    */
-  virtual bool try_send_to(ClientId client_id, std::string_view data) = 0;
+  [[nodiscard]] virtual SendResult try_send_to(ClientId client_id, std::string_view data) = 0;
 
   /**
    * @brief Non-blocking broadcast that always drops on full queues, ignoring strategy.
@@ -198,7 +200,7 @@ class WIRESTEAD_API ServerInterface {
   /**
    * @brief Send a line (data + "\n") to a specific client, honouring the backpressure strategy.
    */
-  virtual bool send_to_line(ClientId client_id, std::string_view line) = 0;
+  [[nodiscard]] virtual SendResult send_to_line(ClientId client_id, std::string_view line) = 0;
 
   /**
    * @brief Non-blocking broadcast_line that always drops on a full queue, ignoring strategy.
@@ -208,7 +210,7 @@ class WIRESTEAD_API ServerInterface {
   /**
    * @brief Non-blocking send_to_line that always drops on a full queue, ignoring strategy.
    */
-  virtual bool try_send_to_line(ClientId client_id, std::string_view line) = 0;
+  [[nodiscard]] virtual SendResult try_send_to_line(ClientId client_id, std::string_view line) = 0;
 
   // Event handlers
 
