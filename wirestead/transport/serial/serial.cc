@@ -48,6 +48,7 @@
 #include "wirestead/transport/base/error_info_holder.hpp"
 #include "wirestead/transport/base/stop_test_hook.hpp"
 #include "wirestead/transport/serial/boost_serial_port.hpp"
+#include "wirestead/transport/serial/detail/write_wait.hpp"
 
 namespace wirestead {
 namespace transport {
@@ -86,14 +87,17 @@ struct Serial::Impl {
   // every read that carries bytes, so it only ever fires on silence.
   net::steady_timer rx_idle_timer_;
 
-  std::vector<uint8_t> rx_;
+  std::shared_ptr<std::vector<uint8_t>> rx_;
   std::deque<BufferVariant> tx_;
   std::deque<BufferVariant> pending_;
   std::atomic<size_t> pending_bytes_{0};
-  // Buffers handed to the in-flight gather write; current_write_views_
-  // points into the batch, so neither is touched while a write is in flight.
-  std::vector<BufferVariant> current_write_batch_;
-  std::vector<net::const_buffer> current_write_views_;
+  // Completions retain their own buffers across device reopen.
+  struct WriteBatch {
+    std::vector<BufferVariant> buffers;
+    std::vector<net::const_buffer> views;
+    size_t bytes = 0;
+  };
+  std::shared_ptr<WriteBatch> active_write_;
   bool writing_ = false;
   std::atomic<size_t> queued_bytes_{0};
   // Bytes accepted by a plain async_write_* call but not yet routed onto the
@@ -112,12 +116,28 @@ struct Serial::Impl {
   std::mutex join_mtx_;
   std::mutex submission_mtx_;
   std::atomic<uint64_t> generation_{0};
+  std::atomic<uint64_t> connection_seq_{0};
+  std::shared_ptr<detail::SerialWriteWait> write_wait_;
+
+  // Caller holds submission_mtx_: state, connection and admission are one decision.
+  std::optional<wrapper::SendRejection> admission_rejection(
+      std::optional<uint64_t> expected_connection = std::nullopt) {
+    if (stopping_.load()) {
+      std::lock_guard<std::mutex> lock(stop_mtx_);
+      return cleanup_done_ ? wrapper::SendRejection::NotStarted : wrapper::SendRejection::Stopping;
+    }
+    if (generation_.load() == 0) return wrapper::SendRejection::NotStarted;
+    if ((expected_connection && *expected_connection != connection_seq_.load()) || state_.is_state(LinkState::Closed) ||
+        state_.is_state(LinkState::Error) || !opened_.load()) {
+      return wrapper::SendRejection::NotReady;
+    }
+    return std::nullopt;
+  }
 
   void mark_cleanup_done() {
     // A discarded fake completion can also release the last tracked operation.
     // Only now is it safe to release the gather-write storage.
-    current_write_batch_.clear();
-    current_write_views_.clear();
+    active_write_.reset();
     detail::stop_test_hook(this, true);
     work_guard_.reset();
     started_ = false;
@@ -236,9 +256,8 @@ struct Serial::Impl {
         return;
       }
       report_backpressure(queued_bytes_ + added);
-      tx_.clear();
-      queued_bytes_ = 0;
-      writing_ = false;
+      mark_disconnected();
+      discard_connection_writes();
       state_.set(LinkState::Error);
       notify_state();
       handle_error(self, "write_queue_overflow", make_error_code(boost::system::errc::no_buffer_space));
@@ -287,6 +306,36 @@ struct Serial::Impl {
     init();
   }
 
+  void mark_disconnected() {
+    std::lock_guard<std::mutex> lock(submission_mtx_);
+    if (opened_.exchange(false)) {
+      if (write_wait_) write_wait_->end(wrapper::SendRejection::NotReady);
+      connection_seq_.fetch_add(1);
+    }
+  }
+
+  void discard_connection_writes() {
+    size_t messages = tx_.size() + pending_.size();
+    size_t bytes = 0;
+    for (const auto& buffer : tx_)
+      bytes += std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, buffer);
+    for (const auto& buffer : pending_)
+      bytes += std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, buffer);
+    if (active_write_) {
+      messages += active_write_->buffers.size();
+      bytes += active_write_->bytes;
+      // Its completion handler retains the buffers; it must not mutate new state.
+      active_write_.reset();
+    }
+    tx_.clear();
+    pending_.clear();
+    queued_bytes_ = 0;
+    pending_bytes_ = 0;
+    writing_ = false;
+    backpressure_active_ = false;
+    if (messages) stats_.record_dropped(messages, bytes);
+  }
+
   void init() {
     cfg_.validate_and_clamp();
     bp_high_ = cfg_.backpressure_threshold;
@@ -294,7 +343,7 @@ struct Serial::Impl {
                          base::constants::MAX_BUFFER_SIZE);
     bp_low_ = bp_high_ > 1 ? bp_high_ / 2 : bp_high_;
     if (bp_low_ == 0) bp_low_ = 1;
-    rx_.resize(cfg_.read_chunk);
+    rx_ = std::make_shared<std::vector<uint8_t>>(cfg_.read_chunk);
   }
 
   ~Impl() {
@@ -400,21 +449,29 @@ struct Serial::Impl {
     }
 
     WIRESTEAD_LOG_INFO("serial", "connect", fmt::format("Device opened: {}", cfg_.device));
+    {
+      std::lock_guard<std::mutex> lock(submission_mtx_);
+      if (stopping_) return;
+      const auto connection = connection_seq_.fetch_add(1) + 1;
+      write_wait_ = std::make_shared<detail::SerialWriteWait>(connection);
+      opened_.store(true);
+      state_.set(LinkState::Connected);
+    }
+    rx_ = std::make_shared<std::vector<uint8_t>>(cfg_.read_chunk);
     start_read(self);
     reset_rx_idle_timer(self);
-
-    opened_.store(true);
-    state_.set(LinkState::Connected);
     notify_state();
     do_write(self);
   }
 
   void start_read(std::shared_ptr<Serial> self) {
-    if (stopping_) return;
+    if (stopping_ || !opened_) return;
+    const auto connection = connection_seq_.load();
+    auto buffer = rx_;
     port_->async_read_some(
-        net::buffer(rx_.data(), rx_.size()), track_io(self, [self](auto ec, std::size_t n) {
+        net::buffer(*buffer), track_io(self, [self, connection, buffer](auto ec, std::size_t n) {
           auto impl = self->get_impl();
-          if (impl->stopping_) return;
+          if (impl->stopping_ || connection != impl->connection_seq_) return;
           if (ec) {
             impl->handle_error(self, "read", ec);
             return;
@@ -430,7 +487,7 @@ struct Serial::Impl {
           }
           if (on_bytes) {
             try {
-              (*on_bytes)(memory::ConstByteSpan(impl->rx_.data(), n));
+              (*on_bytes)(memory::ConstByteSpan(buffer->data(), n));
             } catch (const std::exception& e) {
               std::string msg = fmt::format("Exception in callback: {}", e.what());
               WIRESTEAD_LOG_ERROR("serial", "on_bytes", msg);
@@ -438,7 +495,8 @@ struct Serial::Impl {
                 impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR,
                                                       diagnostics::ErrorCategory::COMMUNICATION, "on_bytes", {}, msg,
                                                       false, 0);
-                impl->opened_.store(false);
+                impl->mark_disconnected();
+                impl->discard_connection_writes();
                 impl->close_port();
                 impl->state_.set(LinkState::Error);
                 impl->notify_state();
@@ -451,7 +509,8 @@ struct Serial::Impl {
                 impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR,
                                                       diagnostics::ErrorCategory::COMMUNICATION, "on_bytes", {},
                                                       "Unknown exception in callback", false, 0);
-                impl->opened_.store(false);
+                impl->mark_disconnected();
+                impl->discard_connection_writes();
                 impl->close_port();
                 impl->state_.set(LinkState::Error);
                 impl->notify_state();
@@ -466,47 +525,43 @@ struct Serial::Impl {
   }
 
   void do_write(std::shared_ptr<Serial> self) {
-    if (stopping_.load() || tx_.empty()) {
-      writing_ = false;
-      return;
-    }
+    if (stopping_ || !opened_ || tx_.empty() || writing_) return;
     writing_ = true;
-
-    // Drain several queued buffers into one scatter-gather write rather than
-    // one write syscall per message. `writing_` keeps do_write() from
-    // re-entering, so the batch and its views stay put for the whole operation.
-    queue_util::take_gather_batch(tx_, current_write_batch_, current_write_views_);
-
-    auto on_write = [self](const boost::system::error_code& ec, std::size_t n) {
-      auto impl = self->get_impl();
-      impl->current_write_batch_.clear();
-
-      if (impl->queued_bytes_ >= n) {
-        impl->queued_bytes_ -= n;
-      } else {
-        impl->queued_bytes_ = 0;
-      }
-      impl->report_backpressure(impl->queued_bytes_);
-
-      if (impl->stopping_.load()) {
-        impl->writing_ = false;
-        return;
-      }
-
-      if (ec) {
-        impl->handle_error(self, "write", ec);
-        return;
-      }
-      impl->stats_.record_sent(n);
-      impl->do_write(self);
-    };
-
-    port_->async_write(current_write_views_, track_io(self, std::move(on_write)));
+    auto batch = std::make_shared<WriteBatch>();
+    batch->bytes = queue_util::take_gather_batch(tx_, batch->buffers, batch->views);
+    active_write_ = batch;
+    const auto connection = connection_seq_.load();
+    port_->async_write(batch->views,
+                       track_io(self, [self, connection, batch](const boost::system::error_code& ec, size_t n) {
+                         auto* impl = self->get_impl();
+                         if (connection != impl->connection_seq_) {
+                           batch->buffers.clear();
+                           return;
+                         }
+                         impl->active_write_.reset();
+                         impl->writing_ = false;
+                         if (impl->stopping_) {
+                           batch->buffers.clear();
+                           return;
+                         }
+                         if (ec) {
+                           queue_util::return_gather_batch(impl->tx_, batch->buffers);
+                           impl->handle_error(self, "write", ec);
+                           return;
+                         }
+                         batch->buffers.clear();
+                         queue_util::release_reserved_write_bytes(impl->queued_bytes_, batch->bytes);
+                         impl->stats_.record_sent(n);
+                         impl->report_backpressure(impl->queued_bytes_);
+                         impl->do_write(self);
+                       }));
   }
 
   void perform_cleanup() {
     try {
       retry_timer_.cancel();
+      mark_disconnected();
+      discard_connection_writes();
       close_port();
       tx_.clear();
       queued_bytes_ = 0;
@@ -555,13 +610,15 @@ struct Serial::Impl {
                                     ec.message(), retryable, 0);
 
     if (cfg_.reopen_on_error) {
-      opened_.store(false);
+      mark_disconnected();
+      discard_connection_writes();
       close_port();
       state_.set(LinkState::Connecting);
       notify_state();
       if (self) schedule_retry(self, where, ec);
     } else {
-      opened_.store(false);
+      mark_disconnected();
+      discard_connection_writes();
       close_port();
       state_.set(LinkState::Error);
       notify_state();
@@ -585,11 +642,12 @@ struct Serial::Impl {
     const unsigned timeout_ms = cfg_.rx_idle_timeout_ms;
     if (timeout_ms == 0 || stopping_.load()) return;
 
+    const auto connection = connection_seq_.load();
     rx_idle_timer_.expires_after(std::chrono::milliseconds(timeout_ms));
-    rx_idle_timer_.async_wait(track_io(self, [self, timeout_ms](const boost::system::error_code& e) {
+    rx_idle_timer_.async_wait(track_io(self, [self, timeout_ms, connection](const boost::system::error_code& e) {
       if (e) return;  // rearmed or cancelled
       auto impl = self->get_impl();
-      if (impl->stopping_.load() || !impl->opened_.load()) return;
+      if (impl->stopping_.load() || !impl->opened_.load() || connection != impl->connection_seq_) return;
 
       WIRESTEAD_LOG_WARNING("serial", "rx_idle_timeout",
                             fmt::format("No data received for {}ms on {}", timeout_ms, impl->cfg_.device));
@@ -728,15 +786,18 @@ void Serial::start() {
 void Serial::stop() {
   auto impl = get_impl();
   const bool on_executor = impl->ioc_.get_executor().running_in_this_thread();
+  bool first;
   {
     std::lock_guard<std::mutex> lock(impl->submission_mtx_);
-    if (!impl->stopping_.exchange(true)) {
-      if (impl->generation_.load() == 0) {
-        impl->perform_stop_cleanup();
-      } else {
-        auto self = weak_from_this().lock();
-        net::post(impl->strand_, [self, impl] { impl->perform_stop_cleanup(); });
-      }
+    first = !impl->stopping_.exchange(true);
+    if (first && impl->write_wait_) impl->write_wait_->end(wrapper::SendRejection::CancelledWhileWaiting);
+  }
+  if (first) {
+    if (impl->generation_.load() == 0)
+      impl->perform_stop_cleanup();
+    else {
+      auto self = weak_from_this().lock();
+      net::post(impl->strand_, [self, impl] { impl->perform_stop_cleanup(); });
     }
   }
   if (on_executor) return;
@@ -770,175 +831,290 @@ std::optional<diagnostics::ErrorInfo> Serial::last_error_info() const {
 
 boost::asio::any_io_executor Serial::get_executor() { return impl_->strand_; }
 
+std::shared_ptr<detail::SerialWriteWait> Serial::capture_write_wait() const {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (impl_->stopping_.load() || !impl_->opened_.load()) return {};
+  return impl_->write_wait_;
+}
+
+std::optional<wrapper::SendResult> Serial::poll_write_wait(const std::shared_ptr<detail::SerialWriteWait>& wait) const {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (!wait) return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  if (wait->ended_by) return wrapper::SendResult::reject(*wait->ended_by);
+  if (wait->sequence != impl_->connection_seq_.load() || !impl_->opened_.load())
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  if (!impl_->backpressure_active_.load()) return wrapper::SendResult::accept();
+  return std::nullopt;
+}
+
+void Serial::cancel_write_waits() {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (impl_->write_wait_) impl_->write_wait_->end(wrapper::SendRejection::CancelledWhileWaiting);
+}
+
+std::optional<uint64_t> Serial::write_connection() const {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (impl_->stopping_.load() || !impl_->opened_.load()) return std::nullopt;
+  return impl_->connection_seq_.load();
+}
+
+wrapper::SendResult Serial::write_state() {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (auto reason = impl_->admission_rejection()) return wrapper::SendResult::reject(*reason);
+  return wrapper::SendResult::accept();
+}
+
 bool Serial::async_write_copy(memory::ConstByteSpan data) {
-  auto impl = get_impl();
-  std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
-  const auto generation = impl->generation_.load();
-  if (!impl->started_) {
-    impl->stats_.record_failed_send();
-    return false;
+  const auto result = write_copy(data, std::nullopt);
+  if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult Serial::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection) {
+  if (expected_connection) {
+    if (auto hook = detail::g_serial_pinned_write_hook.load()) hook();
   }
-  if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
-    impl->stats_.record_failed_send();
-    return false;
+  std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
+  const auto seq = impl_->generation_.load();
+  const auto connection = impl_->connection_seq_.load();
+  if (auto reason = impl_->admission_rejection(expected_connection)) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(*reason);
+  }
+  if (auto hook = detail::g_serial_write_admission_hook.load()) hook();
+
+  size_t size = data.size();
+  if (size == 0) {
+    WIRESTEAD_LOG_WARNING("serial", "async_write_copy", "Ignoring zero-length write");
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
 
-  size_t n = data.size();
-  if (n == 0) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-  if (n > base::constants::MAX_BUFFER_SIZE) {
-    WIRESTEAD_LOG_ERROR("serial", "write", "Write size exceeds maximum");
-    impl->stats_.record_failed_send();
-    return false;
+  if (size > base::constants::MAX_BUFFER_SIZE) {
+    WIRESTEAD_LOG_ERROR("serial", "async_write_copy",
+                        fmt::format("Write size exceeds maximum allowed ({} bytes)", size));
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
 
-  if (n <= 65536 && impl->cfg_.enable_memory_pool) {
-    memory::PooledBuffer pooled(n, impl->pool_);
-    if (pooled.valid()) {
-      base::safe_memory::safe_memcpy(pooled.data(), data.data(), n);
-      if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_,
-                                               impl->inflight_bytes_, n, impl->bp_limit_)) {
-        impl->stats_.record_failed_send();
-        return false;
+  if (size <= 65536 && impl_->cfg_.enable_memory_pool) {
+    try {
+      memory::PooledBuffer pooled_buffer(size, impl_->pool_);
+      if (pooled_buffer.valid()) {
+        base::safe_memory::safe_memcpy(pooled_buffer.data(), data.data(), size);
+        const auto added = pooled_buffer.size();
+        if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queued_bytes_, impl_->pending_bytes_,
+                                                 impl_->inflight_bytes_, added, impl_->bp_limit_)) {
+          impl_->stats_.record_failed_send();
+          return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
+        }
+        impl_->stats_.record_accepted(added);
+        net::post(impl_->strand_,
+                  [self = shared_from_this(), buf = std::move(pooled_buffer), added, seq, connection]() mutable {
+                    if (seq != self->impl_->generation_.load()) return;
+                    if (connection != self->impl_->connection_seq_.load()) {
+                      self->impl_->stats_.record_dropped(1, added);
+                      queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_,
+                                                               self->impl_->inflight_bytes_, added);
+                      return;
+                    }
+                    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
+                  });
+        return wrapper::SendResult::accept();
       }
-      impl->stats_.record_accepted(n);
-      net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(pooled)]() mutable {
-        auto impl = self->get_impl();
-        if (generation != impl->generation_) return;
-        const auto added = buf.size();
-        impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
-      });
-      return true;
+    } catch (const std::exception& e) {
+      WIRESTEAD_LOG_ERROR("serial", "async_write_copy", fmt::format("Failed to acquire pooled buffer: {}", e.what()));
     }
   }
 
-  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_,
-                                           impl->inflight_bytes_, n, impl->bp_limit_)) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
   std::vector<uint8_t> fallback(data.begin(), data.end());
-  impl->stats_.record_accepted(n);
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(fallback)]() mutable {
-    auto impl = self->get_impl();
-    if (generation != impl->generation_) return;
-    const auto added = buf.size();
-    impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
+  const auto added = fallback.size();
+  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queued_bytes_, impl_->pending_bytes_,
+                                           impl_->inflight_bytes_, added, impl_->bp_limit_)) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
+  }
+  impl_->stats_.record_accepted(added);
+
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, seq, connection]() mutable {
+    if (seq != self->impl_->generation_.load()) return;
+    if (connection != self->impl_->connection_seq_.load()) {
+      self->impl_->stats_.record_dropped(1, added);
+      queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
+      return;
+    }
+    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool Serial::async_write_move(std::vector<uint8_t>&& data) {
-  auto impl = get_impl();
-  std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
-  const auto generation = impl->generation_.load();
-  if (!impl->started_) {
-    impl->stats_.record_failed_send();
-    return false;
+  const auto result = write_move(std::move(data), std::nullopt);
+  if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult Serial::write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection) {
+  if (expected_connection) {
+    if (auto hook = detail::g_serial_pinned_write_hook.load()) hook();
   }
-  if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
-    impl->stats_.record_failed_send();
-    return false;
+  std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
+  const auto seq = impl_->generation_.load();
+  const auto connection = impl_->connection_seq_.load();
+  if (auto reason = impl_->admission_rejection(expected_connection)) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(*reason);
   }
-  const auto added = data.size();
-  if (added == 0) {
-    impl->stats_.record_failed_send();
-    return false;
+  if (auto hook = detail::g_serial_write_admission_hook.load()) hook();
+  const auto size = data.size();
+  if (size == 0) {
+    WIRESTEAD_LOG_WARNING("serial", "async_write_move", "Ignoring zero-length write");
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
-  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_,
-                                           impl->inflight_bytes_, added, impl->bp_limit_)) {
-    impl->stats_.record_failed_send();
-    return false;
+  if (size > base::constants::MAX_BUFFER_SIZE) {
+    WIRESTEAD_LOG_ERROR("serial", "async_write_move",
+                        fmt::format("Write size exceeds maximum allowed ({} bytes)", size));
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
-  impl->stats_.record_accepted(added);
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), added]() mutable {
-    auto impl = self->get_impl();
-    if (generation != impl->generation_) return;
-    impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
+
+  const auto added = size;
+  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queued_bytes_, impl_->pending_bytes_,
+                                           impl_->inflight_bytes_, added, impl_->bp_limit_)) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
+  }
+  impl_->stats_.record_accepted(added);
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection]() mutable {
+    if (seq != self->impl_->generation_.load()) return;
+    if (connection != self->impl_->connection_seq_.load()) {
+      self->impl_->stats_.record_dropped(1, added);
+      queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
+      return;
+    }
+    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool Serial::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
-  auto impl = get_impl();
-  std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
-  const auto generation = impl->generation_.load();
-  if (!impl->started_) {
-    impl->stats_.record_failed_send();
-    return false;
+  const auto result = write_shared(std::move(data), std::nullopt);
+  if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult Serial::write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
+                                         std::optional<uint64_t> expected_connection) {
+  if (expected_connection) {
+    if (auto hook = detail::g_serial_pinned_write_hook.load()) hook();
   }
-  if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
-    impl->stats_.record_failed_send();
-    return false;
+  std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
+  const auto seq = impl_->generation_.load();
+  const auto connection = impl_->connection_seq_.load();
+  if (auto reason = impl_->admission_rejection(expected_connection)) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(*reason);
   }
+  if (auto hook = detail::g_serial_write_admission_hook.load()) hook();
   if (!data || data->empty()) {
-    impl->stats_.record_failed_send();
-    return false;
+    WIRESTEAD_LOG_WARNING("serial", "async_write_shared", "Ignoring empty shared buffer");
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
-  const auto added = data->size();
-  if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queued_bytes_, impl->pending_bytes_,
-                                           impl->inflight_bytes_, added, impl->bp_limit_)) {
-    impl->stats_.record_failed_send();
-    return false;
+  const auto size = data->size();
+  if (size > base::constants::MAX_BUFFER_SIZE) {
+    WIRESTEAD_LOG_ERROR("serial", "async_write_shared",
+                        fmt::format("Write size exceeds maximum allowed ({} bytes)", size));
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
-  impl->stats_.record_accepted(added);
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), added]() mutable {
-    auto impl = self->get_impl();
-    if (generation != impl->generation_) return;
-    impl->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
+
+  const auto added = size;
+  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queued_bytes_, impl_->pending_bytes_,
+                                           impl_->inflight_bytes_, added, impl_->bp_limit_)) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
+  }
+  impl_->stats_.record_accepted(added);
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection]() mutable {
+    if (seq != self->impl_->generation_.load()) return;
+    if (connection != self->impl_->connection_seq_.load()) {
+      self->impl_->stats_.record_dropped(1, added);
+      queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
+      return;
+    }
+    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool Serial::async_try_write_copy(memory::ConstByteSpan data) {
-  if (data.empty() || data.size() > base::constants::MAX_BUFFER_SIZE) {
-    get_impl()->stats_.record_failed_send();
-    return false;
+  const auto result = try_write_copy(data);
+  if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult Serial::try_write_copy(memory::ConstByteSpan data) {
+  if (data.empty()) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
-  return async_try_write_move(std::vector<uint8_t>(data.begin(), data.end()));
+  if (data.size() > base::constants::MAX_BUFFER_SIZE) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
+  }
+  return try_write_move(std::vector<uint8_t>(data.begin(), data.end()));
 }
 
 bool Serial::async_try_write_move(std::vector<uint8_t>&& data) {
-  auto impl = get_impl();
-  std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
-  const auto generation = impl->generation_.load();
-  if (!impl->started_) {
-    impl->stats_.record_failed_send();
-    return false;
+  const auto result = try_write_move(std::move(data));
+  if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult Serial::try_write_move(std::vector<uint8_t>&& data) {
+  std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
+  const auto seq = impl_->generation_.load();
+  const auto connection = impl_->connection_seq_.load();
+  if (auto reason = impl_->admission_rejection()) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(*reason);
   }
-  if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
+  if (auto hook = detail::g_serial_write_admission_hook.load()) hook();
   const auto added = data.size();
   if (added == 0 || added > base::constants::MAX_BUFFER_SIZE) {
-    impl->stats_.record_failed_send();
-    return false;
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(added == 0 ? wrapper::SendRejection::InvalidArgument
+                                                  : wrapper::SendRejection::TooLarge);
   }
-  const auto reject_for_pressure = [impl, added]() {
-    if (impl->bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {
-      impl->stats_.record_dropped(1, added);
+  const auto reject_for_pressure = [this, added]() {
+    if (impl_->bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {
+      impl_->stats_.record_dropped(1, added);
     } else {
-      impl->stats_.record_failed_send();
+      impl_->stats_.record_failed_send();
     }
   };
-  if (impl->backpressure_active_.load() || impl->queued_bytes_ + added > impl->bp_high_ ||
-      impl->queued_bytes_ + impl->pending_bytes_ + added > impl->bp_limit_) {
+  if (impl_->backpressure_active_.load() || impl_->queued_bytes_ + added > impl_->bp_high_ ||
+      impl_->queued_bytes_ + impl_->pending_bytes_ + added > impl_->bp_limit_) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  if (!queue_util::try_reserve_write_bytes(impl->queued_bytes_, impl->pending_bytes_, impl->backpressure_active_, added,
-                                           impl->bp_high_, impl->bp_limit_)) {
+  if (!queue_util::try_reserve_write_bytes(impl_->queued_bytes_, impl_->pending_bytes_, impl_->backpressure_active_,
+                                           added, impl_->bp_high_, impl_->bp_limit_)) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  impl->stats_.record_accepted(added);
+  impl_->stats_.record_accepted(added);
 
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), added]() mutable {
-    auto impl = self->get_impl();
-    if (generation != impl->generation_) return;
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection]() mutable {
+    if (seq != self->impl_->generation_.load()) return;
+    if (connection != self->impl_->connection_seq_.load()) {
+      self->impl_->stats_.record_dropped(1, added);
+      // The old connection drain already removed this queue reservation.
+      return;
+    }
+    auto impl = self->impl_.get();
     if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
       queue_util::release_reserved_write_bytes(impl->queued_bytes_, added);
       impl->stats_.record_failed_send();
@@ -950,49 +1126,60 @@ bool Serial::async_try_write_move(std::vector<uint8_t>&& data) {
     impl->report_backpressure(impl->queued_bytes_);
     if (!impl->writing_) impl->do_write(self);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool Serial::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
-  auto impl = get_impl();
-  std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
-  const auto generation = impl->generation_.load();
-  if (!impl->started_) {
-    impl->stats_.record_failed_send();
-    return false;
+  const auto result = try_write_shared(std::move(data));
+  if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult Serial::try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
+  const auto seq = impl_->generation_.load();
+  const auto connection = impl_->connection_seq_.load();
+  if (!data || data->empty()) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
-  if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error) ||
-      !data || data->empty()) {
-    impl->stats_.record_failed_send();
-    return false;
+  if (data->size() > base::constants::MAX_BUFFER_SIZE) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
   const auto added = data->size();
-  if (added > base::constants::MAX_BUFFER_SIZE) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-  const auto reject_for_pressure = [impl, added]() {
-    if (impl->bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {
-      impl->stats_.record_dropped(1, added);
+  const auto reject_for_pressure = [this, added]() {
+    if (impl_->bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {
+      impl_->stats_.record_dropped(1, added);
     } else {
-      impl->stats_.record_failed_send();
+      impl_->stats_.record_failed_send();
     }
   };
-  if (impl->backpressure_active_.load() || impl->queued_bytes_ + added > impl->bp_high_ ||
-      impl->queued_bytes_ + impl->pending_bytes_ + added > impl->bp_limit_) {
-    reject_for_pressure();
-    return false;
+  if (auto reason = impl_->admission_rejection()) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(*reason);
   }
-  if (!queue_util::try_reserve_write_bytes(impl->queued_bytes_, impl->pending_bytes_, impl->backpressure_active_, added,
-                                           impl->bp_high_, impl->bp_limit_)) {
+  if (auto hook = detail::g_serial_write_admission_hook.load()) hook();
+  if (impl_->backpressure_active_.load() || impl_->queued_bytes_ + added > impl_->bp_high_ ||
+      impl_->queued_bytes_ + impl_->pending_bytes_ + added > impl_->bp_limit_) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  impl->stats_.record_accepted(added);
+  if (!queue_util::try_reserve_write_bytes(impl_->queued_bytes_, impl_->pending_bytes_, impl_->backpressure_active_,
+                                           added, impl_->bp_high_, impl_->bp_limit_)) {
+    reject_for_pressure();
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
+  }
+  impl_->stats_.record_accepted(added);
 
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), added]() mutable {
-    auto impl = self->get_impl();
-    if (generation != impl->generation_) return;
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection]() mutable {
+    if (seq != self->impl_->generation_.load()) return;
+    if (connection != self->impl_->connection_seq_.load()) {
+      self->impl_->stats_.record_dropped(1, added);
+      // The old connection drain already removed this queue reservation.
+      return;
+    }
+    auto impl = self->impl_.get();
     if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
       queue_util::release_reserved_write_bytes(impl->queued_bytes_, added);
       impl->stats_.record_failed_send();
@@ -1004,7 +1191,7 @@ bool Serial::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> 
     impl->report_backpressure(impl->queued_bytes_);
     if (!impl->writing_) impl->do_write(self);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 void Serial::on_bytes(OnBytes cb) {

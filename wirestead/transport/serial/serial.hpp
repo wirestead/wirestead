@@ -25,6 +25,7 @@
 #include "wirestead/config/serial_config.hpp"
 #include "wirestead/diagnostics/error_types.hpp"
 #include "wirestead/interface/channel.hpp"
+#include "wirestead/wrapper/send_result.hpp"
 
 namespace boost {
 namespace asio {
@@ -38,7 +39,13 @@ namespace interface {
 class SerialPortInterface;
 }
 
+namespace wrapper {
+class Serial;
+}
 namespace transport {
+namespace detail {
+struct SerialWriteWait;
+}
 
 /**
  * @brief Serial Transport implementation
@@ -91,6 +98,24 @@ class WIRESTEAD_API Serial : public interface::Channel, public std::enable_share
   void set_retry_interval(unsigned interval_ms);
 
  private:
+  // The built-in wrapper pins capacity waits without extending Channel's ABI.
+  friend class wrapper::Serial;
+  std::optional<uint64_t> write_connection() const;
+  std::shared_ptr<detail::SerialWriteWait> capture_write_wait() const;
+  std::optional<wrapper::SendResult> poll_write_wait(const std::shared_ptr<detail::SerialWriteWait>& wait) const;
+  void cancel_write_waits();
+  wrapper::SendResult write_state();
+  // Native admission only: wrapper lifecycle, validation precedence and
+  // strategy-level reason mapping remain the wrapper's responsibility.
+  wrapper::SendResult write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection);
+  wrapper::SendResult write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection);
+  wrapper::SendResult write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
+                                   std::optional<uint64_t> expected_connection);
+
+  wrapper::SendResult try_write_copy(memory::ConstByteSpan data);
+  wrapper::SendResult try_write_move(std::vector<uint8_t>&& data);
+  wrapper::SendResult try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data);
+
   explicit Serial(const config::SerialConfig& cfg, bool use_shared_context);
   Serial(const config::SerialConfig& cfg, std::unique_ptr<interface::SerialPortInterface> port,
          boost::asio::io_context& ioc);

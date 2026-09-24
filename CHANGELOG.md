@@ -10,6 +10,10 @@ and ABI policy.
 
 ### Added
 
+- Serial native and wrapper sends retain internal SendResult decisions across
+  validation, readiness, capacity waiting and pinned device admission. Waits
+  preserve the first stop/loss cause. Public methods still return bool.
+
 - UDP client and server targeted sends combine internal SendResult decisions
   across validation, readiness, capacity waiting and final admission. Native
   run/session pins and first terminal causes survive stop, error and restart.
@@ -57,6 +61,12 @@ and ABI policy.
   bool; this is the result-type foundation, not the transport migration.
 
 ### Changed
+
+- **Breaking:** Serial writes require an opened and configured device. Device
+  loss discards old queued/posted data instead of replaying it after reopen.
+  Wrappers require start even with an injected connected native port, and early
+  invalid wrapper sends bypass native accounting. Old I/O completions retain
+  their buffers without changing replacement-device state.
 
 - **Breaking:** Native UDP writes require an opened socket, and default-target
   writes also require a configured/learned peer. Built-in wrappers require their
