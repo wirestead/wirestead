@@ -380,7 +380,8 @@ TEST_P(UdsCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   net::io_context peer_io;
   const auto path = test::TestUtils::makeUniqueUdsSocketPath("uds-wait").string();
   OnExit remove_path{[&] { test::TestUtils::removeFileIfExists(path); }};
-  uds::acceptor acceptor(peer_io, uds::endpoint(path));
+  // Windows AF_UNIX bind rejects SO_REUSEADDR.
+  uds::acceptor acceptor(peer_io, uds::endpoint(path), false);
   acceptor.set_option(net::socket_base::receive_buffer_size(1024));
   acceptor.non_blocking(true);
   uds::socket first(peer_io), second(peer_io);

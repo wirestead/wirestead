@@ -740,7 +740,9 @@ void observe_nonblocking_result(const wirestead::wrapper::SendResult& result) {
 struct NonblockingResultPeer {
   boost::asio::io_context io;
   std::string path = wirestead::test::TestUtils::makeUniqueUdsSocketPath("uds-result").string();
-  boost::asio::local::stream_protocol::acceptor acceptor{io, boost::asio::local::stream_protocol::endpoint(path)};
+  // Windows AF_UNIX bind rejects SO_REUSEADDR; match the native server's open/bind/listen path.
+  boost::asio::local::stream_protocol::acceptor acceptor{io, boost::asio::local::stream_protocol::endpoint(path),
+                                                         false};
   std::shared_ptr<wirestead::transport::UdsClient> native;
   std::unique_ptr<wirestead::wrapper::UdsClient> client;
   explicit NonblockingResultPeer(bool best_effort) {
