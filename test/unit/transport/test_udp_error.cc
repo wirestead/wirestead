@@ -53,6 +53,8 @@ TEST(TransportUdpErrorTest, SendOversizedPacket) {
   });
 
   channel->start();
+  ioc.poll();
+  ASSERT_TRUE(channel->is_connected());
 
   // UDP payload limit is 65535. Sending 100KB should definitely fail.
   std::vector<uint8_t> huge_packet(100000, 0xDD);
@@ -96,9 +98,11 @@ TEST(TransportUdpErrorTest, BackpressureClearsAfterWriteErrorWithQueuedWrites) {
   });
 
   channel->start();
+  ioc.poll();
+  ASSERT_TRUE(channel->is_connected());
 
   // Enqueue two oversized (guaranteed EMSGSIZE) writes back-to-back before the io_context
-  // ever runs, so the first is in flight and the second is still queued/pending when the
+  // processes the writes, so the first is in flight and the second is still queued/pending when the
   // first write's failure is delivered. This reproduces the scenario where more than one
   // large payload was queued at the moment a UDP write errors out.
   std::vector<uint8_t> huge_packet(100000, 0xDD);
@@ -142,9 +146,11 @@ TEST(TransportUdpErrorTest, BackpressureClearsAfterWriteErrorWithPendingOverflow
   });
 
   channel->start();
+  ioc.poll();
+  ASSERT_TRUE(channel->is_connected());
 
-  // Enqueue many oversized (guaranteed EMSGSIZE) writes back-to-back before the io_context ever
-  // runs. The first activates backpressure and starts writing; in Reliable mode, all the rest
+  // Enqueue many oversized (guaranteed EMSGSIZE) writes back-to-back while the ready io_context is paused.
+  // The first activates backpressure and starts writing; in Reliable mode, all the rest
   // route into the pending_ overflow queue (not tx_) while backpressure stays active. When the
   // first write's failure is delivered, report_backpressure()'s internal cleanup path flushes
   // pending_ back into tx_ and can re-arm backpressure_active_ on its own if that flush alone

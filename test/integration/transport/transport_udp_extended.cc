@@ -70,6 +70,7 @@ TEST(TransportUdpExtendedTest, AsyncWriteMove) {
   });
 
   channel->start();
+  ASSERT_TRUE(wait_for_condition(ioc, [&] { return channel->is_connected(); }, 2000ms));
 
   std::vector<uint8_t> payload = {0x01, 0x02, 0x03, 0x04};
   size_t payload_size = payload.size();
@@ -102,6 +103,7 @@ TEST(TransportUdpExtendedTest, AsyncWriteShared) {
   });
 
   channel->start();
+  ASSERT_TRUE(wait_for_condition(ioc, [&] { return channel->is_connected(); }, 2000ms));
 
   auto payload = std::make_shared<std::vector<uint8_t>>(std::initializer_list<uint8_t>{0xAA, 0xBB});
   size_t payload_size = payload->size();
@@ -135,6 +137,7 @@ TEST(TransportUdpExtendedTest, PooledBufferWrite) {
   });
 
   channel->start();
+  ASSERT_TRUE(wait_for_condition(ioc, [&] { return channel->is_connected(); }, 2000ms));
 
   // Use a size that fits in small pool buckets
   std::vector<uint8_t> payload(100, 0xCC);
@@ -170,8 +173,9 @@ TEST(TransportUdpExtendedTest, BackpressureReporting) {
   });
 
   channel->start();
+  ASSERT_TRUE(wait_for_condition(ioc, [&] { return channel->is_connected(); }, 2000ms));
 
-  // We don't run the IOC yet, so writes should queue up
+  // Pause the ready IOC so accepted writes queue up
   // MIN_BACKPRESSURE_THRESHOLD is usually 1024, so we need > 1024 bytes to trigger it.
   std::vector<uint8_t> chunk(2000, 0xFF);
 

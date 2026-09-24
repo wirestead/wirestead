@@ -80,6 +80,10 @@ inline bool in_data_callback() { return g_callback_depth > 0; }
 using PreAdmissionHook = void (*)();
 inline std::atomic<PreAdmissionHook> g_pre_admission_hook{nullptr};
 // Tests may park a TCP capacity waiter before registering its timed wait.
+inline std::atomic<PreAdmissionHook> g_udp_capacity_wait_hook{nullptr};
+inline std::atomic<void (*)(const SendResult&)> g_udp_capacity_wait_result_hook{nullptr};
+inline std::atomic<void (*)(const SendResult&)> g_udp_send_result_hook{nullptr};
+inline std::atomic<void (*)(const SendResult&)> g_udp_server_send_result_hook{nullptr};
 inline std::atomic<PreAdmissionHook> g_uds_capacity_wait_hook{nullptr};
 inline std::atomic<void (*)(const SendResult&)> g_uds_capacity_wait_result_hook{nullptr};
 inline std::atomic<void (*)(const SendResult&)> g_uds_send_result_hook{nullptr};

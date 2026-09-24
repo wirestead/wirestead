@@ -26,6 +26,7 @@
 #include "wirestead/config/udp_config.hpp"
 #include "wirestead/diagnostics/error_types.hpp"
 #include "wirestead/interface/channel.hpp"
+#include "wirestead/wrapper/send_result.hpp"
 
 namespace boost {
 namespace asio {
@@ -34,7 +35,14 @@ class io_context;
 }  // namespace boost
 
 namespace wirestead {
+namespace wrapper {
+class UdpClient;
+class UdpServer;
+}  // namespace wrapper
 namespace transport {
+namespace detail {
+struct UdpWriteWait;
+}
 
 /**
  * @brief UDP Transport implementation with 1:N support
@@ -96,6 +104,26 @@ class WIRESTEAD_API UdpChannel : public interface::Channel, public std::enable_s
   boost::asio::any_io_executor get_executor() override;
 
  private:
+  friend class wrapper::UdpClient;
+  friend class wrapper::UdpServer;
+  std::shared_ptr<detail::UdpWriteWait> capture_write_wait(bool require_remote = true);
+  std::optional<wrapper::SendResult> poll_write_wait(const std::shared_ptr<detail::UdpWriteWait>& wait);
+  void end_write_wait(const std::shared_ptr<detail::UdpWriteWait>& wait, wrapper::SendRejection reason);
+  void cancel_write_waits();
+  std::optional<uint64_t> write_connection() const;
+  wrapper::SendResult write_state(bool require_remote = true);
+  wrapper::SendResult write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_run = std::nullopt);
+  wrapper::SendResult try_write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_run = std::nullopt);
+  wrapper::SendResult write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_run = std::nullopt);
+  wrapper::SendResult try_write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_run = std::nullopt);
+  wrapper::SendResult write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
+                                   std::optional<uint64_t> expected_run = std::nullopt);
+  wrapper::SendResult try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
+                                       std::optional<uint64_t> expected_run = std::nullopt);
+  wrapper::SendResult write_to(memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& destination,
+                               std::optional<uint64_t> expected_run = std::nullopt);
+  wrapper::SendResult try_write_to(memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& destination,
+                                   std::optional<uint64_t> expected_run = std::nullopt);
   explicit UdpChannel(const config::UdpConfig& cfg);
   UdpChannel(const config::UdpConfig& cfg, boost::asio::io_context& ioc);
 

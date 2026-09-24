@@ -344,6 +344,8 @@ TEST_F(TransportUdpTest, QueueLimitMovesToError) {
     if (s == base::LinkState::Error) error_seen = true;
   });
   channel->start();
+  ioc.poll();
+  ASSERT_TRUE(channel->is_connected());
 
   // Queue huge data multiple times to overflow backpressure buffer
   // Note: UdpChannel enforces a minimum limit of DEFAULT_BACKPRESSURE_THRESHOLD (1MB)

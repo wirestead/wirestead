@@ -33,6 +33,7 @@
 #include "wirestead/base/common.hpp"
 #include "wirestead/concurrency/io_thread_hook.hpp"
 #include "wirestead/factory/channel_factory.hpp"
+#include "wirestead/transport/udp/detail/write_wait.hpp"
 #include "wirestead/transport/udp/udp.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
@@ -81,6 +82,8 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   // left over from a previous run is refused after a restart.
   detail::CallbackGate callback_gate_;
   std::mutex stop_finalize_mutex_;
+  bool stop_requested_ = false;
+  std::atomic<unsigned> stop_callers_{0};
   std::atomic<uint64_t> callback_generation_{0};
 
   // True when this thread is one the target's shutdown needs: a callback of
@@ -108,6 +111,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   // Virtual Session Management
   struct SessionEntry {
     boost::asio::ip::udp::endpoint endpoint;
+    std::shared_ptr<transport::detail::UdpWriteWait> wait;
     std::shared_ptr<framer::IFramer> framer;
     std::chrono::steady_clock::time_point last_seen;
   };
@@ -254,6 +258,8 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         if (now - it->second.last_seen > session_timeout) {
           std::string info =
               fmt::format("{}:{}", it->second.endpoint.address().to_string(), it->second.endpoint.port());
+          if (channel) channel->end_write_wait(it->second.wait, SendRejection::NotReady);
+          bp_cv_.notify_all();
           endpoint_to_id.erase(it->second.endpoint);
           to_remove_with_info.push_back({it->first, info});
           it = sessions.erase(it);
@@ -308,6 +314,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
               endpoint_to_id[ep] = client_id;
               SessionEntry entry;
               entry.endpoint = ep;
+              entry.wait = channel->capture_write_wait(false);
               entry.last_seen = std::chrono::steady_clock::now();
               is_new = true;
 
@@ -457,6 +464,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
 
   std::future<bool> start() {
     std::unique_lock<std::shared_mutex> lock(mutex);
+    stop_requested_ = false;
     if (is_listening.load()) {
       std::promise<bool> p;
       p.set_value(true);
@@ -506,11 +514,18 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   void stop() {
+    stop_callers_.fetch_add(1);
+    struct StopCall {
+      std::atomic<unsigned>& callers;
+      ~StopCall() { callers.fetch_sub(1); }
+    } stop_call{stop_callers_};
     const bool request_only = shutdown_needs_this_thread();
     callback_gate_.close();
     std::shared_ptr<transport::UdpChannel> channel_copy;
     {
       std::unique_lock<std::shared_mutex> lock(mutex);
+      stop_requested_ = true;
+      if (channel) channel->cancel_write_waits();
       started.store(false);
       is_listening.store(false);
       bp_cv_.notify_all();
@@ -555,7 +570,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   bool send_to(ClientId client_id, std::string_view data) {
     if (cfg.backpressure_strategy == base::constants::BackpressureStrategy::Reliable)
       return send_to_blocking(client_id, data);
-    return try_send_to(client_id, data);
+    return try_send_to(client_id, data, true);
   }
 
   bool try_broadcast(std::string_view data) {
@@ -571,55 +586,94 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
 
   bool broadcast(std::string_view data) { return try_broadcast(data); }
 
-  // channel->on_backpressure() calls bp_cv_.notify_all() from the transport's io_context
-  // thread without holding bp_mutex_ (backpressure_active_ is a plain atomic on the transport
-  // side, not guarded by bp_mutex_ at all). That makes a classic lost-wakeup race possible: a
-  // waiter can check the predicate, find it still blocking, and be in the process of
-  // registering to wait when the notify fires - in the rare case that race is lost, an
-  // unbounded wait() would block forever. Poll with a bounded timeout instead so a missed
-  // notify only costs a short delay rather than a permanent hang (see #427, #431).
-  //
-  // Returns false without sending instead of waiting if called from the
-  // channel's own io thread while backpressure is active - e.g. a blocking
-  // send_to() called from inside an on_data/on_message callback. Clearing
-  // backpressure requires that same io thread to make progress, so
-  // blocking here would deadlock forever rather than eventually clear
-  // (#449).
-  // #509: see identical rationale in wrapper/tcp_server/tcp_server.cc -
-  // bounded retry rather than a single attempt after the wait exits.
-  static constexpr int kMaxBlockingSendAttempts = 5;
-
-  bool send_to_blocking(ClientId client_id, std::string_view data) {
-    for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
-      std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-      auto predicate = [this, client_id, payload_size = data.size()] {
-        std::shared_lock<std::shared_mutex> lock(mutex);
-        return !started.load() || !channel || sessions.find(client_id) == sessions.end() ||
-               !detail::payload_needs_capacity(payload_size, channel->write_queue_limit()) ||
-               !channel->is_backpressure_active();
-      };
-      if (detail::payload_needs_capacity(data.size())) {
-        if (!predicate() && detail::in_data_callback()) return false;
-        while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), predicate)) {
-        }
-      }
-      bp_lock.unlock();
-      std::shared_lock<std::shared_mutex> lock(mutex);
-      auto it = sessions.find(client_id);
-      if (!started.load() || it == sessions.end() || !channel) return false;
-      auto bytes = base::safe_convert::string_to_bytes(data);
-      if (channel->async_write_to(memory::ConstByteSpan(bytes.first, bytes.second), it->second.endpoint)) return true;
-    }
-    return false;
+  static bool finish_send(SendResult result) {
+    if (auto hook = detail::g_udp_server_send_result_hook.load()) hook(result);
+    return result.accepted();
   }
 
-  bool try_send_to(ClientId client_id, std::string_view data) {
-    std::shared_lock<std::shared_mutex> lock(mutex);
-    auto it = sessions.find(client_id);
-    if (it == sessions.end() || !channel) return false;
+  // Caller holds mutex. The native call rechecks socket readiness at admission.
+  SendResult send_state() {
+    if (stop_callers_.load()) return SendResult::reject(SendRejection::Stopping);
+    if (!started.load()) {
+      if (stop_requested_) {
+        if (!callback_gate_.idle()) return SendResult::reject(SendRejection::Stopping);
+        if (channel) {
+          const auto state = channel->write_state(false);
+          if (!state.accepted() && state.reason() == SendRejection::Stopping) return state;
+        }
+      }
+      return SendResult::reject(SendRejection::NotStarted);
+    }
+    if (!channel) return SendResult::reject(SendRejection::NotReady);
+    return channel->write_state(false);
+  }
 
-    auto bytes = base::safe_convert::string_to_bytes(data);
-    return channel->async_try_write_to(memory::ConstByteSpan(bytes.first, bytes.second), it->second.endpoint);
+  bool try_send_to(ClientId client_id, std::string_view data, bool best_effort_send = false) {
+    const auto result = [&]() -> SendResult {
+      std::shared_lock<std::shared_mutex> lock(mutex);
+      auto validation =
+          detail::validate_payload_size(data.size(), channel ? channel->write_queue_limit() : std::nullopt);
+      if (!validation.accepted()) return validation;
+      auto state = send_state();
+      if (!state.accepted()) return state;
+      auto it = sessions.find(client_id);
+      if (it == sessions.end()) return SendResult::reject(SendRejection::NotReady);
+      auto bytes = base::safe_convert::string_to_bytes(data);
+      auto admitted = channel->try_write_to({bytes.first, bytes.second}, it->second.endpoint);
+      if (best_effort_send && !admitted.accepted() && admitted.reason() == SendRejection::WouldBlock)
+        return SendResult::reject(SendRejection::QueueFull);
+      return admitted;
+    }();
+    return finish_send(result);
+  }
+
+  bool send_to_blocking(ClientId client_id, std::string_view data) {
+    const auto result = [&]() -> SendResult {
+      std::shared_ptr<transport::UdpChannel> native;
+      std::shared_ptr<transport::detail::UdpWriteWait> wait;
+      uint64_t generation;
+      {
+        std::shared_lock<std::shared_mutex> lock(mutex);
+        auto validation =
+            detail::validate_payload_size(data.size(), channel ? channel->write_queue_limit() : std::nullopt);
+        if (!validation.accepted()) return validation;
+        auto state = send_state();
+        if (!state.accepted()) return state;
+        auto it = sessions.find(client_id);
+        if (it == sessions.end() || !it->second.wait) return SendResult::reject(SendRejection::NotReady);
+        native = channel;
+        wait = it->second.wait;
+        generation = callback_generation_.load();
+      }
+      for (int attempt = 0; attempt < 5; ++attempt) {
+        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+        auto outcome = native->poll_write_wait(wait);
+        if (!outcome) {
+          if (detail::in_data_callback()) return SendResult::reject(SendRejection::WouldBlock);
+          if (auto hook = detail::g_udp_capacity_wait_hook.load()) hook();
+          while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), [&] {
+            outcome = native->poll_write_wait(wait);
+            return outcome.has_value();
+          })) {
+          }
+          if (auto hook = detail::g_udp_capacity_wait_result_hook.load()) hook(*outcome);
+        }
+        if (!outcome->accepted()) return *outcome;
+        bp_lock.unlock();
+        std::shared_lock<std::shared_mutex> lock(mutex);
+        auto state = send_state();
+        if (!state.accepted()) return state;
+        auto it = sessions.find(client_id);
+        if (callback_generation_.load() != generation || it == sessions.end() || it->second.wait != wait)
+          return SendResult::reject(SendRejection::NotReady);
+        auto bytes = base::safe_convert::string_to_bytes(data);
+        const auto admitted = native->write_to({bytes.first, bytes.second}, it->second.endpoint, wait->sequence);
+        if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock) return admitted;
+        if (detail::in_data_callback()) return admitted;
+      }
+      return SendResult::reject(SendRejection::WouldBlock);
+    }();
+    return finish_send(result);
   }
 
   RuntimeStats stats() const {
