@@ -225,6 +225,10 @@ void invoke_user_callback(std::string_view component, std::string_view operation
 
 inline std::atomic<void (*)(const SendResult&)> g_tcp_server_send_result_hook{nullptr};
 inline std::atomic<void (*)(const SendResult&)> g_uds_server_send_result_hook{nullptr};
+inline std::atomic<void (*)()> g_tcp_server_capacity_wait_hook{nullptr};
+inline std::atomic<void (*)(const SendResult&)> g_tcp_server_capacity_wait_result_hook{nullptr};
+inline std::atomic<void (*)()> g_uds_server_capacity_wait_hook{nullptr};
+inline std::atomic<void (*)(const SendResult&)> g_uds_server_capacity_wait_result_hook{nullptr};
 }  // namespace detail
 }  // namespace wrapper
 }  // namespace wirestead

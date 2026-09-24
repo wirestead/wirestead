@@ -40,11 +40,12 @@ sessions; see [udp_send_results.md](udp_send_results.md).
 Serial now combines native/wrapper results, preserves first wait causes and
 fences submissions and I/O completions across device reopen; see
 [serial_send_results.md](serial_send_results.md).
-TCP/UDS server sessions, targeted native admission and nonblocking wrapper
-sends now retain typed results; see
-[server_target_send_results.md](server_target_send_results.md). Their Reliable
-wait records/final pins, custom Channel result contracts, public interfaces
-and fanout remain pending; these implementations do not complete D-3 by themselves.
+TCP/UDS server sessions and targeted wrapper sends now retain typed results,
+including Reliable/explicit blocking waits, first terminal causes and pinned
+final admission; see
+[server_target_send_results.md](server_target_send_results.md).
+Custom Channel result contracts, public interfaces and fanout remain pending;
+these implementations do not complete D-3 by themselves.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.

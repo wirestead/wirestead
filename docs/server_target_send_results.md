@@ -39,19 +39,45 @@ A wrapper must be started; incomplete stop/callback cleanup yields Stopping
 and completed stop yields NotStarted. Missing native server capability
 or a missing target yields NotReady.
 
+## Reliable and explicit blocking sends
+
+Reliable send_to/send_to_line and explicit send_to_blocking now keep a single
+internal result across validation, waiting and final native admission.
+Validation precedes lifecycle and capacity, and includes the line delimiter
+and target hard queue limit. A callback scope never waits for capacity or
+retries after refusal. Only native WouldBlock is retried, at most five times;
+a terminal rejection is returned immediately.
+
+A send retains the exact selected session and wrapper generation at entry.
+Each session stores its first terminal wait cause under the admission mutex:
+server/wrapper stop selects CancelledWhileWaiting; session closure selects
+NotReady. A waiter keeps that cause after map removal, later stop or restart.
+Server stop cancels the selected sessions before cleanup can remove them.
+The wrapper also cancels waits before publishing its stopped state.
+
+A selected capacity-release result permits another lifecycle/admission check;
+it does not promise acceptance. Final native admission verifies that the target
+map still contains the retained session. The wrapper also checks its generation,
+so an old send cannot cross a wrapper restart. A changed target/run is refused
+without submitting data to a replacement session.
+
+Lock order is wrapper, native target admission, session map, then session
+admission. Session close releases its admission mutex before invoking callbacks
+that can acquire the server map. Wait polling needs only the retained session's
+admission mutex, so removal from the map cannot lose the terminal cause.
+
 ## Compatibility and remaining scope
 
-The exported session classes gain a mutex, changing their object layout.
-Rebuild consumers against the matching library. Public signatures stay bool.
-Wrapper prevalidation/start requirements also change observable behavior and
-native accounting. UDS ordinary session writes now explicitly validate the
-maximum message size before copying/reserving.
+The exported session classes gain admission/wait state, changing their object
+layout. Rebuild consumers against the matching library. Public signatures
+stay bool. Wrapper prevalidation/start requirements change observable behavior
+and native accounting, including Reliable/explicit blocking sends.
+UDS ordinary session writes explicitly validate the maximum message size
+before copying/reserving. Waiting sends no longer follow a replacement run
+or retry terminal refusals.
 
-Reliable/explicit blocking wrapper sends still use the existing bool retry
-path. Per-session first-terminal-cause wait records and final admission pins
-across wrapper restart are subsequent work; this change does not claim those
-guarantees. Public result-returning interfaces, custom Channel contracts and
-fanout aggregation remain pending.
+Public result-returning interfaces, custom Channel contracts and fanout
+aggregation remain pending. Acceptance is still local admission, not delivery.
 
 ## Verification
 
@@ -60,3 +86,11 @@ rejected move storage, empty/null/oversized payloads, and paused admission
 racing stop. TCP/UDS integration tests cover wrapper copy/line forms,
 native string/span ordinary/try forms, absent/disconnected targets,
 validation/accounting, queue capacity and stop lifecycle.
+
+Reliable tests pause the executor while publishing queue pressure, then park
+the sender at wait entry, selected release or final native admission. They
+cover connection loss before stop, native/wrapper stop before restart,
+replacement peers, capacity release before stop/restart, callback refusal and
+late loss at final admission. Replacement-session accepted counters stay zero.
+Separate tests check five-attempt capacity retries, single callback attempts,
+and validation before waiting without incrementing native counters.

@@ -73,6 +73,7 @@ void UdsServerSession::stop() { async_stop({}); }
 void UdsServerSession::async_stop(std::function<void()> completion) {
   std::lock_guard<std::mutex> admission_lock(submission_mtx_);
   closing_.store(true);
+  if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::NotReady;
   net::post(strand_, [self = shared_from_this(), completion = std::move(completion)] {
     self->on_bytes_ = nullptr;
     self->on_bp_ = nullptr;
@@ -81,6 +82,19 @@ void UdsServerSession::async_stop(std::function<void()> completion) {
     self->do_close();
     if (completion) completion();
   });
+}
+
+std::optional<wrapper::SendResult> UdsServerSession::poll_write_wait() const {
+  std::lock_guard<std::mutex> lock(submission_mtx_);
+  if (wait_ended_by_) return wrapper::SendResult::reject(*wait_ended_by_);
+  if (!alive_ || closing_) return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  if (!backpressure_active_) return wrapper::SendResult::accept();
+  return std::nullopt;
+}
+
+void UdsServerSession::cancel_write_wait() {
+  std::lock_guard<std::mutex> lock(submission_mtx_);
+  if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::CancelledWhileWaiting;
 }
 
 bool UdsServerSession::alive() const { return alive_.load(); }
@@ -436,6 +450,7 @@ void UdsServerSession::do_close() {
   cleanup_done_ = true;
   {
     std::lock_guard<std::mutex> lock(submission_mtx_);
+    if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::NotReady;
     closing_ = true;
     alive_ = false;
   }

@@ -44,6 +44,7 @@ namespace wrapper {
 class TcpServer;
 }
 namespace transport {
+class TcpServerSession;
 
 /**
  * @brief Thread-safe TCP Server implementation
@@ -120,7 +121,11 @@ class WIRESTEAD_API TcpServer : public interface::Channel, public std::enable_sh
  private:
   friend class wrapper::TcpServer;
   wrapper::SendResult target_state() const;
-  wrapper::SendResult write_target(ClientId client_id, memory::ConstByteSpan data, bool try_only);
+  std::shared_ptr<TcpServerSession> capture_target(ClientId client_id) const;
+  std::optional<wrapper::SendResult> poll_target_wait(const std::shared_ptr<TcpServerSession>& session) const;
+  void cancel_target_waits();
+  wrapper::SendResult write_target(ClientId client_id, memory::ConstByteSpan data, bool try_only,
+                                   const std::shared_ptr<TcpServerSession>& expected = {});
   explicit TcpServer(const config::TcpServerConfig& cfg, bool use_shared_context);
   TcpServer(const config::TcpServerConfig& cfg, std::unique_ptr<interface::TcpAcceptorInterface> acceptor,
             boost::asio::io_context& ioc);

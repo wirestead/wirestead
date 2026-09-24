@@ -54,4 +54,6 @@ inline std::atomic<void (*)(const wrapper::SendResult&)> g_tcp_server_write_resu
 inline std::atomic<void (*)()> g_uds_session_write_admission_hook{nullptr};
 inline std::atomic<void (*)(const wrapper::SendResult&)> g_uds_session_write_result_hook{nullptr};
 inline std::atomic<void (*)(const wrapper::SendResult&)> g_uds_server_write_result_hook{nullptr};
+inline std::atomic<void (*)()> g_tcp_server_pinned_write_hook{nullptr};
+inline std::atomic<void (*)()> g_uds_server_pinned_write_hook{nullptr};
 }  // namespace wirestead::transport::detail

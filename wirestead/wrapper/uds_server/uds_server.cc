@@ -166,6 +166,23 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
     }
   }
 
+  // Caller holds mutex_. Final admission rechecks the native lifecycle.
+  SendResult send_state(const std::shared_ptr<transport::UdsServer>& ts) {
+    if (stop_callers_.load() != 0) return SendResult::reject(SendRejection::Stopping);
+    if (!started_.load()) {
+      if (stop_requested_) {
+        if (!callback_gate_.idle()) return SendResult::reject(SendRejection::Stopping);
+        if (ts) {
+          const auto state = ts->target_state();
+          if (!state.accepted() && state.reason() == SendRejection::Stopping) return state;
+        }
+      }
+      return SendResult::reject(SendRejection::NotStarted);
+    }
+    if (!ts) return SendResult::reject(SendRejection::NotReady);
+    return SendResult::accept();
+  }
+
   bool try_send_to(ClientId client_id, std::string_view data, bool best_effort_send = false) {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     auto ts = std::dynamic_pointer_cast<transport::UdsServer>(server_);
@@ -173,18 +190,8 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
       auto validation =
           detail::validate_payload_size(data.size(), ts ? ts->write_queue_limit(client_id) : std::nullopt);
       if (!validation.accepted()) return validation;
-      if (stop_callers_.load() != 0) return SendResult::reject(SendRejection::Stopping);
-      if (!started_.load()) {
-        if (stop_requested_) {
-          if (!callback_gate_.idle()) return SendResult::reject(SendRejection::Stopping);
-          if (ts) {
-            const auto state = ts->target_state();
-            if (!state.accepted() && state.reason() == SendRejection::Stopping) return state;
-          }
-        }
-        return SendResult::reject(SendRejection::NotStarted);
-      }
-      if (!ts) return SendResult::reject(SendRejection::NotReady);
+      const auto state = send_state(ts);
+      if (!state.accepted()) return state;
       auto admitted = ts->write_target(
           client_id, memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(data.data()), data.size()), true);
       if (best_effort_send && !admitted.accepted() && admitted.reason() == SendRejection::WouldBlock)
@@ -228,27 +235,65 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
   static constexpr int kMaxBlockingSendAttempts = 5;
 
   bool send_to_blocking(ClientId client_id, std::string_view data) {
-    for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
-      std::unique_lock<std::mutex> lock(bp_mutex_);
-      auto predicate = [this, client_id, payload_size = data.size()]() {
-        std::shared_lock<std::shared_mutex> rlock(mutex_);
-        auto ts = std::dynamic_pointer_cast<transport::UdsServer>(server_);
-        return !started_.load() || !ts ||
-               !detail::payload_needs_capacity(payload_size, ts->write_queue_limit(client_id)) ||
-               !ts->is_backpressure_active(client_id);
-      };
-      if (detail::payload_needs_capacity(data.size())) {
-        if (!predicate() && detail::in_data_callback()) return false;
-        while (!bp_cv_.wait_for(lock, std::chrono::milliseconds(50), predicate)) {
-        }
+    std::shared_ptr<transport::UdsServer> ts;
+    std::shared_ptr<transport::UdsServerSession> session;
+    uint64_t generation = 0;
+    const auto result = [&]() -> SendResult {
+      {
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        ts = std::dynamic_pointer_cast<transport::UdsServer>(server_);
+        auto validation =
+            detail::validate_payload_size(data.size(), ts ? ts->write_queue_limit(client_id) : std::nullopt);
+        if (!validation.accepted()) return validation;
+        auto state = send_state(ts);
+        if (!state.accepted()) return state;
+        state = ts->target_state();
+        if (!state.accepted()) return state;
+        generation = callback_generation_.load();
+        session = ts->capture_target(client_id);
+        if (!session) return SendResult::reject(SendRejection::NotReady);
       }
-      lock.unlock();
-      std::shared_lock<std::shared_mutex> rlock(mutex_);
-      auto ts = std::dynamic_pointer_cast<transport::UdsServer>(server_);
-      if (!ts) return false;
-      if (ts->send_to_client(client_id, data)) return true;
-    }
-    return false;
+      auto wait = [&]() -> SendResult {
+        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
+        {
+          std::shared_lock<std::shared_mutex> lock(mutex_);
+          // No observed pressure means no capacity wait. Final admission still
+          // checks lifecycle and the exact session selected at entry.
+          if (!started_.load() || callback_generation_.load() != generation ||
+              ts->poll_target_wait(session).has_value())
+            return SendResult::accept();
+        }
+        if (detail::in_data_callback()) return SendResult::reject(SendRejection::WouldBlock);
+        if (auto hook = detail::g_uds_server_capacity_wait_hook.load()) hook();
+        std::optional<SendResult> outcome;
+        auto released = [&] {
+          // The retained session owns its first terminal cause, even after
+          // removal from the map or a later server/wrapper restart.
+          outcome = ts->poll_target_wait(session);
+          return outcome.has_value();
+        };
+        while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), released)) {
+        }
+        if (auto hook = detail::g_uds_server_capacity_wait_result_hook.load()) hook(*outcome);
+        return *outcome;
+      };
+      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+        const auto released = wait();
+        if (!released.accepted()) return released;
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        const auto state = send_state(ts);
+        if (!state.accepted()) return state;
+        if (callback_generation_.load() != generation) return SendResult::reject(SendRejection::NotReady);
+        const auto admitted = ts->write_target(
+            client_id, memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(data.data()), data.size()), false,
+            session);
+        if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock) return admitted;
+        if (detail::in_data_callback()) return admitted;
+      }
+      return SendResult::reject(SendRejection::WouldBlock);
+    }();
+    if (auto hook = detail::g_uds_server_send_result_hook.load()) hook(result);
+    return result.accepted();
   }
 
   void schedule_batch_timer(uint64_t generation) {
@@ -330,6 +375,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
     {
       std::unique_lock<std::shared_mutex> lock(mutex_);
       stop_requested_ = true;
+      if (auto ts = std::dynamic_pointer_cast<transport::UdsServer>(server_)) ts->cancel_target_waits();
       started_.store(false);
       is_listening_.store(false);
       bp_cv_.notify_all();

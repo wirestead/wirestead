@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 
+#include "server_reliable_result_test.hpp"
 #include "tcp_stop_with_context.hpp"
 #include "test/mocks/mock_uds_acceptor.hpp"
 #include "test/mocks/mock_uds_socket.hpp"
@@ -1084,11 +1085,13 @@ TEST_P(UdsServerTargetResultTest, CombinesValidationLifecycleAndSessionAdmission
   config::UdsServerConfig cfg;
   cfg.socket_path = test::TestUtils::makeUniqueUdsSocketPath("target-result").string();
   cfg.backpressure_threshold = 1024;
-  cfg.backpressure_strategy = GetParam() >= 2 ? base::constants::BackpressureStrategy::BestEffort
-                                              : base::constants::BackpressureStrategy::Reliable;
+  cfg.backpressure_strategy = (GetParam() >= 2 && GetParam() < 11) || GetParam() == 14
+                                  ? base::constants::BackpressureStrategy::BestEffort
+                                  : base::constants::BackpressureStrategy::Reliable;
   auto native = transport::UdsServer::create(cfg, std::make_unique<transport::BoostUdsAcceptor>(io), io);
   wrapper::UdsServer server(native);
-  server.backpressure_strategy(cfg.backpressure_strategy);
+  server.backpressure_strategy(GetParam() >= 11 && GetParam() < 14 ? base::constants::BackpressureStrategy::Reliable
+                                                                   : cfg.backpressure_strategy);
   wrapper::detail::g_uds_server_send_result_hook.store(observe_target_result);
   transport::detail::g_uds_server_write_result_hook.store(observe_target_result);
   struct Cleanup {
@@ -1111,11 +1114,20 @@ TEST_P(UdsServerTargetResultTest, CombinesValidationLifecycleAndSessionAdmission
   };
   ClientId id = 999;
   const bool native_form = GetParam() >= 6 && GetParam() < 10;
+  const bool reliable_form = GetParam() >= 11;
+  const bool line_form = (!native_form && GetParam() < 11 && GetParam() % 2) || GetParam() == 12;
   auto write = [&](std::string_view data) {
     target_result.reset();
     target_observations = 0;
     bool accepted;
-    if (native_form) {
+    if (reliable_form) {
+      if (GetParam() == 11)
+        accepted = server.send_to(id, data);
+      else if (GetParam() == 12)
+        accepted = server.send_to_line(id, data);
+      else
+        accepted = server.send_to_blocking(id, data);
+    } else if (native_form) {
       if (GetParam() == 6)
         accepted = native->send_to_client(id, data);
       else if (GetParam() == 7)
@@ -1145,7 +1157,7 @@ TEST_P(UdsServerTargetResultTest, CombinesValidationLifecycleAndSessionAdmission
   };
   EXPECT_FALSE(write("valid"));
   reason(Rejection::NotStarted);
-  if (!native_form && GetParam() % 2 == 0) {
+  if (!native_form && !line_form) {
     EXPECT_FALSE(write(""));
     reason(Rejection::InvalidArgument);
   }
@@ -1171,15 +1183,29 @@ TEST_P(UdsServerTargetResultTest, CombinesValidationLifecycleAndSessionAdmission
     EXPECT_EQ(native->stats().failed_sends, failures);
   }
   EXPECT_TRUE(write("ok"));
-  const bool ordinary = native_form && GetParam() % 2 == 0;
-  const size_t used = !native_form && GetParam() % 2 ? 3 : 2;
+  const bool ordinary = reliable_form || (native_form && GetParam() % 2 == 0);
+  const size_t used = line_form ? 3 : 2;
   const auto fill = ordinary ? *native->write_queue_limit(id) - used : 1024 - used;
   if (ordinary)
     ASSERT_TRUE(native->send_to_client(id, std::string(fill, 'f')));
   else
     ASSERT_TRUE(native->try_send_to_client(id, std::string(fill, 'f')));
+  const auto failures_before = native->stats().failed_sends;
   EXPECT_FALSE(write("full"));
   reason(GetParam() >= 2 && GetParam() < 4 ? Rejection::QueueFull : Rejection::WouldBlock);
+  if (reliable_form) {
+    EXPECT_EQ(native->stats().failed_sends, failures_before + 5);
+    {
+      wrapper::detail::CallbackGuard callback;
+      EXPECT_FALSE(write("callback"));
+      reason(Rejection::WouldBlock);
+    }
+    EXPECT_EQ(native->stats().failed_sends, failures_before + 6);
+    const auto failures = native->stats().failed_sends;
+    EXPECT_FALSE(write(std::string(*native->write_queue_limit(id) + 1, 'x')));
+    reason(Rejection::TooLarge);
+    EXPECT_EQ(native->stats().failed_sends, failures);
+  }
   peer.close();
   ASSERT_TRUE(until([&] { return native->client_count() == 0; }));
   EXPECT_FALSE(write("disconnected"));
@@ -1196,5 +1222,25 @@ TEST_P(UdsServerTargetResultTest, CombinesValidationLifecycleAndSessionAdmission
   EXPECT_FALSE(write("stopped"));
   reason(Rejection::NotStarted);
 }
-INSTANTIATE_TEST_SUITE_P(WrapperAndNativeForms, UdsServerTargetResultTest, ::testing::Range(0, 11));
+INSTANTIATE_TEST_SUITE_P(WrapperAndNativeForms, UdsServerTargetResultTest, ::testing::Range(0, 15));
+}  // namespace
+
+namespace {
+class UdsServerReliableWaitResultTest : public ::testing::TestWithParam<int> {};
+TEST_P(UdsServerReliableWaitResultTest, PreservesFirstCauseAndPinsAdmission) {
+  using namespace wirestead;
+  boost::asio::io_context io;
+  config::UdsServerConfig cfg;
+  cfg.socket_path = test::TestUtils::makeUniqueUdsSocketPath("server-reliable").string();
+  cfg.backpressure_threshold = 1024;
+  test::server_wait::OnExit remove_path{[&] { test::TestUtils::removeFileIfExists(cfg.socket_path); }};
+  auto native = transport::UdsServer::create(cfg, std::make_unique<transport::BoostUdsAcceptor>(io), io);
+  boost::asio::local::stream_protocol::socket peer(io);
+  test::server_wait::run_case<wrapper::UdsServer>(
+      GetParam() / 4, GetParam() % 4, io, native, peer,
+      [&](auto& socket) { socket.connect(boost::asio::local::stream_protocol::endpoint(cfg.socket_path)); },
+      {wrapper::detail::g_uds_server_send_result_hook, wrapper::detail::g_uds_server_capacity_wait_hook,
+       wrapper::detail::g_uds_server_capacity_wait_result_hook, transport::detail::g_uds_server_pinned_write_hook});
+}
+INSTANTIATE_TEST_SUITE_P(FormsAndTerminalEvents, UdsServerReliableWaitResultTest, ::testing::Range(0, 44));
 }  // namespace
