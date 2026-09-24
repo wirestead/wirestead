@@ -10,6 +10,12 @@ and ABI policy.
 
 ### Added
 
+- UDP client and server targeted sends combine internal SendResult decisions
+  across validation, readiness, capacity waiting and final admission. Native
+  run/session pins and first terminal causes survive stop, error and restart.
+  Public methods still return bool.
+
+
 - Built-in UDS client admission and wrapper sends retain internal SendResult
   decisions across validation, lifecycle, capacity waits and final submission.
   Waits preserve the first stop/loss reason and pin the original connection.
@@ -51,6 +57,12 @@ and ABI policy.
   bool; this is the result-type foundation, not the transport migration.
 
 ### Changed
+
+- **Breaking:** Native UDP writes require an opened socket, and default-target
+  writes also require a configured/learned peer. Built-in wrappers require their
+  own start and validate payloads before native counters/diagnostics or waiting.
+  See [UDP send results](docs/udp_send_results.md).
+
 
 - **Breaking:** UDS client loss now discards old queued/posted writes instead of
   replaying them after reconnect. Old completions retain their own buffers and

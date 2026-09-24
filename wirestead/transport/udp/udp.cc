@@ -46,6 +46,8 @@
 #include "wirestead/transport/base/bp_utils.hpp"
 #include "wirestead/transport/base/error_info_holder.hpp"
 #include "wirestead/transport/base/stop_test_hook.hpp"
+#include "wirestead/transport/udp/detail/write_wait.hpp"
+#include "wirestead/wrapper/send_validation.hpp"
 
 namespace wirestead {
 namespace transport {
@@ -126,6 +128,26 @@ struct UdpChannel::Impl {
   size_t pending_io_ = 0;  // Strand-confined.
   std::mutex join_mtx_;
   static inline thread_local Impl* active_cleanup_ = nullptr;
+
+  std::vector<std::weak_ptr<detail::UdpWriteWait>> write_waits_;
+  // Caller holds submission_mtx_. A UDP run cannot change its selected remote.
+  std::optional<wrapper::SendRejection> admission_rejection(bool require_remote,
+                                                            std::optional<uint64_t> expected_run = std::nullopt) {
+    if (stop_requested_.load()) {
+      std::lock_guard<std::mutex> lock(stop_mtx_);
+      return cleanup_done_ ? wrapper::SendRejection::NotStarted : wrapper::SendRejection::Stopping;
+    }
+    if (!started_) return wrapper::SendRejection::NotStarted;
+    if ((expected_run && *expected_run != generation_) || !opened_ || state_.is_state(LinkState::Closed) ||
+        state_.is_state(LinkState::Error) || (require_remote && !remote_endpoint_))
+      return wrapper::SendRejection::NotReady;
+    return std::nullopt;
+  }
+  void end_write_waits(wrapper::SendRejection reason) {
+    for (auto& weak : write_waits_)
+      if (auto wait = weak.lock()) wait->end(reason);
+    write_waits_.clear();
+  }
 
   void mark_cleanup_done() {
     detail::stop_test_hook(this, true);
@@ -309,9 +331,13 @@ struct UdpChannel::Impl {
       ec.clear();
     }
 
-    opened_.store(true);
+    {
+      std::lock_guard<std::mutex> lock(submission_mtx_);
+      if (stop_requested_) return;
+      opened_.store(true);
+      connected_.store(remote_endpoint_.has_value());
+    }
     if (remote_endpoint_) {
-      connected_.store(true);
       transition_to(LinkState::Connected);
     } else {
       transition_to(LinkState::Listening);
@@ -704,7 +730,11 @@ struct UdpChannel::Impl {
       return;
     }
 
-    state_.set(target);
+    {
+      std::lock_guard<std::mutex> lock(submission_mtx_);
+      if (target == LinkState::Closed || target == LinkState::Error) end_write_waits(wrapper::SendRejection::NotReady);
+      state_.set(target);
+    }
     notify_state();
   }
 
@@ -850,6 +880,7 @@ void UdpChannel::stop() {
     // Accepted writes are posted before this cleanup request.
     std::lock_guard<std::mutex> lock(impl->submission_mtx_);
     if (!impl->stop_requested_.exchange(true)) {
+      impl->end_write_waits(wrapper::SendRejection::CancelledWhileWaiting);
       impl->stopping_ = true;
       if (impl->generation_.load() == 0) {
         inline_cleanup = true;
@@ -889,38 +920,66 @@ std::optional<diagnostics::ErrorInfo> UdpChannel::last_error_info() const {
   return get_impl()->error_info_holder_.last_error_info();
 }
 
+std::shared_ptr<detail::UdpWriteWait> UdpChannel::capture_write_wait(bool require_remote) {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (impl_->admission_rejection(require_remote)) return {};
+  auto wait = std::make_shared<detail::UdpWriteWait>(
+      detail::UdpWriteWait{impl_->generation_.load(), require_remote, std::nullopt});
+  std::erase_if(impl_->write_waits_, [](const auto& weak) { return weak.expired(); });
+  impl_->write_waits_.push_back(wait);
+  return wait;
+}
+std::optional<wrapper::SendResult> UdpChannel::poll_write_wait(const std::shared_ptr<detail::UdpWriteWait>& wait) {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (!wait) return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  if (wait->ended_by) return wrapper::SendResult::reject(*wait->ended_by);
+  if (auto reason = impl_->admission_rejection(wait->require_remote, wait->sequence))
+    return wrapper::SendResult::reject(*reason);
+  if (!impl_->backpressure_active_) return wrapper::SendResult::accept();
+  return std::nullopt;
+}
+void UdpChannel::end_write_wait(const std::shared_ptr<detail::UdpWriteWait>& wait, wrapper::SendRejection reason) {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (wait) wait->end(reason);
+}
+void UdpChannel::cancel_write_waits() {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  impl_->end_write_waits(wrapper::SendRejection::CancelledWhileWaiting);
+}
+std::optional<uint64_t> UdpChannel::write_connection() const {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (impl_->admission_rejection(true)) return std::nullopt;
+  return impl_->generation_.load();
+}
+wrapper::SendResult UdpChannel::write_state(bool require_remote) {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  if (auto reason = impl_->admission_rejection(require_remote)) return wrapper::SendResult::reject(*reason);
+  return wrapper::SendResult::accept();
+}
+
 bool UdpChannel::async_write_copy(memory::ConstByteSpan data) {
+  const auto result = write_copy(data);
+  if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdpChannel::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_run) {
+  if (expected_run) {
+    if (auto hook = detail::g_udp_pinned_write_hook.load()) hook();
+  }
   auto impl = get_impl();
   std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
   const auto generation = impl->generation_.load();
-  if (!impl->started_) {
+  const size_t size = data.size();
+  const auto validation = wrapper::detail::validate_payload_size(size);
+  if (!validation.accepted()) {
     impl->stats_.record_failed_send();
-    return false;
+    return validation;
   }
-  if (data.empty()) {
+  if (auto reason = impl->admission_rejection(true, expected_run)) {
     impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(*reason);
   }
-  if (impl->stop_requested_.load()) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-  if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-  if (!impl->remote_endpoint_) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-
-  size_t size = data.size();
-  if (size > base::constants::MAX_BUFFER_SIZE) {
-    WIRESTEAD_LOG_ERROR("udp", "write", "Write size exceeds maximum allowed");
-    impl->stats_.record_failed_send();
-    return false;
-  }
-
   if (impl->cfg_.enable_memory_pool && size <= 65536) {
     memory::PooledBuffer pooled(size, impl->pool_);
     if (pooled.valid()) {
@@ -928,7 +987,7 @@ bool UdpChannel::async_write_copy(memory::ConstByteSpan data) {
       if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
                                                impl->inflight_bytes_, size, impl->bp_limit_)) {
         impl->stats_.record_failed_send();
-        return false;
+        return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
       }
       impl->stats_.record_accepted(size);
       net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(pooled), size]() mutable {
@@ -937,14 +996,14 @@ bool UdpChannel::async_write_copy(memory::ConstByteSpan data) {
         if (!impl->enqueue_buffer(self, std::move(buf), size)) return;
         impl->do_write(self);
       });
-      return true;
+      return wrapper::SendResult::accept();
     }
   }
 
   if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
                                            impl->inflight_bytes_, size, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   std::vector<uint8_t> copy(data.begin(), data.end());
   impl->stats_.record_accepted(size);
@@ -954,35 +1013,32 @@ bool UdpChannel::async_write_copy(memory::ConstByteSpan data) {
     if (!impl->enqueue_buffer(self, std::move(buf), size)) return;
     impl->do_write(self);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool UdpChannel::async_write_move(std::vector<uint8_t>&& data) {
+  const auto result = write_move(std::move(data));
+  if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdpChannel::write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_run) {
+  if (expected_run) {
+    if (auto hook = detail::g_udp_pinned_write_hook.load()) hook();
+  }
   auto impl = get_impl();
   std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
   const auto generation = impl->generation_.load();
-  if (!impl->started_) {
+  const size_t size = data.size();
+  const auto validation = wrapper::detail::validate_payload_size(size);
+  if (!validation.accepted()) {
     impl->stats_.record_failed_send();
-    return false;
+    return validation;
   }
-  auto size = data.size();
-  if (size == 0) {
+  if (auto reason = impl->admission_rejection(true, expected_run)) {
     impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(*reason);
   }
-  if (impl->stop_requested_.load()) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-  if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-  if (!impl->remote_endpoint_) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-
   if (size > impl->bp_limit_) {
     WIRESTEAD_LOG_ERROR("udp", "write", "Queue limit exceeded by single write");
     // Keep error callbacks ordered with the same run's cleanup.
@@ -992,12 +1048,12 @@ bool UdpChannel::async_write_move(std::vector<uint8_t>&& data) {
       impl->transition_to(LinkState::Error, {}, "write", "Queue limit exceeded by single write");
     });
     impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
   if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
                                            impl->inflight_bytes_, size, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl->stats_.record_accepted(size);
   net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), size]() mutable {
@@ -1006,36 +1062,33 @@ bool UdpChannel::async_write_move(std::vector<uint8_t>&& data) {
     if (!impl->enqueue_buffer(self, std::move(buf), size)) return;
     impl->do_write(self);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool UdpChannel::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  const auto result = write_shared(std::move(data));
+  if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdpChannel::write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
+                                             std::optional<uint64_t> expected_run) {
+  if (expected_run) {
+    if (auto hook = detail::g_udp_pinned_write_hook.load()) hook();
+  }
   auto impl = get_impl();
   std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
   const auto generation = impl->generation_.load();
-  if (!impl->started_) {
+  const size_t size = data ? data->size() : 0;
+  const auto validation = wrapper::detail::validate_payload_size(size);
+  if (!validation.accepted()) {
     impl->stats_.record_failed_send();
-    return false;
+    return validation;
   }
-  if (!data || data->empty()) {
+  if (auto reason = impl->admission_rejection(true, expected_run)) {
     impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(*reason);
   }
-  if (impl->stop_requested_.load()) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-  if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-  if (!impl->remote_endpoint_) {
-    WIRESTEAD_LOG_WARNING("udp", "write", "Remote endpoint not set; dropping write request");
-    impl->stats_.record_failed_send();
-    return false;
-  }
-
-  auto size = data->size();
   if (size > impl->bp_limit_) {
     WIRESTEAD_LOG_ERROR("udp", "write", "Queue limit exceeded by single write");
     // Keep error callbacks ordered with the same run's cleanup.
@@ -1045,12 +1098,12 @@ bool UdpChannel::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> 
       impl->transition_to(LinkState::Error, {}, "write", "Queue limit exceeded by single write");
     });
     impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
   if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
                                            impl->inflight_bytes_, size, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl->stats_.record_accepted(size);
   net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), size]() mutable {
@@ -1059,34 +1112,46 @@ bool UdpChannel::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> 
     if (!impl->enqueue_buffer(self, std::move(buf), size)) return;
     impl->do_write(self);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool UdpChannel::async_try_write_copy(memory::ConstByteSpan data) {
-  if (data.empty() || data.size() > base::constants::MAX_BUFFER_SIZE) {
+  const auto result = try_write_copy(data);
+  if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdpChannel::try_write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_run) {
+  const auto validation = wrapper::detail::validate_payload_size(data.size());
+  if (!validation.accepted()) {
     get_impl()->stats_.record_failed_send();
-    return false;
+    return validation;
   }
-  return async_try_write_move(std::vector<uint8_t>(data.begin(), data.end()));
+  return try_write_move(std::vector<uint8_t>(data.begin(), data.end()), expected_run);
 }
 
 bool UdpChannel::async_try_write_move(std::vector<uint8_t>&& data) {
+  const auto result = try_write_move(std::move(data));
+  if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdpChannel::try_write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_run) {
+  if (expected_run) {
+    if (auto hook = detail::g_udp_pinned_write_hook.load()) hook();
+  }
   auto impl = get_impl();
   std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
   const auto generation = impl->generation_.load();
-  if (!impl->started_) {
+  const size_t size = data.size();
+  const auto validation = wrapper::detail::validate_payload_size(size);
+  if (!validation.accepted()) {
     impl->stats_.record_failed_send();
-    return false;
+    return validation;
   }
-  if (impl->stop_requested_.load() || impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) ||
-      impl->state_.is_state(LinkState::Error) || !impl->remote_endpoint_) {
+  if (auto reason = impl->admission_rejection(true, expected_run)) {
     impl->stats_.record_failed_send();
-    return false;
-  }
-  const auto size = data.size();
-  if (size == 0 || size > base::constants::MAX_BUFFER_SIZE) {
-    impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(*reason);
   }
   const auto reject_for_pressure = [impl, size]() {
     if (impl->bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {
@@ -1098,12 +1163,12 @@ bool UdpChannel::async_try_write_move(std::vector<uint8_t>&& data) {
   if (impl->backpressure_active_.load() || impl->queue_bytes_ + size > impl->bp_high_ ||
       impl->queue_bytes_ + impl->pending_bytes_ + size > impl->bp_limit_) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   if (!queue_util::try_reserve_write_bytes(impl->queue_bytes_, impl->pending_bytes_, impl->backpressure_active_, size,
                                            impl->bp_high_, impl->bp_limit_)) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl->stats_.record_accepted(size);
 
@@ -1122,26 +1187,32 @@ bool UdpChannel::async_try_write_move(std::vector<uint8_t>&& data) {
     impl->report_backpressure(self, impl->queue_bytes_);
     impl->do_write(self);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool UdpChannel::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  const auto result = try_write_shared(std::move(data));
+  if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdpChannel::try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
+                                                 std::optional<uint64_t> expected_run) {
+  if (expected_run) {
+    if (auto hook = detail::g_udp_pinned_write_hook.load()) hook();
+  }
   auto impl = get_impl();
   std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
   const auto generation = impl->generation_.load();
-  if (!impl->started_) {
+  const size_t size = data ? data->size() : 0;
+  const auto validation = wrapper::detail::validate_payload_size(size);
+  if (!validation.accepted()) {
     impl->stats_.record_failed_send();
-    return false;
+    return validation;
   }
-  if (impl->stop_requested_.load() || impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) ||
-      impl->state_.is_state(LinkState::Error) || !impl->remote_endpoint_ || !data || data->empty()) {
+  if (auto reason = impl->admission_rejection(true, expected_run)) {
     impl->stats_.record_failed_send();
-    return false;
-  }
-  const auto size = data->size();
-  if (size > base::constants::MAX_BUFFER_SIZE) {
-    impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(*reason);
   }
   const auto reject_for_pressure = [impl, size]() {
     if (impl->bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {
@@ -1153,12 +1224,12 @@ bool UdpChannel::async_try_write_shared(std::shared_ptr<const std::vector<uint8_
   if (impl->backpressure_active_.load() || impl->queue_bytes_ + size > impl->bp_high_ ||
       impl->queue_bytes_ + impl->pending_bytes_ + size > impl->bp_limit_) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   if (!queue_util::try_reserve_write_bytes(impl->queue_bytes_, impl->pending_bytes_, impl->backpressure_active_, size,
                                            impl->bp_high_, impl->bp_limit_)) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl->stats_.record_accepted(size);
 
@@ -1177,7 +1248,7 @@ bool UdpChannel::async_try_write_shared(std::shared_ptr<const std::vector<uint8_
     impl->report_backpressure(self, impl->queue_bytes_);
     impl->do_write(self);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 void UdpChannel::on_bytes(OnBytes cb) {
@@ -1203,31 +1274,28 @@ void UdpChannel::set_backpressure_strategy(base::constants::BackpressureStrategy
 }
 
 bool UdpChannel::async_write_to(memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& destination) {
+  const auto result = write_to(data, destination);
+  if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdpChannel::write_to(memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& destination,
+                                         std::optional<uint64_t> expected_run) {
+  if (expected_run) {
+    if (auto hook = detail::g_udp_pinned_write_hook.load()) hook();
+  }
   auto impl = get_impl();
   std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
   const auto generation = impl->generation_.load();
-  if (!impl->started_) {
+  const size_t size = data.size();
+  const auto validation = wrapper::detail::validate_payload_size(size);
+  if (!validation.accepted()) {
     impl->stats_.record_failed_send();
-    return false;
+    return validation;
   }
-  if (data.empty()) {
+  if (auto reason = impl->admission_rejection(false, expected_run)) {
     impl->stats_.record_failed_send();
-    return false;
-  }
-  if (impl->stop_requested_.load()) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-  if (impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
-    impl->stats_.record_failed_send();
-    return false;
-  }
-
-  size_t size = data.size();
-  if (size > base::constants::MAX_BUFFER_SIZE) {
-    WIRESTEAD_LOG_ERROR("udp", "write_to", "Write size exceeds maximum allowed");
-    impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(*reason);
   }
   if (impl->cfg_.enable_memory_pool && size <= 65536) {
     memory::PooledBuffer pooled(size, impl->pool_);
@@ -1236,7 +1304,7 @@ bool UdpChannel::async_write_to(memory::ConstByteSpan data, const boost::asio::i
       if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
                                                impl->inflight_bytes_, size, impl->bp_limit_)) {
         impl->stats_.record_failed_send();
-        return false;
+        return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
       }
       impl->stats_.record_accepted(size);
       net::post(impl->strand_,
@@ -1246,14 +1314,14 @@ bool UdpChannel::async_write_to(memory::ConstByteSpan data, const boost::asio::i
                   if (!impl->enqueue_buffer(self, std::move(buf), size, destination)) return;
                   impl->do_write(self);
                 });
-      return true;
+      return wrapper::SendResult::accept();
     }
   }
 
   if (!queue_util::try_reserve_limit_bytes(impl->write_reserve_mtx_, impl->queue_bytes_, impl->pending_bytes_,
                                            impl->inflight_bytes_, size, impl->bp_limit_)) {
     impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   std::vector<uint8_t> copy(data.begin(), data.end());
   impl->stats_.record_accepted(size);
@@ -1263,26 +1331,33 @@ bool UdpChannel::async_write_to(memory::ConstByteSpan data, const boost::asio::i
     if (!impl->enqueue_buffer(self, std::move(buf), size, destination)) return;
     impl->do_write(self);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool UdpChannel::async_try_write_to(memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& destination) {
+  const auto result = try_write_to(data, destination);
+  if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdpChannel::try_write_to(memory::ConstByteSpan data,
+                                             const boost::asio::ip::udp::endpoint& destination,
+                                             std::optional<uint64_t> expected_run) {
+  if (expected_run) {
+    if (auto hook = detail::g_udp_pinned_write_hook.load()) hook();
+  }
   auto impl = get_impl();
   std::lock_guard<std::mutex> submission_lock(impl->submission_mtx_);
   const auto generation = impl->generation_.load();
-  if (!impl->started_) {
+  const size_t size = data.size();
+  const auto validation = wrapper::detail::validate_payload_size(size);
+  if (!validation.accepted()) {
     impl->stats_.record_failed_send();
-    return false;
+    return validation;
   }
-  if (data.empty() || impl->stop_requested_.load() || impl->stopping_.load() ||
-      impl->state_.is_state(LinkState::Closed) || impl->state_.is_state(LinkState::Error)) {
+  if (auto reason = impl->admission_rejection(false, expected_run)) {
     impl->stats_.record_failed_send();
-    return false;
-  }
-  const auto size = data.size();
-  if (size > base::constants::MAX_BUFFER_SIZE) {
-    impl->stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(*reason);
   }
   const auto reject_for_pressure = [impl, size]() {
     if (impl->bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {
@@ -1294,12 +1369,12 @@ bool UdpChannel::async_try_write_to(memory::ConstByteSpan data, const boost::asi
   if (impl->backpressure_active_.load() || impl->queue_bytes_ + size > impl->bp_high_ ||
       impl->queue_bytes_ + impl->pending_bytes_ + size > impl->bp_limit_) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   if (!queue_util::try_reserve_write_bytes(impl->queue_bytes_, impl->pending_bytes_, impl->backpressure_active_, size,
                                            impl->bp_high_, impl->bp_limit_)) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
 
   std::vector<uint8_t> copy(data.begin(), data.end());
@@ -1319,7 +1394,7 @@ bool UdpChannel::async_try_write_to(memory::ConstByteSpan data, const boost::asi
     impl->report_backpressure(self, impl->queue_bytes_);
     impl->do_write(self);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 // Takes callback_mtx_ like every other setter here. It previously assigned
