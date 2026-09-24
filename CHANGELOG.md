@@ -10,6 +10,11 @@ and ABI policy.
 
 ### Added
 
+- TCP/UDS server sessions and targeted sends retain internal SendResult
+  decisions. Nonblocking wrapper sends combine validation, lifecycle and
+  native admission; explicit try keeps WouldBlock and BestEffort maps it to
+  QueueFull. Public return types remain bool.
+
 - Serial native and wrapper sends retain internal SendResult decisions across
   validation, readiness, capacity waiting and pinned device admission. Waits
   preserve the first stop/loss cause. Public methods still return bool.
@@ -61,6 +66,12 @@ and ABI policy.
   bool; this is the result-type foundation, not the transport migration.
 
 ### Changed
+
+- **Breaking ABI/behavior:** TCP/UDS server sessions gain admission mutexes;
+  rebuild consumers for the changed session layouts. Nonblocking server
+  wrappers require start and validate before native accounting. Session
+  stop/close is ordered with admission, and UDS ordinary writes explicitly
+  reject payloads above MAX_BUFFER_SIZE.
 
 - **Breaking:** Serial writes require an opened and configured device. Device
   loss discards old queued/posted data instead of replaying it after reopen.

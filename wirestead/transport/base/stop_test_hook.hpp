@@ -48,4 +48,10 @@ inline std::atomic<StopTestHook> g_stop_test_hook{nullptr};
 inline void stop_test_hook(const void* object, bool completing) {
   if (auto hook = g_stop_test_hook.load(std::memory_order_acquire)) hook(object, completing);
 }
+inline std::atomic<void (*)()> g_tcp_session_write_admission_hook{nullptr};
+inline std::atomic<void (*)(const wrapper::SendResult&)> g_tcp_session_write_result_hook{nullptr};
+inline std::atomic<void (*)(const wrapper::SendResult&)> g_tcp_server_write_result_hook{nullptr};
+inline std::atomic<void (*)()> g_uds_session_write_admission_hook{nullptr};
+inline std::atomic<void (*)(const wrapper::SendResult&)> g_uds_session_write_result_hook{nullptr};
+inline std::atomic<void (*)(const wrapper::SendResult&)> g_uds_server_write_result_hook{nullptr};
 }  // namespace wirestead::transport::detail

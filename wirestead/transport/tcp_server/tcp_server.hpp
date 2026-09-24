@@ -26,6 +26,7 @@
 #include "wirestead/config/tcp_server_config.hpp"
 #include "wirestead/diagnostics/error_types.hpp"
 #include "wirestead/interface/channel.hpp"
+#include "wirestead/wrapper/send_result.hpp"
 
 namespace boost {
 namespace asio {
@@ -39,6 +40,9 @@ namespace interface {
 class TcpAcceptorInterface;
 }
 
+namespace wrapper {
+class TcpServer;
+}
 namespace transport {
 
 /**
@@ -114,6 +118,9 @@ class WIRESTEAD_API TcpServer : public interface::Channel, public std::enable_sh
   base::LinkState state() const;
 
  private:
+  friend class wrapper::TcpServer;
+  wrapper::SendResult target_state() const;
+  wrapper::SendResult write_target(ClientId client_id, memory::ConstByteSpan data, bool try_only);
   explicit TcpServer(const config::TcpServerConfig& cfg, bool use_shared_context);
   TcpServer(const config::TcpServerConfig& cfg, std::unique_ptr<interface::TcpAcceptorInterface> acceptor,
             boost::asio::io_context& ioc);
