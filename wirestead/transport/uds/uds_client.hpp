@@ -31,6 +31,7 @@
 #include "wirestead/interface/iuds_socket.hpp"
 #include "wirestead/memory/memory_pool.hpp"
 #include "wirestead/transport/base/reconnect_policy.hpp"
+#include "wirestead/wrapper/send_result.hpp"
 
 // Forward declare boost components
 namespace boost {
@@ -40,7 +41,13 @@ class io_context;
 }  // namespace boost
 
 namespace wirestead {
+namespace wrapper {
+class UdsClient;
+}
 namespace transport {
+namespace detail {
+struct UdsWriteWait;
+}
 
 using base::LinkState;
 using config::UdsClientConfig;
@@ -96,6 +103,24 @@ class WIRESTEAD_API UdsClient : public Channel, public std::enable_shared_from_t
   void set_reconnect_policy(ReconnectPolicy policy);
 
  private:
+  // The built-in wrapper pins capacity waits without extending Channel's ABI.
+  friend class wrapper::UdsClient;
+  std::optional<uint64_t> write_connection() const;
+  std::shared_ptr<detail::UdsWriteWait> capture_write_wait() const;
+  std::optional<wrapper::SendResult> poll_write_wait(const std::shared_ptr<detail::UdsWriteWait>& wait) const;
+  void cancel_write_waits();
+  wrapper::SendResult write_state();
+  // Native admission only: wrapper lifecycle, validation precedence and
+  // strategy-level reason mapping remain the wrapper's responsibility.
+  wrapper::SendResult write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection);
+  wrapper::SendResult write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection);
+  wrapper::SendResult write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
+                                   std::optional<uint64_t> expected_connection);
+
+  wrapper::SendResult try_write_copy(memory::ConstByteSpan data);
+  wrapper::SendResult try_write_move(std::vector<uint8_t>&& data);
+  wrapper::SendResult try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data);
+
   explicit UdsClient(const UdsClientConfig& cfg);
   explicit UdsClient(const UdsClientConfig& cfg, boost::asio::io_context& ioc);
   UdsClient(const UdsClientConfig& cfg, std::unique_ptr<interface::UdsSocketInterface> socket,

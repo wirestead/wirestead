@@ -32,6 +32,9 @@ inline std::atomic<void (*)()> g_tcp_write_admission_hook{nullptr};
 inline std::atomic<void (*)()> g_tcp_pinned_write_hook{nullptr};
 // Observe native admission outcomes after the submission lock is released.
 inline std::atomic<void (*)(const wrapper::SendResult&)> g_tcp_write_result_hook{nullptr};
+inline std::atomic<void (*)()> g_uds_write_admission_hook{nullptr};
+inline std::atomic<void (*)()> g_uds_pinned_write_hook{nullptr};
+inline std::atomic<void (*)(const wrapper::SendResult&)> g_uds_write_result_hook{nullptr};
 inline std::atomic<void (*)()> g_uds_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_udp_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_serial_io_completion_hook{nullptr};

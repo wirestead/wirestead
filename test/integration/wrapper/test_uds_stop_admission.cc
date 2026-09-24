@@ -356,3 +356,184 @@ TEST(UdsCancelledIoCompletionTest, OutsideStopsWaitForTheLastCancelledHandler) {
 INSTANTIATE_TEST_SUITE_P(ClientAndServer, UdsStopAdmissionTest, ::testing::Bool());
 
 }  // namespace
+
+namespace {
+std::atomic<int> observed_send_result{-1};
+void observe_send_result(const wrapper::SendResult& result) {
+  observed_send_result = result.accepted() ? 100 : static_cast<int>(result.reason());
+}
+std::atomic<int> observed_wait_result{-1};
+std::atomic<AdmissionPark*> wait_result_park{nullptr};
+void observe_wait_result(const wrapper::SendResult& result) {
+  if (auto park = wait_result_park.load()) {
+    park->entered.notify();
+    park->release.hold();
+  }
+  observed_wait_result = result.accepted() ? 100 : static_cast<int>(result.reason());
+}
+
+class UdsCapacityWaitConnectionTest : public ::testing::TestWithParam<int> {};
+TEST_P(UdsCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
+  Context context;
+  namespace net = boost::asio;
+  using uds = net::local::stream_protocol;
+  net::io_context peer_io;
+  const auto path = test::TestUtils::makeUniqueUdsSocketPath("uds-wait").string();
+  OnExit remove_path{[&] { test::TestUtils::removeFileIfExists(path); }};
+  // Windows AF_UNIX bind rejects SO_REUSEADDR.
+  uds::acceptor acceptor(peer_io, uds::endpoint(path), false);
+  acceptor.set_option(net::socket_base::receive_buffer_size(1024));
+  acceptor.non_blocking(true);
+  uds::socket first(peer_io), second(peer_io);
+  config::UdsClientConfig cfg;
+  cfg.socket_path = path;
+  cfg.backpressure_threshold = 1024;
+  cfg.retry_interval_ms = 20;
+  auto transport = transport::UdsClient::create(cfg, *context.io);
+  wrapper::UdsClient client(transport);
+  std::atomic<int> connections{0};
+  AdmissionPark park, result_park;
+  std::future<bool> writer;
+  OnExit cleanup{[&] {
+    park.release.notify();
+    result_park.release.notify();
+    client.stop();
+    if (writer.valid()) writer.wait();
+    wrapper::detail::g_uds_capacity_wait_hook.store(nullptr);
+    wrapper::detail::g_uds_capacity_wait_result_hook.store(nullptr);
+    wrapper::detail::g_uds_send_result_hook.store(nullptr);
+    wait_result_park.store(nullptr);
+    transport::detail::g_uds_pinned_write_hook.store(nullptr);
+    admission_park.store(nullptr);
+  }};
+  auto accept = [&](uds::socket& socket) {
+    return test::TestUtils::waitForCondition(
+        [&] {
+          boost::system::error_code ec;
+          acceptor.accept(socket, ec);
+          return !ec;
+        },
+        3000);
+  };
+  client.on_connect([&](const auto&) { ++connections; });
+  auto ready = client.start();
+  ASSERT_TRUE(accept(first));
+  ASSERT_EQ(ready.wait_for(3s), std::future_status::ready);
+  ASSERT_TRUE(ready.get());
+  if (GetParam() < 12 || GetParam() >= 18) {
+    ASSERT_TRUE(transport->async_write_move(std::vector<uint8_t>(512 * 1024, 'x')));
+    ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_backpressure_active(); }, 3000));
+  }
+  observed_wait_result = -1;
+  wrapper::detail::g_uds_capacity_wait_result_hook.store(&observe_wait_result);
+  if (GetParam() >= 30 && GetParam() < 36) wait_result_park.store(&result_park);
+  admission_park.store(&park);
+  if (GetParam() < 12 || GetParam() >= 18) {
+    wrapper::detail::g_uds_capacity_wait_hook.store(&park_admission);
+  } else {
+    transport::detail::g_uds_pinned_write_hook.store(&park_admission);
+  }
+  auto send = [&] {
+    switch (GetParam() % 6) {
+      case 0:
+        return client.send("old");
+      case 1:
+        return client.send_line("old");
+      case 2:
+        return client.send_blocking("old");
+      case 3:
+        return client.send_line_blocking("old");
+      case 4:
+        return client.send_move(std::vector<uint8_t>{1, 2, 3});
+      default:
+        return client.send_shared(std::make_shared<const std::vector<uint8_t>>(3, 42));
+    }
+  };
+  observed_send_result = -1;
+  wrapper::detail::g_uds_send_result_hook.store(&observe_send_result);
+  if (GetParam() >= 42) {
+    wrapper::detail::CallbackGuard guard;
+    EXPECT_FALSE(send());
+    EXPECT_EQ(observed_send_result, static_cast<int>(wrapper::SendRejection::WouldBlock));
+    EXPECT_EQ(observed_wait_result, -1);
+    return;
+  }
+  writer = std::async(std::launch::async, send);
+  ASSERT_TRUE(park.entered.wait());
+  if (GetParam() < 18) {
+    first.close();
+    if (GetParam() < 12) {
+      ASSERT_TRUE(accept(second));
+      ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_connected(); }, 3000));
+    } else {
+      // UDS publishes Error before scheduling retry. The parked sender holds
+      // the wrapper read lock, so let it reject before completing that callback.
+      ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return !transport->is_connected(); }, 3000));
+    }
+    if (GetParam() >= 6 && GetParam() < 12) {
+      ASSERT_TRUE(transport->async_write_move(std::vector<uint8_t>(512 * 1024, 'y')));
+      ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_backpressure_active(); }, 3000));
+    }
+  } else if (GetParam() < 24) {
+    // Prevent a replacement connection while proving loss-before-stop ordering.
+    acceptor.close();
+    first.close();
+    ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return !transport->is_connected(); }, 3000));
+    client.stop();
+  } else if (GetParam() < 30) {
+    if (GetParam() % 2 == 0)
+      transport->stop();
+    else
+      client.stop();
+    first.close();
+  } else {
+    // Drain the actual socket, then freeze the selected capacity result.
+    first.set_option(net::socket_base::receive_buffer_size(1024 * 1024));
+    first.non_blocking(true);
+    std::vector<uint8_t> buffer(512 * 1024);
+    size_t received = 0;
+    ASSERT_TRUE(test::TestUtils::waitForCondition(
+        [&] {
+          boost::system::error_code ec;
+          received += first.read_some(net::buffer(buffer.data(), buffer.size()), ec);
+          return received == 512 * 1024;
+        },
+        10000));
+    ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return !transport->is_backpressure_active(); }, 3000));
+  }
+  const auto accepted_before = transport->stats().messages_accepted;
+  park.release.notify();
+  if (GetParam() >= 30 && GetParam() < 36) {
+    ASSERT_TRUE(result_park.entered.wait());
+    client.stop();
+    result_park.release.notify();
+  }
+  const auto status = writer.wait_for(300ms);
+  EXPECT_EQ(status, std::future_status::ready);
+  if (status != std::future_status::ready) client.stop();
+  const bool capacity_accepted = GetParam() >= 36;
+  EXPECT_EQ(writer.get(), capacity_accepted);
+  EXPECT_EQ(transport->stats().messages_accepted, accepted_before + (capacity_accepted ? 1 : 0));
+  const auto expected_send = capacity_accepted  ? 100
+                             : GetParam() >= 30 ? static_cast<int>(wrapper::SendRejection::NotStarted)
+                             : GetParam() >= 24 ? static_cast<int>(wrapper::SendRejection::CancelledWhileWaiting)
+                                                : static_cast<int>(wrapper::SendRejection::NotReady);
+  EXPECT_EQ(observed_send_result, expected_send);
+  if (GetParam() < 12 || (GetParam() >= 18 && GetParam() < 24)) {
+    EXPECT_EQ(observed_wait_result, static_cast<int>(wrapper::SendRejection::NotReady));
+  } else if (GetParam() >= 24 && GetParam() < 30) {
+    EXPECT_EQ(observed_wait_result, static_cast<int>(wrapper::SendRejection::CancelledWhileWaiting));
+  } else if (GetParam() >= 30) {
+    EXPECT_EQ(observed_wait_result, 100);
+  }
+  if (GetParam() < 6 || (GetParam() >= 12 && GetParam() < 18)) {
+    if (GetParam() >= 12) {
+      ASSERT_TRUE(accept(second));
+      ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_connected(); }, 3000));
+    }
+    EXPECT_TRUE(client.send("new"));
+    EXPECT_EQ(transport->stats().messages_accepted, accepted_before + 1);
+  }
+}
+INSTANTIATE_TEST_SUITE_P(ReconnectAndReleaseReasons, UdsCapacityWaitConnectionTest, ::testing::Range(0, 48));
+}  // namespace

@@ -10,6 +10,12 @@ and ABI policy.
 
 ### Added
 
+- Built-in UDS client admission and wrapper sends retain internal SendResult
+  decisions across validation, lifecycle, capacity waits and final submission.
+  Waits preserve the first stop/loss reason and pin the original connection.
+  Public send methods still return bool.
+
+
 - Built-in TCP Reliable and explicit blocking sends now retain one internal
   SendResult across validation, capacity waiting and pinned native admission.
   Wait cancellation/loss reasons survive later state changes, and only native
@@ -45,6 +51,13 @@ and ABI policy.
   bool; this is the result-type foundation, not the transport migration.
 
 ### Changed
+
+- **Breaking:** UDS client loss now discards old queued/posted writes instead of
+  replaying them after reconnect. Old completions retain their own buffers and
+  cannot alter new connection state. Built-in UDS wrapper sends require wrapper
+  start and reject invalid payloads before waiting or native accounting.
+  See [UDS send results](docs/uds_send_results.md).
+
 
 - **Breaking behavior:** TCP Reliable and explicit blocking sends now reject invalid payloads before
   native handoff, matching nonblocking sends; these early rejections do not
