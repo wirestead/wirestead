@@ -94,6 +94,7 @@ struct TcpServer::Impl {
   // D-1: shutdown requested and shutdown completed are separate states. The
   // cleanup that tears the sessions down is what completes it, so waiting
   // callers wait for its signal rather than for a lock.
+  std::mutex target_admission_mtx_;
   std::mutex stop_mtx_;
   std::condition_variable stop_cv_;
   bool cleanup_done_ = false;
@@ -548,7 +549,11 @@ struct TcpServer::Impl {
 
   void stop(std::shared_ptr<TcpServer> self) {
     const bool on_executor = ioc_.get_executor().running_in_this_thread();
-    const bool first = !stopping_.exchange(true);
+    bool first;
+    {
+      std::lock_guard<std::mutex> lock(target_admission_mtx_);
+      first = !stopping_.exchange(true);
+    }
     if (first) {
       {
         std::lock_guard<std::mutex> lock(sessions_mutex_);
@@ -943,14 +948,9 @@ bool TcpServer::send_to_client(ClientId client_id, std::string_view message) {
 }
 
 bool TcpServer::send_to_client(ClientId client_id, memory::ConstByteSpan data) {
-  auto impl = get_impl();
-  std::lock_guard<std::mutex> lock(impl->sessions_mutex_);
-  auto it = impl->sessions_.find(client_id);
-  if (it != impl->sessions_.end() && it->second && it->second->alive()) {
-    return it->second->async_write_copy(data);
-  }
-  impl->stats_.record_failed_send();
-  return false;
+  const auto result = write_target(client_id, data, false);
+  if (auto hook = detail::g_tcp_server_write_result_hook.load()) hook(result);
+  return result.accepted();
 }
 
 bool TcpServer::try_send_to_client(ClientId client_id, std::string_view message) {
@@ -959,14 +959,35 @@ bool TcpServer::try_send_to_client(ClientId client_id, std::string_view message)
 }
 
 bool TcpServer::try_send_to_client(ClientId client_id, memory::ConstByteSpan data) {
-  auto impl = get_impl();
-  std::lock_guard<std::mutex> lock(impl->sessions_mutex_);
-  auto it = impl->sessions_.find(client_id);
-  if (it != impl->sessions_.end() && it->second && it->second->alive()) {
-    return it->second->async_try_write_copy(data);
+  const auto result = write_target(client_id, data, true);
+  if (auto hook = detail::g_tcp_server_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult TcpServer::target_state() const {
+  if (impl_->stopping_.load()) {
+    std::lock_guard<std::mutex> lock(impl_->stop_mtx_);
+    return wrapper::SendResult::reject(impl_->cleanup_done_ ? wrapper::SendRejection::NotStarted
+                                                            : wrapper::SendRejection::Stopping);
   }
-  impl->stats_.record_failed_send();
-  return false;
+  if (impl_->generation_.load() == 0) return wrapper::SendResult::reject(wrapper::SendRejection::NotStarted);
+  return wrapper::SendResult::accept();
+}
+
+wrapper::SendResult TcpServer::write_target(ClientId client_id, memory::ConstByteSpan data, bool try_only) {
+  std::lock_guard<std::mutex> admission_lock(impl_->target_admission_mtx_);
+  const auto state = target_state();
+  if (!state.accepted()) {
+    impl_->stats_.record_failed_send();
+    return state;
+  }
+  std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
+  auto it = impl_->sessions_.find(client_id);
+  if (it == impl_->sessions_.end() || !it->second) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  }
+  return try_only ? it->second->try_write_copy(data) : it->second->write_copy(data);
 }
 
 size_t TcpServer::client_count() const {

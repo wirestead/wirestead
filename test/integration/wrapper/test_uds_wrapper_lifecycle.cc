@@ -22,6 +22,7 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,7 @@
 #include "test_utils.hpp"
 #include "wirestead/framer/line_framer.hpp"
 #include "wirestead/transport/base/stop_test_hook.hpp"
+#include "wirestead/transport/uds/boost_uds_acceptor.hpp"
 #include "wirestead/transport/uds/uds_client.hpp"
 #include "wirestead/transport/uds/uds_server.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
@@ -1065,4 +1067,134 @@ TEST_P(UdsNativeResultTest, ReportsLifecycleValidationAndCapacityAtAdmission) {
   reason(Rejection::NotStarted);
 }
 INSTANTIATE_TEST_SUITE_P(FormsAndStrategies, UdsNativeResultTest, ::testing::Range(0, 12));
+}  // namespace
+
+namespace {
+thread_local std::optional<wirestead::wrapper::SendResult> target_result;
+thread_local int target_observations = 0;
+void observe_target_result(const wirestead::wrapper::SendResult& result) {
+  target_result = result;
+  ++target_observations;
+}
+class UdsServerTargetResultTest : public ::testing::TestWithParam<int> {};
+TEST_P(UdsServerTargetResultTest, CombinesValidationLifecycleAndSessionAdmission) {
+  using namespace wirestead;
+  using Rejection = wrapper::SendRejection;
+  boost::asio::io_context io;
+  config::UdsServerConfig cfg;
+  cfg.socket_path = test::TestUtils::makeUniqueUdsSocketPath("target-result").string();
+  cfg.backpressure_threshold = 1024;
+  cfg.backpressure_strategy = GetParam() >= 2 ? base::constants::BackpressureStrategy::BestEffort
+                                              : base::constants::BackpressureStrategy::Reliable;
+  auto native = transport::UdsServer::create(cfg, std::make_unique<transport::BoostUdsAcceptor>(io), io);
+  wrapper::UdsServer server(native);
+  server.backpressure_strategy(cfg.backpressure_strategy);
+  wrapper::detail::g_uds_server_send_result_hook.store(observe_target_result);
+  transport::detail::g_uds_server_write_result_hook.store(observe_target_result);
+  struct Cleanup {
+    std::function<void()> action;
+    ~Cleanup() { action(); }
+  } cleanup{[&] {
+    wrapper::detail::g_uds_server_send_result_hook.store(nullptr);
+    transport::detail::g_uds_server_write_result_hook.store(nullptr);
+    test::stop_wrapper_with_context(server, io);
+    test::TestUtils::removeFileIfExists(cfg.socket_path);
+  }};
+  auto until = [&](auto predicate) {
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (!predicate()) {
+      if (std::chrono::steady_clock::now() >= deadline) return false;
+      if (io.stopped()) io.restart();
+      io.run_for(std::chrono::milliseconds(1));
+    }
+    return true;
+  };
+  ClientId id = 999;
+  const bool native_form = GetParam() >= 6 && GetParam() < 10;
+  auto write = [&](std::string_view data) {
+    target_result.reset();
+    target_observations = 0;
+    bool accepted;
+    if (native_form) {
+      if (GetParam() == 6)
+        accepted = native->send_to_client(id, data);
+      else if (GetParam() == 7)
+        accepted = native->try_send_to_client(id, data);
+      else if (GetParam() == 8)
+        accepted = native->send_to_client(
+            id, memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(data.data()), data.size()));
+      else
+        accepted = native->try_send_to_client(
+            id, memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(data.data()), data.size()));
+    } else if (GetParam() >= 2 && GetParam() < 4) {
+      accepted = GetParam() % 2 ? server.send_to_line(id, data) : server.send_to(id, data);
+    } else {
+      accepted = GetParam() % 2 ? server.try_send_to_line(id, data) : server.try_send_to(id, data);
+    }
+    EXPECT_EQ(target_observations, 1);
+    EXPECT_TRUE(target_result.has_value());
+    if (target_result) {
+      EXPECT_EQ(target_result->accepted(), accepted);
+    }
+    return accepted;
+  };
+  auto reason = [&](Rejection expected) {
+    ASSERT_TRUE(target_result.has_value());
+    ASSERT_FALSE(target_result->accepted());
+    EXPECT_EQ(target_result->reason(), expected);
+  };
+  EXPECT_FALSE(write("valid"));
+  reason(Rejection::NotStarted);
+  if (!native_form && GetParam() % 2 == 0) {
+    EXPECT_FALSE(write(""));
+    reason(Rejection::InvalidArgument);
+  }
+  if (GetParam() == 10) {
+    native->start();
+    ASSERT_TRUE(until([&] { return server.listening(); }));
+    EXPECT_FALSE(write("native running before wrapper start"));
+    reason(Rejection::NotStarted);
+  }
+  auto ready = server.start();
+  ASSERT_TRUE(until([&] { return ready.wait_for(std::chrono::seconds(0)) == std::future_status::ready; }));
+  ASSERT_TRUE(ready.get());
+  EXPECT_FALSE(write("missing"));
+  reason(Rejection::NotReady);
+  boost::asio::local::stream_protocol::socket peer(io);
+  peer.connect(boost::asio::local::stream_protocol::endpoint(cfg.socket_path));
+  ASSERT_TRUE(until([&] { return native->client_count() == 1; }));
+  id = native->connected_clients().front();
+  if (!native_form) {
+    const auto failures = native->stats().failed_sends;
+    EXPECT_FALSE(write(std::string(*native->write_queue_limit(id) + 1, 'x')));
+    reason(Rejection::TooLarge);
+    EXPECT_EQ(native->stats().failed_sends, failures);
+  }
+  EXPECT_TRUE(write("ok"));
+  const bool ordinary = native_form && GetParam() % 2 == 0;
+  const size_t used = !native_form && GetParam() % 2 ? 3 : 2;
+  const auto fill = ordinary ? *native->write_queue_limit(id) - used : 1024 - used;
+  if (ordinary)
+    ASSERT_TRUE(native->send_to_client(id, std::string(fill, 'f')));
+  else
+    ASSERT_TRUE(native->try_send_to_client(id, std::string(fill, 'f')));
+  EXPECT_FALSE(write("full"));
+  reason(GetParam() >= 2 && GetParam() < 4 ? Rejection::QueueFull : Rejection::WouldBlock);
+  peer.close();
+  ASSERT_TRUE(until([&] { return native->client_count() == 0; }));
+  EXPECT_FALSE(write("disconnected"));
+  reason(Rejection::NotReady);
+  bool stopped = false;
+  boost::asio::post(io, [&] {
+    server.stop();
+    EXPECT_FALSE(write("stopping"));
+    reason(Rejection::Stopping);
+    stopped = true;
+  });
+  ASSERT_TRUE(until([&] { return stopped; }));
+  test::stop_wrapper_with_context(server, io);
+  EXPECT_FALSE(write("stopped"));
+  reason(Rejection::NotStarted);
+}
+INSTANTIATE_TEST_SUITE_P(WrapperAndNativeForms, UdsServerTargetResultTest, ::testing::Range(0, 11));
 }  // namespace

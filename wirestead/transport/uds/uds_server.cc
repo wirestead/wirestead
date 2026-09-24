@@ -110,6 +110,7 @@ struct UdsServer::Impl {
 
   std::atomic<bool> stopping_{false};
   std::atomic<ClientId> next_client_id_{0};
+  std::mutex target_admission_mtx_;
   std::mutex stop_mtx_;
   std::condition_variable stop_cv_;
   bool cleanup_done_ = false;
@@ -232,7 +233,11 @@ struct UdsServer::Impl {
 
   void stop(std::shared_ptr<UdsServer> self) {
     const bool on_executor = ioc_->get_executor().running_in_this_thread();
-    const bool first = !stopping_.exchange(true);
+    bool first;
+    {
+      std::lock_guard<std::mutex> lock(target_admission_mtx_);
+      first = !stopping_.exchange(true);
+    }
     if (first) {
       {
         std::lock_guard<std::mutex> lock(sessions_mutex_);
@@ -573,17 +578,9 @@ bool UdsServer::send_to_client(ClientId client_id, std::string_view message) {
 }
 
 bool UdsServer::send_to_client(ClientId client_id, memory::ConstByteSpan data) {
-  std::shared_ptr<UdsServerSession> session;
-  {
-    std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
-    auto it = impl_->sessions_.find(client_id);
-    if (it != impl_->sessions_.end()) session = it->second;
-  }
-  if (session) {
-    return session->async_write_copy(data);
-  }
-  impl_->stats_.record_failed_send();
-  return false;
+  const auto result = write_target(client_id, data, false);
+  if (auto hook = detail::g_uds_server_write_result_hook.load()) hook(result);
+  return result.accepted();
 }
 
 bool UdsServer::try_send_to_client(ClientId client_id, std::string_view message) {
@@ -592,17 +589,35 @@ bool UdsServer::try_send_to_client(ClientId client_id, std::string_view message)
 }
 
 bool UdsServer::try_send_to_client(ClientId client_id, memory::ConstByteSpan data) {
-  std::shared_ptr<UdsServerSession> session;
-  {
-    std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
-    auto it = impl_->sessions_.find(client_id);
-    if (it != impl_->sessions_.end()) session = it->second;
+  const auto result = write_target(client_id, data, true);
+  if (auto hook = detail::g_uds_server_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdsServer::target_state() const {
+  if (impl_->stopping_.load()) {
+    std::lock_guard<std::mutex> lock(impl_->stop_mtx_);
+    return wrapper::SendResult::reject(impl_->cleanup_done_ ? wrapper::SendRejection::NotStarted
+                                                            : wrapper::SendRejection::Stopping);
   }
-  if (session) {
-    return session->async_try_write_copy(data);
+  if (impl_->generation_.load() == 0) return wrapper::SendResult::reject(wrapper::SendRejection::NotStarted);
+  return wrapper::SendResult::accept();
+}
+
+wrapper::SendResult UdsServer::write_target(ClientId client_id, memory::ConstByteSpan data, bool try_only) {
+  std::lock_guard<std::mutex> admission_lock(impl_->target_admission_mtx_);
+  const auto state = target_state();
+  if (!state.accepted()) {
+    impl_->stats_.record_failed_send();
+    return state;
   }
-  impl_->stats_.record_failed_send();
-  return false;
+  std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
+  auto it = impl_->sessions_.find(client_id);
+  if (it == impl_->sessions_.end() || !it->second) {
+    impl_->stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  }
+  return try_only ? it->second->try_write_copy(data) : it->second->write_copy(data);
 }
 
 size_t UdsServer::client_count() const {

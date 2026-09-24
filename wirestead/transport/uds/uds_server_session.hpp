@@ -39,6 +39,7 @@
 #include "wirestead/memory/memory_pool.hpp"
 #include "wirestead/memory/safe_span.hpp"
 #include "wirestead/transport/base/bp_state_machine.hpp"
+#include "wirestead/wrapper/send_result.hpp"
 
 namespace wirestead {
 namespace transport {
@@ -88,6 +89,17 @@ class WIRESTEAD_API UdsServerSession : public std::enable_shared_from_this<UdsSe
   void async_stop(std::function<void()> completion);
 
  private:
+  friend class UdsServer;
+  // Admission and close share this lock. Release it before invoking callbacks
+  // that may acquire the owning server session-map lock.
+  std::mutex submission_mtx_;
+  wrapper::SendResult write_copy(memory::ConstByteSpan data);
+  wrapper::SendResult write_move(std::vector<uint8_t>&& data);
+  wrapper::SendResult write_shared(std::shared_ptr<const std::vector<uint8_t>> data);
+  wrapper::SendResult try_write_copy(memory::ConstByteSpan data);
+  wrapper::SendResult try_write_move(std::vector<uint8_t>&& data);
+  wrapper::SendResult try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data);
+
   void start_read();
   void do_write();
   void do_close();

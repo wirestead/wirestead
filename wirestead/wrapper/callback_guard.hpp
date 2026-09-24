@@ -223,6 +223,8 @@ void invoke_user_callback(std::string_view component, std::string_view operation
   invoke_user_callback(component, operation, *callback, std::forward<Args>(args)...);
 }
 
+inline std::atomic<void (*)(const SendResult&)> g_tcp_server_send_result_hook{nullptr};
+inline std::atomic<void (*)(const SendResult&)> g_uds_server_send_result_hook{nullptr};
 }  // namespace detail
 }  // namespace wrapper
 }  // namespace wirestead

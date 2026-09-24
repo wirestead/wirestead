@@ -40,6 +40,8 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
   std::mutex stop_finalize_mutex_;
   bool injected_channel_ = false;
   std::atomic<uint64_t> callback_generation_{0};
+  bool stop_requested_ = false;
+  std::atomic<unsigned> stop_callers_{0};
 
   // True when this thread is one the target's shutdown needs: a callback of
   // this object, or any thread currently running the external io_context this
@@ -164,10 +166,34 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
     }
   }
 
-  bool try_send_to(ClientId client_id, std::string_view data) {
+  bool try_send_to(ClientId client_id, std::string_view data, bool best_effort_send = false) {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     auto ts = std::dynamic_pointer_cast<transport::UdsServer>(server_);
-    return ts ? ts->try_send_to_client(client_id, data) : false;
+    const auto result = [&]() -> SendResult {
+      auto validation =
+          detail::validate_payload_size(data.size(), ts ? ts->write_queue_limit(client_id) : std::nullopt);
+      if (!validation.accepted()) return validation;
+      if (stop_callers_.load() != 0) return SendResult::reject(SendRejection::Stopping);
+      if (!started_.load()) {
+        if (stop_requested_) {
+          if (!callback_gate_.idle()) return SendResult::reject(SendRejection::Stopping);
+          if (ts) {
+            const auto state = ts->target_state();
+            if (!state.accepted() && state.reason() == SendRejection::Stopping) return state;
+          }
+        }
+        return SendResult::reject(SendRejection::NotStarted);
+      }
+      if (!ts) return SendResult::reject(SendRejection::NotReady);
+      auto admitted = ts->write_target(
+          client_id, memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(data.data()), data.size()), true);
+      if (best_effort_send && !admitted.accepted() && admitted.reason() == SendRejection::WouldBlock)
+        return SendResult::reject(SendRejection::QueueFull);
+      return admitted;
+    }();
+    lock.unlock();
+    if (auto hook = detail::g_uds_server_send_result_hook.load()) hook(result);
+    return result.accepted();
   }
 
   bool try_broadcast(std::string_view data) {
@@ -179,7 +205,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
   bool send_to(ClientId client_id, std::string_view data) {
     if (backpressure_strategy_.load() == base::constants::BackpressureStrategy::Reliable)
       return send_to_blocking(client_id, data);
-    return try_send_to(client_id, data);
+    return try_send_to(client_id, data, true);
   }
 
   bool broadcast(std::string_view data) { return try_broadcast(data); }
@@ -241,7 +267,9 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
 
   std::future<bool> start() {
     std::unique_lock<std::shared_mutex> lock(mutex_);
+    stop_requested_ = false;
     if (is_listening_.load()) {
+      started_.store(true);
       std::promise<bool> p;
       p.set_value(true);
       return p.get_future();
@@ -291,11 +319,17 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   void stop() {
+    stop_callers_.fetch_add(1);
+    struct StopCall {
+      std::atomic<unsigned>& count;
+      ~StopCall() { count.fetch_sub(1); }
+    } stop_call{stop_callers_};
     const bool request_only = shutdown_needs_this_thread();
     callback_gate_.close();
     std::shared_ptr<interface::Channel> channel;
     {
       std::unique_lock<std::shared_mutex> lock(mutex_);
+      stop_requested_ = true;
       started_.store(false);
       is_listening_.store(false);
       bp_cv_.notify_all();

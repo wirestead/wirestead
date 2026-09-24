@@ -17,6 +17,7 @@
 #include "wirestead/transport/uds/uds_server_session.hpp"
 
 #include "wirestead/transport/base/bp_utils.hpp"
+#include "wirestead/transport/base/stop_test_hook.hpp"
 #include "wirestead/transport/uds/boost_uds_socket.hpp"
 
 namespace wirestead {
@@ -70,6 +71,7 @@ void UdsServerSession::start() {
 void UdsServerSession::stop() { async_stop({}); }
 
 void UdsServerSession::async_stop(std::function<void()> completion) {
+  std::lock_guard<std::mutex> admission_lock(submission_mtx_);
   closing_.store(true);
   net::post(strand_, [self = shared_from_this(), completion = std::move(completion)] {
     self->on_bytes_ = nullptr;
@@ -93,105 +95,188 @@ void UdsServerSession::reset_stats() {
 }
 
 bool UdsServerSession::async_write_copy(memory::ConstByteSpan data) {
+  const auto result = write_copy(data);
+  if (auto hook = detail::g_uds_session_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdsServerSession::write_copy(memory::ConstByteSpan data) {
+  std::lock_guard<std::mutex> admission_lock(submission_mtx_);
+  if (auto hook = detail::g_uds_session_write_admission_hook.load()) hook();
+  if (!alive_ || closing_) {
+    stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  }  // Don't queue writes if session is not alive
+
   size_t size = data.size();
-  if (enable_memory_pool_ && size > 0 && size <= 65536) {
-    if (!alive_ || closing_) {
-      stats_.record_failed_send();
-      return false;
-    }
-    memory::PooledBuffer pooled(size, pool_);
-    if (pooled.valid()) {
-      base::safe_memory::safe_memcpy(pooled.data(), data.data(), size);
+  if (size == 0) {
+    stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
+  }
+  if (size > base::constants::MAX_BUFFER_SIZE) {
+    WIRESTEAD_LOG_ERROR("uds_server_session", "write", "Write size exceeds maximum allowed");
+    stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
+  }
+
+  // Use memory pool for better performance (only for reasonable sizes)
+  if (size <= base::constants::LARGE_BUFFER_THRESHOLD && enable_memory_pool_) {  // Only use pool for buffers <= 64KB
+    memory::PooledBuffer pooled_buffer(size, pool_);
+    if (pooled_buffer.valid()) {
+      // Copy data to pooled buffer safely
+      base::safe_memory::safe_memcpy(pooled_buffer.data(), data.data(), size);
       if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, size,
                                                bp_limit_)) {
         stats_.record_failed_send();
-        return false;
+        return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
       }
       stats_.record_accepted(size);
-      net::post(strand_, [this, self = shared_from_this(), buf = std::move(pooled)]() mutable {
-        size_t added = buf.size();
-        if (!alive_) {
-          queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
-          stats_.record_failed_send();
+      net::post(strand_, [self = shared_from_this(), buf = std::move(pooled_buffer)]() mutable {
+        const auto added = buf.size();
+        if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
+          queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
+          self->stats_.record_failed_send();
           return;
         }
-        route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
+        self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
       });
-      return true;
+      return wrapper::SendResult::accept();
     }
   }
 
-  std::vector<uint8_t> vec(data.begin(), data.end());
-  return async_write_move(std::move(vec));
+  // Fallback to regular allocation for large buffers or pool exhaustion
+  if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, size,
+                                           bp_limit_)) {
+    stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
+  }
+  std::vector<uint8_t> fallback(data.begin(), data.end());
+  stats_.record_accepted(size);
+
+  net::post(strand_, [self = shared_from_this(), buf = std::move(fallback), size]() mutable {
+    if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
+      queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, size);
+      self->stats_.record_failed_send();
+      return;
+    }
+    self->route_enqueued_buffer(BufferVariant{std::move(buf)}, size);
+  });
+  return wrapper::SendResult::accept();
 }
 
 bool UdsServerSession::async_write_move(std::vector<uint8_t>&& data) {
+  const auto result = write_move(std::move(data));
+  if (auto hook = detail::g_uds_session_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdsServerSession::write_move(std::vector<uint8_t>&& data) {
+  std::lock_guard<std::mutex> admission_lock(submission_mtx_);
+  if (auto hook = detail::g_uds_session_write_admission_hook.load()) hook();
   if (!alive_ || closing_) {
     stats_.record_failed_send();
-    return false;
-  }
-  if (data.empty()) {
-    stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
   }
   const auto added = data.size();
+  if (added == 0) {
+    stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
+  }
+  if (added > base::constants::MAX_BUFFER_SIZE) {
+    WIRESTEAD_LOG_ERROR("uds_server_session", "write", "Write size exceeds maximum allowed");
+    stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
+  }
   if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, added,
                                            bp_limit_)) {
     stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   stats_.record_accepted(added);
-  net::post(strand_, [this, self = shared_from_this(), data = std::move(data), added]() mutable {
-    if (!alive_) {
-      queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
-      stats_.record_failed_send();
+  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
+    if (!self->alive_ || self->closing_) {
+      queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
+      self->stats_.record_failed_send();
       return;
     }
-    route_enqueued_buffer(BufferVariant{std::move(data)}, added);
+    self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool UdsServerSession::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
-  if (!alive_ || closing_ || !data || data->empty()) {
+  const auto result = write_shared(std::move(data));
+  if (auto hook = detail::g_uds_session_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdsServerSession::write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  std::lock_guard<std::mutex> admission_lock(submission_mtx_);
+  if (auto hook = detail::g_uds_session_write_admission_hook.load()) hook();
+  if (!alive_ || closing_) {
     stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  }
+  if (!data || data->empty()) {
+    stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
   const auto added = data->size();
+  if (added > base::constants::MAX_BUFFER_SIZE) {
+    WIRESTEAD_LOG_ERROR("uds_server_session", "write", "Write size exceeds maximum allowed");
+    stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
+  }
   if (!queue_util::try_reserve_limit_bytes(write_reserve_mtx_, queue_bytes_, pending_bytes_, inflight_bytes_, added,
                                            bp_limit_)) {
     stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   stats_.record_accepted(added);
-  net::post(strand_, [this, self = shared_from_this(), data = std::move(data), added]() mutable {
-    if (!alive_) {
-      queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
-      stats_.record_failed_send();
+  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
+    if (!self->alive_ || self->closing_) {
+      queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
+      self->stats_.record_failed_send();
       return;
     }
-    route_enqueued_buffer(BufferVariant{std::move(data)}, added);
+    self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool UdsServerSession::async_try_write_copy(memory::ConstByteSpan data) {
+  const auto result = try_write_copy(data);
+  if (auto hook = detail::g_uds_session_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdsServerSession::try_write_copy(memory::ConstByteSpan data) {
   if (data.empty() || data.size() > base::constants::MAX_BUFFER_SIZE) {
     stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(data.empty() ? wrapper::SendRejection::InvalidArgument
+                                                    : wrapper::SendRejection::TooLarge);
   }
-  return async_try_write_move(std::vector<uint8_t>(data.begin(), data.end()));
+  return try_write_move(std::vector<uint8_t>(data.begin(), data.end()));
 }
 
 bool UdsServerSession::async_try_write_move(std::vector<uint8_t>&& data) {
+  const auto result = try_write_move(std::move(data));
+  if (auto hook = detail::g_uds_session_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdsServerSession::try_write_move(std::vector<uint8_t>&& data) {
+  std::lock_guard<std::mutex> admission_lock(submission_mtx_);
+  if (auto hook = detail::g_uds_session_write_admission_hook.load()) hook();
   if (!alive_ || closing_) {
     stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
   }
   const auto added = data.size();
   if (added == 0 || added > base::constants::MAX_BUFFER_SIZE) {
     stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(added == 0 ? wrapper::SendRejection::InvalidArgument
+                                                  : wrapper::SendRejection::TooLarge);
   }
   const auto reject_for_pressure = [this, added]() {
     if (bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {
@@ -203,39 +288,51 @@ bool UdsServerSession::async_try_write_move(std::vector<uint8_t>&& data) {
   if (backpressure_active_.load() || queue_bytes_ + added > bp_high_ ||
       queue_bytes_ + pending_bytes_ + added > bp_limit_) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   if (!queue_util::try_reserve_write_bytes(queue_bytes_, pending_bytes_, backpressure_active_, added, bp_high_,
                                            bp_limit_)) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   stats_.record_accepted(added);
 
-  net::post(strand_, [this, self = shared_from_this(), data = std::move(data), added]() mutable {
-    if (!alive_ || closing_) {
-      queue_util::release_reserved_write_bytes(queue_bytes_, added);
-      stats_.record_failed_send();
+  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
+    if (!self->alive_ || self->closing_) {
+      queue_util::release_reserved_write_bytes(self->queue_bytes_, added);
+      self->stats_.record_failed_send();
       return;
     }
 
-    tx_.emplace_back(std::move(data));
-    observe_queue();
-    report_backpressure(queue_bytes_);
-    if (!writing_) do_write();
+    self->tx_.emplace_back(std::move(buf));
+    self->observe_queue();
+    self->report_backpressure(self->queue_bytes_);
+    if (!self->writing_) self->do_write();
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
 bool UdsServerSession::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
-  if (!alive_ || closing_ || !data || data->empty()) {
+  const auto result = try_write_shared(std::move(data));
+  if (auto hook = detail::g_uds_session_write_result_hook.load()) hook(result);
+  return result.accepted();
+}
+
+wrapper::SendResult UdsServerSession::try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  std::lock_guard<std::mutex> admission_lock(submission_mtx_);
+  if (auto hook = detail::g_uds_session_write_admission_hook.load()) hook();
+  if (!alive_ || closing_) {
     stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  }
+  if (!data || data->empty()) {
+    stats_.record_failed_send();
+    return wrapper::SendResult::reject(wrapper::SendRejection::InvalidArgument);
   }
   const auto added = data->size();
   if (added > base::constants::MAX_BUFFER_SIZE) {
     stats_.record_failed_send();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::TooLarge);
   }
   const auto reject_for_pressure = [this, added]() {
     if (bp_strategy_ == base::constants::BackpressureStrategy::BestEffort) {
@@ -247,35 +344,30 @@ bool UdsServerSession::async_try_write_shared(std::shared_ptr<const std::vector<
   if (backpressure_active_.load() || queue_bytes_ + added > bp_high_ ||
       queue_bytes_ + pending_bytes_ + added > bp_limit_) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   if (!queue_util::try_reserve_write_bytes(queue_bytes_, pending_bytes_, backpressure_active_, added, bp_high_,
                                            bp_limit_)) {
     reject_for_pressure();
-    return false;
+    return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   stats_.record_accepted(added);
 
-  net::post(strand_, [this, self = shared_from_this(), data = std::move(data), added]() mutable {
-    if (!alive_ || closing_) {
-      queue_util::release_reserved_write_bytes(queue_bytes_, added);
-      stats_.record_failed_send();
+  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
+    if (!self->alive_ || self->closing_) {
+      queue_util::release_reserved_write_bytes(self->queue_bytes_, added);
+      self->stats_.record_failed_send();
       return;
     }
 
-    tx_.emplace_back(std::move(data));
-    observe_queue();
-    report_backpressure(queue_bytes_);
-    if (!writing_) do_write();
+    self->tx_.emplace_back(std::move(buf));
+    self->observe_queue();
+    self->report_backpressure(self->queue_bytes_);
+    if (!self->writing_) self->do_write();
   });
-  return true;
+  return wrapper::SendResult::accept();
 }
 
-// Dispatched onto the strand rather than assigned directly: these setters
-// may be called from any user thread (e.g. UdsServer::on_backpressure()
-// forwarding to an already-accepted session), while the strand-confined
-// read sites below access the same fields with no other synchronization.
-// Matches the pattern already used correctly by TcpServerSession (#436).
 void UdsServerSession::on_bytes(OnBytes cb) {
   auto self = shared_from_this();
   net::dispatch(strand_, [self, cb = std::move(cb)]() mutable {
@@ -342,8 +434,11 @@ void UdsServerSession::do_write() {
 void UdsServerSession::do_close() {
   if (cleanup_done_) return;
   cleanup_done_ = true;
-  closing_ = true;
-  alive_ = false;
+  {
+    std::lock_guard<std::mutex> lock(submission_mtx_);
+    closing_ = true;
+    alive_ = false;
+  }
   auto close_cb = std::move(on_close_);
 
   boost::system::error_code ec;

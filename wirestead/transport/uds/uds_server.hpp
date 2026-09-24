@@ -26,6 +26,7 @@
 #include "wirestead/config/uds_config.hpp"
 #include "wirestead/diagnostics/error_types.hpp"
 #include "wirestead/interface/channel.hpp"
+#include "wirestead/wrapper/send_result.hpp"
 
 namespace boost {
 namespace asio {
@@ -39,6 +40,9 @@ namespace interface {
 class UdsAcceptorInterface;
 }
 
+namespace wrapper {
+class UdsServer;
+}
 namespace transport {
 
 /**
@@ -106,6 +110,9 @@ class WIRESTEAD_API UdsServer : public interface::Channel, public std::enable_sh
   base::LinkState state() const;
 
  private:
+  friend class wrapper::UdsServer;
+  wrapper::SendResult target_state() const;
+  wrapper::SendResult write_target(ClientId client_id, memory::ConstByteSpan data, bool try_only);
   explicit UdsServer(const config::UdsServerConfig& cfg);
   UdsServer(const config::UdsServerConfig& cfg, std::unique_ptr<interface::UdsAcceptorInterface> acceptor,
             boost::asio::io_context& ioc);
