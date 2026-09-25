@@ -60,14 +60,14 @@ class WIRESTEAD_API UdpServer : public ServerInterface {
 
   // Transmission
   bool broadcast(std::string_view data) override;
-  bool send_to(ClientId client_id, std::string_view data) override;
-  bool send_to_blocking(ClientId client_id, std::string_view data) override;
-  bool try_send_to(ClientId client_id, std::string_view data) override;
+  [[nodiscard]] SendResult send_to(ClientId client_id, std::string_view data) override;
+  [[nodiscard]] SendResult send_to_blocking(ClientId client_id, std::string_view data) override;
+  [[nodiscard]] SendResult try_send_to(ClientId client_id, std::string_view data) override;
   bool try_broadcast(std::string_view data) override;
   bool broadcast_line(std::string_view line) override;
-  bool send_to_line(ClientId client_id, std::string_view line) override;
+  [[nodiscard]] SendResult send_to_line(ClientId client_id, std::string_view line) override;
   bool try_broadcast_line(std::string_view line) override;
-  bool try_send_to_line(ClientId client_id, std::string_view line) override;
+  [[nodiscard]] SendResult try_send_to_line(ClientId client_id, std::string_view line) override;
 
   // Event handlers
   UdpServer& on_connect(ConnectionHandler handler) override;

@@ -112,7 +112,7 @@ void run_case(int event, int form, boost::asio::io_context& io, const std::share
   hooks.send = observe_send;
   hooks.wait_result = observe_wait;
   std::thread runner;
-  std::future<bool> writer;
+  std::future<wrapper::SendResult> writer;
   OnExit cleanup{[&] {
     state.entry.release.notify();
     state.selected.release.notify();
@@ -161,7 +161,9 @@ void run_case(int event, int form, boost::asio::io_context& io, const std::share
   using Rejection = wrapper::SendRejection;
   if (event == 7) {
     wrapper::detail::CallbackGuard callback;
-    EXPECT_FALSE(send());
+    const auto result = send();
+    ASSERT_FALSE(result.accepted());
+    EXPECT_EQ(result.reason(), Rejection::WouldBlock);
     EXPECT_EQ(state.send, static_cast<int>(Rejection::WouldBlock));
     EXPECT_EQ(state.wait, -1);
     EXPECT_EQ(state.sends, 1);
@@ -205,11 +207,13 @@ void run_case(int event, int form, boost::asio::io_context& io, const std::share
     state.selected.release.notify();
   }
   ASSERT_EQ(writer.wait_for(3s), std::future_status::ready);
-  EXPECT_EQ(writer.get(), event == 5);
+  const auto result = writer.get();
+  EXPECT_EQ(result.accepted(), event == 5);
   const int expected = event == 5 ? 100
                                   : static_cast<int>(event >= 2 && event <= 4 ? Rejection::CancelledWhileWaiting
                                                      : event == 6             ? Rejection::NotStarted
                                                                               : Rejection::NotReady);
+  EXPECT_EQ(code(result), expected);
   EXPECT_EQ(state.send, expected);
   EXPECT_EQ(state.sends, 1);
   if (event == 4 || event == 9 || event == 10) {

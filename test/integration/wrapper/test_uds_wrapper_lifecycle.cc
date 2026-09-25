@@ -1120,13 +1120,24 @@ TEST_P(UdsServerTargetResultTest, CombinesValidationLifecycleAndSessionAdmission
     target_result.reset();
     target_observations = 0;
     bool accepted;
+    auto public_acceptance = [&](wrapper::SendResult result) {
+      EXPECT_TRUE(target_result.has_value());
+      if (target_result) {
+        EXPECT_EQ(target_result->accepted(), result.accepted());
+        if (!result.accepted() && !target_result->accepted()) {
+          EXPECT_EQ(target_result->reason(), result.reason());
+        }
+      }
+      target_result = result;
+      return result.accepted();
+    };
     if (reliable_form) {
       if (GetParam() == 11)
-        accepted = server.send_to(id, data);
+        accepted = public_acceptance(server.send_to(id, data));
       else if (GetParam() == 12)
-        accepted = server.send_to_line(id, data);
+        accepted = public_acceptance(server.send_to_line(id, data));
       else
-        accepted = server.send_to_blocking(id, data);
+        accepted = public_acceptance(server.send_to_blocking(id, data));
     } else if (native_form) {
       if (GetParam() == 6)
         accepted = native->send_to_client(id, data);
@@ -1139,9 +1150,9 @@ TEST_P(UdsServerTargetResultTest, CombinesValidationLifecycleAndSessionAdmission
         accepted = native->try_send_to_client(
             id, memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(data.data()), data.size()));
     } else if (GetParam() >= 2 && GetParam() < 4) {
-      accepted = GetParam() % 2 ? server.send_to_line(id, data) : server.send_to(id, data);
+      accepted = public_acceptance(GetParam() % 2 ? server.send_to_line(id, data) : server.send_to(id, data));
     } else {
-      accepted = GetParam() % 2 ? server.try_send_to_line(id, data) : server.try_send_to(id, data);
+      accepted = public_acceptance(GetParam() % 2 ? server.try_send_to_line(id, data) : server.try_send_to(id, data));
     }
     EXPECT_EQ(target_observations, 1);
     EXPECT_TRUE(target_result.has_value());

@@ -8,6 +8,7 @@ and ABI policy.
 
 ## Unreleased
 
+
 ### Added
 
 - TCP/UDS server Reliable and explicit blocking sends retain one internal
@@ -71,6 +72,11 @@ and ABI policy.
   bool; this is the result-type foundation, not the transport migration.
 
 ### Changed
+
+- **Breaking:** ServerInterface and TCP/UDS/UDP wrappers return SendResult from
+  their five targeted send methods. Contextual bool checks still work; implicit
+  bool assignments require accepted() or an explicit conversion. Rebuild all
+  consumers and update custom ServerInterface overrides. Broadcast remains bool.
 
 - **Breaking ABI/behavior:** TCP/UDS server session wait state changes their
   layout; rebuild consumers. Reliable/explicit blocking wrappers validate

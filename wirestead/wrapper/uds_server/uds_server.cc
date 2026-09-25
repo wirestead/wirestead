@@ -183,7 +183,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
     return SendResult::accept();
   }
 
-  bool try_send_to(ClientId client_id, std::string_view data, bool best_effort_send = false) {
+  SendResult try_send_to(ClientId client_id, std::string_view data, bool best_effort_send = false) {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     auto ts = std::dynamic_pointer_cast<transport::UdsServer>(server_);
     const auto result = [&]() -> SendResult {
@@ -200,7 +200,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
     }();
     lock.unlock();
     if (auto hook = detail::g_uds_server_send_result_hook.load()) hook(result);
-    return result.accepted();
+    return result;
   }
 
   bool try_broadcast(std::string_view data) {
@@ -209,7 +209,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
     return ts ? ts->broadcast(data) : false;
   }
 
-  bool send_to(ClientId client_id, std::string_view data) {
+  SendResult send_to(ClientId client_id, std::string_view data) {
     if (backpressure_strategy_.load() == base::constants::BackpressureStrategy::Reliable)
       return send_to_blocking(client_id, data);
     return try_send_to(client_id, data, true);
@@ -234,7 +234,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
   // bounded retry rather than a single attempt after the wait exits.
   static constexpr int kMaxBlockingSendAttempts = 5;
 
-  bool send_to_blocking(ClientId client_id, std::string_view data) {
+  SendResult send_to_blocking(ClientId client_id, std::string_view data) {
     std::shared_ptr<transport::UdsServer> ts;
     std::shared_ptr<transport::UdsServerSession> session;
     uint64_t generation = 0;
@@ -293,7 +293,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
       return SendResult::reject(SendRejection::WouldBlock);
     }();
     if (auto hook = detail::g_uds_server_send_result_hook.load()) hook(result);
-    return result.accepted();
+    return result;
   }
 
   void schedule_batch_timer(uint64_t generation) {
@@ -641,19 +641,21 @@ void UdsServer::reset_stats() { impl_->reset_stats(); }
 
 bool UdsServer::broadcast(std::string_view data) { return impl_->broadcast(data); }
 bool UdsServer::try_broadcast(std::string_view data) { return impl_->try_broadcast(data); }
-bool UdsServer::send_to(ClientId client_id, std::string_view data) { return impl_->send_to(client_id, data); }
-bool UdsServer::try_send_to(ClientId client_id, std::string_view data) { return impl_->try_send_to(client_id, data); }
+SendResult UdsServer::send_to(ClientId client_id, std::string_view data) { return impl_->send_to(client_id, data); }
+SendResult UdsServer::try_send_to(ClientId client_id, std::string_view data) {
+  return impl_->try_send_to(client_id, data);
+}
 
-bool UdsServer::send_to_blocking(ClientId client_id, std::string_view data) {
+SendResult UdsServer::send_to_blocking(ClientId client_id, std::string_view data) {
   return impl_->send_to_blocking(client_id, data);
 }
 
 bool UdsServer::broadcast_line(std::string_view line) { return broadcast(std::string(line) + "\n"); }
-bool UdsServer::send_to_line(ClientId client_id, std::string_view line) {
+SendResult UdsServer::send_to_line(ClientId client_id, std::string_view line) {
   return send_to(client_id, std::string(line) + "\n");
 }
 bool UdsServer::try_broadcast_line(std::string_view line) { return try_broadcast(std::string(line) + "\n"); }
-bool UdsServer::try_send_to_line(ClientId client_id, std::string_view line) {
+SendResult UdsServer::try_send_to_line(ClientId client_id, std::string_view line) {
   return try_send_to(client_id, std::string(line) + "\n");
 }
 
