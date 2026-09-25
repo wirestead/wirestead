@@ -27,8 +27,8 @@
 #include "wirestead/base/visibility.hpp"
 #include "wirestead/config/uds_config.hpp"
 #include "wirestead/diagnostics/error_types.hpp"
-#include "wirestead/interface/channel.hpp"
 #include "wirestead/interface/iuds_socket.hpp"
+#include "wirestead/interface/result_channel.hpp"
 #include "wirestead/memory/memory_pool.hpp"
 #include "wirestead/transport/base/reconnect_policy.hpp"
 #include "wirestead/wrapper/send_result.hpp"
@@ -56,7 +56,7 @@ using interface::Channel;
 /**
  * @brief Thread-safe UDS Client implementation
  */
-class WIRESTEAD_API UdsClient : public Channel, public std::enable_shared_from_this<UdsClient> {
+class WIRESTEAD_API UdsClient : public interface::ResultChannel, public std::enable_shared_from_this<UdsClient> {
  public:
   using BufferVariant =
       std::variant<memory::PooledBuffer, std::vector<uint8_t>, std::shared_ptr<const std::vector<uint8_t>>>;
@@ -85,12 +85,14 @@ class WIRESTEAD_API UdsClient : public Channel, public std::enable_shared_from_t
   void reset_stats() override;
   boost::asio::any_io_executor get_executor() override;
 
-  bool async_write_copy(memory::ConstByteSpan data) override;
-  bool async_write_move(std::vector<uint8_t>&& data) override;
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
-  bool async_try_write_copy(memory::ConstByteSpan data) override;
-  bool async_try_write_move(std::vector<uint8_t>&& data) override;
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
+  [[nodiscard]] wrapper::SendResult async_write_copy_result(memory::ConstByteSpan data) override;
+  [[nodiscard]] wrapper::SendResult async_write_move_result(std::vector<uint8_t>&& data) override;
+  [[nodiscard]] wrapper::SendResult async_write_shared_result(
+      std::shared_ptr<const std::vector<uint8_t>> data) override;
+  [[nodiscard]] wrapper::SendResult async_try_write_copy_result(memory::ConstByteSpan data) override;
+  [[nodiscard]] wrapper::SendResult async_try_write_move_result(std::vector<uint8_t>&& data) override;
+  [[nodiscard]] wrapper::SendResult async_try_write_shared_result(
+      std::shared_ptr<const std::vector<uint8_t>> data) override;
 
   void on_bytes(OnBytes cb) override;
   void on_state(OnState cb) override;

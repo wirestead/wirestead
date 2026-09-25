@@ -182,6 +182,7 @@ cat > "$CONSUMER_DIR/main.cpp" <<'EOF'
 #endif
 
 #include <wirestead/wirestead.hpp>
+#include <wirestead/transport/tcp_client/tcp_client.hpp>
 
 // Public API reachable only through the umbrella header. set_io_thread_init was
 // documented in docs/tuning.md while wirestead.hpp did not include its header,
@@ -234,6 +235,16 @@ bool wait_until(Predicate&& predicate, std::chrono::milliseconds timeout) {
 
 int main() {
     umbrella_reaches_public_api();
+    boost::asio::io_context admission_io;
+    std::shared_ptr<wirestead::interface::Channel> legacy_channel =
+        wirestead::transport::TcpClient::create(wirestead::config::TcpClientConfig{}, admission_io);
+    auto result_channel = std::dynamic_pointer_cast<wirestead::interface::ResultChannel>(legacy_channel);
+    if (!result_channel) return 11;
+    const uint8_t probe = 1;
+    const auto admission = result_channel->async_try_write_copy_result({&probe, 1});
+    if (admission.accepted() || admission.reason() != wirestead::SendRejection::NotStarted) return 12;
+    if (legacy_channel->async_try_write_copy({&probe, 1})) return 13;
+
     wirestead::wrapper::TcpServer stopped_server(0);
     wirestead::wrapper::ServerInterface& server_api = stopped_server;
     const wirestead::wrapper::SendResult stopped = server_api.send_to(1, "probe");

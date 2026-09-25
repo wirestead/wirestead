@@ -16,9 +16,15 @@
 
 #include <gtest/gtest.h>
 
+#include <boost/asio/io_context.hpp>
 #include <type_traits>
 #include <utility>
 
+#include "wirestead/interface/result_channel.hpp"
+#include "wirestead/transport/serial/serial.hpp"
+#include "wirestead/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/transport/udp/udp.hpp"
+#include "wirestead/transport/uds/uds_client.hpp"
 #include "wirestead/wrapper/send_result.hpp"
 #include "wirestead/wrapper/tcp_server/tcp_server.hpp"
 #include "wirestead/wrapper/udp/udp_server.hpp"
@@ -110,3 +116,126 @@ TEST(SendResultTest, ServerInterfaceExposesValidationAndLifecycleReasons) {
     EXPECT_EQ(empty_line.reason(), SendRejection::NotStarted);
   }
 }
+
+namespace {
+class CustomResultChannel : public wirestead::interface::ResultChannel {
+ public:
+  boost::asio::io_context io;
+  SendResult outcome = SendResult::accept();
+  int calls = 0;
+  int form = -1;
+  void start() override {}
+  void stop() override {}
+  bool is_connected() const override { return true; }
+  bool is_backpressure_active() const override { return false; }
+  boost::asio::any_io_executor get_executor() override { return io.get_executor(); }
+  void on_bytes(OnBytes) override {}
+  void on_state(OnState) override {}
+  void on_backpressure(OnBackpressure) override {}
+  SendResult record(int value) {
+    ++calls;
+    form = value;
+    return outcome;
+  }
+  SendResult async_write_copy_result(wirestead::memory::ConstByteSpan) override { return record(0); }
+  SendResult async_write_move_result(std::vector<uint8_t>&&) override { return record(1); }
+  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override { return record(2); }
+  SendResult async_try_write_copy_result(wirestead::memory::ConstByteSpan) override { return record(3); }
+  SendResult async_try_write_move_result(std::vector<uint8_t>&&) override { return record(4); }
+  SendResult async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override { return record(5); }
+};
+SendResult result_write(wirestead::interface::ResultChannel& channel, int form, std::vector<uint8_t>& data) {
+  wirestead::memory::ConstByteSpan span(data.data(), data.size());
+  auto shared = std::make_shared<const std::vector<uint8_t>>(data);
+  switch (form) {
+    case 0:
+      return channel.async_write_copy_result(span);
+    case 1:
+      return channel.async_write_move_result(std::move(data));
+    case 2:
+      return channel.async_write_shared_result(shared);
+    case 3:
+      return channel.async_try_write_copy_result(span);
+    case 4:
+      return channel.async_try_write_move_result(std::move(data));
+    default:
+      return channel.async_try_write_shared_result(shared);
+  }
+}
+bool bool_write(wirestead::interface::Channel& channel, int form, std::vector<uint8_t>& data) {
+  wirestead::memory::ConstByteSpan span(data.data(), data.size());
+  auto shared = std::make_shared<const std::vector<uint8_t>>(data);
+  switch (form) {
+    case 0:
+      return channel.async_write_copy(span);
+    case 1:
+      return channel.async_write_move(std::move(data));
+    case 2:
+      return channel.async_write_shared(shared);
+    case 3:
+      return channel.async_try_write_copy(span);
+    case 4:
+      return channel.async_try_write_move(std::move(data));
+    default:
+      return channel.async_try_write_shared(shared);
+  }
+}
+class ResultChannelAdapterTest : public ::testing::TestWithParam<int> {};
+TEST_P(ResultChannelAdapterTest, RetainsTypedReasonAndDelegatesLegacyWriteExactlyOnce) {
+  CustomResultChannel channel;
+  std::shared_ptr<wirestead::interface::Channel> legacy(&channel, [](auto*) {});
+  ASSERT_TRUE(std::dynamic_pointer_cast<wirestead::interface::ResultChannel>(legacy));
+  for (auto outcome : {SendResult::accept(), SendResult::reject(SendRejection::NotStarted),
+                       SendResult::reject(SendRejection::Stopping), SendResult::reject(SendRejection::NotReady),
+                       SendResult::reject(SendRejection::WouldBlock), SendResult::reject(SendRejection::QueueFull),
+                       SendResult::reject(SendRejection::TooLarge), SendResult::reject(SendRejection::InvalidArgument),
+                       SendResult::reject(SendRejection::CancelledWhileWaiting)}) {
+    channel.outcome = outcome;
+    channel.calls = 0;
+    std::vector<uint8_t> bytes{1, 2, 3};
+    const auto result = result_write(channel, GetParam(), bytes);
+    EXPECT_EQ(result.accepted(), outcome.accepted());
+    if (!result.accepted()) {
+      EXPECT_EQ(result.reason(), outcome.reason());
+    }
+    EXPECT_EQ(channel.calls, 1);
+    EXPECT_EQ(channel.form, GetParam());
+    EXPECT_EQ(bool_write(*legacy, GetParam(), bytes), outcome.accepted());
+    EXPECT_EQ(channel.calls, 2);
+    EXPECT_EQ(channel.form, GetParam());
+  }
+}
+INSTANTIATE_TEST_SUITE_P(AllWriteForms, ResultChannelAdapterTest, ::testing::Range(0, 6));
+
+class NativeResultChannelTest : public ::testing::TestWithParam<int> {};
+TEST_P(NativeResultChannelTest, ReportsActualAdmissionReasonWithoutConsumingRejectedMove) {
+  boost::asio::io_context io;
+  std::shared_ptr<wirestead::interface::Channel> legacy;
+  switch (GetParam() / 6) {
+    case 0:
+      legacy = wirestead::transport::TcpClient::create(wirestead::config::TcpClientConfig{}, io);
+      break;
+    case 1:
+      legacy = wirestead::transport::UdsClient::create(wirestead::config::UdsClientConfig{}, io);
+      break;
+    case 2:
+      legacy = wirestead::transport::UdpChannel::create(wirestead::config::UdpConfig{}, io);
+      break;
+    default:
+      legacy = wirestead::transport::Serial::create(wirestead::config::SerialConfig{}, io);
+      break;
+  }
+  const auto native = std::dynamic_pointer_cast<wirestead::interface::ResultChannel>(legacy);
+  ASSERT_TRUE(native);
+  std::vector<uint8_t> data{1, 2, 3};
+  const auto before = native->stats().failed_sends;
+  const auto result = result_write(*native, GetParam() % 6, data);
+  ASSERT_FALSE(result.accepted());
+  EXPECT_EQ(result.reason(), SendRejection::NotStarted);
+  EXPECT_EQ(data, (std::vector<uint8_t>{1, 2, 3}));
+  EXPECT_EQ(native->stats().failed_sends, before + 1);
+  EXPECT_FALSE(bool_write(*legacy, GetParam() % 6, data));
+  EXPECT_EQ(native->stats().failed_sends, before + 2);
+}
+INSTANTIATE_TEST_SUITE_P(FourTransportsSixForms, NativeResultChannelTest, ::testing::Range(0, 24));
+}  // namespace

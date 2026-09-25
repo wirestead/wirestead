@@ -24,7 +24,7 @@
 #include "wirestead/base/visibility.hpp"
 #include "wirestead/config/serial_config.hpp"
 #include "wirestead/diagnostics/error_types.hpp"
-#include "wirestead/interface/channel.hpp"
+#include "wirestead/interface/result_channel.hpp"
 #include "wirestead/wrapper/send_result.hpp"
 
 namespace boost {
@@ -50,7 +50,7 @@ struct SerialWriteWait;
 /**
  * @brief Serial Transport implementation
  */
-class WIRESTEAD_API Serial : public interface::Channel, public std::enable_shared_from_this<Serial> {
+class WIRESTEAD_API Serial : public interface::ResultChannel, public std::enable_shared_from_this<Serial> {
  public:
   // use_shared_context: opt into the shared IoContextManager singleton
   // instead of the default dedicated io_context + thread. Only meaningful
@@ -83,12 +83,14 @@ class WIRESTEAD_API Serial : public interface::Channel, public std::enable_share
   std::optional<diagnostics::ErrorInfo> last_error_info() const override;
   boost::asio::any_io_executor get_executor() override;
 
-  bool async_write_copy(memory::ConstByteSpan data) override;
-  bool async_write_move(std::vector<uint8_t>&& data) override;
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
-  bool async_try_write_copy(memory::ConstByteSpan data) override;
-  bool async_try_write_move(std::vector<uint8_t>&& data) override;
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
+  [[nodiscard]] wrapper::SendResult async_write_copy_result(memory::ConstByteSpan data) override;
+  [[nodiscard]] wrapper::SendResult async_write_move_result(std::vector<uint8_t>&& data) override;
+  [[nodiscard]] wrapper::SendResult async_write_shared_result(
+      std::shared_ptr<const std::vector<uint8_t>> data) override;
+  [[nodiscard]] wrapper::SendResult async_try_write_copy_result(memory::ConstByteSpan data) override;
+  [[nodiscard]] wrapper::SendResult async_try_write_move_result(std::vector<uint8_t>&& data) override;
+  [[nodiscard]] wrapper::SendResult async_try_write_shared_result(
+      std::shared_ptr<const std::vector<uint8_t>> data) override;
 
   void on_bytes(OnBytes cb) override;
   void on_state(OnState cb) override;
