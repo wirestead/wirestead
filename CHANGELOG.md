@@ -11,6 +11,12 @@ and ABI policy.
 
 ### Added
 
+- Custom ConnectionChannel implementations can provide connection-pinned
+  Reliable sends to all four client wrappers. Waits preserve the first
+  stop/loss cause across reconnect, final admission cannot retarget a new
+  connection, and only WouldBlock is retried. Legacy injected Channels and
+  public bool client methods retain their existing compatibility boundary.
+
 - ResultChannel exposes six structured single-target write admission methods,
   implemented by TCP/UDS clients, UDP and serial. Final legacy bool adapters
   delegate exactly once. Custom bool-only channels and server fanout remain

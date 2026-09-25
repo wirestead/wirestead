@@ -165,6 +165,8 @@ target_compile_features(wirestead_consumer_smoke PRIVATE cxx_std_20)
 EOF
 
 cat > "$CONSUMER_DIR/main.cpp" <<'EOF'
+#include <type_traits>
+#include <wirestead/interface/connection_channel.hpp>
 #include <atomic>
 #include <cstdint>
 #include <chrono>
@@ -232,6 +234,10 @@ bool wait_until(Predicate&& predicate, std::chrono::milliseconds timeout) {
     }
     return false;
 }
+
+static_assert(std::is_base_of_v<wirestead::interface::ResultChannel,
+                                wirestead::interface::ConnectionChannel>);
+static_assert(std::has_virtual_destructor_v<wirestead::interface::WriteConnection>);
 
 int main() {
     umbrella_reaches_public_api();

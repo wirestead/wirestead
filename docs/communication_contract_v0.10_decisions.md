@@ -49,8 +49,17 @@ in place of bool; see the migration section in the server result document.
 The single-target ResultChannel capability now exposes native write admission
 and provides bool adapters for custom implementations; see
 [channel_write_results.md](channel_write_results.md).
-Custom connection/wait contracts, client public interfaces and fanout remain pending;
-these implementations do not complete D-3 by themselves.
+Client public interfaces and fanout remain pending; these implementations do
+not complete D-3 by themselves.
+
+Custom ConnectionChannel implementations now supply a retained connection
+handle, first-terminal capacity polling, cancellation and pinned final
+admission to all four client wrappers. Deterministic custom-channel tests cover
+stop/loss/reconnect and replacement after wait release. The client public
+SendResult migration must still decide the legacy injected-channel compatibility
+boundary; bool-only refusals cannot supply truthful structured reasons.
+See [the custom connection contract](channel_write_results.md#connection-pinned-custom-reliable-sends).
+
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is
 complete, D-2 needs a rejection that D-3 then gives a name to.

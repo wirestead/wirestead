@@ -52,17 +52,66 @@ void inspect(wirestead::interface::Channel& channel,
 }
 ```
 
+## Connection-pinned custom Reliable sends
+
+Implement interface::ConnectionChannel when a custom channel is injected into
+TcpClient, UdsClient, UdpClient or Serial and needs the same Reliable wait
+guarantees as the built-in transports. It extends ResultChannel with
+capture_write_connection() and cancel_write_waits(). The wrapper discovers
+this capability automatically.
+
+Capture returns either the actual readiness rejection or a non-null
+shared_ptr<interface::WriteConnection>. Validate readiness and select the
+connection in one synchronized decision. The handle owns the old connection
+record, not merely a sampled connected flag or a pointer to the channel's
+current connection.
+
+The handle exposes:
+
+- poll_capacity(): nullopt while blocked, acceptance when admission may be
+  attempted, or the retained terminal rejection. Acceptance reserves no space.
+- write_copy, write_move, write_shared: atomically check the pinned
+  connection and admit to its queue. Never redirect old work to a new connection.
+
+A channel must serialize capture, polling, cancellation, connection loss,
+replacement and final admission. Record NotReady for connection loss and
+CancelledWhileWaiting for stop; preserve whichever terminal event happened
+first on the old connection record. A new connection gets a fresh record.
+Sampling flags only when polling cannot implement this contract: stop and
+reconnect can both happen between polls.
+
+The wrapper cancels custom waits before notifying its waiting senders. Direct
+Channel::stop must cancel waits too. All capability operations must return
+promptly and must not call channel or user callbacks inline: capture,
+cancellation and final admission can run under the wrapper mutex. Handles
+must remain usable until all waiting sends release them. Returning a null
+capture handle is an implementation error and throws std::logic_error.
+
+The wrapper validates payload size, including line delimiters and the reported
+hard queue limit, before capture. Callback callers never enter a capacity wait.
+It polls with a bounded timeout so a missed notification cannot hang a released
+wait, retains a completed wait's rejection, and retries only WouldBlock, at
+most five admission attempts on the same handle. Callback admission is attempted
+at most once. Explicit try sends call the channel's typed try methods without
+polling; BestEffort maps their WouldBlock to QueueFull.
+
+Move storage is retained on rejection and shared storage is not retained for
+refused work. Acceptance still means local queue admission, not delivery.
+
 ## Remaining wrapper work
 
-This capability does not itself migrate ChannelInterface or the four public
-client wrappers: those still return bool. Their native connection-pinned
-wait/admission implementation remains unchanged. Custom connection identity,
-first-terminal wait causes and final pinned admission need an explicit
-contract before exposing the complete wrapper result API. Implementing
-ResultChannel alone does not provide that wait/connection protocol.
+ChannelInterface and the four public client wrappers still return bool.
+ConnectionChannel now preserves structured decisions internally across the
+complete custom send path. The public SendResult migration still needs to
+define the compatibility boundary for injected legacy channels: a bool-only
+refusal cannot be converted to a truthful SendRejection. ResultChannel alone
+does not supply the connection protocol and continues through the legacy
+wrapper path. Existing bool-only injected channels keep their prior behavior.
 
 The ResultChannel tests exercise all six forms, all result reasons through a
 custom implementation, and actual never-started rejection/counters and
-retained move storage across the four native transports. Existing native
-tests continue through the bool adapters and therefore cover the same typed
-entry points for live admission.
+retained move storage across the four native transports. ConnectionChannel
+tests cover all four wrappers and three ownership forms, deterministic
+loss/stop/restart ordering, replacement after capacity release, bounded retries,
+callback refusal, validation, and explicit try/BestEffort policy. Built-in
+transport wait/admission implementations are unchanged.
