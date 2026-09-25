@@ -464,7 +464,10 @@ TEST_P(UdsCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
     first.close();
     if (GetParam() < 12) {
       ASSERT_TRUE(accept(second));
-      ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_connected(); }, 3000));
+      // The native connected flag is published before the Connected state
+      // notification. Wait for the replacement on_connect before using it.
+      ASSERT_TRUE(test::TestUtils::waitForCondition(
+          [&] { return connections.load() >= 2 && transport->is_connected(); }, 3000));
     } else {
       // UDS publishes Error before scheduling retry. The parked sender holds
       // the wrapper read lock, so let it reject before completing that callback.
@@ -529,7 +532,10 @@ TEST_P(UdsCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   if (GetParam() < 6 || (GetParam() >= 12 && GetParam() < 18)) {
     if (GetParam() >= 12) {
       ASSERT_TRUE(accept(second));
-      ASSERT_TRUE(test::TestUtils::waitForCondition([&] { return transport->is_connected(); }, 3000));
+      // The native connected flag is published before the Connected state
+      // notification. Wait for the replacement on_connect before using it.
+      ASSERT_TRUE(test::TestUtils::waitForCondition(
+          [&] { return connections.load() >= 2 && transport->is_connected(); }, 3000));
     }
     EXPECT_TRUE(client.send("new"));
     EXPECT_EQ(transport->stats().messages_accepted, accepted_before + 1);
