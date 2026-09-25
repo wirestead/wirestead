@@ -58,7 +58,7 @@ class WIRESTEAD_API WriteConnection {
  *
  * ResultChannel supplies nonblocking admission. This extension additionally
  * supplies atomic connection capture, capacity polling and pinned admission.
- * Legacy bool-only Channels remain supported without this stronger guarantee.
+ * Client wrapper injection requires this capability or its matching native transport.
  */
 class WIRESTEAD_API ConnectionChannel : public ResultChannel {
  public:

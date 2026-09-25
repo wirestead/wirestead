@@ -27,18 +27,20 @@
 #include <utility>
 #include <vector>
 
+#include "test_connection_channel.hpp"
 #include "wirestead/interface/channel.hpp"
 #include "wirestead/transport/serial/serial.hpp"
 #include "wirestead/transport/tcp_client/tcp_client.hpp"
 #include "wirestead/transport/udp/udp.hpp"
 #include "wirestead/transport/uds/uds_client.hpp"
+#include "wirestead/wrapper/send_validation.hpp"
 #include "wrapper_contract_test_utils.hpp"
 using namespace wirestead;
 using namespace wirestead::test::wrapper_support;
 using namespace std::chrono_literals;
 namespace {
 constexpr size_t kMax = base::constants::MAX_BUFFER_SIZE;
-class ValidationChannel : public interface::Channel {
+class ValidationChannel : public wirestead::test::TestConnectionChannel {
  public:
   std::atomic<bool> pressure{true}, ready{false};
   mutable std::atomic<int> probes{0};
@@ -47,30 +49,37 @@ class ValidationChannel : public interface::Channel {
   std::optional<size_t> write_queue_limit() const override { return limit; }
   boost::asio::io_context io;
   OnState state;
-  void start() override { ready = true; }
-  void stop() override { ready = false; }
+  void start() override {
+    ready = true;
+    connection_opened();
+  }
+  void stop() override {
+    ready = false;
+    connection_lost();
+  }
   bool is_connected() const override { return ready; }
   bool is_backpressure_active() const override {
     ++probes;
     return pressure;
   }
   boost::asio::any_io_executor get_executor() override { return io.get_executor(); }
-  bool validate(size_t size) {
-    if (!ready || size == 0 || size > kMax || (limit && size > *limit)) {
-      ++failures;
-      return false;
-    }
-    return true;
+  SendResult validate(size_t size) {
+    auto result = wrapper::detail::validate_payload_size(size, limit);
+    if (result && !ready) result = SendResult::reject(SendRejection::NotReady);
+    if (!result) ++failures;
+    return result;
   }
-  bool async_write_copy(memory::ConstByteSpan b) override { return validate(b.size()); }
-  bool async_write_move(std::vector<uint8_t>&& b) override { return validate(b.size()); }
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>> b) override {
+  SendResult async_write_copy_result(memory::ConstByteSpan b) override { return validate(b.size()); }
+  SendResult async_write_move_result(std::vector<uint8_t>&& b) override { return validate(b.size()); }
+  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> b) override {
     return validate(b ? b->size() : 0);
   }
-  bool async_try_write_copy(memory::ConstByteSpan b) override { return async_write_copy(b); }
-  bool async_try_write_move(std::vector<uint8_t>&& b) override { return async_write_move(std::move(b)); }
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> b) override {
-    return async_write_shared(std::move(b));
+  SendResult async_try_write_copy_result(memory::ConstByteSpan b) override { return async_write_copy_result(b); }
+  SendResult async_try_write_move_result(std::vector<uint8_t>&& b) override {
+    return async_write_move_result(std::move(b));
+  }
+  SendResult async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> b) override {
+    return async_write_shared_result(std::move(b));
   }
   void on_state(OnState cb) override { state = std::move(cb); }
   void on_bytes(OnBytes) override {}
@@ -93,6 +102,7 @@ TYPED_TEST(SendValidationBeforeWaitTest, InvalidPayloadsReachRejectionWithoutWai
     SCOPED_TRACE(which);
     c->pressure = true;
     c->failures = 0;
+    c->probes = 0;
     auto result = std::async(std::launch::async, [&] {
       switch (which) {
         case 0:
@@ -122,10 +132,12 @@ TYPED_TEST(SendValidationBeforeWaitTest, InvalidPayloadsReachRejectionWithoutWai
     // Releasing after the bound also makes the old implementation terminate.
     EXPECT_EQ(result.wait_for(2s), std::future_status::ready);
     c->pressure = false;
-    EXPECT_FALSE(result.get());
-    if (which != 3 && which != 4) {
-      EXPECT_GT(c->failures, 0) << "transport failure accounting was bypassed";
-    }
+    const auto rejected = result.get();
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.reason(),
+              which < 5 ? wrapper::SendRejection::InvalidArgument : wrapper::SendRejection::TooLarge);
+    EXPECT_EQ(c->failures, 0) << "wrapper validation must not call transport admission";
+    EXPECT_EQ(c->probes, 0) << "invalid payload must not poll capacity";
   }
   w.stop();
 }
@@ -262,7 +274,7 @@ TYPED_TEST(ServerSendValidationBeforeWaitTest, ValidPayloadAndEmptyLineStillWait
 }
 
 template <typename W>
-bool send_valid(W& w, int api) {
+wrapper::SendResult send_valid(W& w, int api) {
   switch (api) {
     case 0:
       return w.send("valid");
@@ -342,7 +354,7 @@ TYPED_TEST(ServerSendValidationBeforeWaitTest, UnknownClientDoesNotWaitForCapaci
 }
 
 template <typename W>
-bool send_sized(W& w, int api, size_t size) {
+wrapper::SendResult send_sized(W& w, int api, size_t size) {
   const std::string payload(size, 'x');
   switch (api) {
     case 0:
@@ -371,11 +383,15 @@ TYPED_TEST(SendValidationBeforeWaitTest, AboveQueueLimitDoesNotWait) {
     SCOPED_TRACE(api);
     c->pressure = true;
     c->failures = 0;
+    c->probes = 0;
     auto result = std::async(std::launch::async, [&] { return send_sized(w, api, 257); });
     EXPECT_EQ(result.wait_for(2s), std::future_status::ready);
     c->pressure = false;
-    EXPECT_FALSE(result.get());
-    EXPECT_GT(c->failures, 0) << "transport must retain rejection accounting";
+    const auto rejected = result.get();
+    ASSERT_FALSE(rejected);
+    EXPECT_EQ(rejected.reason(), wrapper::SendRejection::TooLarge);
+    EXPECT_EQ(c->failures, 0) << "wrapper validation must not call transport admission";
+    EXPECT_EQ(c->probes, 0) << "invalid payload must not poll capacity";
   }
   w.stop();
 }

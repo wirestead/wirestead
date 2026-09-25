@@ -26,6 +26,7 @@
 #include <mutex>
 #include <thread>
 
+#include "test_connection_channel.hpp"
 #include "test_utils.hpp"
 #include "wirestead/transport/base/stop_test_hook.hpp"
 #include "wirestead/transport/tcp_client/tcp_client.hpp"
@@ -79,19 +80,29 @@ struct Context {
 
 // This channel preserves snapshots without borrowing an actual TCP strand.
 // A parked wrapper admission must not also prevent transport cleanup.
-class SavedChannel : public interface::Channel {
+class SavedChannel : public wirestead::test::TestConnectionChannel {
  public:
-  void start() override { connected_ = true; }
-  void stop() override { connected_ = false; }
+  void start() override {
+    connected_ = true;
+    connection_opened();
+  }
+  void stop() override {
+    connected_ = false;
+    connection_lost();
+  }
   bool is_connected() const override { return connected_; }
   bool is_backpressure_active() const override { return false; }
   boost::asio::any_io_executor get_executor() override { return io_.get_executor(); }
-  bool async_write_copy(memory::ConstByteSpan) override { return true; }
-  bool async_write_move(std::vector<uint8_t>&&) override { return true; }
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>>) override { return true; }
-  bool async_try_write_copy(memory::ConstByteSpan) override { return true; }
-  bool async_try_write_move(std::vector<uint8_t>&&) override { return true; }
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>>) override { return true; }
+  SendResult async_write_copy_result(memory::ConstByteSpan) override { return SendResult::accept(); }
+  SendResult async_write_move_result(std::vector<uint8_t>&&) override { return SendResult::accept(); }
+  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override {
+    return SendResult::accept();
+  }
+  SendResult async_try_write_copy_result(memory::ConstByteSpan) override { return SendResult::accept(); }
+  SendResult async_try_write_move_result(std::vector<uint8_t>&&) override { return SendResult::accept(); }
+  SendResult async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override {
+    return SendResult::accept();
+  }
   void on_bytes(OnBytes cb) override { bytes = std::move(cb); }
   void on_state(OnState cb) override { state = std::move(cb); }
   void on_backpressure(OnBackpressure cb) override { bp = std::move(cb); }
@@ -562,7 +573,7 @@ TEST_P(TcpCapacityWaitRunTest, OldWaitCannotResumeInRestartedRun) {
   };
   start();
   AdmissionPark park;
-  std::future<bool> writer;
+  std::future<wirestead::wrapper::SendResult> writer;
   OnExit cleanup{[&] {
     park.release.notify();
     channel->pressure = false;
@@ -630,7 +641,7 @@ TEST_P(TcpCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   wrapper::TcpClient client(transport);
   std::atomic<int> connections{0};
   AdmissionPark park, result_park;
-  std::future<bool> writer;
+  std::future<wirestead::wrapper::SendResult> writer;
   OnExit cleanup{[&] {
     park.release.notify();
     result_park.release.notify();
@@ -744,13 +755,15 @@ TEST_P(TcpCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   EXPECT_EQ(status, std::future_status::ready);
   if (status != std::future_status::ready) client.stop();
   const bool capacity_accepted = GetParam() >= 36;
-  EXPECT_EQ(writer.get(), capacity_accepted);
+  const auto send_result = writer.get();
+  EXPECT_EQ(send_result.accepted(), capacity_accepted);
   EXPECT_EQ(transport->stats().messages_accepted, accepted_before + (capacity_accepted ? 1 : 0));
   const auto expected_send = capacity_accepted  ? 100
                              : GetParam() >= 30 ? static_cast<int>(wrapper::SendRejection::NotStarted)
                              : GetParam() >= 24 ? static_cast<int>(wrapper::SendRejection::CancelledWhileWaiting)
                                                 : static_cast<int>(wrapper::SendRejection::NotReady);
   EXPECT_EQ(observed_send_result, expected_send);
+  EXPECT_EQ(send_result.accepted() ? 100 : static_cast<int>(send_result.reason()), expected_send);
   if (GetParam() < 12 || (GetParam() >= 18 && GetParam() < 24)) {
     EXPECT_EQ(observed_wait_result, static_cast<int>(wrapper::SendRejection::NotReady));
   } else if (GetParam() >= 24 && GetParam() < 30) {

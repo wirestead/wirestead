@@ -23,6 +23,7 @@
 #include <memory>
 #include <thread>
 
+#include "test_connection_channel.hpp"
 #include "wirestead/framer/line_framer.hpp"
 #include "wirestead/interface/channel.hpp"
 #include "wirestead/wirestead.hpp"
@@ -30,7 +31,7 @@
 using namespace wirestead;
 using namespace std::chrono_literals;
 namespace {
-class CallbackChannel : public interface::Channel {
+class CallbackChannel : public wirestead::test::TestConnectionChannel {
  public:
   boost::asio::io_context io;
   std::atomic<bool> pressure{false}, ready{false};
@@ -38,27 +39,45 @@ class CallbackChannel : public interface::Channel {
   OnBytes bytes;
   OnState state;
   OnBackpressure backpressure;
-  void start() override { ready = true; }
-  void stop() override { ready = false; }
+  void start() override {
+    ready = true;
+    connection_opened();
+  }
+  void stop() override {
+    ready = false;
+    connection_lost();
+  }
   bool is_connected() const override { return ready; }
   bool is_backpressure_active() const override {
     probes++;
     return pressure;
   }
   boost::asio::any_io_executor get_executor() override { return io.get_executor(); }
-  bool async_write_copy(memory::ConstByteSpan) override { return ready; }
-  bool async_write_move(std::vector<uint8_t>&&) override { return ready; }
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>>) override { return ready; }
-  bool async_try_write_copy(memory::ConstByteSpan b) override { return async_write_copy(b); }
-  bool async_try_write_move(std::vector<uint8_t>&& b) override { return async_write_move(std::move(b)); }
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> b) override {
-    return async_write_shared(std::move(b));
+  SendResult async_write_copy_result(memory::ConstByteSpan) override {
+    return ready ? SendResult::accept() : SendResult::reject(SendRejection::NotReady);
+  }
+  SendResult async_write_move_result(std::vector<uint8_t>&&) override {
+    return ready ? SendResult::accept() : SendResult::reject(SendRejection::NotReady);
+  }
+  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override {
+    return ready ? SendResult::accept() : SendResult::reject(SendRejection::NotReady);
+  }
+  SendResult async_try_write_copy_result(memory::ConstByteSpan b) override { return async_write_copy_result(b); }
+  SendResult async_try_write_move_result(std::vector<uint8_t>&& b) override {
+    return async_write_move_result(std::move(b));
+  }
+  SendResult async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> b) override {
+    return async_write_shared_result(std::move(b));
   }
   void on_bytes(OnBytes cb) override { bytes = std::move(cb); }
   void on_state(OnState cb) override { state = std::move(cb); }
   void on_backpressure(OnBackpressure cb) override { backpressure = std::move(cb); }
   void emit_state(base::LinkState s) {
     ready = s == base::LinkState::Connected;
+    if (ready)
+      connection_opened();
+    else
+      connection_lost();
     if (state) state(s);
   }
   void emit_bytes() {
@@ -67,7 +86,7 @@ class CallbackChannel : public interface::Channel {
   }
 };
 template <typename W>
-bool send(W& w, int api) {
+wrapper::SendResult send(W& w, int api) {
   switch (api) {
     case 0:
       return w.send("reply");

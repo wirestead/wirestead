@@ -98,20 +98,20 @@ polling; BestEffort maps their WouldBlock to QueueFull.
 Move storage is retained on rejection and shared storage is not retained for
 refused work. Acceptance still means local queue admission, not delivery.
 
-## Remaining wrapper work
+## Public wrapper migration
 
-ChannelInterface and the four public client wrappers still return bool.
-ConnectionChannel now preserves structured decisions internally across the
-complete custom send path. The public SendResult migration still needs to
-define the compatibility boundary for injected legacy channels: a bool-only
-refusal cannot be converted to a truthful SendRejection. ResultChannel alone
-does not supply the connection protocol and continues through the legacy
-wrapper path. Existing bool-only injected channels keep their prior behavior.
+ChannelInterface and all four client wrappers now expose SendResult; see
+[client_send_results.md](client_send_results.md). Injected custom channels
+must implement ConnectionChannel. The constructor rejects null, bool-only
+Channel and ResultChannel-only implementations before registering callbacks
+or performing lifecycle actions. No refusal reason is inferred from bool.
 
-The ResultChannel tests exercise all six forms, all result reasons through a
-custom implementation, and actual never-started rejection/counters and
-retained move storage across the four native transports. ConnectionChannel
-tests cover all four wrappers and three ownership forms, deterministic
-loss/stop/restart ordering, replacement after capacity release, bounded retries,
-callback refusal, validation, and explicit try/BestEffort policy. Built-in
-transport wait/admission implementations are unchanged.
+The low-level Channel interface and ResultChannel bool adapters remain
+available to direct users. Built-in transports retain their existing native
+connection-pinned wait/admission implementations.
+
+ResultChannel tests cover all six forms and native admission counters.
+ConnectionChannel tests now inspect public returned results across all four
+wrappers and three ownership forms, including deterministic stop/loss/restart,
+replacement after capacity release, bounded retries, callback refusal,
+validation, explicit try and BestEffort behavior.

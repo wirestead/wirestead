@@ -28,6 +28,7 @@
 #include "wirestead/framer/iframer.hpp"
 #include "wirestead/wrapper/context.hpp"
 #include "wirestead/wrapper/runtime_stats.hpp"
+#include "wirestead/wrapper/send_result.hpp"
 
 namespace wirestead {
 namespace wrapper {
@@ -88,13 +89,19 @@ class WIRESTEAD_API ChannelInterface {
 
   // Transmission
   //
+  // SendResult reports local queue admission, not delivery. Check accepted()
+  // before reason(); contextual bool checks remain valid. Payload validation
+  // precedes lifecycle/readiness and capacity checks. Rejected moves retain
+  // their storage. Reliable waits pin their original connection and preserve
+  // the first stop/loss cause; callback scopes never wait for capacity.
+  //
   // Strategy-aware API (recommended):
   //
   //   send() / send_line()
   //     Behaviour depends on the configured backpressure strategy:
   //       BestEffort — non-blocking; drops data when the send queue is full.
   //       Reliable   — blocks the calling thread until queue pressure is relieved,
-  //                    then enqueues. Never drops due to backpressure alone.
+  //                    then attempts admission, with bounded retries for capacity races.
   //
   // Explicit API (escape hatch):
   //
@@ -120,16 +127,15 @@ class WIRESTEAD_API ChannelInterface {
    * BestEffort: non-blocking, drops if the send queue is full.
    * Reliable:   blocks until queue pressure is relieved, then enqueues.
    *
-   * @return true  Data was accepted into the send queue.
-   * @return false Data was dropped (not connected, or BestEffort queue full).
+   * @return Local acceptance or the actual SendRejection reason.
    */
-  virtual bool send(std::string_view data) = 0;
+  [[nodiscard]] virtual SendResult send(std::string_view data) = 0;
 
   /**
    * @brief Enqueue a line (data + "\n") for transmission, honouring the backpressure strategy.
-   * @return true  Data was accepted. @return false Data was dropped.
+   * @return Local acceptance or the actual SendRejection reason.
    */
-  virtual bool send_line(std::string_view line) = 0;
+  [[nodiscard]] virtual SendResult send_line(std::string_view line) = 0;
 
   /**
    * @brief Block the calling thread until queue pressure is relieved, then enqueue.
@@ -140,9 +146,9 @@ class WIRESTEAD_API ChannelInterface {
    * backpressure does not clear. stop() from another thread is expected to unblock
    * waiting senders.
    *
-   * @return true Data was accepted. @return false Channel stopped while waiting.
+   * @return Local acceptance or the actual SendRejection reason.
    */
-  virtual bool send_blocking(std::string_view data) = 0;
+  [[nodiscard]] virtual SendResult send_blocking(std::string_view data) = 0;
 
   /**
    * @brief Blocking variant of send_line(). Always blocks regardless of strategy.
@@ -151,9 +157,9 @@ class WIRESTEAD_API ChannelInterface {
    * backpressure does not clear. stop() from another thread is expected to unblock
    * waiting senders.
    *
-   * @return true Data was accepted. @return false Channel stopped while waiting.
+   * @return Local acceptance or the actual SendRejection reason.
    */
-  virtual bool send_line_blocking(std::string_view line) = 0;
+  [[nodiscard]] virtual SendResult send_line_blocking(std::string_view line) = 0;
 
   /**
    * @brief Non-blocking send that always drops on a full queue, ignoring strategy.
@@ -164,49 +170,48 @@ class WIRESTEAD_API ChannelInterface {
    * than the current backpressure high-water budget. Use send() or send_blocking()
    * when Reliable enqueue semantics are required for large payloads.
    *
-   * @return true Data was accepted. @return false Dropped (not connected or queue full).
+   * @return Local acceptance or the actual SendRejection reason.
    */
-  virtual bool try_send(std::string_view data) = 0;
+  [[nodiscard]] virtual SendResult try_send(std::string_view data) = 0;
 
   /**
    * @brief Non-blocking send_line that always drops on a full queue, ignoring strategy.
    *
    * Uses the same non-blocking queue threshold policy as try_send().
    *
-   * @return true Data was accepted. @return false Dropped.
+   * @return Local acceptance or the actual SendRejection reason.
    */
-  virtual bool try_send_line(std::string_view line) = 0;
+  [[nodiscard]] virtual SendResult try_send_line(std::string_view line) = 0;
 
   /**
    * @brief Enqueue a vector payload by transferring ownership, honouring the backpressure strategy.
    *
-   * After this call, the caller must treat the moved-from vector as consumed regardless
-   * of the return value. Existing string_view send APIs remain available for borrowed data.
+   * Ownership transfers only on acceptance; rejection leaves the vector intact. Existing string_view send APIs remain
+   * available for borrowed data.
    *
-   * @return true Data was accepted. @return false Data was dropped or rejected.
+   * @return Local acceptance or the actual SendRejection reason.
    */
-  virtual bool send_move(std::vector<uint8_t>&& data) = 0;
+  [[nodiscard]] virtual SendResult send_move(std::vector<uint8_t>&& data) = 0;
 
   /**
    * @brief Non-blocking ownership-transfer send.
    *
-   * Always returns without waiting for backpressure. The moved-from vector is consumed
-   * regardless of the return value.
+   * Always returns without waiting for backpressure. Rejection leaves the vector intact.
    * Rejects payloads that would exceed the current non-blocking queue threshold,
    * even below MAX_BUFFER_SIZE when they exceed the current high-water budget.
    *
-   * @return true Data was accepted. @return false Data was dropped or rejected.
+   * @return Local acceptance or the actual SendRejection reason.
    */
-  virtual bool try_send_move(std::vector<uint8_t>&& data) = 0;
+  [[nodiscard]] virtual SendResult try_send_move(std::vector<uint8_t>&& data) = 0;
 
   /**
    * @brief Enqueue an immutable shared vector payload, honouring the backpressure strategy.
    *
    * The shared buffer must be non-null and non-empty.
    *
-   * @return true Data was accepted. @return false Data was dropped or rejected.
+   * @return Local acceptance or the actual SendRejection reason.
    */
-  virtual bool send_shared(std::shared_ptr<const std::vector<uint8_t>> data) = 0;
+  [[nodiscard]] virtual SendResult send_shared(std::shared_ptr<const std::vector<uint8_t>> data) = 0;
 
   /**
    * @brief Non-blocking shared-buffer send.
@@ -215,9 +220,9 @@ class WIRESTEAD_API ChannelInterface {
    * Rejects payloads that would exceed the current non-blocking queue threshold,
    * even below MAX_BUFFER_SIZE when they exceed the current high-water budget.
    *
-   * @return true Data was accepted. @return false Data was dropped or rejected.
+   * @return Local acceptance or the actual SendRejection reason.
    */
-  virtual bool try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data) = 0;
+  [[nodiscard]] virtual SendResult try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data) = 0;
 
   // Event handlers
   virtual ChannelInterface& on_data(MessageHandler handler) = 0;

@@ -23,6 +23,7 @@
 #include <string>
 #include <vector>
 
+#include "test_connection_channel.hpp"
 #include "wirestead/interface/channel.hpp"
 #include "wirestead/wrapper/serial/serial.hpp"
 #include "wirestead/wrapper/tcp_client/tcp_client.hpp"
@@ -31,30 +32,36 @@
 
 namespace {
 
-class CountingChannel : public wirestead::interface::Channel {
+class CountingChannel : public wirestead::test::TestConnectionChannel {
  public:
-  void start() override { connected_ = true; }
-  void stop() override { connected_ = false; }
+  void start() override {
+    connected_ = true;
+    connection_opened();
+  }
+  void stop() override {
+    connected_ = false;
+    connection_lost();
+  }
   bool is_connected() const override { return connected_; }
   bool is_backpressure_active() const override { return false; }
 
   boost::asio::any_io_executor get_executor() override { return ioc_.get_executor(); }
 
-  bool async_write_copy(wirestead::memory::ConstByteSpan data) override {
+  SendResult async_write_copy_result(wirestead::memory::ConstByteSpan data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++copy_calls_;
     last_payload_.assign(data.begin(), data.end());
     return write_result_;
   }
 
-  bool async_write_move(std::vector<uint8_t>&& data) override {
+  SendResult async_write_move_result(std::vector<uint8_t>&& data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++move_calls_;
     last_payload_ = std::move(data);
     return write_result_;
   }
 
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override {
+  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++shared_calls_;
     if (data) {
@@ -62,15 +69,19 @@ class CountingChannel : public wirestead::interface::Channel {
     } else {
       last_payload_.clear();
     }
-    return write_result_ && data && !data->empty();
+    return data && !data->empty() ? write_result_ : SendResult::reject(SendRejection::InvalidArgument);
   }
 
-  bool async_try_write_copy(wirestead::memory::ConstByteSpan data) override { return async_write_copy(data); }
+  SendResult async_try_write_copy_result(wirestead::memory::ConstByteSpan data) override {
+    return async_write_copy_result(data);
+  }
 
-  bool async_try_write_move(std::vector<uint8_t>&& data) override { return async_write_move(std::move(data)); }
+  SendResult async_try_write_move_result(std::vector<uint8_t>&& data) override {
+    return async_write_move_result(std::move(data));
+  }
 
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override {
-    return async_write_shared(std::move(data));
+  SendResult async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) override {
+    return async_write_shared_result(std::move(data));
   }
 
   void on_bytes(OnBytes cb) override { on_bytes_ = std::move(cb); }
@@ -100,7 +111,7 @@ class CountingChannel : public wirestead::interface::Channel {
  private:
   boost::asio::io_context ioc_;
   bool connected_{true};
-  bool write_result_{true};
+  SendResult write_result_{SendResult::accept()};
   mutable std::mutex mutex_;
   int copy_calls_{0};
   int move_calls_{0};
@@ -115,6 +126,7 @@ template <typename Wrapper>
 void expect_try_send_move_uses_move_path() {
   auto channel = std::make_shared<CountingChannel>();
   Wrapper wrapper(channel);
+  ASSERT_TRUE(wrapper.start().get());
 
   std::vector<uint8_t> payload{1, 2, 3, 4};
   EXPECT_TRUE(wrapper.try_send_move(std::move(payload)));
@@ -129,6 +141,7 @@ template <typename Wrapper>
 void expect_try_send_shared_uses_shared_path() {
   auto channel = std::make_shared<CountingChannel>();
   Wrapper wrapper(channel);
+  ASSERT_TRUE(wrapper.start().get());
 
   auto payload = std::make_shared<const std::vector<uint8_t>>(std::vector<uint8_t>{5, 6, 7});
   EXPECT_TRUE(wrapper.try_send_shared(payload));
@@ -143,6 +156,7 @@ template <typename Wrapper>
 void expect_empty_or_null_shared_is_rejected_before_transport() {
   auto channel = std::make_shared<CountingChannel>();
   Wrapper wrapper(channel);
+  ASSERT_TRUE(wrapper.start().get());
 
   EXPECT_FALSE(wrapper.try_send_shared(nullptr));
   EXPECT_FALSE(wrapper.try_send_shared(std::make_shared<const std::vector<uint8_t>>()));
@@ -156,6 +170,7 @@ template <typename Wrapper>
 void expect_strategy_send_uses_move_and_shared_paths() {
   auto channel = std::make_shared<CountingChannel>();
   Wrapper wrapper(channel);
+  ASSERT_TRUE(wrapper.start().get());
   wrapper.backpressure_strategy(wirestead::base::constants::BackpressureStrategy::BestEffort);
 
   EXPECT_TRUE(wrapper.send_move(std::vector<uint8_t>{8, 9}));

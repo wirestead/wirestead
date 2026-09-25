@@ -5,10 +5,11 @@ wirestead/wrapper/send_result.hpp in the wirestead::wrapper namespace, or
 through wirestead/wirestead.hpp as wirestead::SendResult and
 wirestead::SendRejection.
 
-**Current status:** the value type landed in PR #663. Shared wrapper
-payload-size validation now uses it internally for InvalidArgument and
-TooLarge. Existing send APIs still return bool and do not expose a
-SendResult. State/capacity mapping and final admission remain later steps.
+**Current status:** all four public client wrappers and server targeted sends
+expose SendResult across validation, lifecycle, capacity waiting and admission.
+See [client_send_results.md](client_send_results.md) and
+[server_target_send_results.md](server_target_send_results.md).
+Fanout aggregation remains separate.
 
 ## Constructing an outcome
 
@@ -38,7 +39,7 @@ not a persistence or wire-format contract.
 
 ## Example
 
-This constructs outcomes directly; existing sends still return bool.
+This example constructs outcomes directly. Public single-target sends return the same value type.
 
 ```cpp
 #include <wirestead/wirestead.hpp>
@@ -69,8 +70,8 @@ The value type carries all eight reasons from the
 | CancelledWhileWaiting | Stop released a capacity waiter |
 
 Only the internal payload-size InvalidArgument/TooLarge checks currently use
-these mappings; bool-returning transports do not expose the reasons yet. The enum can grow; switches should include
-a default branch.
+these mappings. Native ResultChannel admission also exposes structured decisions.
+The enum can grow; switches should include a default branch.
 
 ## Validation and migration
 

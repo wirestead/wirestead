@@ -1,5 +1,8 @@
 # TCP capacity wait release reasons
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 Built-in TCP connections now own a small wait record. A pinned sender keeps the
 record alive across connection replacement or wrapper restart. The submission
 mutex protects both first-cause publication and polling of the record.

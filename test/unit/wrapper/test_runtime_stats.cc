@@ -21,48 +21,60 @@
 #include <string_view>
 #include <vector>
 
+#include "test_connection_channel.hpp"
 #include "wirestead/interface/channel.hpp"
 #include "wirestead/wirestead.hpp"
 #include "wirestead/wrapper/tcp_client/tcp_client.hpp"
 
 namespace {
 
-class StatsChannel : public wirestead::interface::Channel {
+class StatsChannel : public wirestead::test::TestConnectionChannel {
  public:
-  void start() override { connected_ = true; }
-  void stop() override { connected_ = false; }
+  void start() override {
+    connected_ = true;
+    connection_opened();
+  }
+  void stop() override {
+    connected_ = false;
+    connection_lost();
+  }
   bool is_connected() const override { return connected_; }
   bool is_backpressure_active() const override { return stats_.backpressure_active; }
 
   boost::asio::any_io_executor get_executor() override { return ioc_.get_executor(); }
 
-  bool async_write_copy(wirestead::memory::ConstByteSpan data) override {
+  SendResult async_write_copy_result(wirestead::memory::ConstByteSpan data) override {
     if (fail_next_write_) {
       fail_next_write_ = false;
       ++stats_.failed_sends;
-      return false;
+      return SendResult::reject(SendRejection::QueueFull);
     }
     ++stats_.messages_accepted;
     stats_.bytes_accepted += data.size();
     stats_.queued_bytes += data.size();
     stats_.max_queued_bytes = std::max(stats_.max_queued_bytes, stats_.queued_bytes);
-    return true;
+    return SendResult::accept();
   }
 
-  bool async_write_move(std::vector<uint8_t>&& data) override {
-    return async_write_copy(wirestead::memory::ConstByteSpan(data.data(), data.size()));
+  SendResult async_write_move_result(std::vector<uint8_t>&& data) override {
+    return async_write_copy_result(wirestead::memory::ConstByteSpan(data.data(), data.size()));
   }
 
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override {
-    return data ? async_write_copy(wirestead::memory::ConstByteSpan(data->data(), data->size())) : false;
+  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) override {
+    return data ? async_write_copy_result(wirestead::memory::ConstByteSpan(data->data(), data->size()))
+                : SendResult::reject(SendRejection::InvalidArgument);
   }
 
-  bool async_try_write_copy(wirestead::memory::ConstByteSpan data) override { return async_write_copy(data); }
+  SendResult async_try_write_copy_result(wirestead::memory::ConstByteSpan data) override {
+    return async_write_copy_result(data);
+  }
 
-  bool async_try_write_move(std::vector<uint8_t>&& data) override { return async_write_move(std::move(data)); }
+  SendResult async_try_write_move_result(std::vector<uint8_t>&& data) override {
+    return async_write_move_result(std::move(data));
+  }
 
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override {
-    return async_write_shared(std::move(data));
+  SendResult async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) override {
+    return async_write_shared_result(std::move(data));
   }
 
   void on_bytes(OnBytes cb) override { on_bytes_ = std::move(cb); }
@@ -126,6 +138,7 @@ TEST(RuntimeStats, PublicAliasIsDefaultZero) {
 TEST(RuntimeStats, TcpClientWrapperForwardsStatsSnapshot) {
   auto channel = std::make_shared<StatsChannel>();
   wirestead::wrapper::TcpClient client(channel);
+  ASSERT_TRUE(client.start().get());
 
   ASSERT_TRUE(client.try_send("abc"));
   auto stats = client.stats();
@@ -154,6 +167,7 @@ TEST(RuntimeStats, TcpClientWrapperForwardsStatsSnapshot) {
 TEST(RuntimeStats, ResetClearsCountersButKeepsGauges) {
   auto channel = std::make_shared<StatsChannel>();
   wirestead::wrapper::TcpClient client(channel);
+  ASSERT_TRUE(client.start().get());
 
   ASSERT_TRUE(client.try_send("abcd"));
   channel->emit_bytes("rx");

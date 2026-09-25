@@ -29,8 +29,8 @@ see [tcp_reliable_send_results.md](tcp_reliable_send_results.md),
 [tcp_capacity_wait_runs.md](tcp_capacity_wait_runs.md),
 [tcp_reconnect_write_fencing.md](tcp_reconnect_write_fencing.md),
 [tcp_write_admission.md](tcp_write_admission.md) and
-[tcp_write_readiness.md](tcp_write_readiness.md). Send APIs still return bool;
-client public structured results and aggregates remain work.
+[tcp_write_readiness.md](tcp_write_readiness.md). Client send APIs now expose SendResult; fanout aggregates remain work.
+See [client_send_results.md](client_send_results.md).
 The built-in UDS client now also combines native/wrapper results, pins waits and
 accepted writes to a connection, preserves the first stop/loss cause, and
 discards old connection data; see [uds_send_results.md](uds_send_results.md).
@@ -49,15 +49,15 @@ in place of bool; see the migration section in the server result document.
 The single-target ResultChannel capability now exposes native write admission
 and provides bool adapters for custom implementations; see
 [channel_write_results.md](channel_write_results.md).
-Client public interfaces and fanout remain pending; these implementations do
-not complete D-3 by themselves.
+Client public interfaces now expose SendResult. Fanout remains pending;
+these implementations do not complete D-3 by themselves.
 
 Custom ConnectionChannel implementations now supply a retained connection
 handle, first-terminal capacity polling, cancellation and pinned final
 admission to all four client wrappers. Deterministic custom-channel tests cover
-stop/loss/reconnect and replacement after wait release. The client public
-SendResult migration must still decide the legacy injected-channel compatibility
-boundary; bool-only refusals cannot supply truthful structured reasons.
+stop/loss/reconnect and replacement after wait release. The public client SendResult migration requires this protocol for custom
+injection; bool-only and admission-only channels are rejected by the constructor
+before lifecycle actions because their refusals cannot supply truthful wait results.
 See [the custom connection contract](channel_write_results.md#connection-pinned-custom-reliable-sends).
 
 
@@ -491,5 +491,5 @@ queue limit remains unknown and does not restrict an otherwise valid size.
 The existing payload_needs_capacity adapter reads accepted() from that
 result. All seven wrappers continue to use it, leaving actual rejection,
 callbacks and accounting in the transport. This is validation-stage success,
-not acceptance by the queue, and the public sends still return bool.
+not acceptance by the queue. Public client sends now return SendResult.
 See [payload reason validation](send_payload_reasons.md).

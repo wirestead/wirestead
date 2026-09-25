@@ -1,5 +1,8 @@
 # TCP Reliable send results
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 Built-in TCP send/send_line/send_move/send_shared under Reliable and explicit
 send_blocking/send_line_blocking now carry an internal SendResult across their
 whole decision path. Public signatures still return bool.

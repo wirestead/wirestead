@@ -169,7 +169,10 @@ Park* parked = nullptr;
 std::optional<SendResult> observed;
 void park_wait() { parked->hold(); }
 void park_release(const SendResult&) { parked->hold(); }
-void observe(const SendResult& result) { observed = result; }
+SendResult record(SendResult result) {
+  observed = result;
+  return result;
+}
 
 class ConnectionChannelTest : public ::testing::TestWithParam<std::tuple<int, int>> {
  protected:
@@ -195,17 +198,9 @@ class ConnectionChannelTest : public ::testing::TestWithParam<std::tuple<int, in
     }
     restart();
     observed.reset();
-    wrapper::detail::g_tcp_send_result_hook = observe;
-    wrapper::detail::g_uds_send_result_hook = observe;
-    wrapper::detail::g_udp_send_result_hook = observe;
-    wrapper::detail::g_serial_send_result_hook = observe;
   }
   void TearDown() override {
     client->stop();
-    wrapper::detail::g_tcp_send_result_hook = nullptr;
-    wrapper::detail::g_uds_send_result_hook = nullptr;
-    wrapper::detail::g_udp_send_result_hook = nullptr;
-    wrapper::detail::g_serial_send_result_hook = nullptr;
     wait_hook(nullptr);
     release_hook(nullptr);
     parked = nullptr;
@@ -226,14 +221,14 @@ class ConnectionChannelTest : public ::testing::TestWithParam<std::tuple<int, in
     wrapper::detail::g_udp_capacity_wait_result_hook = hook;
     wrapper::detail::g_serial_capacity_wait_result_hook = hook;
   }
-  bool send(bool attempt = false) {
+  SendResult send(bool attempt = false) {
     switch (std::get<1>(GetParam())) {
       case 0:
-        return attempt ? client->try_send("abc") : client->send("abc");
+        return record(attempt ? client->try_send("abc") : client->send("abc"));
       case 1:
-        return attempt ? client->try_send_move(std::move(moved)) : client->send_move(std::move(moved));
+        return record(attempt ? client->try_send_move(std::move(moved)) : client->send_move(std::move(moved)));
       default:
-        return attempt ? client->try_send_shared(shared) : client->send_shared(shared);
+        return record(attempt ? client->try_send_shared(shared) : client->send_shared(shared));
     }
   }
   void expect_reason(SendRejection reason) {
@@ -330,7 +325,7 @@ TEST_P(ConnectionChannelTest, ExplicitTryPreservesActualRejectionWithoutPolling)
 }
 TEST_P(ConnectionChannelTest, ValidationPrecedesCaptureAndWait) {
   channel->pressure(true);
-  EXPECT_FALSE(client->send_blocking(std::string(33, 'x')));
+  EXPECT_FALSE(record(client->send_blocking(std::string(33, 'x'))));
   expect_reason(SendRejection::TooLarge);
   EXPECT_EQ(channel->state->captures, 0);
   EXPECT_EQ(channel->state->polls, 0);
@@ -375,18 +370,18 @@ TEST_P(ConnectionChannelTest, BestEffortMapsCapacityRefusalAndNeverPolls) {
 }
 TEST_P(ConnectionChannelTest, InvalidSharedPayloadDoesNotReachChannel) {
   channel->pressure(true);
-  EXPECT_FALSE(client->send_shared(nullptr));
+  EXPECT_FALSE(record(client->send_shared(nullptr)));
   expect_reason(SendRejection::InvalidArgument);
-  EXPECT_FALSE(client->try_send_shared(std::make_shared<const std::vector<uint8_t>>()));
+  EXPECT_FALSE(record(client->try_send_shared(std::make_shared<const std::vector<uint8_t>>())));
   expect_reason(SendRejection::InvalidArgument);
   EXPECT_EQ(channel->state->captures, 0);
   EXPECT_EQ(channel->state->writes, 0);
 }
 TEST_P(ConnectionChannelTest, LineDelimiterIsIncludedInHardLimitValidation) {
   channel->pressure(true);
-  EXPECT_FALSE(client->send_line_blocking(std::string(32, 'x')));
+  EXPECT_FALSE(record(client->send_line_blocking(std::string(32, 'x'))));
   expect_reason(SendRejection::TooLarge);
-  EXPECT_FALSE(client->try_send_line(std::string(32, 'x')));
+  EXPECT_FALSE(record(client->try_send_line(std::string(32, 'x'))));
   expect_reason(SendRejection::TooLarge);
   EXPECT_EQ(channel->state->captures, 0);
 }

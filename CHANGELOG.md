@@ -9,6 +9,17 @@ and ABI policy.
 ## Unreleased
 
 
+### Changed
+
+- **Breaking:** ChannelInterface and TCP/UDS/UDP/Serial client wrappers return
+  SendResult from all ten send methods. Contextual bool checks still work;
+  bool assignments/adapters must use accepted(). Rebuild all consumers.
+- **Breaking:** Injected client channels must be the corresponding native
+  transport or implement ConnectionChannel. Unsupported/null channels throw
+  invalid_argument before callback or lifecycle effects; bool-only refusal
+  reasons are never guessed. Wrappers require start() even for connected
+  injected channels. See docs/client_send_results.md.
+
 ### Added
 
 - Custom ConnectionChannel implementations can provide connection-pinned

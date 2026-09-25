@@ -1,5 +1,8 @@
 # Whole-queue hard limits before waiting
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 This follows payload-size validation in PR #658 and readiness fixes in
 PR #659. It addresses the whole-queue hard-limit part of C-3.1-1b before the
 structured D-3 result conversion.
