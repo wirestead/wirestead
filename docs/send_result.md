@@ -69,11 +69,11 @@ The value type carries all eight reasons from the
 | InvalidArgument | Empty/null or otherwise invalid input |
 | CancelledWhileWaiting | Stop released a capacity waiter |
 
-Only the internal payload-size InvalidArgument/TooLarge checks currently use
-these mappings. Native ResultChannel admission also exposes structured decisions.
+Client and targeted server sends use these mappings across their decision path.
+Native ResultChannel admission also exposes structured decisions.
 The enum can grow; switches should include a default branch.
 
-## Validation and migration
+## Value-type milestone validation
 
 - Full Debug build with -j2 passed.
 - Full CTest: 989 discovered, 977 passed, 12 existing UDP diagnostic skips,
@@ -86,8 +86,8 @@ The enum can grow; switches should include a default branch.
 - The ten focused value tests also passed in NDEBUG mode.
 - clang-format, cmake-format and git diff --check passed.
 
-Adding the standalone type does not change existing send signatures or ABI.
-The future return-type replacement will require callers such as
-bool ok = channel.send(data) to change to accepted() or explicit conversion.
-Bindings, per-target reason tests, cancellation/connection fencing and
-fanout results remain part of that later migration.
+The standalone type initially left send signatures unchanged. Public client and
+targeted server methods now return it, requiring consumers to rebuild and use
+accepted() or explicit conversion where a bool is required. The linked migration
+guides describe ownership, state/capacity reasons, wait cancellation and connection
+pinning. Language bindings and fanout aggregation remain separate work.

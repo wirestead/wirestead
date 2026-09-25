@@ -1,5 +1,8 @@
 # TCP native admission results
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 Private TCP write helpers now return SendResult for copy, move and shared
 buffers, including the try variants. The public Channel overrides still
 return accepted(), and the wrapper's existing pinned calls do the same.

@@ -29,7 +29,8 @@ see [tcp_reliable_send_results.md](tcp_reliable_send_results.md),
 [tcp_capacity_wait_runs.md](tcp_capacity_wait_runs.md),
 [tcp_reconnect_write_fencing.md](tcp_reconnect_write_fencing.md),
 [tcp_write_admission.md](tcp_write_admission.md) and
-[tcp_write_readiness.md](tcp_write_readiness.md). Client send APIs now expose SendResult; fanout aggregates remain work.
+[tcp_write_readiness.md](tcp_write_readiness.md). Client send APIs now expose
+SendResult; fanout aggregates remain work.
 See [client_send_results.md](client_send_results.md).
 The built-in UDS client now also combines native/wrapper results, pins waits and
 accepted writes to a connection, preserves the first stop/loss cause, and
@@ -55,7 +56,8 @@ these implementations do not complete D-3 by themselves.
 Custom ConnectionChannel implementations now supply a retained connection
 handle, first-terminal capacity polling, cancellation and pinned final
 admission to all four client wrappers. Deterministic custom-channel tests cover
-stop/loss/reconnect and replacement after wait release. The public client SendResult migration requires this protocol for custom
+stop/loss/reconnect and replacement after wait release. The public client
+SendResult migration requires this protocol for custom
 injection; bool-only and admission-only channels are rejected by the constructor
 before lifecycle actions because their refusals cannot supply truthful wait results.
 See [the custom connection contract](channel_write_results.md#connection-pinned-custom-reliable-sends).
