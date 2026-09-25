@@ -85,6 +85,7 @@ set(WIRESTEAD_HEADERS
     wirestead/diagnostics/runtime_stats_counter.hpp
     wirestead/factory/channel_factory.hpp
     wirestead/interface/channel.hpp
+    wirestead/interface/result_channel.hpp
     wirestead/interface/iserial_port.hpp
     wirestead/interface/itcp_acceptor.hpp
     wirestead/interface/itcp_resolver.hpp

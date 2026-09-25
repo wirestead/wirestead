@@ -46,7 +46,10 @@ final admission; see
 [server_target_send_results.md](server_target_send_results.md).
 ServerInterface and TCP/UDS/UDP wrapper targeted sends now expose SendResult
 in place of bool; see the migration section in the server result document.
-Custom Channel result contracts, client public interfaces and fanout remain pending;
+The single-target ResultChannel capability now exposes native write admission
+and provides bool adapters for custom implementations; see
+[channel_write_results.md](channel_write_results.md).
+Custom connection/wait contracts, client public interfaces and fanout remain pending;
 these implementations do not complete D-3 by themselves.
 
 The order is by dependency, not by impact. D-1 defines when a shutdown is

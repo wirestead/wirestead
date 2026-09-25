@@ -957,10 +957,10 @@ wrapper::SendResult UdpChannel::write_state(bool require_remote) {
   return wrapper::SendResult::accept();
 }
 
-bool UdpChannel::async_write_copy(memory::ConstByteSpan data) {
+wrapper::SendResult UdpChannel::async_write_copy_result(memory::ConstByteSpan data) {
   const auto result = write_copy(data);
   if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult UdpChannel::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_run) {
@@ -1016,10 +1016,10 @@ wrapper::SendResult UdpChannel::write_copy(memory::ConstByteSpan data, std::opti
   return wrapper::SendResult::accept();
 }
 
-bool UdpChannel::async_write_move(std::vector<uint8_t>&& data) {
+wrapper::SendResult UdpChannel::async_write_move_result(std::vector<uint8_t>&& data) {
   const auto result = write_move(std::move(data));
   if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult UdpChannel::write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_run) {
@@ -1065,10 +1065,10 @@ wrapper::SendResult UdpChannel::write_move(std::vector<uint8_t>&& data, std::opt
   return wrapper::SendResult::accept();
 }
 
-bool UdpChannel::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+wrapper::SendResult UdpChannel::async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) {
   const auto result = write_shared(std::move(data));
   if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult UdpChannel::write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
@@ -1115,10 +1115,10 @@ wrapper::SendResult UdpChannel::write_shared(std::shared_ptr<const std::vector<u
   return wrapper::SendResult::accept();
 }
 
-bool UdpChannel::async_try_write_copy(memory::ConstByteSpan data) {
+wrapper::SendResult UdpChannel::async_try_write_copy_result(memory::ConstByteSpan data) {
   const auto result = try_write_copy(data);
   if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult UdpChannel::try_write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_run) {
@@ -1130,10 +1130,10 @@ wrapper::SendResult UdpChannel::try_write_copy(memory::ConstByteSpan data, std::
   return try_write_move(std::vector<uint8_t>(data.begin(), data.end()), expected_run);
 }
 
-bool UdpChannel::async_try_write_move(std::vector<uint8_t>&& data) {
+wrapper::SendResult UdpChannel::async_try_write_move_result(std::vector<uint8_t>&& data) {
   const auto result = try_write_move(std::move(data));
   if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult UdpChannel::try_write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_run) {
@@ -1190,10 +1190,10 @@ wrapper::SendResult UdpChannel::try_write_move(std::vector<uint8_t>&& data, std:
   return wrapper::SendResult::accept();
 }
 
-bool UdpChannel::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+wrapper::SendResult UdpChannel::async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) {
   const auto result = try_write_shared(std::move(data));
   if (auto hook = detail::g_udp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult UdpChannel::try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data,

@@ -25,7 +25,7 @@
 #include "wirestead/base/visibility.hpp"
 #include "wirestead/config/udp_config.hpp"
 #include "wirestead/diagnostics/error_types.hpp"
-#include "wirestead/interface/channel.hpp"
+#include "wirestead/interface/result_channel.hpp"
 #include "wirestead/wrapper/send_result.hpp"
 
 namespace boost {
@@ -47,7 +47,7 @@ struct UdpWriteWait;
 /**
  * @brief UDP Transport implementation with 1:N support
  */
-class WIRESTEAD_API UdpChannel : public interface::Channel, public std::enable_shared_from_this<UdpChannel> {
+class WIRESTEAD_API UdpChannel : public interface::ResultChannel, public std::enable_shared_from_this<UdpChannel> {
  public:
   using OnBytesFrom = std::function<void(memory::ConstByteSpan, const boost::asio::ip::udp::endpoint&)>;
 
@@ -74,12 +74,14 @@ class WIRESTEAD_API UdpChannel : public interface::Channel, public std::enable_s
   std::optional<diagnostics::ErrorInfo> last_error_info() const override;
 
   // 1:1 writes (using configured remote_endpoint_)
-  bool async_write_copy(memory::ConstByteSpan data) override;
-  bool async_write_move(std::vector<uint8_t>&& data) override;
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
-  bool async_try_write_copy(memory::ConstByteSpan data) override;
-  bool async_try_write_move(std::vector<uint8_t>&& data) override;
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
+  [[nodiscard]] wrapper::SendResult async_write_copy_result(memory::ConstByteSpan data) override;
+  [[nodiscard]] wrapper::SendResult async_write_move_result(std::vector<uint8_t>&& data) override;
+  [[nodiscard]] wrapper::SendResult async_write_shared_result(
+      std::shared_ptr<const std::vector<uint8_t>> data) override;
+  [[nodiscard]] wrapper::SendResult async_try_write_copy_result(memory::ConstByteSpan data) override;
+  [[nodiscard]] wrapper::SendResult async_try_write_move_result(std::vector<uint8_t>&& data) override;
+  [[nodiscard]] wrapper::SendResult async_try_write_shared_result(
+      std::shared_ptr<const std::vector<uint8_t>> data) override;
 
   // 1:N writes (explicit destination)
   virtual bool async_write_to(memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& destination);

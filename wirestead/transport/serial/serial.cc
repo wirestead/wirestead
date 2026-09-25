@@ -864,10 +864,10 @@ wrapper::SendResult Serial::write_state() {
   return wrapper::SendResult::accept();
 }
 
-bool Serial::async_write_copy(memory::ConstByteSpan data) {
+wrapper::SendResult Serial::async_write_copy_result(memory::ConstByteSpan data) {
   const auto result = write_copy(data, std::nullopt);
   if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult Serial::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection) {
@@ -948,10 +948,10 @@ wrapper::SendResult Serial::write_copy(memory::ConstByteSpan data, std::optional
   return wrapper::SendResult::accept();
 }
 
-bool Serial::async_write_move(std::vector<uint8_t>&& data) {
+wrapper::SendResult Serial::async_write_move_result(std::vector<uint8_t>&& data) {
   const auto result = write_move(std::move(data), std::nullopt);
   if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult Serial::write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection) {
@@ -998,10 +998,10 @@ wrapper::SendResult Serial::write_move(std::vector<uint8_t>&& data, std::optiona
   return wrapper::SendResult::accept();
 }
 
-bool Serial::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+wrapper::SendResult Serial::async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) {
   const auto result = write_shared(std::move(data), std::nullopt);
   if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult Serial::write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
@@ -1049,10 +1049,10 @@ wrapper::SendResult Serial::write_shared(std::shared_ptr<const std::vector<uint8
   return wrapper::SendResult::accept();
 }
 
-bool Serial::async_try_write_copy(memory::ConstByteSpan data) {
+wrapper::SendResult Serial::async_try_write_copy_result(memory::ConstByteSpan data) {
   const auto result = try_write_copy(data);
   if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult Serial::try_write_copy(memory::ConstByteSpan data) {
@@ -1067,10 +1067,10 @@ wrapper::SendResult Serial::try_write_copy(memory::ConstByteSpan data) {
   return try_write_move(std::vector<uint8_t>(data.begin(), data.end()));
 }
 
-bool Serial::async_try_write_move(std::vector<uint8_t>&& data) {
+wrapper::SendResult Serial::async_try_write_move_result(std::vector<uint8_t>&& data) {
   const auto result = try_write_move(std::move(data));
   if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult Serial::try_write_move(std::vector<uint8_t>&& data) {
@@ -1129,10 +1129,10 @@ wrapper::SendResult Serial::try_write_move(std::vector<uint8_t>&& data) {
   return wrapper::SendResult::accept();
 }
 
-bool Serial::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+wrapper::SendResult Serial::async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) {
   const auto result = try_write_shared(std::move(data));
   if (auto hook = detail::g_serial_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult Serial::try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {

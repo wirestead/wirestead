@@ -498,10 +498,10 @@ wrapper::SendResult TcpClient::write_state() {
   return wrapper::SendResult::accept();
 }
 
-bool TcpClient::async_write_copy(memory::ConstByteSpan data) {
+wrapper::SendResult TcpClient::async_write_copy_result(memory::ConstByteSpan data) {
   const auto result = write_copy(data, std::nullopt);
   if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_connection) {
@@ -590,10 +590,10 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
   return wrapper::SendResult::accept();
 }
 
-bool TcpClient::async_write_move(std::vector<uint8_t>&& data) {
+wrapper::SendResult TcpClient::async_write_move_result(std::vector<uint8_t>&& data) {
   const auto result = write_move(std::move(data), std::nullopt);
   if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult TcpClient::write_move(std::vector<uint8_t>&& data, std::optional<uint64_t> expected_connection) {
@@ -644,10 +644,10 @@ wrapper::SendResult TcpClient::write_move(std::vector<uint8_t>&& data, std::opti
   return wrapper::SendResult::accept();
 }
 
-bool TcpClient::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+wrapper::SendResult TcpClient::async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) {
   const auto result = write_shared(std::move(data), std::nullopt);
   if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult TcpClient::write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
@@ -699,10 +699,10 @@ wrapper::SendResult TcpClient::write_shared(std::shared_ptr<const std::vector<ui
   return wrapper::SendResult::accept();
 }
 
-bool TcpClient::async_try_write_copy(memory::ConstByteSpan data) {
+wrapper::SendResult TcpClient::async_try_write_copy_result(memory::ConstByteSpan data) {
   const auto result = try_write_copy(data);
   if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult TcpClient::try_write_copy(memory::ConstByteSpan data) {
@@ -717,10 +717,10 @@ wrapper::SendResult TcpClient::try_write_copy(memory::ConstByteSpan data) {
   return try_write_move(std::vector<uint8_t>(data.begin(), data.end()));
 }
 
-bool TcpClient::async_try_write_move(std::vector<uint8_t>&& data) {
+wrapper::SendResult TcpClient::async_try_write_move_result(std::vector<uint8_t>&& data) {
   const auto result = try_write_move(std::move(data));
   if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult TcpClient::try_write_move(std::vector<uint8_t>&& data) {
@@ -780,10 +780,10 @@ wrapper::SendResult TcpClient::try_write_move(std::vector<uint8_t>&& data) {
   return wrapper::SendResult::accept();
 }
 
-bool TcpClient::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+wrapper::SendResult TcpClient::async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) {
   const auto result = try_write_shared(std::move(data));
   if (auto hook = detail::g_tcp_write_result_hook.load()) hook(result);
-  return result.accepted();
+  return result;
 }
 
 wrapper::SendResult TcpClient::try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {

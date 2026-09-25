@@ -11,6 +11,12 @@ and ABI policy.
 
 ### Added
 
+- ResultChannel exposes six structured single-target write admission methods,
+  implemented by TCP/UDS clients, UDP and serial. Final legacy bool adapters
+  delegate exactly once. Custom bool-only channels and server fanout remain
+  unchanged; client wrapper result migration remains pending. Native class ABI
+  changes require rebuilding consumers.
+
 - TCP/UDS server Reliable and explicit blocking sends retain one internal
   SendResult across validation, per-session capacity waiting and pinned final
   admission. Waits preserve the first stop/loss cause across later changes;
