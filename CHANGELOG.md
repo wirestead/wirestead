@@ -200,6 +200,12 @@ and ABI policy.
 
 ### Fixed
 
+- Preserve the caller's vector when native UDS server move fanout rejects
+  every target, including no-target and oversized requests. Partial acceptance
+  still consumes it. Plain and try move adapters share the ownership rule.
+- Refresh the seven-target v0.10 policy audit and record remaining accounting,
+  queue, callback and event gaps; full draft conformance is not established.
+
 - TCP and UDS server statistics snapshot retained totals and live sessions under
   the same lock, preventing transient counter loss during session retirement.
 

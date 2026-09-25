@@ -52,8 +52,10 @@ The single-target ResultChannel capability now exposes native write admission
 and provides bool adapters for custom implementations; see
 [channel_write_results.md](channel_write_results.md).
 Client public interfaces expose SendResult and server fanout APIs expose
-FanoutResult. The C++ public return-type migration is complete; Python binding
-migration and later discard/event policies remain separate work.
+FanoutResult. The C++ public return-type migration is complete. Python PR #72 preserves bool compatibility on old and
+new cores; rich Python results are optional API work. Discard/event policies
+remain incomplete. See the [current conformance report](communication_contract_v0.10_status.md)
+and [accounting/event proposal](post_acceptance_policy_v0.10.md).
 
 Custom ConnectionChannel implementations now supply a retained connection
 handle, first-terminal capacity polling, cancellation and pinned final
@@ -371,12 +373,12 @@ later.
 - The alternative, keeping `bool` and adding parallel `*_ex()` APIs, doubles
   the surface permanently and leaves the reason invisible by default. Not
   recommended.
-- Downstream, at the time of writing: `wirestead-python` exposes
-  `send(...) -> bool` on four classes, so the binding needs a mapping decision
-  (truthiness plus an accessor, or a Python enum) and its stubs regenerate.
-  `wirestead_ros` does not call `send()` and is unaffected.
-  `wirestead-examples` and every documented snippet use the `if (send(...))`
-  form and keep compiling, which `scripts/check_docs_compile.sh` checks.
+- Downstream: wirestead-python PR #72 now explicitly converts core results to
+  bool, preserving its existing API and stubs with both core v0.9.6 and the
+  structured-result core. Rich Python results would be an additive design.
+  wirestead_ros does not call send() and is unaffected.
+  Existing conditional send examples keep compiling; the docs compile smoke
+  verifies those consumers.
 - ABI breaks, which v0.10 already does.
 
 ### Verification
@@ -392,9 +394,14 @@ later.
 4. `scripts/check_docs_compile.sh` passes, which is what proves the documented
    `if (send(...))` form still compiles.
 5. The installed-consumer smoke builds against the new headers.
-6. The Python binding's own tests, once its mapping is decided.
+6. Python's own bool-compatibility tests on legacy and structured-result cores
+   (implemented in wirestead-python PR #72).
 
-## Dependencies of the remaining section 9.1 rows
+## Historical dependencies of section 9.1 rows
+
+This table records dependency rationale, not current completion status. Use
+[the current report](communication_contract_v0.10_status.md) for resolved
+validation, connection fencing and wait-release behavior.
 
 | Row | Depends on | Note |
 | --- | --- | --- |
@@ -404,7 +411,11 @@ later.
 | C-6.1-1 queued data across a link loss | C-3.8-1 for observability; event model for the notification | Discarding is already **Decided** in contract 6.1 - "data from a previous connection is never sent on a new one" - so what is left is implementing the discard and deciding how it is observed and announced, not whether it happens |
 | C-6.1-2 reason a blocked sender was released | D-1 and D-3 | D-1 says who releases the waiter, D-3 carries the reason out |
 
-## Suggested build order
+## Historical suggested build order
+
+The sequence below records the original plan. D-1/D-2 and public result
+migration have since landed; use the current conformance report for remaining
+work. References to still-open shutdown rows below are historical.
 
 1. D-1, per target, reusing the shape proven on serial.
 2. D-2: first establish which callback paths reach the shared dispatch and
