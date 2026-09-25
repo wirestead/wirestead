@@ -11,6 +11,12 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking ABI:** RuntimeStats gains optional send_accounting. Rebuild C++
+  consumers. The built-in TCP client reports logical accepted/written/outstanding
+  requests and pre-write discard/active abort totals by stop, connection loss
+  and queue pressure. Unsupported transports return no accounting capability.
+  Existing counters retain their meanings. See docs/tcp_send_accounting.md.
+
 - **Breaking:** ServerInterface and TCP/UDS/UDP server broadcast methods return
   FanoutResult, reporting selected targets, accepted/rejected counts and every
   rejection reason. Zero targets are explicit; fanout never waits for capacity.

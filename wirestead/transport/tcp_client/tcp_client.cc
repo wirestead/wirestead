@@ -59,6 +59,7 @@
 #include "wirestead/diagnostics/error_mapping.hpp"
 #include "wirestead/diagnostics/logger.hpp"
 #include "wirestead/diagnostics/runtime_stats_counter.hpp"
+#include "wirestead/diagnostics/send_accounting.hpp"
 #include "wirestead/memory/memory_pool.hpp"
 #include "wirestead/transport/base/bp_state_machine.hpp"
 #include "wirestead/transport/base/bp_utils.hpp"
@@ -78,6 +79,18 @@ using config::TcpClientConfig;
 using interface::Channel;
 
 struct TcpClient::Impl {
+  using Ledger = diagnostics::SendAccountingLedger;
+  struct TrackedBuffer {
+    BufferVariant buffer;
+    Ledger::Request request;
+  };
+  struct BufferProjection {
+    template <typename T>
+    decltype(auto) operator()(T& item) const {
+      return (item.buffer);
+    }
+  };
+  Ledger send_accounting_;
   // Members moved from TcpClient
   std::shared_ptr<net::io_context> owned_ioc_;
   net::io_context* ioc_ = nullptr;
@@ -149,13 +162,13 @@ struct TcpClient::Impl {
   // Per-connection storage, sized from cfg_.read_buffer_size. A cancelled
   // read retains its buffer even if a replacement connection is ready.
   std::shared_ptr<std::vector<uint8_t>> rx_;
-  std::deque<BufferVariant> tx_;
-  std::deque<BufferVariant> pending_;
+  std::deque<TrackedBuffer> tx_;
+  std::deque<TrackedBuffer> pending_;
   std::atomic<size_t> pending_bytes_{0};
   // Each operation owns its buffers until its completion handler returns,
   // even if a replacement connection has already started writing.
   struct WriteBatch {
-    std::vector<BufferVariant> buffers;
+    std::vector<TrackedBuffer> buffers;
     std::vector<net::const_buffer> views;
     size_t bytes = 0;
   };
@@ -273,7 +286,13 @@ struct TcpClient::Impl {
 
   void mark_disconnected() {
     std::lock_guard<std::mutex> lock(submission_mtx_);
+    mark_disconnected_locked();
+  }
+
+  // Admission, write completion and explicit stop use the same terminal boundary.
+  void mark_disconnected_locked() {
     if (connected_.exchange(false)) {
+      send_accounting_.end(Ledger::Cause::ConnectionLoss);
       if (write_wait_) write_wait_->end(wrapper::SendRejection::NotReady);
       connection_seq_.fetch_add(1);
     }
@@ -311,7 +330,7 @@ struct TcpClient::Impl {
   // inflight_bytes_ via try_reserve_limit_bytes() - only Reliable-strategy
   // sends do (jwsung91/wirestead#517); BestEffort's plain path has no
   // precheck and relies entirely on decide_enqueue()'s own keep-latest trim.
-  void route_enqueued_buffer(std::shared_ptr<TcpClient> self, BufferVariant&& buf, size_t added, bool reserved);
+  void route_enqueued_buffer(std::shared_ptr<TcpClient> self, TrackedBuffer&& buf, size_t added, bool reserved);
   queue_util::BackpressureFields bp_fields();
   void notify_state();
   void reset_io_objects();
@@ -424,6 +443,7 @@ void TcpClient::stop() {
     std::lock_guard<std::mutex> submission_lock(impl_->submission_mtx_);
     first = !impl_->stop_requested_.exchange(true);
     if (first) {
+      impl_->send_accounting_.end(Impl::Ledger::Cause::ExplicitStop);
       if (impl_->write_wait_) impl_->write_wait_->end(wrapper::SendRejection::CancelledWhileWaiting);
       impl_->stopping_.store(true);
       impl_->stop_seq_.store(impl_->current_seq_.load());
@@ -454,11 +474,15 @@ bool TcpClient::is_connected() const { return get_impl()->connected_.load(); }
 bool TcpClient::is_backpressure_active() const { return get_impl()->backpressure_active_.load(); }
 std::optional<size_t> TcpClient::write_queue_limit() const { return impl_->bp_limit_; }
 wrapper::RuntimeStats TcpClient::stats() const {
-  return impl_->stats_.snapshot(impl_->queue_bytes_.load(std::memory_order_relaxed),
-                                impl_->pending_bytes_.load(std::memory_order_relaxed),
-                                impl_->backpressure_active_.load(std::memory_order_relaxed));
+  auto result = impl_->stats_.snapshot(impl_->queue_bytes_.load(std::memory_order_relaxed),
+                                       impl_->pending_bytes_.load(std::memory_order_relaxed),
+                                       impl_->backpressure_active_.load(std::memory_order_relaxed));
+  result.send_accounting = impl_->send_accounting_.snapshot();
+  return result;
 }
 void TcpClient::reset_stats() {
+  std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
+  impl_->send_accounting_.reset();
   impl_->stats_.reset(impl_->queue_bytes_.load(std::memory_order_relaxed) +
                       impl_->pending_bytes_.load(std::memory_order_relaxed));
 }
@@ -545,8 +569,10 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
           return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
         }
         impl_->stats_.record_accepted(added);
+        Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+        const auto request = admission.request();
         net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(pooled_buffer), added, reliable, seq,
-                                   connection]() mutable {
+                                   connection, request]() mutable {
           if (seq != self->impl_->current_seq_.load()) return;
           if (connection != self->impl_->connection_seq_.load()) {
             self->impl_->stats_.record_dropped(1, added);
@@ -555,8 +581,10 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
                                                        added);
             return;
           }
-          self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
+          self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added,
+                                             reliable);
         });
+        admission.commit();
         return wrapper::SendResult::accept();
       }
     } catch (const std::exception& e) {
@@ -575,9 +603,11 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
+  Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+  const auto request = admission.request();
 
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, reliable, seq,
-                             connection]() mutable {
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, reliable, seq, connection,
+                             request]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
@@ -585,8 +615,10 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
         queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
       return;
     }
-    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
+    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added,
+                                       reliable);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -630,8 +662,10 @@ wrapper::SendResult TcpClient::write_move(std::vector<uint8_t>&& data, std::opti
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq,
-                             connection]() mutable {
+  Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+  const auto request = admission.request();
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq, connection,
+                             request]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
@@ -639,8 +673,10 @@ wrapper::SendResult TcpClient::write_move(std::vector<uint8_t>&& data, std::opti
         queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
       return;
     }
-    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
+    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added,
+                                       reliable);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -685,8 +721,10 @@ wrapper::SendResult TcpClient::write_shared(std::shared_ptr<const std::vector<ui
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq,
-                             connection]() mutable {
+  Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+  const auto request = admission.request();
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq, connection,
+                             request]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
@@ -694,8 +732,10 @@ wrapper::SendResult TcpClient::write_shared(std::shared_ptr<const std::vector<ui
         queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
       return;
     }
-    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added, reliable);
+    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added,
+                                       reliable);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -756,27 +796,31 @@ wrapper::SendResult TcpClient::try_write_move(std::vector<uint8_t>&& data) {
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
+  Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+  const auto request = admission.request();
 
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection]() mutable {
-    if (seq != self->impl_->current_seq_.load()) return;
-    if (connection != self->impl_->connection_seq_.load()) {
-      self->impl_->stats_.record_dropped(1, added);
-      // The old connection drain already removed this queue reservation.
-      return;
-    }
-    auto impl = self->impl_.get();
-    if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||
-        impl->state_.is_state(LinkState::Error)) {
-      queue_util::release_reserved_write_bytes(impl->queue_bytes_, added);
-      impl->stats_.record_failed_send();
-      return;
-    }
+  net::post(impl_->strand_,
+            [self = shared_from_this(), buf = std::move(data), added, seq, connection, request]() mutable {
+              if (seq != self->impl_->current_seq_.load()) return;
+              if (connection != self->impl_->connection_seq_.load()) {
+                self->impl_->stats_.record_dropped(1, added);
+                // The old connection drain already removed this queue reservation.
+                return;
+              }
+              auto impl = self->impl_.get();
+              if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||
+                  impl->state_.is_state(LinkState::Error)) {
+                queue_util::release_reserved_write_bytes(impl->queue_bytes_, added);
+                impl->stats_.record_failed_send();
+                return;
+              }
 
-    impl->tx_.emplace_back(std::move(buf));
-    impl->observe_queue();
-    impl->report_backpressure(self, impl->queue_bytes_);
-    if (!impl->writing_) impl->do_write(self, impl->current_seq_.load());
-  });
+              impl->tx_.push_back(Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request});
+              impl->observe_queue();
+              impl->report_backpressure(self, impl->queue_bytes_);
+              if (!impl->writing_) impl->do_write(self, impl->current_seq_.load());
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -822,27 +866,31 @@ wrapper::SendResult TcpClient::try_write_shared(std::shared_ptr<const std::vecto
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
+  Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+  const auto request = admission.request();
 
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection]() mutable {
-    if (seq != self->impl_->current_seq_.load()) return;
-    if (connection != self->impl_->connection_seq_.load()) {
-      self->impl_->stats_.record_dropped(1, added);
-      // The old connection drain already removed this queue reservation.
-      return;
-    }
-    auto impl = self->impl_.get();
-    if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||
-        impl->state_.is_state(LinkState::Error)) {
-      queue_util::release_reserved_write_bytes(impl->queue_bytes_, added);
-      impl->stats_.record_failed_send();
-      return;
-    }
+  net::post(impl_->strand_,
+            [self = shared_from_this(), buf = std::move(data), added, seq, connection, request]() mutable {
+              if (seq != self->impl_->current_seq_.load()) return;
+              if (connection != self->impl_->connection_seq_.load()) {
+                self->impl_->stats_.record_dropped(1, added);
+                // The old connection drain already removed this queue reservation.
+                return;
+              }
+              auto impl = self->impl_.get();
+              if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||
+                  impl->state_.is_state(LinkState::Error)) {
+                queue_util::release_reserved_write_bytes(impl->queue_bytes_, added);
+                impl->stats_.record_failed_send();
+                return;
+              }
 
-    impl->tx_.emplace_back(std::move(buf));
-    impl->observe_queue();
-    impl->report_backpressure(self, impl->queue_bytes_);
-    if (!impl->writing_) impl->do_write(self, impl->current_seq_.load());
-  });
+              impl->tx_.push_back(Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request});
+              impl->observe_queue();
+              impl->report_backpressure(self, impl->queue_bytes_);
+              if (!impl->writing_) impl->do_write(self, impl->current_seq_.load());
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -1299,16 +1347,40 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq) {
   }
   writing_ = true;
 
+  // Serialize the handoff boundary with stop/loss admission fencing.
+  std::unique_lock<std::mutex> admission_lock(submission_mtx_);
+  if (stop_requested_.load()) {
+    writing_ = false;
+    return;
+  }
   auto batch = std::make_shared<WriteBatch>();
-  const auto queued_bytes = queue_util::take_gather_batch(tx_, batch->buffers, batch->views);
+  const auto queued_bytes = queue_util::take_gather_batch(tx_, batch->buffers, batch->views, BufferProjection{});
   batch->bytes = queued_bytes;
   active_write_ = batch;
+  for (const auto& item : batch->buffers) send_accounting_.begin(item.request);
   const auto connection = connection_seq_.load();
 
   ++pending_io_;
   auto on_write = [self, queued_bytes, seq, connection, batch](auto ec, std::size_t bytes_written) {
     IoCompletion completion{self->impl_.get()};
-    if (connection != self->impl_->connection_seq_.load()) {
+    bool current_connection;
+    {
+      std::lock_guard<std::mutex> admission_lock(self->impl_->submission_mtx_);
+      current_connection = connection == self->impl_->connection_seq_.load();
+      size_t remaining = bytes_written;
+      for (const auto& item : batch->buffers) {
+        const auto size = std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
+        const auto confirmed = std::min(remaining, size);
+        self->impl_->send_accounting_.complete(item.request, confirmed);
+        remaining -= confirmed;
+      }
+      // Preserve the completed prefix and close admission before a competing
+      // stop can reclassify the rest of this connection as an explicit stop.
+      if (current_connection && ec && ec != net::error::operation_aborted && seq == self->impl_->current_seq_.load()) {
+        self->impl_->mark_disconnected_locked();
+      }
+    }
+    if (!current_connection) {
       // Release pooled buffers while the captured client still owns its pool.
       batch->buffers.clear();
       return;
@@ -1352,13 +1424,28 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq) {
     self->impl_->do_write(self, seq);
   };
 
+  try {
+    if (auto hook = detail::g_tcp_write_initiation_hook.load()) hook();
 #ifdef WIRESTEAD_TLS_ENABLED
-  if (tls_active()) {
-    net::async_write(*tls_, batch->views, on_write);
+    if (tls_active()) {
+      net::async_write(*tls_, batch->views, on_write);
+    } else
+#endif
+    {
+      net::async_write(socket_, batch->views, on_write);
+    }
+  } catch (...) {
+    // No completion handler owns this pending-I/O slot after failed initiation.
+    // The accepted request crossed the local-write boundary; connection cleanup
+    // terminates it as an abort and discards requests still awaiting handoff.
+    --pending_io_;
+    mark_disconnected_locked();
+    admission_lock.unlock();
+    handle_close(self, seq, make_error_code(net::error::no_buffer_space));
     return;
   }
-#endif
-  net::async_write(socket_, batch->views, on_write);
+  admission_lock.unlock();
+  if (auto hook = detail::g_tcp_write_started_hook.load()) hook();
 }
 
 void TcpClient::Impl::handle_close(std::shared_ptr<TcpClient> self, uint64_t seq, const boost::system::error_code& ec) {
@@ -1437,9 +1524,9 @@ void TcpClient::Impl::discard_connection_writes() {
   size_t messages = tx_.size() + pending_.size();
   size_t bytes = 0;
   for (const auto& buffer : tx_)
-    bytes += std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, buffer);
+    bytes += std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, buffer.buffer);
   for (const auto& buffer : pending_)
-    bytes += std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, buffer);
+    bytes += std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, buffer.buffer);
   if (active_write_) {
     messages += active_write_->buffers.size();
     bytes += active_write_->bytes;
@@ -1502,7 +1589,7 @@ queue_util::BackpressureFields TcpClient::Impl::bp_fields() {
                                         bp_strategy_.load(std::memory_order_relaxed)};
 }
 
-void TcpClient::Impl::route_enqueued_buffer(std::shared_ptr<TcpClient> self, BufferVariant&& buf, size_t added,
+void TcpClient::Impl::route_enqueued_buffer(std::shared_ptr<TcpClient> self, TrackedBuffer&& buf, size_t added,
                                             bool reserved) {
   if (stop_requested_.load() || state_.is_state(LinkState::Closed) || state_.is_state(LinkState::Error)) {
     if (reserved) queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
@@ -1512,10 +1599,13 @@ void TcpClient::Impl::route_enqueued_buffer(std::shared_ptr<TcpClient> self, Buf
 
   auto f = bp_fields();
   queue_util::DropAccounting dropped;
-  auto decision = queue_util::decide_enqueue(f, added, tx_, dropped);
+  auto decision = queue_util::decide_enqueue(f, added, tx_, dropped, BufferProjection{}, [this](const auto& removed) {
+    send_accounting_.discard(removed.request, Ledger::Cause::QueuePressure);
+  });
   if (dropped.any()) stats_.record_dropped(dropped.messages, dropped.bytes);
 
   if (decision == queue_util::EnqueueDecision::Rejected) {
+    send_accounting_.discard(buf.request, Ledger::Cause::QueuePressure);
     WIRESTEAD_LOG_ERROR("tcp_client", "write", fmt::format("Queue limit exceeded ({} bytes)", queue_bytes_ + added));
     record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::COMMUNICATION, "write",
                  boost::asio::error::no_buffer_space, "Queue limit exceeded", false, 0);

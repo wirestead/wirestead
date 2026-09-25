@@ -186,6 +186,19 @@ inline ::boost::asio::const_buffer variant_const_buffer(const T& buf) {
     return ::boost::asio::const_buffer(buf.data(), buf.size());
   }
 }
+// Identity for plain buffers; tracked/endpoint queue items project their payload.
+struct IdentityProjection {
+  template <typename T>
+  constexpr T& operator()(T& x) const {
+    return x;
+  }
+};
+
+struct IgnoreDroppedBuffer {
+  template <typename T>
+  void operator()(const T&) const {}
+};
+
 // Moves buffers from the front of `tx` into `batch` (which is cleared first)
 // up to the caps above, filling `views` with the matching const_buffers.
 // Returns the total byte count, which is what the caller must subtract from
@@ -198,22 +211,24 @@ inline ::boost::asio::const_buffer variant_const_buffer(const T& buf) {
 // copies into the composed operation. An earlier version passed a non-owning
 // view to dodge that copy; asio's partial-write bookkeeping does not survive
 // an aliasing sequence, and it silently duplicated or stalled queued buffers.
+// Project extracts the payload while batch retains the complete queue item.
 // One small copy per gather write is the right trade - it replaces N syscalls,
 // and with several messages per write it is fewer allocations than before.
-template <typename Deque, typename Batch>
-inline size_t take_gather_batch(Deque& tx, Batch& batch, std::vector<::boost::asio::const_buffer>& views) {
+template <typename Deque, typename Batch, typename Project = IdentityProjection>
+inline size_t take_gather_batch(Deque& tx, Batch& batch, std::vector<::boost::asio::const_buffer>& views,
+                                Project project = Project{}) {
   batch.clear();
   views.clear();
   size_t total = 0;
   while (!tx.empty() && batch.size() < kMaxGatherBuffers && total < kMaxGatherBytes) {
-    const size_t n = std::visit([](const auto& b) { return variant_buffer_size(b); }, tx.front());
+    const size_t n = std::visit([](const auto& b) { return variant_buffer_size(b); }, project(tx.front()));
     batch.push_back(std::move(tx.front()));
     tx.pop_front();
     total += n;
   }
   views.reserve(batch.size());
   for (const auto& b : batch) {
-    views.push_back(std::visit([](const auto& x) { return variant_const_buffer(x); }, b));
+    views.push_back(std::visit([](const auto& x) { return variant_const_buffer(x); }, project(b)));
   }
   return total;
 }
@@ -228,18 +243,6 @@ inline void return_gather_batch(Deque& tx, Batch& batch) {
   batch.clear();
 }
 
-// Identity projection: the default for maybe_flush_for_keep_latest()'s `project`
-// parameter below, used as-is by transports whose tx_ deque holds the
-// BufferVariant directly. UDP's tx_ holds TxItem{BufferVariant, destination}
-// instead, and supplies a projection extracting `.buffer` so this same
-// trimming logic can still visit the variant inside.
-struct IdentityProjection {
-  template <typename T>
-  constexpr T& operator()(T& x) const {
-    return x;
-  }
-};
-
 // BestEffort queue-trimming shared by all stream transports (TCP client/server, UDS client/server)
 // and, via a projection, UDP.
 // Must be called on the strand immediately before enqueueing a new buffer of `added` bytes.
@@ -248,18 +251,20 @@ struct IdentityProjection {
 // For BestEffort:
 //   added >= bp_high  →  drop entire tx_ (full keep-latest replacement).
 //   otherwise         →  pop oldest tx_ entries until queue_bytes + added <= bp_high.
-template <typename Deque, typename Project = IdentityProjection>
+// on_drop observes each removed item before destruction and must not throw.
+template <typename Deque, typename Project = IdentityProjection, typename OnDrop = IgnoreDroppedBuffer>
 inline DropAccounting maybe_flush_for_keep_latest(::wirestead::base::constants::BackpressureStrategy bp_strategy,
                                                   size_t added, size_t bp_high, Deque& tx,
                                                   std::atomic<size_t>& queue_bytes,
                                                   const std::atomic<bool>& backpressure_active,
-                                                  Project project = Project{}) {
+                                                  Project project = Project{}, OnDrop on_drop = OnDrop{}) {
   DropAccounting dropped;
   if (bp_strategy != ::wirestead::base::constants::BackpressureStrategy::BestEffort) return dropped;
 
   if (added >= bp_high) {
     size_t removed_bytes = 0;
     for (auto& buf : tx) {
+      on_drop(buf);
       removed_bytes += std::visit([](const auto& b) { return variant_buffer_size(b); }, project(buf));
     }
     dropped.messages = tx.size();
@@ -277,6 +282,7 @@ inline DropAccounting maybe_flush_for_keep_latest(::wirestead::base::constants::
       if (qb + added <= bp_high) break;
       const size_t oldest = std::visit([](const auto& b) { return variant_buffer_size(b); }, project(tx.front()));
       queue_bytes.store(qb > oldest ? qb - oldest : 0, std::memory_order_relaxed);
+      on_drop(tx.front());
       tx.pop_front();
       ++dropped.messages;
       dropped.bytes += oldest;
