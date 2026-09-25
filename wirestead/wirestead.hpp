@@ -26,6 +26,7 @@
 
 // Public API Context and Interface headers
 #include "wirestead/wrapper/context.hpp"
+#include "wirestead/wrapper/fanout_result.hpp"
 #include "wirestead/wrapper/ichannel.hpp"
 #include "wirestead/wrapper/iserver.hpp"
 #include "wirestead/wrapper/runtime_stats.hpp"
@@ -82,6 +83,7 @@ using ConnectionContext = wrapper::ConnectionContext;
 using ErrorContext = wrapper::ErrorContext;
 using RuntimeStats = wrapper::RuntimeStats;
 using SendResult = wrapper::SendResult;
+using FanoutResult = wrapper::FanoutResult;
 using SendRejection = wrapper::SendRejection;
 
 // === Public Builder API Convenience Functions ===

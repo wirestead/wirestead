@@ -26,6 +26,7 @@
 #include "wirestead/config/uds_config.hpp"
 #include "wirestead/diagnostics/error_types.hpp"
 #include "wirestead/interface/channel.hpp"
+#include "wirestead/wrapper/fanout_result.hpp"
 #include "wirestead/wrapper/send_result.hpp"
 
 namespace boost {
@@ -112,6 +113,8 @@ class WIRESTEAD_API UdsServer : public interface::Channel, public std::enable_sh
 
  private:
   friend class wrapper::UdsServer;
+  wrapper::FanoutResult broadcast_result(memory::ConstByteSpan data, wrapper::SendResult wrapper_state,
+                                         bool append_newline);
   wrapper::SendResult target_state() const;
   std::shared_ptr<UdsServerSession> capture_target(ClientId client_id) const;
   std::optional<wrapper::SendResult> poll_target_wait(const std::shared_ptr<UdsServerSession>& session) const;

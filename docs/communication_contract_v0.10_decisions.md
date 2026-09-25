@@ -30,7 +30,8 @@ see [tcp_reliable_send_results.md](tcp_reliable_send_results.md),
 [tcp_reconnect_write_fencing.md](tcp_reconnect_write_fencing.md),
 [tcp_write_admission.md](tcp_write_admission.md) and
 [tcp_write_readiness.md](tcp_write_readiness.md). Client send APIs now expose
-SendResult; fanout aggregates remain work.
+SendResult; server fanout APIs now expose FanoutResult.
+See [server_fanout_results.md](server_fanout_results.md).
 See [client_send_results.md](client_send_results.md).
 The built-in UDS client now also combines native/wrapper results, pins waits and
 accepted writes to a connection, preserves the first stop/loss cause, and
@@ -50,8 +51,9 @@ in place of bool; see the migration section in the server result document.
 The single-target ResultChannel capability now exposes native write admission
 and provides bool adapters for custom implementations; see
 [channel_write_results.md](channel_write_results.md).
-Client public interfaces now expose SendResult. Fanout remains pending;
-these implementations do not complete D-3 by themselves.
+Client public interfaces expose SendResult and server fanout APIs expose
+FanoutResult. The C++ public return-type migration is complete; Python binding
+migration and later discard/event policies remain separate work.
 
 Custom ConnectionChannel implementations now supply a retained connection
 handle, first-terminal capacity polling, cancellation and pinned final
@@ -398,7 +400,7 @@ later.
 | --- | --- | --- |
 | C-3.1-1b validation before waiting | none for the fix; D-3 for the reason | Validating before the wait is implementable with today's `bool`. D-3 only makes the resulting rejection distinguishable from a queue refusal |
 | C-3.2-3 keep-latest on the blocking path | Contract open item (keep-latest policy), then D-3 | Not decidable until keep-latest is either adopted as an opt-in policy or dropped from v0.10 |
-| C-3.6-3, C-3.6-4 fanout result | D-3 | Needs the aggregate type defined alongside `SendResult`; zero targets must stay distinguishable |
+| C-3.6-3, C-3.6-4 fanout result | D-3 | Implemented as FanoutResult; zero targets remain distinguishable |
 | C-6.1-1 queued data across a link loss | C-3.8-1 for observability; event model for the notification | Discarding is already **Decided** in contract 6.1 - "data from a previous connection is never sent on a new one" - so what is left is implementing the discard and deciding how it is observed and announced, not whether it happens |
 | C-6.1-2 reason a blocked sender was released | D-1 and D-3 | D-1 says who releases the waiter, D-3 carries the reason out |
 
@@ -480,7 +482,8 @@ This is not a bool-to-SendResult API conversion or an implementation of the
 reason table. No existing send returns the new type in this change. Mapping
 each transport's synchronized admission decision, pinning the connection
 instance, recording stable wait-release causes, updating bindings and adding
-fanout aggregates still remain. See [result-type usage](send_result.md).
+fanout aggregates now expose FanoutResult. See
+[fanout results](server_fanout_results.md) and [result-type usage](send_result.md).
 
 ## D-3 payload-size reason mapping
 

@@ -260,6 +260,11 @@ int main() {
 
     wirestead::wrapper::TcpServer stopped_server(0);
     wirestead::wrapper::ServerInterface& server_api = stopped_server;
+    const wirestead::FanoutResult empty_fanout = server_api.broadcast("probe");
+    if (!empty_fanout.empty() || empty_fanout.target_count() != 0) {
+        std::cerr << "unstarted server selected fanout targets\n";
+        return 1;
+    }
     const wirestead::wrapper::SendResult stopped = server_api.send_to(1, "probe");
     if (stopped.accepted() || stopped.reason() != wirestead::wrapper::SendRejection::NotStarted) {
         std::cerr << "installed server result contract mismatch\n";
@@ -324,7 +329,9 @@ int main() {
         return 7;
     }
 
-    if (!tcp_server->broadcast("broadcast")) {
+    const wirestead::FanoutResult fanout = tcp_server->broadcast("broadcast");
+    if (fanout.target_count() != 1 || fanout.accepted_count() != 1 ||
+        fanout.rejected_count() != 0 || fanout.empty()) {
         std::cerr << "installed TCP broadcast failed\n";
         tcp_client->stop();
         tcp_server->stop();

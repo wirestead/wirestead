@@ -43,6 +43,9 @@ inline std::atomic<void (*)()> g_serial_write_admission_hook{nullptr};
 inline std::atomic<void (*)()> g_serial_pinned_write_hook{nullptr};
 inline std::atomic<void (*)(const wrapper::SendResult&)> g_serial_write_result_hook{nullptr};
 inline std::atomic<void (*)()> g_serial_io_completion_hook{nullptr};
+// Snapshot taken, before any per-target fanout admission; no native locks held.
+inline std::atomic<void (*)()> g_tcp_fanout_snapshot_hook{nullptr};
+inline std::atomic<void (*)()> g_uds_fanout_snapshot_hook{nullptr};
 using StopTestHook = void (*)(const void*, bool);
 inline std::atomic<StopTestHook> g_stop_test_hook{nullptr};
 inline void stop_test_hook(const void* object, bool completing) {

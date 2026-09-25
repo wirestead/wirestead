@@ -203,10 +203,12 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
     return result;
   }
 
-  bool try_broadcast(std::string_view data) {
+  FanoutResult try_broadcast(std::string_view data, bool append_newline = false) {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     auto ts = std::dynamic_pointer_cast<transport::UdsServer>(server_);
-    return ts ? ts->broadcast(data) : false;
+    return ts ? ts->broadcast_result({reinterpret_cast<const uint8_t*>(data.data()), data.size()}, send_state(ts),
+                                     append_newline)
+              : FanoutResult{};
   }
 
   SendResult send_to(ClientId client_id, std::string_view data) {
@@ -215,7 +217,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
     return try_send_to(client_id, data, true);
   }
 
-  bool broadcast(std::string_view data) { return try_broadcast(data); }
+  FanoutResult broadcast(std::string_view data) { return try_broadcast(data); }
 
   // channel_->on_backpressure()/session-level backpressure callbacks call bp_cv_.notify_all()
   // from the transport's io_context thread without holding bp_mutex_ - a classic lost-wakeup
@@ -639,8 +641,8 @@ bool UdsServer::listening() const { return impl_->is_listening_.load(); }
 RuntimeStats UdsServer::stats() const { return impl_->stats(); }
 void UdsServer::reset_stats() { impl_->reset_stats(); }
 
-bool UdsServer::broadcast(std::string_view data) { return impl_->broadcast(data); }
-bool UdsServer::try_broadcast(std::string_view data) { return impl_->try_broadcast(data); }
+FanoutResult UdsServer::broadcast(std::string_view data) { return impl_->broadcast(data); }
+FanoutResult UdsServer::try_broadcast(std::string_view data) { return impl_->try_broadcast(data); }
 SendResult UdsServer::send_to(ClientId client_id, std::string_view data) { return impl_->send_to(client_id, data); }
 SendResult UdsServer::try_send_to(ClientId client_id, std::string_view data) {
   return impl_->try_send_to(client_id, data);
@@ -650,11 +652,11 @@ SendResult UdsServer::send_to_blocking(ClientId client_id, std::string_view data
   return impl_->send_to_blocking(client_id, data);
 }
 
-bool UdsServer::broadcast_line(std::string_view line) { return broadcast(std::string(line) + "\n"); }
+FanoutResult UdsServer::broadcast_line(std::string_view line) { return impl_->try_broadcast(line, true); }
 SendResult UdsServer::send_to_line(ClientId client_id, std::string_view line) {
   return send_to(client_id, std::string(line) + "\n");
 }
-bool UdsServer::try_broadcast_line(std::string_view line) { return try_broadcast(std::string(line) + "\n"); }
+FanoutResult UdsServer::try_broadcast_line(std::string_view line) { return impl_->try_broadcast(line, true); }
 SendResult UdsServer::try_send_to_line(ClientId client_id, std::string_view line) {
   return try_send_to(client_id, std::string(line) + "\n");
 }

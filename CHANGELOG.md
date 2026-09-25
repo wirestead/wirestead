@@ -11,6 +11,12 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking:** ServerInterface and TCP/UDS/UDP server broadcast methods return
+  FanoutResult, reporting selected targets, accepted/rejected counts and every
+  rejection reason. Zero targets are explicit; fanout never waits for capacity.
+  Rebuild consumers and use explicit bool conversion for legacy bool adapters.
+  See docs/server_fanout_results.md.
+
 - **Breaking:** ChannelInterface and TCP/UDS/UDP/Serial client wrappers return
   SendResult from all ten send methods. Contextual bool checks still work;
   bool assignments/adapters must use accepted(). Rebuild all consumers.

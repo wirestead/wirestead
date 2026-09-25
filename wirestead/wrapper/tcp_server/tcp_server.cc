@@ -414,10 +414,12 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     return result;
   }
 
-  bool try_broadcast(std::string_view data) {
+  FanoutResult try_broadcast(std::string_view data, bool append_newline = false) {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     const auto& ts = transport_cache_;
-    return ts ? ts->broadcast(data) : false;
+    return ts ? ts->broadcast_result({reinterpret_cast<const uint8_t*>(data.data()), data.size()}, send_state(ts),
+                                     append_newline)
+              : FanoutResult{};
   }
 
   SendResult send_to(ClientId client_id, std::string_view data) {
@@ -426,7 +428,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     return try_send_to(client_id, data, true);
   }
 
-  bool broadcast(std::string_view data) {
+  FanoutResult broadcast(std::string_view data) {
     // In order to avoid Head-Of-Line blocking where a single slow client
     // blocks the entire broadcast loop, we delegate to try_broadcast (async fan-out)
     // even in Reliable mode. Transport-level backpressure will still protect the queues.
@@ -731,8 +733,8 @@ bool TcpServer::listening() const { return get_impl()->is_listening_.load(); }
 RuntimeStats TcpServer::stats() const { return get_impl()->stats(); }
 void TcpServer::reset_stats() { impl_->reset_stats(); }
 
-bool TcpServer::broadcast(std::string_view data) { return impl_->broadcast(data); }
-bool TcpServer::try_broadcast(std::string_view data) { return impl_->try_broadcast(data); }
+FanoutResult TcpServer::broadcast(std::string_view data) { return impl_->broadcast(data); }
+FanoutResult TcpServer::try_broadcast(std::string_view data) { return impl_->try_broadcast(data); }
 SendResult TcpServer::send_to(ClientId client_id, std::string_view data) { return impl_->send_to(client_id, data); }
 SendResult TcpServer::try_send_to(ClientId client_id, std::string_view data) {
   return impl_->try_send_to(client_id, data);
@@ -742,11 +744,11 @@ SendResult TcpServer::send_to_blocking(ClientId client_id, std::string_view data
   return impl_->send_to_blocking(client_id, data);
 }
 
-bool TcpServer::broadcast_line(std::string_view line) { return broadcast(std::string(line) + "\n"); }
+FanoutResult TcpServer::broadcast_line(std::string_view line) { return impl_->try_broadcast(line, true); }
 SendResult TcpServer::send_to_line(ClientId client_id, std::string_view line) {
   return send_to(client_id, std::string(line) + "\n");
 }
-bool TcpServer::try_broadcast_line(std::string_view line) { return try_broadcast(std::string(line) + "\n"); }
+FanoutResult TcpServer::try_broadcast_line(std::string_view line) { return impl_->try_broadcast(line, true); }
 SendResult TcpServer::try_send_to_line(ClientId client_id, std::string_view line) {
   return try_send_to(client_id, std::string(line) + "\n");
 }
