@@ -190,6 +190,7 @@ wirestead_add_unit_gtest(
 # list to include fuzz tests, server session tests, and timeout tests
 foreach(test_file transport_uds_client.cc transport_uds_server.cc
                   transport_serial.cc transport_uds_session_lifecycle.cc
+                  transport_stream_send_accounting.cc
 )
   get_filename_component(test_name ${test_file} NAME_WE)
 

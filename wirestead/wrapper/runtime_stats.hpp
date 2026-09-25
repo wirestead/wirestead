@@ -63,7 +63,7 @@ struct RuntimeStats {
   std::optional<uint64_t> last_receive_age_ms;
 
   // Present only for transports with logical request accounting (currently
-  // the built-in TCP client). nullopt means unsupported, not zero loss.
+  // built-in TCP/UDS clients and Serial). nullopt means unsupported, not zero loss.
   // Independent of legacy sent/dropped counters; see docs/tcp_send_accounting.md.
   std::optional<SendAccounting> send_accounting;
 };

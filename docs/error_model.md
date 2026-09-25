@@ -60,10 +60,10 @@ producer loops, or call `stop()` from another thread to unblock a blocking
 sender.
 
 Use `RuntimeStats` to inspect accepted bytes, sent bytes, failed sends, drops,
-queued bytes, pending bytes, and backpressure state. Built-in TCP clients also
+queued bytes, pending bytes, and backpressure state. Built-in TCP/UDS clients and Serial also
 expose optional [logical-request accounting](tcp_send_accounting.md): pre-write
 discards and active-write aborts are separated by stop, connection loss and
-queue pressure. Other transports currently return no accounting capability.
+queue pressure. UDP and server transports currently return no accounting capability.
 
 ## Liveness and idle timeout
 

@@ -1,8 +1,8 @@
 # Post-acceptance accounting and event proposal
 
 **Status: remaining transport/event proposal.** The
-[TCP-client accounting implementation](tcp_send_accounting.md) now implements
-the request ledger with explicit measurement epochs and cause groups. Other
+[stream-client accounting implementation](tcp_send_accounting.md) now implements
+the TCP/UDS/Serial request ledger with explicit measurement epochs and cause groups. Other
 targets and event choices remain proposals, not completed APIs or new decisions.
 The [current conformance report](communication_contract_v0.10_status.md)
 identifies the missing behavior. This document specifies implementation gates.
@@ -67,8 +67,8 @@ reconstruct this ledger alone.
 
 ## Transport-specific work
 
-TCP, UDS and Serial clients need records spanning caller admission, pending
-posts, queues and active writes. TCP/UDS sessions also need exactly-once server
+TCP, UDS and Serial clients now retain records spanning caller admission,
+pending posts, queues and active writes. TCP/UDS sessions still need exactly-once server
 aggregation. UDP needs a record per admitted datagram and socket-run identity.
 
 UDP virtual sessions currently identify endpoints in the wrapper; native
