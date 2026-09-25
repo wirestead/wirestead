@@ -21,6 +21,7 @@
 #include "wirestead/base/error_codes.hpp"
 #include "wirestead/base/platform.hpp"
 #include "wirestead/base/visibility.hpp"
+#include "wirestead/interface/connection_channel.hpp"
 #include "wirestead/interface/result_channel.hpp"
 
 // Public API Context and Interface headers
