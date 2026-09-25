@@ -989,10 +989,11 @@ TEST_P(SerialNonblockingResultTest, OrdersValidationLifecycleAndCapacityReasons)
   // Explicit try methods must stay WouldBlock even on a BestEffort channel.
   NonblockingResultPeer peer(GetParam() >= 4);
   auto& client = *peer.client;
+  std::optional<wirestead::wrapper::SendResult> returned_result;
   auto write = [&](std::string_view text) {
     nonblocking_result.reset();
     nonblocking_observations = 0;
-    bool accepted = false;
+    auto accepted = wirestead::wrapper::SendResult::reject(wirestead::wrapper::SendRejection::NotReady);
     if (form == 0) {
       accepted = best_effort ? client.send(text) : client.try_send(text);
     } else if (form == 1) {
@@ -1010,11 +1011,15 @@ TEST_P(SerialNonblockingResultTest, OrdersValidationLifecycleAndCapacityReasons)
     EXPECT_EQ(nonblocking_observations, 1);
     EXPECT_TRUE(nonblocking_result.has_value());
     if (nonblocking_result) {
-      EXPECT_EQ(nonblocking_result->accepted(), accepted);
+      EXPECT_EQ(nonblocking_result->accepted(), accepted.accepted());
     }
+    returned_result = accepted;
     return accepted;
   };
   auto reason = [&](Rejection expected) {
+    ASSERT_TRUE(returned_result.has_value());
+    ASSERT_FALSE(returned_result->accepted());
+    EXPECT_EQ(returned_result->reason(), expected);
     ASSERT_TRUE(nonblocking_result.has_value());
     ASSERT_FALSE(nonblocking_result->accepted());
     EXPECT_EQ(nonblocking_result->reason(), expected);
@@ -1098,10 +1103,11 @@ TEST_P(SerialReliableResultTest, ValidatesBeforeStateAndPreservesPayload) {
   NonblockingResultPeer peer(GetParam() >= 6);
   const int form = GetParam() >= 6 ? GetParam() - 4 : GetParam();
   auto& client = *peer.client;
+  std::optional<wirestead::wrapper::SendResult> returned_result;
   auto write = [&](std::string_view text) {
     nonblocking_result.reset();
     nonblocking_observations = 0;
-    bool accepted = false;
+    auto accepted = wirestead::wrapper::SendResult::reject(wirestead::wrapper::SendRejection::NotReady);
     if (form == 0)
       accepted = client.send(text);
     else if (form == 1)
@@ -1121,11 +1127,15 @@ TEST_P(SerialReliableResultTest, ValidatesBeforeStateAndPreservesPayload) {
     EXPECT_EQ(nonblocking_observations, 1);
     EXPECT_TRUE(nonblocking_result.has_value());
     if (nonblocking_result) {
-      EXPECT_EQ(nonblocking_result->accepted(), accepted);
+      EXPECT_EQ(nonblocking_result->accepted(), accepted.accepted());
     }
+    returned_result = accepted;
     return accepted;
   };
   auto reason = [&](Rejection expected) {
+    ASSERT_TRUE(returned_result.has_value());
+    ASSERT_FALSE(returned_result->accepted());
+    EXPECT_EQ(returned_result->reason(), expected);
     ASSERT_TRUE(nonblocking_result.has_value());
     ASSERT_FALSE(nonblocking_result->accepted());
     EXPECT_EQ(nonblocking_result->reason(), expected);
@@ -1354,7 +1364,7 @@ TEST_P(SerialCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   wrapper::Serial client(transport);
   std::atomic<int> connections{0};
   AdmissionPark park, result_park;
-  std::future<bool> writer;
+  std::future<wirestead::wrapper::SendResult> writer;
   OnExit cleanup{[&] {
     park.release.notify();
     result_park.release.notify();
@@ -1454,13 +1464,15 @@ TEST_P(SerialCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   EXPECT_EQ(status, std::future_status::ready);
   if (status != std::future_status::ready) client.stop();
   const bool capacity_accepted = GetParam() >= 36;
-  EXPECT_EQ(writer.get(), capacity_accepted);
+  const auto send_result = writer.get();
+  EXPECT_EQ(send_result.accepted(), capacity_accepted);
   EXPECT_EQ(transport->stats().messages_accepted, accepted_before + (capacity_accepted ? 1 : 0));
   const auto expected_send = capacity_accepted  ? 100
                              : GetParam() >= 30 ? static_cast<int>(wrapper::SendRejection::NotStarted)
                              : GetParam() >= 24 ? static_cast<int>(wrapper::SendRejection::CancelledWhileWaiting)
                                                 : static_cast<int>(wrapper::SendRejection::NotReady);
   EXPECT_EQ(observed_send_result, expected_send);
+  EXPECT_EQ(send_result.accepted() ? 100 : static_cast<int>(send_result.reason()), expected_send);
   if (GetParam() < 12 || (GetParam() >= 18 && GetParam() < 24)) {
     EXPECT_EQ(observed_wait_result, static_cast<int>(wrapper::SendRejection::NotReady));
   } else if (GetParam() >= 24 && GetParam() < 30) {

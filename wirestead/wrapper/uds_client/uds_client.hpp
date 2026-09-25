@@ -49,6 +49,7 @@ class WIRESTEAD_API UdsClient : public ChannelInterface {
  public:
   explicit UdsClient(const std::string& socket_path);
   UdsClient(const std::string& socket_path, std::shared_ptr<boost::asio::io_context> external_ioc);
+  /// Requires the matching native transport or ConnectionChannel; otherwise throws std::invalid_argument.
   explicit UdsClient(std::shared_ptr<interface::Channel> channel);
   ~UdsClient() override;
 
@@ -63,16 +64,16 @@ class WIRESTEAD_API UdsClient : public ChannelInterface {
   // ChannelInterface implementation
   [[nodiscard]] std::future<bool> start() override;
   void stop() override;
-  bool send(std::string_view data) override;
-  bool send_line(std::string_view line) override;
-  bool send_blocking(std::string_view data) override;
-  bool send_line_blocking(std::string_view line) override;
-  bool try_send(std::string_view data) override;
-  bool try_send_line(std::string_view line) override;
-  bool send_move(std::vector<uint8_t>&& data) override;
-  bool try_send_move(std::vector<uint8_t>&& data) override;
-  bool send_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
-  bool try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
+  [[nodiscard]] SendResult send(std::string_view data) override;
+  [[nodiscard]] SendResult send_line(std::string_view line) override;
+  [[nodiscard]] SendResult send_blocking(std::string_view data) override;
+  [[nodiscard]] SendResult send_line_blocking(std::string_view line) override;
+  [[nodiscard]] SendResult try_send(std::string_view data) override;
+  [[nodiscard]] SendResult try_send_line(std::string_view line) override;
+  [[nodiscard]] SendResult send_move(std::vector<uint8_t>&& data) override;
+  [[nodiscard]] SendResult try_send_move(std::vector<uint8_t>&& data) override;
+  [[nodiscard]] SendResult send_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
+  [[nodiscard]] SendResult try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
   bool connected() const override;
   RuntimeStats stats() const override;
   void reset_stats() override;

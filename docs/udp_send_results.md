@@ -1,5 +1,8 @@
 # UDP send admission and wait results
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 The built-in UDP client and server targeted sends now combine internal
 SendResult decisions. Public send and native Channel methods still return bool;
 acceptance describes local admission, not delivery.

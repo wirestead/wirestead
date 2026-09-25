@@ -1,5 +1,8 @@
 # Payload validation before waiting
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 This implements the empty-payload and per-message maximum subset of
 C-3.1-1b in the [contract audit](communication_contract_v0.10_audit.md).
 The [D-3 decision](communication_contract_v0.10_decisions.md) identifies

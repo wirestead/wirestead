@@ -144,6 +144,10 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   explicit Impl(std::shared_ptr<interface::Channel> channel)
       : host_(""), port_(0), channel_(std::move(channel)), started_(false) {
+    if (!std::dynamic_pointer_cast<transport::TcpClient>(channel_) &&
+        !std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_))
+      throw std::invalid_argument("TcpClient requires its native transport or a ConnectionChannel");
+
     injected_channel_ = true;
     // #450: setup_internal_handlers() captures weak_from_this() - calling it
     // from inside this constructor would capture an empty weak_ptr, since
@@ -347,19 +351,16 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     return SendResult::accept();
   }
 
-  static bool finish_send(SendResult result) {
+  static SendResult finish_send(SendResult result) {
     if (auto hook = detail::g_tcp_send_result_hook.load()) hook(result);
-    return result.accepted();
+    return result;
   }
 
-  template <typename NativeWrite, typename FallbackWrite, typename CustomWrite>
-  bool nonblocking_send(size_t size, bool best_effort_send, NativeWrite native_write, FallbackWrite fallback_write,
-                        CustomWrite custom_write) {
+  template <typename NativeWrite, typename CustomWrite>
+  SendResult nonblocking_send(size_t size, bool best_effort_send, NativeWrite native_write, CustomWrite custom_write) {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     auto tcp = std::dynamic_pointer_cast<transport::TcpClient>(channel_);
-    auto custom = std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_);
-    // Legacy Channels retain their bool contract without invented reasons.
-    if (channel_ && !tcp && !custom) return channel_->is_connected() && fallback_write(*channel_);
+    auto custom = tcp ? nullptr : std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_);
     const auto result = [&]() -> SendResult {
       auto validation = detail::validate_payload_size(size, channel_ ? channel_->write_queue_limit() : std::nullopt);
       if (!validation.accepted()) return validation;
@@ -375,30 +376,27 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     return finish_send(result);
   }
 
-  bool try_send(std::string_view data, bool best_effort_send = false) {
+  SendResult try_send(std::string_view data, bool best_effort_send = false) {
     auto binary_view = base::safe_convert::string_to_bytes(data);
     memory::ConstByteSpan span(binary_view.first, binary_view.second);
     return nonblocking_send(
         data.size(), best_effort_send, [&](auto& tcp) { return tcp.try_write_copy(span); },
-        [&](auto& channel) { return channel.async_try_write_copy(span); },
         [&](auto& channel) { return channel.async_try_write_copy_result(span); });
   }
 
-  bool try_send_move(std::vector<uint8_t>&& data, bool best_effort_send = false) {
+  SendResult try_send_move(std::vector<uint8_t>&& data, bool best_effort_send = false) {
     return nonblocking_send(
         data.size(), best_effort_send, [&](auto& tcp) { return tcp.try_write_move(std::move(data)); },
-        [&](auto& channel) { return channel.async_try_write_move(std::move(data)); },
         [&](auto& channel) { return channel.async_try_write_move_result(std::move(data)); });
   }
 
-  bool try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data, bool best_effort_send = false) {
+  SendResult try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data, bool best_effort_send = false) {
     return nonblocking_send(
         data ? data->size() : 0, best_effort_send, [&](auto& tcp) { return tcp.try_write_shared(std::move(data)); },
-        [&](auto& channel) { return data && !data->empty() && channel.async_try_write_shared(std::move(data)); },
         [&](auto& channel) { return channel.async_try_write_shared_result(std::move(data)); });
   }
 
-  bool send(std::string_view data) {
+  SendResult send(std::string_view data) {
     if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) return send_blocking(data);
     return try_send(data, true);
   }
@@ -455,18 +453,9 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     auto released = [&] {
       if (outcome) return true;
       std::shared_lock<std::shared_mutex> lock(mutex_);
-      if (connection.tcp) {
-        // The connection record retains the first stop/loss cause. Sampling
-        // readiness and capacity uses the same mutex as those terminal events.
-        outcome = connection.tcp->poll_write_wait(connection.wait);
-      } else if (callback_generation_.load() != generation || !started_.load()) {
-        outcome = SendResult::reject(SendRejection::CancelledWhileWaiting);
-      } else if (!channel_ || !channel_->is_connected()) {
-        outcome = SendResult::reject(SendRejection::NotReady);
-      } else if (!detail::payload_needs_capacity(payload_size, channel_->write_queue_limit()) ||
-                 !channel_->is_backpressure_active()) {
-        outcome = SendResult::accept();
-      }
+      // The connection record retains the first terminal cause under the
+      // same transport lock used by stop, loss and admission.
+      outcome = connection.tcp->poll_write_wait(connection.wait);
       return outcome.has_value();
     };
     while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), released)) {
@@ -478,36 +467,13 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   // #509: high-water pressure and hard-limit reservations are different
   // thresholds. Capacity can be refilled between a wait and admission, so
   // retry transient native WouldBlock at most five times. Validation and
-  // terminal state failures return immediately. Custom bool channels retain
-  // their existing bounded retry behavior.
+  // terminal state failures return immediately.
   static constexpr int kMaxBlockingSendAttempts = 5;
 
-  template <typename NativeWrite, typename FallbackWrite, typename CustomWrite>
-  bool blocking_send(size_t size, NativeWrite native_write, FallbackWrite fallback_write, CustomWrite custom_write) {
+  template <typename NativeWrite, typename CustomWrite>
+  SendResult blocking_send(size_t size, NativeWrite native_write, CustomWrite custom_write) {
     uint64_t generation;
     ConnectionPin connection;
-    bool custom;
-    {
-      std::shared_lock<std::shared_mutex> lock(mutex_);
-      generation = callback_generation_.load();
-      connection.tcp = std::dynamic_pointer_cast<transport::TcpClient>(channel_);
-      connection.custom = std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_);
-      custom = channel_ && !connection.tcp && !connection.custom;
-    }
-    if (custom) {
-      // Preserve bool-only custom Channel admission, validation and accounting.
-      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
-        std::unique_lock<std::mutex> bp_lock(bp_mutex_);
-        if (!wait_for_backpressure_clear(bp_lock, size, generation, connection).accepted()) return false;
-        bp_lock.unlock();
-        std::shared_lock<std::shared_mutex> lock(mutex_);
-        if (callback_generation_.load() != generation || !started_.load() || !channel_ || !channel_->is_connected())
-          return false;
-        if (fallback_write(*channel_)) return true;
-      }
-      return false;
-    }
-
     const auto result = [&]() -> SendResult {
       {
         std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -515,7 +481,8 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
         // precedes state and waiting, including the line delimiter and hard cap.
         generation = callback_generation_.load();
         connection.tcp = std::dynamic_pointer_cast<transport::TcpClient>(channel_);
-        connection.custom = std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_);
+        connection.custom =
+            connection.tcp ? nullptr : std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_);
         auto validation = detail::validate_payload_size(size, channel_ ? channel_->write_queue_limit() : std::nullopt);
         if (!validation.accepted()) return validation;
         auto state = send_state(connection.tcp, connection.custom != nullptr);
@@ -553,43 +520,40 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     return finish_send(result);
   }
 
-  bool send_move(std::vector<uint8_t>&& data) {
+  SendResult send_move(std::vector<uint8_t>&& data) {
     if (backpressure_strategy_ != base::constants::BackpressureStrategy::Reliable)
       return try_send_move(std::move(data), true);
     return blocking_send(
         data.size(), [&](auto& tcp, uint64_t sequence) { return tcp.write_move(std::move(data), sequence); },
-        [&](auto& channel) { return channel.async_write_move(std::move(data)); },
         [&](auto& connection) { return connection.write_move(std::move(data)); });
   }
 
-  bool send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+  SendResult send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
     if (backpressure_strategy_ != base::constants::BackpressureStrategy::Reliable)
       return try_send_shared(std::move(data), true);
     return blocking_send(
         data ? data->size() : 0, [&](auto& tcp, uint64_t sequence) { return tcp.write_shared(data, sequence); },
-        [&](auto& channel) { return data && !data->empty() && channel.async_write_shared(data); },
         [&](auto& connection) { return connection.write_shared(data); });
   }
 
-  bool send_line(std::string_view line) {
+  SendResult send_line(std::string_view line) {
     if (backpressure_strategy_ == base::constants::BackpressureStrategy::Reliable) return send_line_blocking(line);
     return try_send_line(line, true);
   }
 
-  bool try_send_line(std::string_view line, bool best_effort_send = false) {
+  SendResult try_send_line(std::string_view line, bool best_effort_send = false) {
     return try_send(std::string(line) + "\n", best_effort_send);
   }
 
-  bool send_blocking(std::string_view data) {
+  SendResult send_blocking(std::string_view data) {
     auto binary_view = base::safe_convert::string_to_bytes(data);
     memory::ConstByteSpan span(binary_view.first, binary_view.second);
     return blocking_send(
         data.size(), [&](auto& tcp, uint64_t sequence) { return tcp.write_copy(span, sequence); },
-        [&](auto& channel) { return channel.async_write_copy(span); },
         [&](auto& connection) { return connection.write_copy(span); });
   }
 
-  bool send_line_blocking(std::string_view line) { return send_blocking(std::string(line) + "\n"); }
+  SendResult send_line_blocking(std::string_view line) { return send_blocking(std::string(line) + "\n"); }
 
   bool connected() const {
     std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -809,20 +773,20 @@ TcpClient& TcpClient::operator=(TcpClient&&) noexcept = default;
 
 std::future<bool> TcpClient::start() { return impl_->start(); }
 void TcpClient::stop() { impl_->stop(); }
-bool TcpClient::send(std::string_view data) { return impl_->send(data); }
-bool TcpClient::try_send(std::string_view data) { return impl_->try_send(data); }
-bool TcpClient::send_line(std::string_view line) { return impl_->send_line(line); }
-bool TcpClient::try_send_line(std::string_view line) { return impl_->try_send_line(line); }
-bool TcpClient::send_move(std::vector<uint8_t>&& data) { return impl_->send_move(std::move(data)); }
-bool TcpClient::try_send_move(std::vector<uint8_t>&& data) { return impl_->try_send_move(std::move(data)); }
-bool TcpClient::send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+SendResult TcpClient::send(std::string_view data) { return impl_->send(data); }
+SendResult TcpClient::try_send(std::string_view data) { return impl_->try_send(data); }
+SendResult TcpClient::send_line(std::string_view line) { return impl_->send_line(line); }
+SendResult TcpClient::try_send_line(std::string_view line) { return impl_->try_send_line(line); }
+SendResult TcpClient::send_move(std::vector<uint8_t>&& data) { return impl_->send_move(std::move(data)); }
+SendResult TcpClient::try_send_move(std::vector<uint8_t>&& data) { return impl_->try_send_move(std::move(data)); }
+SendResult TcpClient::send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
   return impl_->send_shared(std::move(data));
 }
-bool TcpClient::try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
+SendResult TcpClient::try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
   return impl_->try_send_shared(std::move(data));
 }
-bool TcpClient::send_blocking(std::string_view data) { return impl_->send_blocking(data); }
-bool TcpClient::send_line_blocking(std::string_view line) { return impl_->send_line_blocking(line); }
+SendResult TcpClient::send_blocking(std::string_view data) { return impl_->send_blocking(data); }
+SendResult TcpClient::send_line_blocking(std::string_view line) { return impl_->send_line_blocking(line); }
 bool TcpClient::connected() const { return get_impl()->connected(); }
 RuntimeStats TcpClient::stats() const { return get_impl()->stats(); }
 void TcpClient::reset_stats() { impl_->reset_stats(); }

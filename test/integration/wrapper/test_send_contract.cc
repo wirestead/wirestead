@@ -26,73 +26,80 @@
 #include <thread>
 #include <vector>
 
+#include "test_connection_channel.hpp"
 #include "wirestead/interface/channel.hpp"
 #include "wirestead/wirestead.hpp"
 
 namespace {
 
-class ContractChannel : public wirestead::interface::Channel {
+class ContractChannel : public wirestead::test::TestConnectionChannel {
  public:
-  void start() override { connected_ = true; }
-  void stop() override { connected_ = false; }
+  void start() override {
+    connected_ = true;
+    connection_opened();
+  }
+  void stop() override {
+    connected_ = false;
+    connection_lost();
+  }
   bool is_connected() const override { return connected_; }
   bool is_backpressure_active() const override { return backpressure_active_.load(); }
   boost::asio::any_io_executor get_executor() override { return ioc_.get_executor(); }
 
-  bool async_write_copy(wirestead::memory::ConstByteSpan data) override {
+  SendResult async_write_copy_result(wirestead::memory::ConstByteSpan data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++write_copy_count_;
     if (fail_next_writes_ > 0) {
       --fail_next_writes_;
       stats_.failed_sends += 1;
-      return false;
+      return SendResult::reject(SendRejection::WouldBlock);
     }
     stats_.messages_accepted += 1;
     stats_.bytes_accepted += data.size();
-    return true;
+    return SendResult::accept();
   }
 
-  bool async_write_move(std::vector<uint8_t>&& data) override {
+  SendResult async_write_move_result(std::vector<uint8_t>&& data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++write_move_count_;
     if (fail_next_writes_ > 0) {
       --fail_next_writes_;
       stats_.failed_sends += 1;
-      return false;
+      return SendResult::reject(SendRejection::WouldBlock);
     }
     stats_.messages_accepted += 1;
     stats_.bytes_accepted += data.size();
-    return true;
+    return SendResult::accept();
   }
 
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override {
-    if (!data) return false;
+  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) override {
+    if (!data) return SendResult::reject(SendRejection::InvalidArgument);
     std::lock_guard<std::mutex> lock(mutex_);
     ++write_shared_count_;
     if (fail_next_writes_ > 0) {
       --fail_next_writes_;
       stats_.failed_sends += 1;
-      return false;
+      return SendResult::reject(SendRejection::WouldBlock);
     }
     stats_.messages_accepted += 1;
     stats_.bytes_accepted += data->size();
-    return true;
+    return SendResult::accept();
   }
 
-  bool async_try_write_copy(wirestead::memory::ConstByteSpan data) override {
+  SendResult async_try_write_copy_result(wirestead::memory::ConstByteSpan data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++try_copy_count_;
     return record_try_result(data.size());
   }
 
-  bool async_try_write_move(std::vector<uint8_t>&& data) override {
+  SendResult async_try_write_move_result(std::vector<uint8_t>&& data) override {
     std::lock_guard<std::mutex> lock(mutex_);
     ++try_move_count_;
     return record_try_result(data.size());
   }
 
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override {
-    if (!data) return false;
+  SendResult async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>> data) override {
+    if (!data) return SendResult::reject(SendRejection::InvalidArgument);
     std::lock_guard<std::mutex> lock(mutex_);
     ++try_shared_count_;
     return record_try_result(data->size());
@@ -149,14 +156,14 @@ class ContractChannel : public wirestead::interface::Channel {
   }
 
  private:
-  bool record_try_result(size_t bytes) {
+  SendResult record_try_result(size_t bytes) {
     if (try_accepts_ && !backpressure_active_.load()) {
       stats_.messages_accepted += 1;
       stats_.bytes_accepted += bytes;
-      return true;
+      return SendResult::accept();
     }
     stats_.failed_sends += 1;
-    return false;
+    return SendResult::reject(SendRejection::WouldBlock);
   }
 
   mutable std::mutex mutex_;
@@ -248,7 +255,7 @@ void verify_blocking_send_recovers_without_notify(std::string_view name) {
   auto wrapper = std::make_shared<Wrapper>(channel);
   ASSERT_TRUE(wrapper->start().get());
 
-  auto sent_promise = std::make_shared<std::promise<bool>>();
+  auto sent_promise = std::make_shared<std::promise<wirestead::wrapper::SendResult>>();
   auto sent_future = sent_promise->get_future();
   std::thread sender([wrapper, sent_promise] { sent_promise->set_value(wrapper->send("blocked")); });
 

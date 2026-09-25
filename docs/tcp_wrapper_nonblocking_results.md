@@ -1,5 +1,8 @@
 # TCP wrapper nonblocking send results
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 Built-in TCP wrapper try_send, try_send_line, try_send_move and try_send_shared
 now retain an internal SendResult through their bool boundary. Ordinary send,
 send_line, send_move and send_shared use the same path under BestEffort.

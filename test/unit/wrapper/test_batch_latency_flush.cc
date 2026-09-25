@@ -26,6 +26,7 @@
 #include <thread>
 #include <vector>
 
+#include "test_connection_channel.hpp"
 #include "test_utils.hpp"
 #include "wirestead/framer/line_framer.hpp"
 #include "wirestead/interface/channel.hpp"
@@ -53,7 +54,7 @@ namespace {
 // This channel therefore owns a real io_context and runs it, which is the
 // whole point of the fixture - a partial batch has to reach the user when the
 // device goes quiet, and that is the only path that delivers it.
-class RunningFakeChannel : public interface::Channel {
+class RunningFakeChannel : public wirestead::test::TestConnectionChannel {
  public:
   RunningFakeChannel() : work_(net::make_work_guard(ioc_)), thread_([this] { ioc_.run(); }) {}
 
@@ -63,19 +64,29 @@ class RunningFakeChannel : public interface::Channel {
     if (thread_.joinable()) thread_.join();
   }
 
-  void start() override { connected_ = true; }
-  void stop() override { connected_ = false; }
+  void start() override {
+    connected_ = true;
+    connection_opened();
+  }
+  void stop() override {
+    connected_ = false;
+    connection_lost();
+  }
   bool is_connected() const override { return connected_; }
   bool is_backpressure_active() const override { return false; }
 
   net::any_io_executor get_executor() override { return ioc_.get_executor(); }
 
-  bool async_write_copy(memory::ConstByteSpan) override { return true; }
-  bool async_write_move(std::vector<uint8_t>&&) override { return true; }
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>>) override { return true; }
-  bool async_try_write_copy(memory::ConstByteSpan) override { return true; }
-  bool async_try_write_move(std::vector<uint8_t>&&) override { return true; }
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>>) override { return true; }
+  SendResult async_write_copy_result(memory::ConstByteSpan) override { return SendResult::accept(); }
+  SendResult async_write_move_result(std::vector<uint8_t>&&) override { return SendResult::accept(); }
+  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override {
+    return SendResult::accept();
+  }
+  SendResult async_try_write_copy_result(memory::ConstByteSpan) override { return SendResult::accept(); }
+  SendResult async_try_write_move_result(std::vector<uint8_t>&&) override { return SendResult::accept(); }
+  SendResult async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override {
+    return SendResult::accept();
+  }
 
   void on_bytes(OnBytes cb) override {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -102,7 +113,10 @@ class RunningFakeChannel : public interface::Channel {
   }
 
   void emit_state(base::LinkState state) {
-    if (state == base::LinkState::Connected) connected_ = true;
+    if (state == base::LinkState::Connected) {
+      connected_ = true;
+      connection_opened();
+    }
     OnState handler;
     {
       std::lock_guard<std::mutex> lock(mutex_);

@@ -1,5 +1,8 @@
 # TCP capacity waits across reconnect
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 Blocking/Reliable wrapper sends using the built-in TCP transport now capture
 both the wrapper run and the usable TCP connection at entry. The connection
 snapshot is taken under the transport submission mutex and stays fixed across

@@ -1,5 +1,8 @@
 # TCP capacity waits across stop/restart
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 TCP blocking and Reliable sends capture the wrapper run generation once at
 entry. They carry it through capacity waits and all bounded admission retries.
 The wait predicate exits when that generation changes, even if a restarted

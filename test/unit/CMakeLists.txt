@@ -145,6 +145,7 @@ foreach(
   test_callback_blocking_send.cc
   test_send_result.cc
   test_connection_channel.cc
+  test_client_send_results.cc
   test_send_payload_validation.cc
 )
   get_filename_component(test_name ${test_file} NAME_WE)

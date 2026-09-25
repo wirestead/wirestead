@@ -1,5 +1,8 @@
 # UDS send admission and wait results
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 The built-in UDS client now combines native admission and wrapper decisions
 internally as SendResult. Public Channel and wrapper methods still return
 bool. Acceptance means local admission, not delivery.

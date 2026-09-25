@@ -1,5 +1,8 @@
 # Payload-size rejection reasons
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 The D-3 value type from PR #663 now participates in the shared validation
 used before capacity waiting by all seven wrappers. This is an internal
 validation step; public sends still return bool.

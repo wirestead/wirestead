@@ -1,5 +1,8 @@
 # TCP write readiness
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 TCP client admission now requires a usable connection. Copy, move and shared
 writes, including all try-write forms, reject before start, while connecting
 or performing the TLS handshake, and after connection loss. Rejection does not

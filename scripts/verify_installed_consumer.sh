@@ -251,6 +251,13 @@ int main() {
     if (admission.accepted() || admission.reason() != wirestead::SendRejection::NotStarted) return 12;
     if (legacy_channel->async_try_write_copy({&probe, 1})) return 13;
 
+    wirestead::wrapper::TcpClient stopped_client("127.0.0.1", 12345);
+    wirestead::wrapper::ChannelInterface& client_api = stopped_client;
+    const wirestead::wrapper::SendResult client_stopped = client_api.try_send("probe");
+    if (client_stopped.accepted() || client_stopped.reason() != wirestead::SendRejection::NotStarted) return 14;
+    const auto invalid_client = client_api.send_shared(nullptr);
+    if (invalid_client.accepted() || invalid_client.reason() != wirestead::SendRejection::InvalidArgument) return 15;
+
     wirestead::wrapper::TcpServer stopped_server(0);
     wirestead::wrapper::ServerInterface& server_api = stopped_server;
     const wirestead::wrapper::SendResult stopped = server_api.send_to(1, "probe");

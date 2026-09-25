@@ -27,6 +27,7 @@
 #include <thread>
 
 #include "tcp_stop_with_context.hpp"
+#include "test_connection_channel.hpp"
 #include "test_utils.hpp"
 #include "wirestead/transport/base/stop_test_hook.hpp"
 #include "wirestead/transport/udp/udp.hpp"
@@ -78,19 +79,29 @@ struct Context {
 
 // This channel preserves snapshots without borrowing an actual UDP strand.
 // A parked wrapper admission must not also prevent transport cleanup.
-class SavedChannel : public interface::Channel {
+class SavedChannel : public wirestead::test::TestConnectionChannel {
  public:
-  void start() override { connected_ = true; }
-  void stop() override { connected_ = false; }
+  void start() override {
+    connected_ = true;
+    connection_opened();
+  }
+  void stop() override {
+    connected_ = false;
+    connection_lost();
+  }
   bool is_connected() const override { return connected_; }
   bool is_backpressure_active() const override { return false; }
   boost::asio::any_io_executor get_executor() override { return io_.get_executor(); }
-  bool async_write_copy(memory::ConstByteSpan) override { return true; }
-  bool async_write_move(std::vector<uint8_t>&&) override { return true; }
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>>) override { return true; }
-  bool async_try_write_copy(memory::ConstByteSpan) override { return true; }
-  bool async_try_write_move(std::vector<uint8_t>&&) override { return true; }
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>>) override { return true; }
+  SendResult async_write_copy_result(memory::ConstByteSpan) override { return SendResult::accept(); }
+  SendResult async_write_move_result(std::vector<uint8_t>&&) override { return SendResult::accept(); }
+  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override {
+    return SendResult::accept();
+  }
+  SendResult async_try_write_copy_result(memory::ConstByteSpan) override { return SendResult::accept(); }
+  SendResult async_try_write_move_result(std::vector<uint8_t>&&) override { return SendResult::accept(); }
+  SendResult async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override {
+    return SendResult::accept();
+  }
   void on_bytes(OnBytes cb) override { bytes = std::move(cb); }
   void on_state(OnState cb) override { state = std::move(cb); }
   void on_backpressure(OnBackpressure cb) override { bp = std::move(cb); }
@@ -415,10 +426,11 @@ TEST_P(UdpNonblockingResultTest, OrdersValidationLifecycleAndCapacityReasons) {
   // Explicit try methods must stay WouldBlock even on a BestEffort channel.
   NonblockingResultPeer peer(GetParam() >= 4);
   auto& client = *peer.client;
+  std::optional<wirestead::wrapper::SendResult> returned_result;
   auto write = [&](std::string_view text) {
     nonblocking_result.reset();
     nonblocking_observations = 0;
-    bool accepted = false;
+    auto accepted = wirestead::wrapper::SendResult::reject(wirestead::wrapper::SendRejection::NotReady);
     if (form == 0) {
       accepted = best_effort ? client.send(text) : client.try_send(text);
     } else if (form == 1) {
@@ -436,11 +448,15 @@ TEST_P(UdpNonblockingResultTest, OrdersValidationLifecycleAndCapacityReasons) {
     EXPECT_EQ(nonblocking_observations, 1);
     EXPECT_TRUE(nonblocking_result.has_value());
     if (nonblocking_result) {
-      EXPECT_EQ(nonblocking_result->accepted(), accepted);
+      EXPECT_EQ(nonblocking_result->accepted(), accepted.accepted());
     }
+    returned_result = accepted;
     return accepted;
   };
   auto reason = [&](Rejection expected) {
+    ASSERT_TRUE(returned_result.has_value());
+    ASSERT_FALSE(returned_result->accepted());
+    EXPECT_EQ(returned_result->reason(), expected);
     ASSERT_TRUE(nonblocking_result.has_value());
     ASSERT_FALSE(nonblocking_result->accepted());
     EXPECT_EQ(nonblocking_result->reason(), expected);
@@ -524,10 +540,11 @@ TEST_P(UdpReliableResultTest, ValidatesBeforeStateAndPreservesPayload) {
   NonblockingResultPeer peer(GetParam() >= 6);
   const int form = GetParam() >= 6 ? GetParam() - 4 : GetParam();
   auto& client = *peer.client;
+  std::optional<wirestead::wrapper::SendResult> returned_result;
   auto write = [&](std::string_view text) {
     nonblocking_result.reset();
     nonblocking_observations = 0;
-    bool accepted = false;
+    auto accepted = wirestead::wrapper::SendResult::reject(wirestead::wrapper::SendRejection::NotReady);
     if (form == 0)
       accepted = client.send(text);
     else if (form == 1)
@@ -547,11 +564,15 @@ TEST_P(UdpReliableResultTest, ValidatesBeforeStateAndPreservesPayload) {
     EXPECT_EQ(nonblocking_observations, 1);
     EXPECT_TRUE(nonblocking_result.has_value());
     if (nonblocking_result) {
-      EXPECT_EQ(nonblocking_result->accepted(), accepted);
+      EXPECT_EQ(nonblocking_result->accepted(), accepted.accepted());
     }
+    returned_result = accepted;
     return accepted;
   };
   auto reason = [&](Rejection expected) {
+    ASSERT_TRUE(returned_result.has_value());
+    ASSERT_FALSE(returned_result->accepted());
+    EXPECT_EQ(returned_result->reason(), expected);
     ASSERT_TRUE(nonblocking_result.has_value());
     ASSERT_FALSE(nonblocking_result->accepted());
     EXPECT_EQ(nonblocking_result->reason(), expected);
@@ -719,7 +740,7 @@ TEST_P(UdpWaitResultTest, KeepsReleaseCauseAcrossStopRestartAndError) {
   ASSERT_EQ(peer.io.poll_one(), 1u);  // Publish pressure, leave the send completion queued.
   ASSERT_TRUE(peer.native->is_backpressure_active());
   AdmissionPark park;
-  std::future<bool> writer;
+  std::future<wirestead::wrapper::SendResult> writer;
   OnExit cleanup{[&] {
     park.release.notify();
     test::stop_wrapper_with_context(*peer.client, peer.io);
@@ -771,7 +792,7 @@ TEST_P(UdpWaitResultTest, KeepsReleaseCauseAcrossStopRestartAndError) {
   const auto before = peer.native->stats().messages_accepted;
   park.release.notify();
   ASSERT_EQ(writer.wait_for(3s), std::future_status::ready);
-  EXPECT_EQ(writer.get(), event == 2);
+  EXPECT_EQ(writer.get().accepted(), event == 2);
   const auto expected = event == 2 ? 100
                                    : static_cast<int>(event == 3 ? wrapper::SendRejection::NotReady
                                                                  : wrapper::SendRejection::CancelledWhileWaiting);
@@ -977,7 +998,7 @@ TEST_P(UdpPinnedAdmissionTest, RejectsReplacementNativeRunAtFinalAdmission) {
   // not change the wrapper generation. Only the native run pin can reject it.
   peer.native->on_state(nullptr);
   AdmissionPark park;
-  std::future<bool> writer;
+  std::future<wirestead::wrapper::SendResult> writer;
   OnExit cleanup{[&] {
     park.release.notify();
     test::stop_wrapper_with_context(*peer.client, peer.io);

@@ -26,6 +26,7 @@
 #include <mutex>
 #include <thread>
 
+#include "test_connection_channel.hpp"
 #include "test_utils.hpp"
 #include "wirestead/interface/iserial_port.hpp"
 #include "wirestead/transport/base/stop_test_hook.hpp"
@@ -78,19 +79,29 @@ struct Context {
 
 // This channel preserves snapshots without borrowing an actual serial strand.
 // A parked wrapper admission must not also prevent transport cleanup.
-class SavedChannel : public interface::Channel {
+class SavedChannel : public wirestead::test::TestConnectionChannel {
  public:
-  void start() override { connected_ = true; }
-  void stop() override { connected_ = false; }
+  void start() override {
+    connected_ = true;
+    connection_opened();
+  }
+  void stop() override {
+    connected_ = false;
+    connection_lost();
+  }
   bool is_connected() const override { return connected_; }
   bool is_backpressure_active() const override { return false; }
   boost::asio::any_io_executor get_executor() override { return io_.get_executor(); }
-  bool async_write_copy(memory::ConstByteSpan) override { return true; }
-  bool async_write_move(std::vector<uint8_t>&&) override { return true; }
-  bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>>) override { return true; }
-  bool async_try_write_copy(memory::ConstByteSpan) override { return true; }
-  bool async_try_write_move(std::vector<uint8_t>&&) override { return true; }
-  bool async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>>) override { return true; }
+  SendResult async_write_copy_result(memory::ConstByteSpan) override { return SendResult::accept(); }
+  SendResult async_write_move_result(std::vector<uint8_t>&&) override { return SendResult::accept(); }
+  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override {
+    return SendResult::accept();
+  }
+  SendResult async_try_write_copy_result(memory::ConstByteSpan) override { return SendResult::accept(); }
+  SendResult async_try_write_move_result(std::vector<uint8_t>&&) override { return SendResult::accept(); }
+  SendResult async_try_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override {
+    return SendResult::accept();
+  }
   void on_bytes(OnBytes cb) override { bytes = std::move(cb); }
   void on_state(OnState cb) override { state = std::move(cb); }
   void on_backpressure(OnBackpressure cb) override { bp = std::move(cb); }

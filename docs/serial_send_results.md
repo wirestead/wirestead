@@ -1,5 +1,8 @@
 # Serial send admission and device reopen
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 The built-in Serial transport and wrapper retain SendResult internally.
 Public send methods still return bool. Acceptance means local admission,
 not delivery to the device.

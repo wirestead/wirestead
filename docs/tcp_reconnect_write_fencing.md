@@ -1,5 +1,8 @@
 # TCP accepted writes across reconnect
 
+> Historical implementation-stage record. Public return types and custom-channel
+> compatibility have since changed; see [the current client API](client_send_results.md).
+
 TCP now identifies a usable connection separately from its start/stop run.
 Ending that connection invalidates its generation under the admission mutex
 introduced in PR #665. All six write forms capture that generation when
