@@ -77,6 +77,8 @@ class WIRESTEAD_API UdsServer : public interface::Channel, public std::enable_sh
   using interface::Channel::write_queue_limit;
   boost::asio::any_io_executor get_executor() override;
   bool async_write_copy(memory::ConstByteSpan data) override;
+  // Fanout move: consume only if at least one session accepts; otherwise
+  // return false with the source contents unchanged.
   bool async_write_move(std::vector<uint8_t>&& data) override;
   bool async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
   bool async_try_write_copy(memory::ConstByteSpan data) override;

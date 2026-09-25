@@ -1,5 +1,10 @@
 # v0.10 Contract Audit
 
+**Historical baseline, not current status.** See the
+[current seven-target conformance report](communication_contract_v0.10_status.md)
+for resolved rules, gaps and current validation. Counts and observations below
+are preserved at the original baseline.
+
 Comparison of the Draft contract in
 [communication_contract_v0.10.md](communication_contract_v0.10.md) against the
 implementation. **This records differences; it changes neither the contract nor

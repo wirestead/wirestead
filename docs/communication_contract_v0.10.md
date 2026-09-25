@@ -6,10 +6,12 @@ remain those in [api_stability.md](api_stability.md),
 [callbacks.md](callbacks.md), [error_model.md](error_model.md) and the header
 comments.
 
-The proposal has **not** been compared against the implementation. That
-comparison comes next, across every transport and server, and it records
-differences only: neither the contract nor the code is changed to match the
-other until each difference has been decided.
+The [original audit](communication_contract_v0.10_audit.md) records the
+historical comparison. The [current conformance report](communication_contract_v0.10_status.md)
+covers all seven targets, implemented behavior, missing Decided requirements
+and unresolved proposals. Full conformance is not established. See
+[decisions](communication_contract_v0.10_decisions.md) for D-1/D-2/D-3 and the
+[accounting/event proposal](post_acceptance_policy_v0.10.md) for next gates.
 
 Each rule carries a status:
 
@@ -17,6 +19,7 @@ Each rule carries a status:
 | --- | --- |
 | **Decided** | Agreed in review; changes need a new decision |
 | **Proposed** | Recommended direction, pending confirmation |
+| **Implemented** | Current behavior with implementation evidence; not full draft conformance |
 | **Open** | Not decided; listed in [Open items](#9-open-items) |
 
 A rule without its own marker takes the default status of its section:
@@ -62,12 +65,13 @@ differs by transport and must not be read as "the peer is reachable".
 | --- | --- | --- |
 | TCP / UDS client | Connection established; with TLS, the handshake has completed | – |
 | TCP / UDS server session | The session was accepted and has not ended | – |
-| UDP | The socket is open and bound (**Open:** and whether a destination is required) | That any peer exists or is listening |
+| UDP | The socket is open; default sends need a configured/learned destination, explicit-destination sends do not | That any peer exists or is listening |
 | UDP server virtual session | The virtual session exists | That the remote end is still there; a virtual session ends by the library's own rule, not by a remote disconnect |
 | Serial | The port is open | That the attached device is powered or responding |
 
-**Proposed.** The UDP rows stay open until the UDP and UDP server transports
-have been examined.
+**Implemented:** UDP admission uses socket/run and destination readiness;
+see [udp_send_results.md](udp_send_results.md). Virtual-session expiry cleanup
+and event policy remain open.
 
 ## 3. Transmission
 
@@ -111,7 +115,7 @@ A wait ends in one of three ways:
 | Event while waiting | Result |
 | --- | --- |
 | Capacity becomes available | Re-run stages 1 and 3 |
-| The connection instance it waited on ends, whether or not a new one is already ready | Reject `NotConnected` or the transport's equivalent |
+| The connection instance it waited on ends, whether or not a new one is already ready | Reject `NotReady` or the transport's equivalent |
 | `stop()` | Reject `CancelledWhileWaiting` |
 
 - **Decided:** a wait may be unbounded while the channel stays ready and the
@@ -121,7 +125,7 @@ A wait ends in one of three ways:
   pressure while the channel is ready to send. Connection loss and shutdown are
   governed by [section 6](#6-lifecycle).
 - **Proposed:** `send_blocking()` in the `Connecting` state rejects immediately
-  with `NotConnected` at stage 1. It does not wait for the connection.
+  with `NotReady` at stage 1. It does not wait for the connection.
 - **Proposed:** keep-latest (accepting a new request by removing older accepted
   ones) is out of the v0.10 required scope. If it is added, it is an explicit
   opt-in policy with its own table of which APIs it applies to. With this
@@ -188,14 +192,15 @@ contract. It belongs in [tuning.md](tuning.md).
 
 ### 3.7 Result type
 
-- **Decided:** sends return a structured acceptance result. Its name must not
-  read as write completion; `Sent` and `Delivered` are ruled out, and
-  candidates are `SendAdmission` and `EnqueueResult`.
-- **Open:** whether the existing `bool` API is replaced outright or kept
-  alongside, decided after checking the effect on real consumers.
-- Candidate rejection reasons: `NotStarted`, `Stopping`, `NotConnected`,
-  `WouldBlock`, `QueueFull`, `TooLarge`, `InvalidArgument`,
-  `CancelledWhileWaiting`.
+- **Decided:** sends return a structured acceptance result, separate from
+  completion or delivery.
+- **Implemented:** C++ single-target wrappers return SendResult; server fanout
+  returns FanoutResult. They replace public bool returns, with explicit bool
+  conversion for compatibility adapters. Low-level bool adapters remain.
+  See [client_send_results.md](client_send_results.md) and
+  [server_fanout_results.md](server_fanout_results.md).
+- Python PR #72 preserves actual bool returns with legacy and structured core
+  APIs. Rich Python results are separate optional API work.
 
 ### 3.8 What happens after acceptance
 
@@ -260,7 +265,7 @@ checked.
 | `try_send*()` | Allowed | Allowed | Allowed | Allowed |
 | Blocking send | Allowed; may wait | Reject `WouldBlock` if it would wait | Same | **Proposed:** reject `WouldBlock` if it would wait on an executor it is running on |
 | `stats()` | Allowed | Allowed | Allowed | Allowed |
-| `stop()` | Waits for shutdown complete; **every** concurrent caller does (**Decided**) | Requests shutdown and returns without waiting (**Decided**) | **Proposed:** request only, if the target's shutdown needs the executor this thread is running; otherwise as an external thread | Same as the previous column |
+| `stop()` | Waits for shutdown complete; **every** concurrent caller does (**Decided**) | Requests shutdown and returns without waiting (**Decided**) | **Decided (D-1):** request only, if the target's shutdown needs the executor this thread is running; otherwise as an external thread | Same as the previous column |
 | `start()` | Allowed; the caller serializes it against `stop()` | Precondition: not called | Precondition: not called | Precondition: not called |
 | Handler registration | **Proposed:** only while stopped | Precondition: not called | Precondition: not called | Precondition: not called |
 | Configuration change while running | **Proposed:** only items on an explicit, verified list (**Open:** the list) | Same | Same | Same |
@@ -304,7 +309,7 @@ which calls may overlap on the **same** object, from different threads.
 | --- | --- | --- |
 | Owned by the library | Shutdown complete | Running user callbacks return |
 | External, run by the library | Shutdown complete | Running user callbacks return |
-| External, run by the caller | **Proposed:** shutdown complete, through the library's own tracking of its outstanding work | Running user callbacks return; the executor keeps running; the caller does not wait for shutdown on a thread of that executor |
+| External, run by the caller | **Decided (D-1):** shutdown complete, through the library's own tracking of its outstanding work | Running user callbacks return; the executor keeps running; the caller does not wait for shutdown on a thread of that executor |
 
 User handlers that are not Wirestead callbacks still share the executor with
 Wirestead's shutdown work. That is why the blocking restriction in
@@ -333,7 +338,7 @@ thrown by `on_error` itself is only logged.
 | Event | Not yet written | Being written | Blocked senders | Callback | Statistics |
 | --- | --- | --- | --- | --- | --- |
 | Connection established | – | – | – | `on_connect` | Connections |
-| Connection lost (remote close, error, idle timeout) | Discarded before write (**Decided**) | Aborted during write; delivery unknown (**Decided**) | Woken; `NotConnected` | `on_disconnect(reason)`, see [6.2](#62-on_disconnect) | Both categories, see [3.8](#38-what-happens-after-acceptance) |
+| Connection lost (remote close, error, idle timeout) | Discarded before write (**Decided**) | Aborted during write; delivery unknown (**Decided**) | Woken; `NotReady` | `on_disconnect(reason)`, see [6.2](#62-on_disconnect) | Both categories, see [3.8](#38-what-happens-after-acceptance) |
 | Reconnecting | – | – | – | **Open:** whether an event exists; the proposal is none, with state observable by query | Retry attempts |
 | Reconnected | Nothing from the previous connection | – | – | `on_connect` | – |
 | Retries exhausted | – | – | – | `on_error` (terminal) | – |
@@ -389,19 +394,17 @@ channel or session, not the fate of a request.
 
 ## 8. Next step: implementation comparison
 
-Every transport and server is compared against this draft: TCP, UDS, UDP and
-serial clients, and the TCP, UDS and UDP servers. Each rule gets one of:
-**matches**, **documentation change**, **implementation change**, **open**.
-Differences are recorded, not fixed as they are found. Observations made
-earlier on the TCP client were an investigation of one transport and are not
-assumed to hold for the others.
+The historical comparison and current review cover TCP, UDS, UDP and serial
+clients and TCP/UDS/UDP servers. See the current report for evidence and gates.
+Similar implementations do not prove identical behavior; CI does not certify
+the entire draft.
 
 ## 9. Open items
 
-1. The existing `bool` send API: replace outright or keep alongside the
-   structured result.
-2. Result type name.
-3. UDP ready-to-send definition, including whether a destination is required.
+Items 1-3 are resolved for current C++ wrappers: SendResult/FanoutResult
+replace bool and UDP readiness is defined in section 2. Python retains bool
+adapters. Remaining numbers are retained for historical references.
+
 4. Whether callbacks of different scopes may run concurrently.
 5. Completion signal for the whole object after `stop()` inside a callback.
 6. List of configuration items that may change while running.
@@ -412,3 +415,7 @@ assumed to hold for the others.
     `start()`.
 11. Accumulated receive memory while callbacks are blocked.
 12. Whether post-acceptance statistics can be exact per request.
+
+13. Explicit blocking BestEffort keep-latest removal or opt-in scope, and the
+    five-attempt admission retry bound versus the unqualified wait table.
+14. Ordinary executor-task wait restriction and mixed-session batch scopes.

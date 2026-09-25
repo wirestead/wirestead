@@ -496,8 +496,12 @@ bool UdsServer::async_write_copy(memory::ConstByteSpan data) {
 }
 
 bool UdsServer::async_write_move(std::vector<uint8_t>&& data) {
-  auto shared_data = std::make_shared<const std::vector<uint8_t>>(std::move(data));
-  return async_write_shared(shared_data);
+  auto shared_data = std::make_shared<std::vector<uint8_t>>(std::move(data));
+  const bool accepted = async_write_shared(shared_data);
+  // Rejected session admissions retain no reference. With no accepting target,
+  // ownership still belongs to the caller; restore it before returning false.
+  if (!accepted) data = std::move(*shared_data);
+  return accepted;
 }
 
 bool UdsServer::async_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
@@ -526,8 +530,12 @@ bool UdsServer::async_try_write_copy(memory::ConstByteSpan data) {
 }
 
 bool UdsServer::async_try_write_move(std::vector<uint8_t>&& data) {
-  auto shared_data = std::make_shared<const std::vector<uint8_t>>(std::move(data));
-  return async_try_write_shared(shared_data);
+  auto shared_data = std::make_shared<std::vector<uint8_t>>(std::move(data));
+  const bool accepted = async_try_write_shared(shared_data);
+  // Rejected session admissions retain no reference. With no accepting target,
+  // ownership still belongs to the caller; restore it before returning false.
+  if (!accepted) data = std::move(*shared_data);
+  return accepted;
 }
 
 bool UdsServer::async_try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data) {
