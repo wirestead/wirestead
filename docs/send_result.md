@@ -9,7 +9,7 @@ wirestead::SendRejection.
 expose SendResult across validation, lifecycle, capacity waiting and admission.
 See [client_send_results.md](client_send_results.md) and
 [server_target_send_results.md](server_target_send_results.md).
-Fanout aggregation remains separate.
+Fanout uses [FanoutResult](server_fanout_results.md).
 
 ## Constructing an outcome
 
@@ -90,4 +90,5 @@ The standalone type initially left send signatures unchanged. Public client and
 targeted server methods now return it, requiring consumers to rebuild and use
 accepted() or explicit conversion where a bool is required. The linked migration
 guides describe ownership, state/capacity reasons, wait cancellation and connection
-pinning. Language bindings and fanout aggregation remain separate work.
+pinning. Fanout now uses [FanoutResult](server_fanout_results.md);
+language binding migration remains separate work.

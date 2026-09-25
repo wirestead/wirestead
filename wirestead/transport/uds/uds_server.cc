@@ -43,6 +43,7 @@
 #include "wirestead/transport/base/stop_test_hook.hpp"
 #include "wirestead/transport/uds/boost_uds_acceptor.hpp"
 #include "wirestead/transport/uds/uds_server_session.hpp"
+#include "wirestead/wrapper/send_validation.hpp"
 
 #if !defined(WIRESTEAD_PLATFORM_WINDOWS)
 #include <sys/socket.h>
@@ -575,6 +576,56 @@ bool UdsServer::broadcast(std::string_view message) {
 bool UdsServer::broadcast(memory::ConstByteSpan data) {
   auto shared_data = std::make_shared<const std::vector<uint8_t>>(data.begin(), data.end());
   return async_try_write_shared(shared_data);
+}
+
+wrapper::FanoutResult UdsServer::broadcast_result(memory::ConstByteSpan data, wrapper::SendResult wrapper_state,
+                                                  bool append_newline) {
+  std::vector<std::pair<ClientId, std::shared_ptr<UdsServerSession>>> targets;
+  {
+    std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
+    targets.reserve(impl_->sessions_.size());
+    for (const auto& [id, session] : impl_->sessions_) {
+      if (session && session->alive()) targets.emplace_back(id, session);
+    }
+  }
+  if (auto hook = detail::g_uds_fanout_snapshot_hook.load()) hook();
+  wrapper::FanoutResult result;
+  std::shared_ptr<const std::vector<uint8_t>> shared_data;
+  for (const auto& [id, session] : targets) {
+    const auto size =
+        append_newline
+            ? (data.size() >= base::constants::MAX_BUFFER_SIZE ? base::constants::MAX_BUFFER_SIZE + 1 : data.size() + 1)
+            : data.size();
+    const auto validation = wrapper::detail::validate_payload_size(size, session->write_queue_limit());
+    if (!validation.accepted()) {
+      result.add(validation);
+      continue;
+    }
+    if (!wrapper_state.accepted()) {
+      result.add(wrapper_state);
+      continue;
+    }
+    if (!shared_data) {
+      auto payload = std::make_shared<std::vector<uint8_t>>();
+      if (!data.empty()) payload->assign(data.begin(), data.end());
+      if (append_newline) payload->push_back('\n');
+      shared_data = std::move(payload);
+    }
+    std::lock_guard<std::mutex> admission_lock(impl_->target_admission_mtx_);
+    const auto state = target_state();
+    if (!state.accepted()) {
+      result.add(state);
+      continue;
+    }
+    std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
+    const auto it = impl_->sessions_.find(id);
+    if (it == impl_->sessions_.end() || it->second != session) {
+      result.add(wrapper::SendResult::reject(wrapper::SendRejection::NotReady));
+      continue;
+    }
+    result.add(session->try_write_shared(shared_data));
+  }
+  return result;
 }
 
 bool UdsServer::send_to_client(ClientId client_id, std::string_view message) {

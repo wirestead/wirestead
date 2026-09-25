@@ -45,19 +45,19 @@ bool is_port_allocation_failure(const std::exception& ex) {
   return std::string_view(ex.what()).find("Unable to find available test port") != std::string_view::npos;
 }
 
-void expect_fast(std::string_view label, const std::function<bool()>& fn) {
+void expect_fast(std::string_view label, const std::function<wirestead::FanoutResult()>& fn) {
   SCOPED_TRACE(std::string(label));
   const auto start = std::chrono::steady_clock::now();
   EXPECT_TRUE(fn());
   EXPECT_LT(std::chrono::steady_clock::now() - start, 100ms);
 }
 
-bool call_fast(std::string_view label, const std::function<bool()>& fn) {
+bool call_fast(std::string_view label, const std::function<wirestead::FanoutResult()>& fn) {
   SCOPED_TRACE(std::string(label));
   const auto start = std::chrono::steady_clock::now();
-  const bool result = fn();
+  const auto result = fn();
   EXPECT_LT(std::chrono::steady_clock::now() - start, 100ms);
-  return result;
+  return static_cast<bool>(result);
 }
 
 template <typename Server>

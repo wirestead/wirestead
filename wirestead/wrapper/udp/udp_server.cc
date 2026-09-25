@@ -573,18 +573,33 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
     return try_send_to(client_id, data, true);
   }
 
-  bool try_broadcast(std::string_view data) {
+  FanoutResult try_broadcast(std::string_view data, bool append_newline = false) {
+    // The shared wrapper lock fixes the virtual-session set for the whole
+    // nonblocking traversal, including each endpoint's admission decision.
     std::shared_lock<std::shared_mutex> lock(mutex);
-    if (!channel) return false;
-    bool sent = false;
-    auto bytes = base::safe_convert::string_to_bytes(data);
-    for (const auto& [id, entry] : sessions) {
-      sent |= channel->async_try_write_to(memory::ConstByteSpan(bytes.first, bytes.second), entry.endpoint);
+    FanoutResult result;
+    const auto size =
+        append_newline
+            ? (data.size() >= base::constants::MAX_BUFFER_SIZE ? base::constants::MAX_BUFFER_SIZE + 1 : data.size() + 1)
+            : data.size();
+    const auto validation = detail::validate_payload_size(size, channel ? channel->write_queue_limit() : std::nullopt);
+    const auto state = validation.accepted() ? send_state() : validation;
+    std::string line;
+    if (append_newline && state.accepted() && !sessions.empty()) {
+      line = std::string(data) + "\n";
+      data = line;
     }
-    return sent;
+    const auto bytes = base::safe_convert::string_to_bytes(data);
+    for (const auto& [id, entry] : sessions) {
+      result.add(state.accepted()
+                     ? channel->try_write_to({bytes.first, bytes.second}, entry.endpoint,
+                                             entry.wait ? std::optional<uint64_t>(entry.wait->sequence) : std::nullopt)
+                     : state);
+    }
+    return result;
   }
 
-  bool broadcast(std::string_view data) { return try_broadcast(data); }
+  FanoutResult broadcast(std::string_view data) { return try_broadcast(data); }
 
   static SendResult finish_send(SendResult result) {
     if (auto hook = detail::g_udp_server_send_result_hook.load()) hook(result);
@@ -713,8 +728,8 @@ bool UdpServer::listening() const { return impl_->is_listening.load(); }
 RuntimeStats UdpServer::stats() const { return impl_->stats(); }
 void UdpServer::reset_stats() { impl_->reset_stats(); }
 
-bool UdpServer::broadcast(std::string_view data) { return impl_->broadcast(data); }
-bool UdpServer::try_broadcast(std::string_view data) { return impl_->try_broadcast(data); }
+FanoutResult UdpServer::broadcast(std::string_view data) { return impl_->broadcast(data); }
+FanoutResult UdpServer::try_broadcast(std::string_view data) { return impl_->try_broadcast(data); }
 SendResult UdpServer::send_to(ClientId client_id, std::string_view data) { return impl_->send_to(client_id, data); }
 SendResult UdpServer::try_send_to(ClientId client_id, std::string_view data) {
   return impl_->try_send_to(client_id, data);
@@ -724,11 +739,11 @@ SendResult UdpServer::send_to_blocking(ClientId client_id, std::string_view data
   return impl_->send_to_blocking(client_id, data);
 }
 
-bool UdpServer::broadcast_line(std::string_view line) { return broadcast(std::string(line) + "\n"); }
+FanoutResult UdpServer::broadcast_line(std::string_view line) { return impl_->try_broadcast(line, true); }
 SendResult UdpServer::send_to_line(ClientId client_id, std::string_view line) {
   return send_to(client_id, std::string(line) + "\n");
 }
-bool UdpServer::try_broadcast_line(std::string_view line) { return try_broadcast(std::string(line) + "\n"); }
+FanoutResult UdpServer::try_broadcast_line(std::string_view line) { return impl_->try_broadcast(line, true); }
 SendResult UdpServer::try_send_to_line(ClientId client_id, std::string_view line) {
   return try_send_to(client_id, std::string(line) + "\n");
 }

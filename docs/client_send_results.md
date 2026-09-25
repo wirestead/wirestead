@@ -87,5 +87,5 @@ Language bindings that promise bool can use static_cast<bool>(result) to
 support both the old bool return and the new explicitly convertible result.
 The Python repository still pins core v0.9.6; its bindings must be adapted
 before upgrading that pin to this API. Exposing rich Python results is a
-separate API decision. Server broadcasts still need their fanout aggregate
-result; this client change does not complete all of D-3.
+separate API decision. Server broadcasts now return FanoutResult; see
+[server_fanout_results.md](server_fanout_results.md).

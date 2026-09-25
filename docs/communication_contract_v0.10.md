@@ -166,21 +166,23 @@ contract. It belongs in [tuning.md](tuning.md).
 
 - A send addressed to one session follows [3.1](#31-decision-procedure) to
   [3.5](#35-order) for that session.
-- **Proposed:** a send to several sessions never waits. Each target session
+- **Implemented:** a send to several sessions never waits. Each target session
   is decided as `try_send*()` would decide it, so one slow session cannot hold
   the call or delay acceptance by the others.
-- **Proposed:** the target set is fixed once, when the call selects its
+- **Implemented:** the target set is fixed once, when the call selects its
   sessions. A session that connects after that point is not a target. A target
   that ends **between selection and its own acceptance decision** is rejected
-  with `NotConnected`. A target that ends **after** it accepted keeps that
+  with `NotReady`. A target that ends **after** it accepted keeps that
   acceptance in the result; what happens to the request then follows
   [6.1](#61-events), as a discard before write or an abort during write. A
   result is never revised after the fact.
-- **Proposed:** the result reports, over that fixed target set, the number of
+- **Implemented:** the result reports, over that fixed target set, the number of
   sessions that accepted, the number that rejected, and a count per rejection
   reason. It does not report a single "representative" reason.
-- **Proposed:** a send that addresses zero sessions returns a result
+- **Implemented:** a send that addresses zero sessions returns a result
   distinguishable from both acceptance and rejection.
+- The C++ API and zero-target rules are documented in
+  [server_fanout_results.md](server_fanout_results.md).
 - Order is per session. Nothing orders one session's writes against another's.
 - Statistics are kept per session, with server totals kept separately.
 

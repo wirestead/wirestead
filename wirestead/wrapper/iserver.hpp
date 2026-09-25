@@ -27,6 +27,7 @@
 #include "wirestead/diagnostics/logger.hpp"
 #include "wirestead/framer/iframer.hpp"
 #include "wirestead/wrapper/context.hpp"
+#include "wirestead/wrapper/fanout_result.hpp"
 #include "wirestead/wrapper/runtime_stats.hpp"
 #include "wirestead/wrapper/send_result.hpp"
 
@@ -151,11 +152,11 @@ class WIRESTEAD_API ServerInterface {
    * @brief Send to all connected clients using non-blocking fan-out.
    *
    * Does not wait for slow clients to relieve backpressure. Use send_to_blocking()
-   * for strict per-client blocking delivery.
+   * for per-client blocking queue admission.
    *
-   * @return true At least one client accepted the data.
+   * @return Counts over the fixed target set; empty() identifies zero targets.
    */
-  virtual bool broadcast(std::string_view data) = 0;
+  [[nodiscard]] virtual FanoutResult broadcast(std::string_view data) = 0;
 
   /**
    * @brief Block until queue pressure is relieved, then send to a client. Ignores strategy.
@@ -188,14 +189,14 @@ class WIRESTEAD_API ServerInterface {
    *
    * Uses the same non-blocking queue threshold policy as try_send_to().
    *
-   * @return true At least one client accepted the data.
+   * @return Counts over the fixed target set; empty() identifies zero targets.
    */
-  virtual bool try_broadcast(std::string_view data) = 0;
+  [[nodiscard]] virtual FanoutResult try_broadcast(std::string_view data) = 0;
 
   /**
-   * @brief Send a line (data + "\n") to all clients, honouring the backpressure strategy.
+   * @brief Send a line (data + "\n") to all clients without waiting for capacity.
    */
-  virtual bool broadcast_line(std::string_view line) = 0;
+  [[nodiscard]] virtual FanoutResult broadcast_line(std::string_view line) = 0;
 
   /**
    * @brief Send a line (data + "\n") to a specific client, honouring the backpressure strategy.
@@ -205,7 +206,7 @@ class WIRESTEAD_API ServerInterface {
   /**
    * @brief Non-blocking broadcast_line that always drops on a full queue, ignoring strategy.
    */
-  virtual bool try_broadcast_line(std::string_view line) = 0;
+  [[nodiscard]] virtual FanoutResult try_broadcast_line(std::string_view line) = 0;
 
   /**
    * @brief Non-blocking send_to_line that always drops on a full queue, ignoring strategy.

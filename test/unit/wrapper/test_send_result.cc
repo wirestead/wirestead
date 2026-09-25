@@ -81,6 +81,11 @@ template <typename Server>
 constexpr bool targeted_send_contract() {
   using Id = wirestead::ClientId;
   using View = std::string_view;
+  using Fanout = wirestead::wrapper::FanoutResult;
+  static_assert(std::is_same_v<decltype(std::declval<Server&>().broadcast(View{})), Fanout>);
+  static_assert(std::is_same_v<decltype(std::declval<Server&>().try_broadcast(View{})), Fanout>);
+  static_assert(std::is_same_v<decltype(std::declval<Server&>().broadcast_line(View{})), Fanout>);
+  static_assert(std::is_same_v<decltype(std::declval<Server&>().try_broadcast_line(View{})), Fanout>);
   static_assert(std::is_same_v<decltype(std::declval<Server&>().send_to(Id{}, View{})), SendResult>);
   static_assert(std::is_same_v<decltype(std::declval<Server&>().try_send_to(Id{}, View{})), SendResult>);
   static_assert(std::is_same_v<decltype(std::declval<Server&>().send_to_blocking(Id{}, View{})), SendResult>);
@@ -239,3 +244,56 @@ TEST_P(NativeResultChannelTest, ReportsActualAdmissionReasonWithoutConsumingReje
 }
 INSTANTIATE_TEST_SUITE_P(FourTransportsSixForms, NativeResultChannelTest, ::testing::Range(0, 24));
 }  // namespace
+
+TEST(FanoutResultTest, EmptyIsNeitherAcceptanceNorRejection) {
+  constexpr wirestead::wrapper::FanoutResult empty;
+  static_assert(empty.empty());
+  static_assert(!static_cast<bool>(empty));
+  static_assert(!std::is_convertible_v<wirestead::wrapper::FanoutResult, bool>);
+  EXPECT_EQ(empty.accepted_count(), 0u);
+  EXPECT_EQ(empty.rejected_count(), 0u);
+  EXPECT_EQ(empty.target_count(), 0u);
+}
+TEST(FanoutResultTest, MixedOutcomesRetainEveryReasonAndCopiesRemainStable) {
+  wirestead::wrapper::FanoutResult result;
+  result.add(SendResult::accept());
+  for (auto reason : {SendRejection::NotStarted, SendRejection::Stopping, SendRejection::NotReady,
+                      SendRejection::WouldBlock, SendRejection::QueueFull, SendRejection::TooLarge,
+                      SendRejection::InvalidArgument, SendRejection::CancelledWhileWaiting}) {
+    result.add(SendResult::reject(reason));
+    result.add(SendResult::reject(reason));
+    EXPECT_EQ(result.rejected_count(reason), 2u);
+  }
+  EXPECT_TRUE(result);
+  EXPECT_EQ(result.target_count(), 17u);
+  EXPECT_EQ(result.accepted_count(), 1u);
+  EXPECT_EQ(result.rejected_count(), 16u);
+  const auto copy = result;
+  result.add(SendResult::accept());
+  EXPECT_EQ(copy.accepted_count(), 1u);
+  EXPECT_EQ(copy.target_count(), 17u);
+}
+TEST(FanoutResultTest, AllRejectedDiffersFromEmpty) {
+  wirestead::wrapper::FanoutResult result;
+  result.add(SendResult::reject(SendRejection::WouldBlock));
+  EXPECT_FALSE(result);
+  EXPECT_FALSE(result.empty());
+  EXPECT_EQ(result.target_count(), 1u);
+  EXPECT_EQ(result.rejected_count(), 1u);
+}
+TEST(FanoutResultTest, UnstartedServersHaveNoTargetsForEveryBroadcastForm) {
+  wirestead::wrapper::TcpServer tcp(0);
+  wirestead::wrapper::UdsServer uds("unused-fanout-test");
+  wirestead::wrapper::UdpServer udp(0);
+  for (wirestead::wrapper::ServerInterface* server : {static_cast<wirestead::wrapper::ServerInterface*>(&tcp),
+                                                      static_cast<wirestead::wrapper::ServerInterface*>(&uds),
+                                                      static_cast<wirestead::wrapper::ServerInterface*>(&udp)}) {
+    for (auto send :
+         {&wirestead::wrapper::ServerInterface::broadcast, &wirestead::wrapper::ServerInterface::try_broadcast,
+          &wirestead::wrapper::ServerInterface::broadcast_line,
+          &wirestead::wrapper::ServerInterface::try_broadcast_line}) {
+      EXPECT_TRUE((server->*send)("payload").empty());
+      EXPECT_TRUE((server->*send)("").empty());
+    }
+  }
+}
