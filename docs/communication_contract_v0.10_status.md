@@ -13,6 +13,18 @@ and the additional draft clauses in the section inventory below. A rule not
 proved by a targeted test is not promoted to verified simply because a whole
 suite passes. No Proposed/Open rule is silently made Decided by this report.
 
+## TCP accounting follow-up
+
+The built-in TCP client now implements optional logical-request accounting:
+[API, epoch semantics and evidence](tcp_send_accounting.md). Its stop/loss/
+queue-pressure discards and active aborts are separate, with exactly-once
+termination and gather-prefix attribution. Other targets still report no
+accounting capability; server aggregation and UDP expiry remain incomplete.
+Validation: 1,957 full-suite cases discovered (1,945 passed, 12 existing UDP
+skips); all 71 new accounting cases passed 100 repeats each and AddressSanitizer
+with leak detection. The installed shared-library consumer smoke also passed.
+The baseline observations below are retained except where explicitly updated.
+
 ## Evidence and verdicts
 
 - **Covered**: the named behavior has implementation and regression evidence.
@@ -35,7 +47,7 @@ Paths below are relative to the repository. Evidence groups:
 | Fanout | [TCP](../wirestead/transport/tcp_server/tcp_server.cc), [UDS](../wirestead/transport/uds/uds_server.cc) broadcast_result; [UDP](../wirestead/wrapper/udp/udp_server.cc) try_broadcast | test_server_broadcast_contract.cc, test_server_broadcast_slow_consumer_contract.cc |
 | Ownership | Native four-client admission paths, TCP/UDS sessions; [context copies](../wirestead/wrapper/context.hpp); UDS server move adapters | test_send_buffer_apis.cc, test_connection_channel.cc, test_send_result.cc, test_message_context.cc; UdsMoveOwnershipTest added here |
 | Queue policy | All six native queue-routing implementations call [decide_enqueue](../wirestead/transport/base/bp_state_machine.hpp); [keep-latest helper](../wirestead/transport/base/bp_utils.hpp) | BpStateMachineTest.BestEffortTrimsOldestEntriesToFitNewBuffer / BestEffortDropsEverythingWhenNewBufferAloneExceedsHigh; bounded retry tests |
-| Statistics | [RuntimeStats](../wirestead/wrapper/runtime_stats.hpp), [counter implementation](../wirestead/diagnostics/runtime_stats_counter.hpp); each native cleanup/write-completion path | test_runtime_stats.cc, test_runtime_stats_counter.cc; existing tests do not establish discard/abort accounting |
+| Statistics | [RuntimeStats](../wirestead/wrapper/runtime_stats.hpp), [counter implementation](../wirestead/diagnostics/runtime_stats_counter.hpp); each native cleanup/write-completion path | Legacy counter tests plus test_send_accounting.cc and test_tcp_send_accounting.cc; discard/abort accounting is established for the TCP client only |
 | Events | TCP/UDS/serial retry transitions; each wrapper on_state; UDP server run_reaper | Lifecycle/reconnect tests exercise current behavior, not the proposed unified event contract |
 
 Full file names are searchable under test/unit and test/integration; the
@@ -45,7 +57,7 @@ implementation symbols above describe the specific decision being assessed.
 
 | Target | Completed core path | Remaining target-specific limitations |
 | --- | --- | --- |
-| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay | Keep-latest on explicit blocking BestEffort path, five-attempt admission bound, bare-executor waiting, post-acceptance accounting, reconnect event mapping |
+| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Keep-latest on explicit blocking BestEffort path, five-attempt admission bound, bare-executor waiting, reconnect event mapping |
 | UDS client | Same guarantees traced in its own implementation | Same queue/retry/executor/accounting gaps; retried loss can report on_error |
 | UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin | Same queue/retry/executor/accounting gaps; batch timer uses the raw io_context executor |
 | Serial | D-1/D-2, typed admission; device-instance pin and no reopen replay | Same queue/retry/executor/accounting gaps; recovered loss notification; physical-device validation remains separate |
@@ -85,7 +97,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | C-3.6-4 | Covered: zero targets distinct | empty() is true, counts zero; bool alone intentionally cannot distinguish it from all-rejected |
 | C-3.6-5 | Partial: TCP/UDS session statistics; gap for UDP virtual sessions | UDP server only forwards channel stats and inherits ServerInterface::client_stats returning nullopt |
 | C-3.7-1 | Covered for C++ wrappers; explicit compatibility boundary elsewhere | SendResult/FanoutResult replace public bool; low-level bool adapters remain. Python PR #72 deliberately retains bool |
-| C-3.8-1 | Gap against Decided contract: all targets | RuntimeStats has only dropped/failed counters, no before-write/active-write distinction or cause partition |
+| C-3.8-1 | Partial: TCP client implemented; Decided gap remains on other targets | Optional SendAccounting on the TCP client distinguishes stages/causes; other transports and server aggregation remain unsupported |
 | C-5.1-1 | Partial: native TCP/UDS/Serial client strands; UDP batch callbacks not proven serialized | UDP get_executor returns raw io_context; its batch timer is not bound to transport strand. Multi-thread timer/receive overlap needs a regression |
 | C-5.1-2a | Covered for TCP/UDS session receive/backpressure/close paths | Session strand bindings; this does not establish connect/batch serialization |
 | C-5.1-2b | Open evidence: TCP/UDS all callbacks attributed to a session | Connect runs on accept path, batches use a server-level path; need multi-thread overlap probes |
@@ -99,9 +111,9 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | C-5.4-4 | Covered: blocking send from any wrapper callback refuses waiting | D-2 guards all callback kinds and nested/cross-channel callbacks |
 | C-5.4-5 | Gap against proposal: ordinary tasks on the required executor can wait | Blocking-send loops check callback depth, unlike shutdown_needs_this_thread; no general executor admission guard |
 | C-5.5-1 | Covered for native concurrent send admission | Wrapper shared locks plus native submission/reservation locks |
-| C-5.5-2 | Partial: return value preserved; statistics still ambiguous | Accepted requests remain accepted, but delayed native enqueue rejection can increment failed_sends; requires post-admission ledger |
+| C-5.5-2 | Partial: TCP client now has a separate post-admission ledger | Legacy failed_sends semantics remain; other targets still lack logical-request accounting |
 | C-5.5-3 | Covered: cancellation while waiting | Admission tests check CancelledWhileWaiting and first-cause retention |
-| C-5.5-4 | Covered: observational stats | Independent atomic snapshot; no cross-field consistency/conservation guarantee during mutation |
+| C-5.5-4 | Covered: observational stats | Legacy fields remain independent atomics; the optional TCP ledger is a separately consistent snapshot, not atomic with legacy fields |
 | C-6.1-1 | Covered for TCP/UDS/Serial no replay; partial for wider event table | Queues and active batches fenced by connection generation. UDP expiry does not purge queued endpoint datagrams |
 | C-6.1-2 | Covered: first loss reason released to public callers | NotReady is the implemented name; UDP uses run/virtual-session lifetime |
 | C-6.1-2a | Covered: session end releases targeted waiter | Retained session wait record; native/targeted lifecycle tests |
@@ -118,7 +130,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 
 | Contract section | Current assessment |
 | --- | --- |
-| 1: accepted versus delivered | Implemented result naming and docs; no delivery guarantee. Post-acceptance classification is still missing |
+| 1: accepted versus delivered | Implemented result naming and docs; no delivery guarantee. Post-acceptance classification now exists for TCP clients only |
 | 3.2: Reliable never pressure-drops accepted data | Reliable queue helper never takes keep-latest branch; stop/loss disposal is separate. Five-attempt return remains a separate gap |
 | 3.3: empty lines and size bounds | Existing validation/line tests cover delimiter-only requests and whole-queue bounds; not an allocation-failure guarantee |
 | 3.4 / 4: receive lifetime | MessageContext copy constructor clones borrowed data; move remains cheap. Retaining only a data view beyond callback is unsupported |
@@ -131,7 +143,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | 5.6 / 5.7: executors and nonreturning handlers | D-1 handles owned/external executors with progress preconditions; cannot promise bounded stop when a user callback never returns |
 | 5.8: callback exceptions | Wrapper invoke_user_callback catches/logs standard and unknown exceptions; no recursive on_error forwarding. Direct native callbacks have transport-specific policies; no single finalized exception policy |
 | 6.1: retry exhaustion/restart | Current lifecycle tests cover restart after stop. Whether any other restart transition is supported must be stated in the final contract |
-| 6.1: cause-separated cleanup statistics | Missing: explicit stop, connection/socket loss and UDP expiry cannot be independently reconciled in current counters |
+| 6.1: cause-separated cleanup statistics | TCP clients distinguish explicit stop, connection loss and queue pressure in the new ledger. Other targets and UDP expiry remain missing |
 | 6.2 / 6.3 / 7: event versus error versus send refusal | Wrapper structured send refusals are implemented; global event taxonomy and configuration error policy are still open |
 | 7: configuration validation | Different paths throw, clamp or fail start; exception/result and build/start timing need a documented choice |
 | Python | Bool compatibility with old/new core is verified by PR #72; rich result exposure is optional new API work, not an unfinished bool adapter |
@@ -139,7 +151,8 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 
 ## Completion gates and next work
 
-1. **Post-acceptance accounting (required Decided gap):** specify and implement
+1. **Post-acceptance accounting (required Decided gap):** extend the implemented
+   TCP-client ledger to the remaining transports and server aggregation; track
    request identity from caller-thread admission through pending post, queued
    storage, active gather batch and terminal cleanup. Publish separate
    discarded-before-write and aborted-during-write counts with stop/loss/expiry
@@ -157,8 +170,8 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
    exception/configuration policy, migration docs and satellite release pins.
 
 See [the accounting/event implementation proposal](post_acceptance_policy_v0.10.md)
-for a concrete design and acceptance scenarios. It is not an implemented API,
-and does not silently approve previously Open event choices.
+for a concrete design and acceptance scenarios. TCP-client accounting is now implemented as documented above; the remaining
+transport/event proposals are not implemented or silently approved.
 
 ## Validation for this review
 

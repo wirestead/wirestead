@@ -1,6 +1,9 @@
 # Post-acceptance accounting and event proposal
 
-**Status: proposal, not an implemented API or a new decision.**
+**Status: remaining transport/event proposal.** The
+[TCP-client accounting implementation](tcp_send_accounting.md) now implements
+the request ledger with explicit measurement epochs and cause groups. Other
+targets and event choices remain proposals, not completed APIs or new decisions.
 The [current conformance report](communication_contract_v0.10_status.md)
 identifies the missing behavior. This document specifies implementation gates.
 Existing SendResult/FanoutResult admission semantics do not change.

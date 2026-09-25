@@ -131,6 +131,12 @@ wirestead_add_unit_gtest(
   "unit_diagnostics_fast" 30
 )
 
+wirestead_add_unit_gtest(
+  run_unit_test_send_accounting
+  ${CMAKE_CURRENT_SOURCE_DIR}/diagnostics/test_send_accounting.cc
+  "unit_diagnostics_fast" 30
+)
+
 # Wrapper tests (separate executables across TCP/UDP/UDS/Serial)
 foreach(
   test_file

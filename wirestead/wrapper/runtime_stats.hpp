@@ -20,6 +20,8 @@
 #include <cstdint>
 #include <optional>
 
+#include "wirestead/wrapper/send_accounting.hpp"
+
 namespace wirestead {
 namespace wrapper {
 
@@ -59,6 +61,11 @@ struct RuntimeStats {
   // additionally offers rx_idle_timeout, which does act, because there a
   // concrete recovery exists - reopening the port.
   std::optional<uint64_t> last_receive_age_ms;
+
+  // Present only for transports with logical request accounting (currently
+  // the built-in TCP client). nullopt means unsupported, not zero loss.
+  // Independent of legacy sent/dropped counters; see docs/tcp_send_accounting.md.
+  std::optional<SendAccounting> send_accounting;
 };
 
 }  // namespace wrapper
