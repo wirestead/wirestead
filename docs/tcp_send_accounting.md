@@ -1,10 +1,10 @@
-# TCP client post-acceptance accounting
+# Stream client post-acceptance accounting
 
-The built-in TCP client now exposes logical-request accounting through
+The built-in TCP and UDS clients and Serial transport expose logical-request accounting through
 RuntimeStats::send_accounting. It is an optional SendAccounting snapshot:
 nullopt means the transport does not implement it, not that it has zero loss.
-UDS, UDP, Serial and server-session aggregation remain follow-up work.
-The TCP wrapper forwards its native channel snapshot unchanged.
+UDP and server-session aggregation remain follow-up work.
+The corresponding wrappers forward their native channel snapshots unchanged.
 
 ## Public counters
 
@@ -16,7 +16,7 @@ cause groups:
 | --- | --- | --- |
 | explicit_stop | Accepted but not handed to local I/O when stop takes effect | Handed to local I/O but not completed when stop takes effect |
 | connection_loss | Same distinction at connection loss | Same distinction at connection loss |
-| queue_pressure | Accepted request removed by existing keep-latest/queue routing | Zero for current TCP routing; active writes are not trimmed |
+| queue_pressure | Accepted request removed by existing keep-latest/queue routing | Zero for current stream-client routing; active writes are not trimmed |
 
 Each group is a SendLossTotals with discarded_before_write and
 aborted_during_write members. Rejected admissions do not contribute to these
@@ -85,12 +85,28 @@ RuntimeStats has a new optional member, changing its binary layout. Rebuild C++
 consumers together with the library. Source users of existing fields keep their
 semantics. Python's existing bound statistics/API are not extended here.
 
-Unit tests cover partial gather prefixes, terminal races, first cause, reset
+Ledger unit tests cover partial gather prefixes, terminal races, first cause, reset
 epochs, replacement-connection identity, rollback and unsupported capability. TCP loopback tests cover every
 admission family, stop before enqueue, stop after handoff with late completion,
 gather request counts, real peer loss, reset, rejected inputs, keep-latest versus
-try refusal, and injected initiation failure. They do not establish the same
-guarantees for other native transports or server aggregation.
+try refusal, and injected initiation failure.
+
+UDS/Serial controlled-interface tests cover seven input families on each
+transport: pooled/fallback copy, move, shared and all three try variants.
+They verify pre-enqueue stop, active versus queued loss, partial gather prefix,
+inline interface completion, initiation exceptions, reset before enqueue and
+during I/O, stale completions after reconnect, write EOF/short completion,
+rejected admission and keep-latest disposal. These tests do not require a
+physical serial device. Existing real-I/O tests remain regression coverage.
+
+UDS/Serial write completions are posted to the transport strand even if an
+injected interface invokes them inline. This permits admission/stop and write
+initiation to share one mutex without reentrant completion deadlocks.
+A short composed write without an error is treated as connection loss.
+Serial read EOF keeps its existing transient retry behavior; write EOF instead
+terminates the device instance, following the configured reopen policy.
+This extension adds no public fields beyond the optional member introduced
+with TCP accounting. UDP and server aggregation remain unsupported.
 
 See [current policy coverage](communication_contract_v0.10_status.md) and the
 [remaining accounting/event proposal](post_acceptance_policy_v0.10.md).

@@ -29,6 +29,7 @@
 #include <optional>
 #include <stop_token>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <variant>
 #include <vector>
@@ -41,6 +42,7 @@
 #include "wirestead/diagnostics/error_handler.hpp"
 #include "wirestead/diagnostics/logger.hpp"
 #include "wirestead/diagnostics/runtime_stats_counter.hpp"
+#include "wirestead/diagnostics/send_accounting.hpp"
 #include "wirestead/interface/iserial_port.hpp"
 #include "wirestead/memory/memory_pool.hpp"
 #include "wirestead/transport/base/bp_state_machine.hpp"
@@ -88,12 +90,21 @@ struct Serial::Impl {
   net::steady_timer rx_idle_timer_;
 
   std::shared_ptr<std::vector<uint8_t>> rx_;
-  std::deque<BufferVariant> tx_;
-  std::deque<BufferVariant> pending_;
+  using Ledger = diagnostics::SendAccountingLedger;
+  struct TrackedBuffer {
+    BufferVariant buffer;
+    Ledger::Request request;
+  };
+  struct BufferProjection {
+    const BufferVariant& operator()(const TrackedBuffer& item) const { return item.buffer; }
+  };
+  Ledger send_accounting_;
+  std::deque<TrackedBuffer> tx_;
+  std::deque<TrackedBuffer> pending_;
   std::atomic<size_t> pending_bytes_{0};
   // Completions retain their own buffers across device reopen.
   struct WriteBatch {
-    std::vector<BufferVariant> buffers;
+    std::vector<TrackedBuffer> buffers;
     std::vector<net::const_buffer> views;
     size_t bytes = 0;
   };
@@ -152,7 +163,7 @@ struct Serial::Impl {
   // Explicit dispatch preserves serialization. The lifetime also accounts for
   // test ports that discard an operation instead of invoking its handler.
   template <typename Handler>
-  auto track_io(std::shared_ptr<Serial> self, Handler handler) {
+  auto track_io(std::shared_ptr<Serial> self, Handler handler, bool defer = false) {
     ++pending_io_;
     std::shared_ptr<void> lifetime(nullptr, [self](void*) {
       net::dispatch(self->impl_->strand_, [self] {
@@ -163,8 +174,14 @@ struct Serial::Impl {
         if (--impl->pending_io_ == 0 && impl->cleanup_finished_) impl->mark_cleanup_done();
       });
     });
-    return [self, lifetime, handler = std::move(handler)](auto... args) {
-      net::dispatch(self->impl_->strand_, [lifetime, handler, args...]() mutable { handler(args...); });
+    return [self, lifetime, handler = std::move(handler), defer](auto... args) {
+      auto completion = [lifetime, handler, args...]() mutable { handler(args...); };
+      // Write initiation holds submission_mtx_; injected interfaces may invoke
+      // the callback inline. Queue it before acquiring that mutex again.
+      if (defer)
+        net::post(self->impl_->strand_, std::move(completion));
+      else
+        net::dispatch(self->impl_->strand_, std::move(completion));
     };
   }
 
@@ -232,7 +249,7 @@ struct Serial::Impl {
   // triggered the fatal-error behavior on tx_ overflow before this change -
   // the *pooled*-buffer path in async_write_copy did not, for no documented
   // reason. All 4 call sites now behave identically.
-  void route_enqueued_buffer(std::shared_ptr<Serial> self, BufferVariant&& buf, size_t added) {
+  void route_enqueued_buffer(std::shared_ptr<Serial> self, TrackedBuffer&& buf, size_t added) {
     if (stopping_) {
       queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
       return;
@@ -243,10 +260,13 @@ struct Serial::Impl {
 
     auto f = bp_fields();
     queue_util::DropAccounting dropped;
-    auto decision = queue_util::decide_enqueue(f, added, tx_, dropped);
+    auto decision = queue_util::decide_enqueue(
+        f, added, tx_, dropped, BufferProjection{},
+        [this](const TrackedBuffer& item) { send_accounting_.discard(item.request, Ledger::Cause::QueuePressure); });
     if (dropped.any()) stats_.record_dropped(dropped.messages, dropped.bytes);
 
     if (decision == queue_util::EnqueueDecision::Rejected) {
+      send_accounting_.discard(buf.request, Ledger::Cause::QueuePressure);
       WIRESTEAD_LOG_ERROR("serial", "write", "Queue limit exceeded, dropping message");
       // #448: record as dropped so it's reflected in RuntimeStats instead of
       // silently vanishing after being counted as accepted.
@@ -308,7 +328,11 @@ struct Serial::Impl {
 
   void mark_disconnected() {
     std::lock_guard<std::mutex> lock(submission_mtx_);
+    mark_disconnected_locked();
+  }
+  void mark_disconnected_locked() {
     if (opened_.exchange(false)) {
+      send_accounting_.end(Ledger::Cause::ConnectionLoss);
       if (write_wait_) write_wait_->end(wrapper::SendRejection::NotReady);
       connection_seq_.fetch_add(1);
     }
@@ -318,9 +342,9 @@ struct Serial::Impl {
     size_t messages = tx_.size() + pending_.size();
     size_t bytes = 0;
     for (const auto& buffer : tx_)
-      bytes += std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, buffer);
+      bytes += std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, buffer.buffer);
     for (const auto& buffer : pending_)
-      bytes += std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, buffer);
+      bytes += std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, buffer.buffer);
     if (active_write_) {
       messages += active_write_->buffers.size();
       bytes += active_write_->bytes;
@@ -525,36 +549,65 @@ struct Serial::Impl {
   }
 
   void do_write(std::shared_ptr<Serial> self) {
-    if (stopping_ || !opened_ || tx_.empty() || writing_) return;
+    if (stopping_.load() || !opened_.load() || tx_.empty() || writing_) return;
+    std::unique_lock<std::mutex> submission_lock(submission_mtx_);
+    if (stopping_.load() || !opened_.load()) return;
     writing_ = true;
     auto batch = std::make_shared<WriteBatch>();
-    batch->bytes = queue_util::take_gather_batch(tx_, batch->buffers, batch->views);
+    batch->bytes = queue_util::take_gather_batch(tx_, batch->buffers, batch->views, BufferProjection{});
+    for (const auto& item : batch->buffers) send_accounting_.begin(item.request);
     active_write_ = batch;
     const auto connection = connection_seq_.load();
-    port_->async_write(batch->views,
-                       track_io(self, [self, connection, batch](const boost::system::error_code& ec, size_t n) {
-                         auto* impl = self->get_impl();
-                         if (connection != impl->connection_seq_) {
-                           batch->buffers.clear();
-                           return;
-                         }
-                         impl->active_write_.reset();
-                         impl->writing_ = false;
-                         if (impl->stopping_) {
-                           batch->buffers.clear();
-                           return;
-                         }
-                         if (ec) {
-                           queue_util::return_gather_batch(impl->tx_, batch->buffers);
-                           impl->handle_error(self, "write", ec);
-                           return;
-                         }
-                         batch->buffers.clear();
-                         queue_util::release_reserved_write_bytes(impl->queued_bytes_, batch->bytes);
-                         impl->stats_.record_sent(n);
-                         impl->report_backpressure(impl->queued_bytes_);
-                         impl->do_write(self);
-                       }));
+    auto completion = track_io(
+        self,
+        [self, connection, batch](boost::system::error_code ec, size_t written) {
+          auto* impl = self->get_impl();
+          bool current_connection;
+          {
+            std::lock_guard<std::mutex> lock(impl->submission_mtx_);
+            current_connection = connection == impl->connection_seq_.load();
+            size_t remaining = written;
+            for (const auto& item : batch->buffers) {
+              const auto bytes =
+                  std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
+              const auto confirmed = std::min(remaining, bytes);
+              impl->send_accounting_.complete(item.request, confirmed);
+              remaining -= confirmed;
+            }
+            // A short composed write without an error is still a terminal failure.
+            if (!ec && written < batch->bytes) ec = net::error::connection_reset;
+            if (current_connection && ec) impl->mark_disconnected_locked();
+          }
+          if (!current_connection) {
+            batch->buffers.clear();
+            return;
+          }
+          impl->active_write_.reset();
+          impl->writing_ = false;
+          if (impl->stopping_.load()) {
+            batch->buffers.clear();
+            return;
+          }
+          if (ec) {
+            queue_util::return_gather_batch(impl->tx_, batch->buffers);
+            impl->handle_error(self, "write", ec);
+            return;
+          }
+          batch->buffers.clear();
+          queue_util::release_reserved_write_bytes(impl->queued_bytes_, batch->bytes);
+          impl->stats_.record_sent(written);
+          impl->report_backpressure(impl->queued_bytes_);
+          impl->do_write(self);
+        },
+        true);
+    try {
+      port_->async_write(batch->views, std::move(completion));
+    } catch (...) {
+      mark_disconnected_locked();
+      submission_lock.unlock();
+      const auto ec = make_error_code(boost::system::errc::no_buffer_space);
+      handle_error(self, "write", ec);
+    }
   }
 
   void perform_cleanup() {
@@ -587,7 +640,7 @@ struct Serial::Impl {
 
   void handle_error(std::shared_ptr<Serial> self, const char* where, const boost::system::error_code& ec) {
     if (stopping_) return;
-    if (ec == boost::asio::error::eof) {
+    if (ec == boost::asio::error::eof && std::string_view(where) == "read") {
       if (self) start_read(self);
       return;
     }
@@ -790,6 +843,7 @@ void Serial::stop() {
   {
     std::lock_guard<std::mutex> lock(impl->submission_mtx_);
     first = !impl->stopping_.exchange(true);
+    if (first) impl->send_accounting_.end(Impl::Ledger::Cause::ExplicitStop);
     if (first && impl->write_wait_) impl->write_wait_->end(wrapper::SendRejection::CancelledWhileWaiting);
   }
   if (first) {
@@ -815,12 +869,16 @@ bool Serial::is_backpressure_active() const { return get_impl()->backpressure_ac
 std::optional<size_t> Serial::write_queue_limit() const { return get_impl()->bp_limit_; }
 wrapper::RuntimeStats Serial::stats() const {
   auto impl = get_impl();
-  return impl->stats_.snapshot(impl->queued_bytes_.load(std::memory_order_relaxed),
-                               impl->pending_bytes_.load(std::memory_order_relaxed),
-                               impl->backpressure_active_.load(std::memory_order_relaxed));
+  auto result = impl->stats_.snapshot(impl->queued_bytes_.load(std::memory_order_relaxed),
+                                      impl->pending_bytes_.load(std::memory_order_relaxed),
+                                      impl->backpressure_active_.load(std::memory_order_relaxed));
+  result.send_accounting = impl->send_accounting_.snapshot();
+  return result;
 }
 void Serial::reset_stats() {
   auto impl = get_impl();
+  std::lock_guard<std::mutex> lock(impl->submission_mtx_);
+  impl->send_accounting_.reset();
   impl->stats_.reset(impl->queued_bytes_.load(std::memory_order_relaxed) +
                      impl->pending_bytes_.load(std::memory_order_relaxed));
 }
@@ -909,17 +967,20 @@ wrapper::SendResult Serial::write_copy(memory::ConstByteSpan data, std::optional
           return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
         }
         impl_->stats_.record_accepted(added);
-        net::post(impl_->strand_,
-                  [self = shared_from_this(), buf = std::move(pooled_buffer), added, seq, connection]() mutable {
-                    if (seq != self->impl_->generation_.load()) return;
-                    if (connection != self->impl_->connection_seq_.load()) {
-                      self->impl_->stats_.record_dropped(1, added);
-                      queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_,
-                                                               self->impl_->inflight_bytes_, added);
-                      return;
-                    }
-                    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
-                  });
+        Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+        const auto request = admission.request();
+        net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(pooled_buffer), added, seq, connection,
+                                   request]() mutable {
+          if (seq != self->impl_->generation_.load()) return;
+          if (connection != self->impl_->connection_seq_.load()) {
+            self->impl_->stats_.record_dropped(1, added);
+            queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_,
+                                                     added);
+            return;
+          }
+          self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
+        });
+        admission.commit();
         return wrapper::SendResult::accept();
       }
     } catch (const std::exception& e) {
@@ -935,16 +996,20 @@ wrapper::SendResult Serial::write_copy(memory::ConstByteSpan data, std::optional
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
+  Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+  const auto request = admission.request();
 
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, seq, connection]() mutable {
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, seq, connection,
+                             request]() mutable {
     if (seq != self->impl_->generation_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
       queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
       return;
     }
-    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
+    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -986,15 +1051,19 @@ wrapper::SendResult Serial::write_move(std::vector<uint8_t>&& data, std::optiona
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection]() mutable {
+  Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+  const auto request = admission.request();
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection,
+                             request]() mutable {
     if (seq != self->impl_->generation_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
       queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
       return;
     }
-    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
+    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -1037,15 +1106,19 @@ wrapper::SendResult Serial::write_shared(std::shared_ptr<const std::vector<uint8
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection]() mutable {
+  Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+  const auto request = admission.request();
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection,
+                             request]() mutable {
     if (seq != self->impl_->generation_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
       queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
       return;
     }
-    self->impl_->route_enqueued_buffer(self, BufferVariant{std::move(buf)}, added);
+    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -1106,8 +1179,11 @@ wrapper::SendResult Serial::try_write_move(std::vector<uint8_t>&& data) {
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
+  Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+  const auto request = admission.request();
 
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection]() mutable {
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection,
+                             request]() mutable {
     if (seq != self->impl_->generation_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
@@ -1121,11 +1197,12 @@ wrapper::SendResult Serial::try_write_move(std::vector<uint8_t>&& data) {
       return;
     }
 
-    impl->tx_.emplace_back(std::move(buf));
+    impl->tx_.push_back(Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request});
     impl->observe_queue();
     impl->report_backpressure(impl->queued_bytes_);
     if (!impl->writing_) impl->do_write(self);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -1171,8 +1248,11 @@ wrapper::SendResult Serial::try_write_shared(std::shared_ptr<const std::vector<u
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl_->stats_.record_accepted(added);
+  Impl::Ledger::Admission admission(impl_->send_accounting_, added);
+  const auto request = admission.request();
 
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection]() mutable {
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection,
+                             request]() mutable {
     if (seq != self->impl_->generation_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
@@ -1186,11 +1266,12 @@ wrapper::SendResult Serial::try_write_shared(std::shared_ptr<const std::vector<u
       return;
     }
 
-    impl->tx_.emplace_back(std::move(buf));
+    impl->tx_.push_back(Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request});
     impl->observe_queue();
     impl->report_backpressure(impl->queued_bytes_);
     if (!impl->writing_) impl->do_write(self);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 

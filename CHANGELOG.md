@@ -11,6 +11,12 @@ and ABI policy.
 
 ### Changed
 
+- Extend logical-request send accounting to UDS clients and Serial, including
+  partial gather completion, reset epochs, stop/loss and queue-pressure causes.
+  Injected inline write completions are deferred to the strand. Serial write
+  EOF now closes/reopens according to configuration instead of taking the
+  transient read-EOF path and leaving queued writes stranded.
+
 - **Breaking ABI:** RuntimeStats gains optional send_accounting. Rebuild C++
   consumers. The built-in TCP client reports logical accepted/written/outstanding
   requests and pre-write discard/active abort totals by stop, connection loss
