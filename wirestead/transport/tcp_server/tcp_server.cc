@@ -553,6 +553,11 @@ struct TcpServer::Impl {
     {
       std::lock_guard<std::mutex> lock(target_admission_mtx_);
       first = !stopping_.exchange(true);
+      if (first) {
+        std::lock_guard<std::mutex> sessions_lock(sessions_mutex_);
+        for (auto& entry : sessions_)
+          if (entry.second) entry.second->cancel_write_wait();
+      }
     }
     if (first) {
       {
@@ -974,7 +979,31 @@ wrapper::SendResult TcpServer::target_state() const {
   return wrapper::SendResult::accept();
 }
 
-wrapper::SendResult TcpServer::write_target(ClientId client_id, memory::ConstByteSpan data, bool try_only) {
+std::shared_ptr<TcpServerSession> TcpServer::capture_target(ClientId client_id) const {
+  std::lock_guard<std::mutex> admission_lock(impl_->target_admission_mtx_);
+  if (!target_state().accepted()) return {};
+  std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
+  auto it = impl_->sessions_.find(client_id);
+  return it == impl_->sessions_.end() ? nullptr : it->second;
+}
+
+std::optional<wrapper::SendResult> TcpServer::poll_target_wait(const std::shared_ptr<TcpServerSession>& session) const {
+  if (!session) return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  return session->poll_write_wait();
+}
+
+void TcpServer::cancel_target_waits() {
+  std::lock_guard<std::mutex> admission_lock(impl_->target_admission_mtx_);
+  std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
+  for (auto& entry : impl_->sessions_)
+    if (entry.second) entry.second->cancel_write_wait();
+}
+
+wrapper::SendResult TcpServer::write_target(ClientId client_id, memory::ConstByteSpan data, bool try_only,
+                                            const std::shared_ptr<TcpServerSession>& expected) {
+  if (expected) {
+    if (auto hook = detail::g_tcp_server_pinned_write_hook.load()) hook();
+  }
   std::lock_guard<std::mutex> admission_lock(impl_->target_admission_mtx_);
   const auto state = target_state();
   if (!state.accepted()) {
@@ -983,7 +1012,7 @@ wrapper::SendResult TcpServer::write_target(ClientId client_id, memory::ConstByt
   }
   std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
   auto it = impl_->sessions_.find(client_id);
-  if (it == impl_->sessions_.end() || !it->second) {
+  if (it == impl_->sessions_.end() || !it->second || (expected && it->second != expected)) {
     impl_->stats_.record_failed_send();
     return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
   }

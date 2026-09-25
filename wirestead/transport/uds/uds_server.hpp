@@ -44,6 +44,7 @@ namespace wrapper {
 class UdsServer;
 }
 namespace transport {
+class UdsServerSession;
 
 /**
  * @brief Thread-safe UDS Server implementation
@@ -112,7 +113,11 @@ class WIRESTEAD_API UdsServer : public interface::Channel, public std::enable_sh
  private:
   friend class wrapper::UdsServer;
   wrapper::SendResult target_state() const;
-  wrapper::SendResult write_target(ClientId client_id, memory::ConstByteSpan data, bool try_only);
+  std::shared_ptr<UdsServerSession> capture_target(ClientId client_id) const;
+  std::optional<wrapper::SendResult> poll_target_wait(const std::shared_ptr<UdsServerSession>& session) const;
+  void cancel_target_waits();
+  wrapper::SendResult write_target(ClientId client_id, memory::ConstByteSpan data, bool try_only,
+                                   const std::shared_ptr<UdsServerSession>& expected = {});
   explicit UdsServer(const config::UdsServerConfig& cfg);
   UdsServer(const config::UdsServerConfig& cfg, std::unique_ptr<interface::UdsAcceptorInterface> acceptor,
             boost::asio::io_context& ioc);

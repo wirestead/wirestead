@@ -92,7 +92,10 @@ class WIRESTEAD_API UdsServerSession : public std::enable_shared_from_this<UdsSe
   friend class UdsServer;
   // Admission and close share this lock. Release it before invoking callbacks
   // that may acquire the owning server session-map lock.
-  std::mutex submission_mtx_;
+  mutable std::mutex submission_mtx_;
+  std::optional<wrapper::SendRejection> wait_ended_by_;
+  std::optional<wrapper::SendResult> poll_write_wait() const;
+  void cancel_write_wait();
   wrapper::SendResult write_copy(memory::ConstByteSpan data);
   wrapper::SendResult write_move(std::vector<uint8_t>&& data);
   wrapper::SendResult write_shared(std::shared_ptr<const std::vector<uint8_t>> data);

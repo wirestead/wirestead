@@ -391,6 +391,19 @@ void TcpServerSession::on_close(OnClose cb) {
   });
 }
 
+std::optional<wrapper::SendResult> TcpServerSession::poll_write_wait() const {
+  std::lock_guard<std::mutex> lock(submission_mtx_);
+  if (wait_ended_by_) return wrapper::SendResult::reject(*wait_ended_by_);
+  if (!alive_ || closing_) return wrapper::SendResult::reject(wrapper::SendRejection::NotReady);
+  if (!backpressure_active_) return wrapper::SendResult::accept();
+  return std::nullopt;
+}
+
+void TcpServerSession::cancel_write_wait() {
+  std::lock_guard<std::mutex> lock(submission_mtx_);
+  if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::CancelledWhileWaiting;
+}
+
 bool TcpServerSession::alive() const { return alive_.load(); }
 
 wrapper::RuntimeStats TcpServerSession::stats() const {
@@ -407,6 +420,7 @@ void TcpServerSession::stop() { async_stop({}); }
 void TcpServerSession::async_stop(std::function<void()> completion) {
   std::lock_guard<std::mutex> admission_lock(submission_mtx_);
   closing_.store(true);
+  if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::NotReady;
   auto self = shared_from_this();
   net::post(strand_, [self, completion = std::move(completion)] {
     self->on_bytes_ = nullptr;
@@ -503,6 +517,7 @@ void TcpServerSession::do_close() {
 
   {
     std::lock_guard<std::mutex> lock(submission_mtx_);
+    if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::NotReady;
     alive_.store(false);
     closing_.store(true);
   }

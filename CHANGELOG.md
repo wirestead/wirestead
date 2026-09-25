@@ -10,6 +10,11 @@ and ABI policy.
 
 ### Added
 
+- TCP/UDS server Reliable and explicit blocking sends retain one internal
+  SendResult across validation, per-session capacity waiting and pinned final
+  admission. Waits preserve the first stop/loss cause across later changes;
+  only transient native WouldBlock is retried. Public methods remain bool.
+
 - TCP/UDS server sessions and targeted sends retain internal SendResult
   decisions. Nonblocking wrapper sends combine validation, lifecycle and
   native admission; explicit try keeps WouldBlock and BestEffort maps it to
@@ -66,6 +71,11 @@ and ABI policy.
   bool; this is the result-type foundation, not the transport migration.
 
 ### Changed
+
+- **Breaking ABI/behavior:** TCP/UDS server session wait state changes their
+  layout; rebuild consumers. Reliable/explicit blocking wrappers validate
+  before native accounting and reject old sends across wrapper restart or
+  target replacement instead of retrying terminal failures.
 
 - **Breaking ABI/behavior:** TCP/UDS server sessions gain admission mutexes;
   rebuild consumers for the changed session layouts. Nonblocking server
