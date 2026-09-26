@@ -137,6 +137,8 @@ template <typename Wrapper, typename Native, typename Socket, typename Connect>
 void check_fanout(int mode, boost::asio::io_context& io, std::shared_ptr<Native> native, Connect connect,
                   std::atomic<void (*)()>& hook) {
   Wrapper server(native);
+  std::atomic<int> connections{0};
+  server.on_connect([&](const auto&) { ++connections; });
   server.backpressure_strategy(mode >= 6 ? base::constants::BackpressureStrategy::BestEffort
                                          : base::constants::BackpressureStrategy::Reliable);
   mode %= 6;
@@ -174,7 +176,9 @@ void check_fanout(int mode, boost::asio::io_context& io, std::shared_ptr<Native>
   ASSERT_TRUE(ready.get());
   EXPECT_TRUE(server.broadcast("no targets").empty());
   connect(first);
-  ASSERT_TRUE(pump([&] { return native->client_count() == 1; }));
+  // Complete connection initialization before parking the snapshot caller
+  // under the wrapper lock and exercising concurrent membership changes.
+  ASSERT_TRUE(pump([&] { return native->client_count() == 1 && connections == 1; }));
   const auto first_id = native->connected_clients().front();
   if (mode < 4) {
     connect(second);

@@ -499,26 +499,31 @@ struct TcpServer::Impl {
           });
         });
 
-        // alive_ must be true before the session enters sessions_, so that
-        // broadcast() callers who observe client_count() >= 1 are guaranteed
-        // to pass the alive() check inside async_try_write_shared().
-        new_session->start();
-
         {
           std::lock_guard<std::mutex> lock(accept_impl->sessions_mutex_);
           accept_impl->sessions_.emplace(client_id, new_session);
           accept_impl->current_session_ = new_session;
+          auto connect_cb = accept_impl->on_multi_connect_;
+          // Publish alive admission and queue notification before releasing the
+          // map lock: any sender observing this session queues behind connect.
+          new_session->start_with_notification(
+              [self, generation, client_id, client_info, connect_cb = std::move(connect_cb)] {
+                auto* impl = self->get_impl();
+                if (impl->stopping_ || impl->generation_ != generation) return;
+                if (connect_cb) connect_cb(client_id, client_info);
+                net::post(impl->strand_, [self, generation, client_id] {
+                  auto* state_impl = self->get_impl();
+                  if (state_impl->stopping_ || state_impl->generation_ != generation) return;
+                  {
+                    std::lock_guard<std::mutex> lock(state_impl->sessions_mutex_);
+                    if (state_impl->sessions_.find(client_id) == state_impl->sessions_.end()) return;
+                  }
+                  state_impl->state_.set(base::LinkState::Connected);
+                  state_impl->notify_state();
+                });
+              });
         }
 
-        MultiClientConnectHandler connect_cb;
-        {
-          std::lock_guard<std::mutex> lock(accept_impl->sessions_mutex_);
-          connect_cb = accept_impl->on_multi_connect_;
-        }
-        if (connect_cb) connect_cb(client_id, client_info);
-
-        accept_impl->state_.set(base::LinkState::Connected);
-        accept_impl->notify_state();
         accept_impl->do_accept(self);
       });
     });

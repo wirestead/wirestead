@@ -60,9 +60,14 @@ UdsServerSession::UdsServerSession(net::io_context& ioc, std::unique_ptr<interfa
       std::clamp(read_buffer_size, base::constants::MIN_READ_BUFFER_SIZE, base::constants::MAX_READ_BUFFER_SIZE));
 }
 
-void UdsServerSession::start() {
+void UdsServerSession::start() { start_with_notification({}); }
+
+void UdsServerSession::start_with_notification(std::function<void()> notify) {
   alive_ = true;
-  net::dispatch(strand_, [self = shared_from_this()]() {
+  net::post(strand_, [self = shared_from_this(), notify = std::move(notify)] {
+    if (self->closing_ || !self->alive_) return;
+    if (notify) notify();
+    if (self->closing_ || !self->alive_) return;
     self->reset_idle_timer();
     self->start_read();
   });

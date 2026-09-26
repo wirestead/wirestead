@@ -100,6 +100,7 @@ class WIRESTEAD_API TcpServerSession : public std::enable_shared_from_this<TcpSe
   Ledger send_accounting_;
   void request_stop();
   friend class TcpServer;
+  void start_with_notification(std::function<void()> notify);
   // Admission and close share this lock. Release it before invoking callbacks
   // that may acquire the owning server session-map lock.
   mutable std::mutex submission_mtx_;

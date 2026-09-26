@@ -242,6 +242,11 @@ and ABI policy.
 
 ### Fixed
 
+- Run TCP/UDS server connection callbacks on the session strand before receive
+  and backpressure callbacks. Immediate peer data waits for wrapper framer
+  initialization; stop from connection notification suppresses further receive.
+  Different sessions' connection callbacks may overlap with multiple I/O runners.
+
 - Serialize UDP batch and session-expiry timers with native socket callbacks.
   UdpChannel::get_executor now returns the socket strand; posted work and timers
   wait for an active callback instead of overlapping it on another I/O runner.
