@@ -542,3 +542,11 @@ Ordinary BestEffort wrapper sends continue to reject new input under pressure.
 is retried on the original connection/session/run, with a brief CPU-releasing
 pause. Stop/loss/expiry terminates the wait. Callback callers never retry or wait.
 See [scope, compatibility and verification](blocking_queue_policy.md).
+
+## UDP callback serialization implementation
+
+The existing same-scope non-overlap requirement now includes built-in UDP
+batch and expiry timers: they use the native socket strand. This is an
+implementation correction, not a decision on mixed-peer batch scope,
+cross-scope parallelism or expiry event signatures. See
+[the implementation and regression evidence](udp_callback_serialization.md).

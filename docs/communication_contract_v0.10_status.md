@@ -34,7 +34,7 @@ UDP extension evidence: 120 cases cover ten default-peer/explicit-destination
 input configurations, with 100 successful repeats each. Full-suite and sanitizer
 results are recorded with the PR.
 UDP virtual-session evidence: 27 integration cases cover try and pooled/fallback
-blocking sends, two-thread expiry boundaries, pending storage, reset, stop/restart,
+blocking sends, controlled active-completion expiry boundaries, pending storage, reset, stop/restart,
 peer isolation and final-admission stop. The full suite discovered 2,571 cases:
 2,559 passed and the same 12 UDP diagnostic skips remained. All 15 ledger and
 147 UDP cases passed 100 repeats each and AddressSanitizer with leak detection.
@@ -75,11 +75,11 @@ implementation symbols above describe the specific decision being assessed.
 | --- | --- | --- |
 | TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Bare-executor waiting, reconnect event mapping |
 | UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Same executor gaps; retried loss can report on_error |
-| UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Same executor gaps; batch timer uses the raw io_context executor |
+| UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Bare-executor waiting remains; batch timers now share the socket strand |
 | Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Same executor gaps; recovered loss notification; physical-device validation remains separate |
 | TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Executor waiting, session connect/batch ordering |
 | UDS server | Same public guarantees; native move rejection fixed here | Same server gaps; legacy native bool fanout is distinct from public FanoutResult |
-| UDP server | D-1/D-2, endpoint/run-pinned sends, fixed fanout, peer accounting and waiting-work expiry | Shared socket pressure; timer/receive serialization and distinct expiry event remain open |
+| UDP server | D-1/D-2, endpoint/run-pinned sends, fixed fanout, peer accounting and waiting-work expiry | Shared socket pressure and serialized callbacks; mixed-peer batch scope and distinct expiry event remain open |
 
 UDP client loss means socket failure/run end, not a remotely detected disconnect.
 UDP server virtual expiry must not be treated as proof that the remote endpoint
@@ -114,10 +114,10 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | C-3.6-5 | Covered for built-in server per-session statistics | UDP peer traffic/accounting exposed; pressure state/events are shared socket values, not summable peer counters |
 | C-3.7-1 | Covered for C++ wrappers; explicit compatibility boundary elsewhere | SendResult/FanoutResult replace public bool; low-level bool adapters remain. Python PR #72 deliberately retains bool |
 | C-3.8-1 | Covered for built-in clients and server sessions/aggregates | Separate stages/causes and reset epochs; UDP expiry affects waiting work, aggregate retention requires no peer-total copying |
-| C-5.1-1 | Partial: native TCP/UDS/Serial client strands; UDP batch callbacks not proven serialized | UDP get_executor returns raw io_context; its batch timer is not bound to transport strand. Multi-thread timer/receive overlap needs a regression |
+| C-5.1-1 | UDP timer/receive gap closed; native TCP/UDS/Serial client strands unchanged | Built-in UDP timers now share the socket strand; controlled two-runner data/message batch regressions fail before the fix |
 | C-5.1-2a | Covered for TCP/UDS session receive/backpressure/close paths | Session strand bindings; this does not establish connect/batch serialization |
 | C-5.1-2b | Open evidence: TCP/UDS all callbacks attributed to a session | Connect runs on accept path, batches use a server-level path; need multi-thread overlap probes |
-| C-5.1-2 | Open evidence: UDP virtual-session scope | Socket receive strand versus raw-executor batch/reaper callbacks; no general serialization proof |
+| C-5.1-2 | Covered for built-in UDP receive/batch/expiry callback non-overlap | One shared socket strand serializes these paths, including across peers; two-runner expiry regression verifies a held receive excludes the reaper callback |
 | C-5.1-3 | Gap against proposed session-only batch scope | TCP/UDS/UDP server batch queues mix session contexts; scope assignment needs a policy |
 | C-5.2-1 | Open evidence: TCP/UDS connect-before-receive | Session start precedes connect-handler invocation on accept path; test with immediate peer data and several executor threads |
 | C-5.3-1 | Open evidence for the universal no-inline-callback proposal | Inspected native sends post work, but configuration/start/stop, direct transports and custom channels need separate caller-stack probes |
@@ -171,11 +171,12 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
    ledgers now track logical requests, gather prefixes, terminal causes and reset
    epochs. TCP/UDS aggregates retain closed/retiring contributors exactly once.
    UDP peer projections and expiry attribution are implemented; controlled
-   two-thread tests cover posted/pending/active boundaries and unrelated peers.
+   controlled completion gates cover posted/pending/active boundaries and unrelated peers.
 2. **Queue semantics implemented:** [selected preservation/retry policy](blocking_queue_policy.md).
    No implicit keep-latest; blocking capacity retries have no attempt limit.
    An explicit freshness policy or timeout API remains optional future work.
-3. **Execution scopes:** settle batch/session ownership and add deterministic
+3. **Execution scopes:** [UDP timer/receive serialization](udp_callback_serialization.md) is implemented.
+   Settle batch/session ownership and add deterministic
    multi-thread callback overlap/order tests. Extend or explicitly limit the
    nonwaiting rule for ordinary executor tasks.
 4. **Events:** decide recovered loss versus terminal error, and UDP virtual

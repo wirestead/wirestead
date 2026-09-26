@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 #include "tcp_stop_with_context.hpp"
@@ -35,6 +36,7 @@ namespace net = boost::asio;
 using udp = net::ip::udp;
 std::function<void()> after_start;
 std::function<void()> before_receive_error;
+std::function<void()> held_completion;
 void started() {
   auto action = std::move(after_start);
   after_start = {};
@@ -69,6 +71,8 @@ class UdpSendAccountingTest : public ::testing::TestWithParam<int> {
     return ready;
   }
   void TearDown() override {
+    transport::detail::g_udp_defer_write_completion_hook = nullptr;
+    if (held_completion && channel) net::post(channel->get_executor(), std::exchange(held_completion, {}));
     transport::detail::g_udp_write_started_hook = nullptr;
     transport::detail::g_udp_write_initiation_hook = nullptr;
     transport::detail::g_udp_pinned_write_hook = nullptr;
@@ -369,11 +373,20 @@ class UdpSessionAccountingTest : public ::testing::TestWithParam<int> {
   }
   wrapper::SendAccounting total() { return *server->stats().send_accounting; }
   wrapper::SendAccounting peer(wirestead::ClientId id) { return *server->client_stats(id)->send_accounting; }
+  void hold_completion() {
+    transport::detail::g_udp_defer_write_completion_hook = +[](std::function<void()> finish) {
+      transport::detail::g_udp_defer_write_completion_hook = nullptr;
+      held_completion = std::move(finish);
+    };
+  }
+  void resume_completion() { net::post(channel->get_executor(), std::exchange(held_completion, {})); }
   void settle() {
     ASSERT_TRUE(pump([&] { return total().outstanding.requests == 0; }));
   }
   void stop() { test::stop_wrapper_with_context(*server, io); }
   void TearDown() override {
+    transport::detail::g_udp_defer_write_completion_hook = nullptr;
+    if (held_completion && channel) net::post(channel->get_executor(), std::exchange(held_completion, {}));
     transport::detail::g_udp_write_started_hook = nullptr;
     transport::detail::g_udp_write_initiation_hook = nullptr;
     transport::detail::g_udp_pinned_write_hook = nullptr;
@@ -468,23 +481,18 @@ TEST_P(UdpSessionAccountingTest, ExpiryDiscardsPostedWorkPreservesActiveAndOther
   virtual_now += 100ms;
   b = connect(second);
   server->idle_timeout(100ms);
-  after_start = [&] {
-    virtual_now += 50ms;
-    // A second executor thread advances the reaper while this strand holds
-    // the active write. Nested polling on this thread can dispatch reentrantly.
-    bool expired = false;
-    std::jthread reaper([&] { expired = pump([&] { return !server->client_stats(a).has_value(); }); });
-    reaper.join();
-    EXPECT_TRUE(expired);
-    EXPECT_TRUE(server->client_stats(b).has_value());
-    EXPECT_EQ(total().session_expiry.discarded_before_write.requests, 2u);
-    EXPECT_EQ(total().outstanding.requests, 2u);
-  };
-  transport::detail::g_udp_write_started_hook = started;
+  hold_completion();
   ASSERT_TRUE(send(a).accepted());
   ASSERT_TRUE(send(a, "abc").accepted());
   ASSERT_TRUE(send(a, "abcde").accepted());
   ASSERT_TRUE(send(b, "abcdefghi").accepted());
+  ASSERT_TRUE(pump([&] { return static_cast<bool>(held_completion); }));
+  virtual_now += 50ms;
+  ASSERT_TRUE(pump([&] { return !server->client_stats(a).has_value(); }));
+  EXPECT_TRUE(server->client_stats(b).has_value());
+  EXPECT_EQ(total().session_expiry.discarded_before_write.requests, 2u);
+  EXPECT_EQ(total().outstanding.requests, 2u);
+  resume_completion();
   settle();
   EXPECT_EQ(total().session_expiry.discarded_before_write.bytes, 8u);
   EXPECT_EQ(total().session_expiry.aborted_during_write.requests, 0u);
@@ -504,19 +512,16 @@ TEST_P(UdpSessionAccountingTest, ExpiryThenStopKeepsFirstCauseForWaitingWrites) 
   ASSERT_TRUE(open());
   a = connect(first);
   server->idle_timeout(100ms);
-  after_start = [&] {
-    virtual_now += 101ms;
-    // A second executor thread advances the reaper while this strand holds
-    // the active write. Nested polling on this thread can dispatch reentrantly.
-    bool expired = false;
-    std::jthread reaper([&] { expired = pump([&] { return !server->client_stats(a).has_value(); }); });
-    reaper.join();
-    EXPECT_TRUE(expired);
+  hold_completion();
+  ASSERT_TRUE(send(a).accepted());
+  ASSERT_TRUE(send(a).accepted());
+  ASSERT_TRUE(pump([&] { return static_cast<bool>(held_completion); }));
+  virtual_now += 101ms;
+  ASSERT_TRUE(pump([&] { return !server->client_stats(a).has_value(); }));
+  net::post(channel->get_executor(), [&] {
     server->stop();
-  };
-  transport::detail::g_udp_write_started_hook = started;
-  ASSERT_TRUE(send(a).accepted());
-  ASSERT_TRUE(send(a).accepted());
+    resume_completion();
+  });
   settle();
   stop();
   EXPECT_EQ(total().session_expiry.discarded_before_write.requests, 1u);
@@ -576,17 +581,14 @@ TEST_P(UdpSessionAccountingTest, ExpiryRemovesQueuedAndReliablePendingStorage) {
   ASSERT_TRUE(server->send_to_blocking(a, std::string(800, 'b')).accepted());
   ASSERT_TRUE(server->send_to_blocking(a, std::string(800, 'c')).accepted());
   ASSERT_TRUE(server->send_to_blocking(b, std::string(800, 'd')).accepted());
-  after_start = [&] {
-    EXPECT_GT(server->client_stats(a)->pending_bytes, 0u);
-    virtual_now += 50ms;
-    bool expired = false;
-    std::jthread reaper([&] { expired = pump([&] { return !server->client_stats(a).has_value(); }); });
-    reaper.join();
-    EXPECT_TRUE(expired);
-    EXPECT_EQ(total().session_expiry.discarded_before_write.requests, 2u);
-    EXPECT_EQ(total().outstanding.requests, 2u);
-  };
-  transport::detail::g_udp_write_completion_hook = started;
+  hold_completion();
+  ASSERT_TRUE(pump([&] { return static_cast<bool>(held_completion); }));
+  EXPECT_GT(server->client_stats(a)->pending_bytes, 0u);
+  virtual_now += 50ms;
+  ASSERT_TRUE(pump([&] { return !server->client_stats(a).has_value(); }));
+  EXPECT_EQ(total().session_expiry.discarded_before_write.requests, 2u);
+  EXPECT_EQ(total().outstanding.requests, 2u);
+  resume_completion();
   settle();
   EXPECT_EQ(total().written.bytes, 1600u);
   EXPECT_EQ(total().session_expiry.discarded_before_write.bytes, 1600u);

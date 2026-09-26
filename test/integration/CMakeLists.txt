@@ -112,6 +112,7 @@ foreach(
   test_udp_failure.cc
   test_udp_state.cc
   test_udp_callback_race_stress.cc
+  test_udp_callback_serialization.cc
   test_tcp_client_error_mapping.cc
   test_udp_server_wrapper_transport.cc
   test_udp_server_wrapper_lifecycle.cc

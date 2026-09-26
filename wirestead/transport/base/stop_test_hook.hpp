@@ -18,6 +18,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <functional>
 
 namespace boost::system {
 class error_code;
@@ -54,6 +55,9 @@ inline std::atomic<void (*)()> g_udp_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_udp_write_initiation_hook{nullptr};
 // After initiation and before completion, with no admission lock held.
 inline std::atomic<void (*)()> g_udp_write_started_hook{nullptr};
+// Hold a completion while allowing the strand to process timers. Tests must
+// resume the closure on the channel executor before waiting for shutdown.
+inline std::atomic<void (*)(std::function<void()>)> g_udp_defer_write_completion_hook{nullptr};
 // Before classifying a write completion, outside the admission lock.
 inline std::atomic<void (*)()> g_udp_write_completion_hook{nullptr};
 // Override a live receive completion for terminal-read accounting regressions.
