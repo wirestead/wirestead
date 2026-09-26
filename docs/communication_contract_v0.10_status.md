@@ -77,7 +77,7 @@ implementation symbols above describe the specific decision being assessed.
 | UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Same executor gaps; retried loss can report on_error |
 | UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Bare-executor waiting remains; batch timers now share the socket strand |
 | Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Same executor gaps; recovered loss notification; physical-device validation remains separate |
-| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Executor waiting, session connect/batch ordering |
+| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Executor waiting and server batch scope/serialization |
 | UDS server | Same public guarantees; native move rejection fixed here | Same server gaps; legacy native bool fanout is distinct from public FanoutResult |
 | UDP server | D-1/D-2, endpoint/run-pinned sends, fixed fanout, peer accounting and waiting-work expiry | Shared socket pressure and serialized callbacks; mixed-peer batch scope and distinct expiry event remain open |
 
@@ -153,7 +153,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | 4: framer limit and resynchronization | Framer-specific implementations/tests exist; no universal recovery guarantee for length-prefix framing |
 | 4: batch count/latency | Count and timer flush tests pass. Latency schedules work, not a callback deadline; blocked executors can delay it |
 | 4: receive memory/unbounded items | Open: no consolidated bound on aggregate batch/session/context memory, especially when user handlers stall |
-| 5.1 / 5.2: cross-scope ordering | Open: assigning mixed-session batches and proving timer/connect/receive ordering requires explicit scope design |
+| 5.1 / 5.2: cross-scope ordering | TCP/UDS connect-before-receive is covered; mixed-session batch ownership and timer/receive ordering still require explicit scope design |
 | 5.4: destruction, signals and concurrent start | Caller preconditions remain: no concurrent destruction/use, serialize start/start and start/stop, no signal-handler guarantee; tests do not make unsupported calls safe |
 | 5.4 / 5.5: registration and live configuration | Open policy: locks on some setters are not a verified allowlist or a thread-safety promise for all setters; test_live_setter_forwarding.cc only covers selected behavior |
 | 5.6 / 5.7: executors and nonreturning handlers | D-1 handles owned/external executors with progress preconditions; cannot promise bounded stop when a user callback never returns |
