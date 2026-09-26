@@ -201,7 +201,9 @@ struct ReceiveState {
 
 struct PreparedReceive {
   std::optional<ReceiveMessage> raw;
-  std::vector<ReceiveMessage> messages;
+  // MSVC debug vectors allocate an iterator proxy even when empty. Construct
+  // staging only for a built-in framer so raw scalar receive stays allocation-free.
+  std::optional<std::vector<ReceiveMessage>> messages;
   std::shared_ptr<framer::IFramer> framer;
   memory::ConstByteSpan input;
   bool builtin = false;
@@ -213,7 +215,7 @@ struct PreparedReceive {
     }
     auto callback = ReceiveFramerAccess::callback(framer.get());
     if (!callback) return;
-    for (auto& message : messages) {
+    for (auto& message : *messages) {
       auto bytes = message.context.safe_data().as_span();
       PreparedMessageGuard guard(message);
       callback(bytes);
@@ -231,6 +233,7 @@ inline PreparedReceive prepare_receive(ReceiveState& state, const std::shared_pt
   if (raw_batch) result.raw.emplace(retain_received(state.scope, id, input));
   if (!f || !ReceiveFramerAccess::supported(f.get())) return result;
   result.builtin = true;
+  result.messages.emplace();
   const auto limit = state.scope->limits().max_frame_bytes;
   const auto capacity = ReceiveFramerAccess::capacity(f.get());
   if (capacity > limit) throw ReceiveOverflow{ReceiveOverflowReason::FrameLimit};
@@ -238,7 +241,7 @@ inline PreparedReceive prepare_receive(ReceiveState& state, const std::shared_pt
   auto work_charge = reserve_receive(state.scope, capacity);
   auto work = ReceiveFramerAccess::clone(f.get());
   work->on_message(
-      [&](memory::ConstByteSpan message) { result.messages.emplace_back(retain_received(state.scope, id, message)); });
+      [&](memory::ConstByteSpan message) { result.messages->emplace_back(retain_received(state.scope, id, message)); });
   size_t offset = 0;
   while (offset < input.size()) {
     const auto used = ReceiveFramerAccess::size(work.get());

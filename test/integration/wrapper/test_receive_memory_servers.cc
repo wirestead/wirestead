@@ -113,7 +113,7 @@ class ReceiveMemoryServerTest : public ::testing::TestWithParam<int> {
       native = channel;
       server = std::make_unique<wrapper::UdpServer>(native);
     }
-    set_limits({1500, 64, 8});
+    set_limits({4096, 64, 8});
     batch_options(100, 1h);
     server->framer([] { return std::make_unique<framer::LineFramer>(); });
     server->on_connect([&](const auto& ctx) { ids.push_back(ctx.client_id()); });
@@ -167,7 +167,7 @@ TEST_P(ReceiveMemoryServerTest, OverflowPreservesOtherSessionAndUdpWaitingBatch)
   auto both = receive_stats().reserved_bytes;
   server->reset_stats();
   EXPECT_EQ(receive_stats().reserved_bytes, both);
-  send_peer(0, std::string(2000, 'x'));
+  send_peer(0, std::string(5000, 'x'));
   ASSERT_TRUE(pump([&] { return receive_stats().overflow_events == 1; }));
   EXPECT_EQ(receive_stats().overflow_by_reason[0], 1u);
   EXPECT_TRUE(batches.empty());
@@ -229,7 +229,7 @@ TEST_P(ReceiveMemoryServerTest, StopReleasesQueuedReceiveStorage) {
 TEST_P(ReceiveMemoryServerTest, LimitChangesRequireStopAndValidateBeforeApply) {
   const auto before = receive_stats().reserved_bytes;
   EXPECT_THROW(set_limits({0, 1, 1}), std::invalid_argument);
-  EXPECT_THROW(set_limits({1500, 64, 8}), std::logic_error);
+  EXPECT_THROW(set_limits({4096, 64, 8}), std::logic_error);
   EXPECT_EQ(receive_stats().reserved_bytes, before);
 }
 
