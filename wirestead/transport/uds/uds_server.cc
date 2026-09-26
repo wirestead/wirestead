@@ -701,6 +701,12 @@ wrapper::SendResult UdsServer::target_state() const {
   return wrapper::SendResult::accept();
 }
 
+std::optional<boost::asio::any_io_executor> UdsServer::client_executor(ClientId client_id) const {
+  auto session = capture_target(client_id);
+  if (!session) return std::nullopt;
+  return session->strand_;
+}
+
 std::shared_ptr<UdsServerSession> UdsServer::capture_target(ClientId client_id) const {
   std::lock_guard<std::mutex> admission_lock(impl_->target_admission_mtx_);
   if (!target_state().accepted()) return {};
@@ -743,13 +749,19 @@ wrapper::SendResult UdsServer::write_target(ClientId client_id, memory::ConstByt
 
 size_t UdsServer::client_count() const {
   std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
-  return impl_->sessions_.size();
+  size_t alive = 0;
+  for (const auto& [id, session] : impl_->sessions_) {
+    if (session && session->alive()) ++alive;
+  }
+  return alive;
 }
 
 std::vector<ClientId> UdsServer::connected_clients() const {
   std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
   std::vector<ClientId> ids;
-  for (const auto& pair : impl_->sessions_) ids.push_back(pair.first);
+  for (const auto& [id, session] : impl_->sessions_) {
+    if (session && session->alive()) ids.push_back(id);
+  }
   return ids;
 }
 
@@ -841,26 +853,22 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self, uint64_t genera
 
         session->on_close([weak_self, client_id, generation]() {
           auto s = weak_self.lock();
-          if (!s) return;
-          net::post(s->impl_->strand_, [s, client_id, generation] {
+          if (!s || s->impl_->stopping_ || generation != s->impl_->generation_) return;
+          MultiClientDisconnectHandler disconnect_handler;
+          {
+            std::lock_guard<std::mutex> lock(s->impl_->sessions_mutex_);
+            disconnect_handler = s->impl_->on_multi_disconnect_;
+          }
+          // Keep the closing session visible to stop until notification returns,
+          // so native shutdown also waits for this session-strand callback.
+          if (disconnect_handler) disconnect_handler(client_id);
+          {
+            std::lock_guard<std::mutex> lock(s->impl_->sessions_mutex_);
             if (s->impl_->stopping_ || generation != s->impl_->generation_) return;
-
-            MultiClientDisconnectHandler disconnect_handler;
-            {
-              std::lock_guard<std::mutex> lock(s->impl_->sessions_mutex_);
-              if (s->impl_->stopping_) return;  // Double check inside lock
-              // Carry the session's totals over to the server before it goes away,
-              // so stats() keeps reporting what this connection did. Tied to the
-              // erase below, which makes it exactly once even if on_close re-fires.
-              auto it = s->impl_->sessions_.find(client_id);
-              if (it != s->impl_->sessions_.end() && it->second) {
-                s->impl_->absorb_session(it->second);
-              }
-              s->impl_->sessions_.erase(client_id);
-              disconnect_handler = s->impl_->on_multi_disconnect_;
-            }
-            if (disconnect_handler) disconnect_handler(client_id);
-          });
+            auto it = s->impl_->sessions_.find(client_id);
+            if (it != s->impl_->sessions_.end() && it->second) s->impl_->absorb_session(it->second);
+            s->impl_->sessions_.erase(client_id);
+          }
         });
 
         {

@@ -40,6 +40,7 @@
 #include "wirestead/wrapper/error_context_builder.hpp"
 #include "wirestead/wrapper/send_retry.hpp"
 #include "wirestead/wrapper/send_validation.hpp"
+#include "wirestead/wrapper/session_batch.hpp"
 
 namespace wirestead {
 namespace wrapper {
@@ -148,9 +149,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   std::shared_ptr<bool> is_alive{std::make_shared<bool>(true)};
 
   // Batching logic
-  std::vector<MessageContext> data_batch_queue_;
-  std::vector<MessageContext> message_batch_queue_;
-  std::unique_ptr<boost::asio::steady_timer> batch_timer_;
+  std::unordered_map<ClientId, std::shared_ptr<detail::SessionBatch>> batches_;
   size_t max_batch_size_ = 100;
   std::chrono::milliseconds max_batch_latency_{1};
 
@@ -183,49 +182,43 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
     pending_promises.clear();
   }
 
-  void flush_batches(uint64_t generation) {
+  void flush_batches(uint64_t generation, ClientId id, const std::shared_ptr<detail::SessionBatch>& state) {
     auto lease = callback_gate_.enter(generation);
     if (!lease.admitted()) return;
     std::unique_lock<std::shared_mutex> lock(mutex);
-    if (!data_batch_queue_.empty()) {
-      auto handler = on_data_batch_;
-      auto batch = std::move(data_batch_queue_);
-      data_batch_queue_.clear();
-      if (handler) {
-        lock.unlock();
-        detail::invoke_user_callback("udp_server", "on_data_batch", handler, batch);
-        lock.lock();
-      }
-    }
-    if (!message_batch_queue_.empty()) {
-      auto handler = on_message_batch_;
-      auto batch = std::move(message_batch_queue_);
-      message_batch_queue_.clear();
-      if (handler) {
-        lock.unlock();
-        detail::invoke_user_callback("udp_server", "on_message_batch", handler, batch);
-        lock.lock();
-      }
-    }
-    if (batch_timer_) {
-      batch_timer_->cancel();
-    }
+    auto found = batches_.find(id);
+    if (found == batches_.end() || found->second != state) return;
+    state->scheduled = false;
+    auto data = std::move(state->data);
+    auto messages = std::move(state->messages);
+    state->data.clear();
+    state->messages.clear();
+    auto data_handler = on_data_batch_;
+    auto message_handler = on_message_batch_;
+    lock.unlock();
+    if (!data.empty()) detail::invoke_user_callback("udp_server", "on_data_batch", data_handler, data);
+    // A callback may stop the server. Recheck admission before another callback.
+    auto next = callback_gate_.enter(generation);
+    if (next.admitted() && !messages.empty())
+      detail::invoke_user_callback("udp_server", "on_message_batch", message_handler, messages);
   }
 
-  void schedule_batch_timer(uint64_t generation) {
-    if (!batch_timer_) return;
-    batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait([this, generation, weak_impl = weak_from_this(),
-                              alive = std::weak_ptr<bool>(is_alive)](const boost::system::error_code& ec) {
-      auto impl_keepalive = weak_impl.lock();
-      if (!impl_keepalive) return;
-      auto lock = alive.lock();
-      if (!lock || !(*lock)) return;
-
-      if (!ec) {
-        flush_batches(generation);
-      }
-    });
+  // Caller holds mutex; do not postpone an existing deadline when the
+  // other queue receives its first item.
+  void schedule_batch_timer(uint64_t generation, ClientId id) {
+    auto found = batches_.find(id);
+    if (found == batches_.end() || found->second->scheduled) return;
+    auto state = found->second;
+    state->scheduled = true;
+    state->timer.expires_after(max_batch_latency_);
+    state->timer.async_wait(
+        [weak_impl = weak_from_this(), generation, id,
+         weak_state = std::weak_ptr<detail::SessionBatch>(state)](const boost::system::error_code& ec) {
+          if (ec) return;
+          auto self = weak_impl.lock();
+          auto batch = weak_state.lock();
+          if (self && batch) self->flush_batches(generation, id, batch);
+        });
   }
 
   void schedule_reaper(uint64_t generation) {
@@ -254,39 +247,45 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   void run_reaper() {
-    std::vector<std::pair<ClientId, std::string>> to_remove_with_info;
-    auto now = session_now();
-
-    ConnectionHandler disconnect_handler;
+    const auto generation = callback_generation_.load();
+    const auto now = session_now();
+    std::vector<std::pair<ClientId, std::shared_ptr<detail::SessionBatch>>> due;
     {
-      std::unique_lock<std::shared_mutex> lock(mutex);
+      std::shared_lock<std::shared_mutex> lock(mutex);
       if (session_timeout.count() <= 0) return;
-      for (auto it = sessions.begin(); it != sessions.end();) {
-        if (now - it->second.last_seen > session_timeout) {
-          std::string info =
-              fmt::format("{}:{}", it->second.endpoint.address().to_string(), it->second.endpoint.port());
-          if (channel) channel->expire_session(it->second.wait);
-          bp_cv_.notify_all();
-          endpoint_to_id.erase(it->second.endpoint);
-          to_remove_with_info.push_back({it->first, info});
-          it = sessions.erase(it);
-        } else {
-          ++it;
+      for (const auto& [id, session] : sessions) {
+        if (now - session.last_seen > session_timeout) {
+          auto batch = batches_.find(id);
+          due.emplace_back(id, batch == batches_.end() ? nullptr : batch->second);
         }
       }
-      disconnect_handler = on_disconnect;
     }
-
-    // Call disconnect handlers outside the lock
-    for (auto const& [id, info] : to_remove_with_info) {
-      detail::invoke_user_callback("udp_server", "on_disconnect", disconnect_handler, ConnectionContext(id, info));
+    for (const auto& [id, batch] : due) {
+      if (batch) flush_batches(generation, id, batch);
+      ConnectionHandler handler;
+      std::string info;
+      {
+        std::unique_lock<std::shared_mutex> lock(mutex);
+        if (!started || callback_generation_ != generation) return;
+        auto it = sessions.find(id);
+        if (it == sessions.end() || session_timeout.count() <= 0 || now - it->second.last_seen <= session_timeout)
+          continue;
+        info = fmt::format("{}:{}", it->second.endpoint.address().to_string(), it->second.endpoint.port());
+        if (channel) channel->expire_session(it->second.wait);
+        bp_cv_.notify_all();
+        endpoint_to_id.erase(it->second.endpoint);
+        batches_.erase(id);
+        sessions.erase(it);
+        handler = on_disconnect;
+      }
+      auto lease = callback_gate_.enter(generation);
+      if (lease.admitted())
+        detail::invoke_user_callback("udp_server", "on_disconnect", handler, ConnectionContext(id, info));
     }
   }
 
   void setup_internal_handlers() {
     if (!channel) return;
-
-    batch_timer_ = std::make_unique<boost::asio::steady_timer>(channel->get_executor());
 
     std::weak_ptr<Impl> weak_impl = weak_from_this();
     const auto generation = callback_gate_.open_new_generation();
@@ -320,6 +319,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
               }
               client_id = next_client_id++;
               endpoint_to_id[ep] = client_id;
+              batches_[client_id] = std::make_shared<detail::SessionBatch>(channel->get_executor());
               SessionEntry entry;
               entry.endpoint = ep;
               entry.wait = channel->capture_write_wait(false, true);
@@ -331,6 +331,8 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
                 auto framer = framer_factory();
                 if (framer) {
                   framer->on_message([this, client_id, generation](memory::ConstByteSpan msg) {
+                    auto message_lease = callback_gate_.enter(generation);
+                    if (!message_lease.admitted()) return;
                     // #441: snapshot under a shared_lock (pure read), build the
                     // copy before taking the exclusive lock for queue mutation.
                     bool batch_mode;
@@ -347,13 +349,15 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
                       std::vector<MessageContext> batch;
                       {
                         std::unique_lock<std::shared_mutex> lock(mutex);
-                        message_batch_queue_.emplace_back(std::move(ctx));
-                        if (message_batch_queue_.size() >= max_batch_size_) {
+                        auto state = batches_.find(client_id);
+                        if (state == batches_.end() || callback_generation_ != generation) return;
+                        state->second->messages.emplace_back(std::move(ctx));
+                        if (batches_.at(client_id)->messages.size() >= max_batch_size_) {
                           flush_handler = on_message_batch_;
-                          batch = std::move(message_batch_queue_);
-                          message_batch_queue_.clear();
-                        } else if (message_batch_queue_.size() == 1) {
-                          schedule_batch_timer(generation);
+                          batch = std::move(batches_.at(client_id)->messages);
+                          batches_.at(client_id)->messages.clear();
+                        } else if (batches_.at(client_id)->messages.size() == 1) {
+                          schedule_batch_timer(generation, client_id);
                         }
                       }
                       detail::invoke_user_callback("udp_server", "on_message_batch", flush_handler, batch);
@@ -403,13 +407,15 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
               std::vector<MessageContext> batch;
               {
                 std::unique_lock<std::shared_mutex> lock(mutex);
-                data_batch_queue_.emplace_back(std::move(ctx));
-                if (data_batch_queue_.size() >= max_batch_size_) {
+                auto state = batches_.find(client_id);
+                if (state == batches_.end() || callback_generation_ != generation) return;
+                state->second->data.emplace_back(std::move(ctx));
+                if (batches_.at(client_id)->data.size() >= max_batch_size_) {
                   flush_handler = on_data_batch_;
-                  batch = std::move(data_batch_queue_);
-                  data_batch_queue_.clear();
-                } else if (data_batch_queue_.size() == 1) {
-                  schedule_batch_timer(generation);
+                  batch = std::move(batches_.at(client_id)->data);
+                  batches_.at(client_id)->data.clear();
+                } else if (batches_.at(client_id)->data.size() == 1) {
+                  schedule_batch_timer(generation, client_id);
                 }
               }
               detail::invoke_user_callback("udp_server", "on_data_batch", flush_handler, batch);
@@ -552,10 +558,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
     {
       std::unique_lock<std::shared_mutex> lock(mutex);
       is_alive.reset();
-      if (batch_timer_) {
-        batch_timer_->cancel();
-        batch_timer_.reset();
-      }
+      batches_.clear();
       if (reaper_timer) {
         reaper_timer->cancel();
         reaper_timer.reset();
@@ -567,8 +570,6 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
       }
       if (channel) stopped_stats_ = channel->stats();
       if (factory_managed_channel_) channel.reset();
-      data_batch_queue_.clear();
-      message_batch_queue_.clear();
       endpoint_to_id.clear();
       sessions.clear();
       next_client_id = 1;
@@ -663,6 +664,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
       std::shared_ptr<transport::UdpChannel> native;
       std::shared_ptr<transport::detail::UdpWriteWait> wait;
       uint64_t generation;
+      bool cannot_wait = false;
       {
         std::shared_lock<std::shared_mutex> lock(mutex);
         auto validation =
@@ -673,6 +675,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         auto it = sessions.find(client_id);
         if (it == sessions.end() || !it->second.wait) return SendResult::reject(SendRejection::NotReady);
         native = channel;
+        cannot_wait = detail::in_data_callback() || detail::executor_running_here(native->get_executor());
         wait = it->second.wait;
         generation = callback_generation_.load();
       }
@@ -681,7 +684,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         std::unique_lock<std::mutex> bp_lock(bp_mutex_);
         auto outcome = native->poll_write_wait(wait);
         if (!outcome) {
-          if (detail::in_data_callback()) return SendResult::reject(SendRejection::WouldBlock);
+          if (cannot_wait) return SendResult::reject(SendRejection::WouldBlock);
           if (auto hook = detail::g_udp_capacity_wait_hook.load()) hook();
           while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), [&] {
             outcome = native->poll_write_wait(wait);
@@ -701,7 +704,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         auto bytes = base::safe_convert::string_to_bytes(data);
         const auto admitted = native->write_to({bytes.first, bytes.second}, it->second.endpoint, wait->sequence, wait);
         if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock) return admitted;
-        if (detail::in_data_callback()) return admitted;
+        if (cannot_wait) return admitted;
       }
     }();
     return finish_send(result);

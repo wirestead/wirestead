@@ -125,6 +125,7 @@ class WIRESTEAD_API TcpServer : public interface::Channel, public std::enable_sh
                                          bool append_newline);
   wrapper::SendResult target_state() const;
   std::shared_ptr<TcpServerSession> capture_target(ClientId client_id) const;
+  std::optional<boost::asio::any_io_executor> client_executor(ClientId client_id) const;
   std::optional<wrapper::SendResult> poll_target_wait(const std::shared_ptr<TcpServerSession>& session) const;
   void cancel_target_waits();
   wrapper::SendResult write_target(ClientId client_id, memory::ConstByteSpan data, bool try_only,

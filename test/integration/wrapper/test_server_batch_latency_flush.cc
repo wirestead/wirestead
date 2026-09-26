@@ -107,3 +107,59 @@ TEST(ServerBatchLatencyFlushTest, UdsServerFlushesAPartialBatch) {
 TEST(ServerBatchLatencyFlushTest, UdpServerFlushesAPartialBatch) {
   expect_server_partial_batch_flushes_after_latency<UdpServerLoopbackHarness>();
 }
+
+namespace {
+template <typename H>
+class ServerSessionBatchTest : public ::testing::Test {};
+using BatchServers = ::testing::Types<TcpServerLoopbackHarness, UdsServerLoopbackHarness, UdpServerLoopbackHarness>;
+TYPED_TEST_SUITE(ServerSessionBatchTest, BatchServers);
+TYPED_TEST(ServerSessionBatchTest, CountAndLatencyBatchesNeverMixSessions) {
+  TypeParam harness;
+  auto server = harness.start_server();
+  server->batch_size(2).batch_latency(200ms);
+  server->framer([] { return std::make_unique<framer::LineFramer>(); });
+  std::mutex mutex;
+  std::vector<std::vector<std::string>> deliveries;
+  server->on_message_batch([&](const auto& batch) {
+    if (batch.empty()) return;
+    std::lock_guard<std::mutex> lock(mutex);
+    std::vector<std::string> payloads;
+    for (const auto& message : batch) {
+      EXPECT_EQ(message.client_id(), batch.front().client_id());
+      payloads.push_back(message.data_as_string());
+    }
+    deliveries.push_back(std::move(payloads));
+  });
+  auto connect = [&] {
+    if constexpr (requires { harness.connect_client(); })
+      return harness.connect_client();
+    else
+      return harness.start_sender();
+  };
+  auto first = connect();
+  auto second = connect();
+  ASSERT_TRUE(first->send("first-a\n"));
+  ASSERT_TRUE(second->send("second-a\n"));
+  ASSERT_TRUE(TestUtils::waitForCondition([&] { return server->client_count() == 2; }, 5000));
+  ASSERT_TRUE(first->send("first-b\n"));
+  ASSERT_TRUE(TestUtils::waitForCondition(
+      [&] {
+        std::lock_guard<std::mutex> lock(mutex);
+        size_t count = 0;
+        for (const auto& batch : deliveries) count += batch.size();
+        return count == 3;
+      },
+      5000));
+  first->stop();
+  second->stop();
+  server->stop();
+  std::lock_guard<std::mutex> lock(mutex);
+  bool first_seen = false, second_seen = false;
+  for (const auto& batch : deliveries) {
+    if (batch == std::vector<std::string>{"first-a", "first-b"}) first_seen = true;
+    if (batch == std::vector<std::string>{"second-a"}) second_seen = true;
+  }
+  EXPECT_TRUE(first_seen);
+  EXPECT_TRUE(second_seen);
+}
+}  // namespace

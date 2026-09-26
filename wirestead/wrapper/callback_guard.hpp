@@ -18,6 +18,9 @@
 
 #include <algorithm>
 #include <atomic>
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/strand.hpp>
 #include <condition_variable>
 #include <cstdint>
 #include <functional>
@@ -59,6 +62,19 @@ class CallbackGuard {
 
 // Historical internal name; covers every user-callback kind (D-2).
 inline bool in_data_callback() { return g_callback_depth > 0; }
+
+// Capacity can only clear if the target I/O context keeps progressing. Test the
+// inner context, not just strand membership: an ordinary task or sibling strand
+// on the same context must not block its sole runner either.
+inline bool executor_running_here(const boost::asio::any_io_executor& executor) {
+  using IoExecutor = boost::asio::io_context::executor_type;
+  if (auto* io = executor.target<IoExecutor>()) return io->running_in_this_thread();
+  if (auto* strand = executor.target<boost::asio::strand<IoExecutor>>())
+    return strand->get_inner_executor().running_in_this_thread();
+  if (auto* strand = executor.target<boost::asio::strand<boost::asio::any_io_executor>>())
+    return executor_running_here(strand->get_inner_executor());
+  return false;
+}
 
 // Admission gate for one wrapper object's user callbacks (D-1 in
 // docs/communication_contract_v0.10_decisions.md).

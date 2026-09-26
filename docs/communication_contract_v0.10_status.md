@@ -73,13 +73,13 @@ implementation symbols above describe the specific decision being assessed.
 
 | Target | Completed core path | Remaining target-specific limitations |
 | --- | --- | --- |
-| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Bare-executor waiting, reconnect event mapping |
-| UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Same executor gaps; retried loss can report on_error |
-| UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Bare-executor waiting remains; batch timers now share the socket strand |
-| Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Same executor gaps; recovered loss notification; physical-device validation remains separate |
-| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Executor waiting and server batch scope/serialization |
+| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Reconnect event mapping and receive-memory bounds |
+| UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Retried loss can report on_error; receive-memory bounds |
+| UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Receive-memory bounds; batch timers share the socket strand |
+| Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Recovered loss notification and receive-memory bounds; physical-device validation remains separate |
+| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Receive-memory bounds and remaining event/configuration policy |
 | UDS server | Same public guarantees; native move rejection fixed here | Same server gaps; legacy native bool fanout is distinct from public FanoutResult |
-| UDP server | D-1/D-2, endpoint/run-pinned sends, fixed fanout, peer accounting and waiting-work expiry | Shared socket pressure and serialized callbacks; mixed-peer batch scope and distinct expiry event remain open |
+| UDP server | D-1/D-2, endpoint/run-pinned sends, fixed fanout, peer accounting and waiting-work expiry | Shared socket pressure and serialized callbacks; per-peer batches implemented, distinct expiry event still pending |
 
 UDP client loss means socket failure/run end, not a remotely detected disconnect.
 UDP server virtual expiry must not be treated as proof that the remote endpoint
@@ -116,16 +116,16 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | C-3.8-1 | Covered for built-in clients and server sessions/aggregates | Separate stages/causes and reset epochs; UDP expiry affects waiting work, aggregate retention requires no peer-total copying |
 | C-5.1-1 | UDP timer/receive gap closed; native TCP/UDS/Serial client strands unchanged | Built-in UDP timers now share the socket strand; controlled two-runner data/message batch regressions fail before the fix |
 | C-5.1-2a | Covered for TCP/UDS session connect/receive/backpressure/close paths | Connection startup joins the session strand; controlled two-runner native/wrapper tests cover connect ordering, callback stop and external stop |
-| C-5.1-2b | Partial: TCP/UDS callbacks attributed to a session | Connect/receive/backpressure ordering covered; server-level batch paths and mixed-session ownership remain open |
+| C-5.1-2b | Covered for built-in TCP/UDS session callback paths | Session timers and end notification share the session strand; two-runner timer exclusion and stop regressions |
 | C-5.1-2 | Covered for built-in UDP receive/batch/expiry callback non-overlap | One shared socket strand serializes these paths, including across peers; two-runner expiry regression verifies a held receive excludes the reaper callback |
-| C-5.1-3 | Gap against proposed session-only batch scope | TCP/UDS/UDP server batch queues mix session contexts; scope assignment needs a policy |
+| C-5.1-3 | Covered for built-in server batches | Per-session queues, count thresholds and timers; partial batches flush before session-end notification |
 | C-5.2-1 | Covered for built-in TCP/UDS connect-before-receive | Immediate peer data and queued pressure wait for connection notification; wrapper framing and stop boundaries covered by two-runner regressions |
 | C-5.3-1 | Open evidence for the universal no-inline-callback proposal | Inspected native sends post work, but configuration/start/stop, direct transports and custom channels need separate caller-stack probes |
 | C-5.4-1 | Covered: external stop completion, all targets | Lifecycle tests, including externally run executors |
 | C-5.4-2 | Covered: every concurrent external stop waits | Lifecycle tests distinguish repeated stop from overlapping callers |
 | C-5.4-3 | Covered: target executor/callback stop is request-only | D-1 executor dependence, not a global any-callback shortcut; external stop observes completion |
 | C-5.4-4 | Covered: blocking send from any wrapper callback refuses waiting | D-2 guards all callback kinds and nested/cross-channel callbacks |
-| C-5.4-5 | Gap against proposal: ordinary tasks on the required executor can wait | Blocking-send loops check callback depth, unlike shutdown_needs_this_thread; no general executor admission guard |
+| C-5.4-5 | Covered for built-in I/O contexts and supported custom executor forms | Ordinary tasks and sibling strands refuse capacity waits/retries; independent contexts still wait; unknown custom executor types need an explicit dependency contract |
 | C-5.5-1 | Covered for native concurrent send admission | Wrapper shared locks plus native submission/reservation locks |
 | C-5.5-2 | Covered for built-in clients and server sessions | Logical-request ledger includes UDP virtual sessions; legacy failed_sends retains separate semantics |
 | C-5.5-3 | Covered: cancellation while waiting | Admission tests check CancelledWhileWaiting and first-cause retention |
@@ -153,7 +153,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | 4: framer limit and resynchronization | Framer-specific implementations/tests exist; no universal recovery guarantee for length-prefix framing |
 | 4: batch count/latency | Count and timer flush tests pass. Latency schedules work, not a callback deadline; blocked executors can delay it |
 | 4: receive memory/unbounded items | Open: no consolidated bound on aggregate batch/session/context memory, especially when user handlers stall |
-| 5.1 / 5.2: cross-scope ordering | TCP/UDS connect-before-receive is covered; mixed-session batch ownership and timer/receive ordering still require explicit scope design |
+| 5.1 / 5.2: cross-scope ordering | Built-in session batches and TCP/UDS connect-before-receive are covered; no cross-session parallelism or total-order promise |
 | 5.4: destruction, signals and concurrent start | Caller preconditions remain: no concurrent destruction/use, serialize start/start and start/stop, no signal-handler guarantee; tests do not make unsupported calls safe |
 | 5.4 / 5.5: registration and live configuration | Open policy: locks on some setters are not a verified allowlist or a thread-safety promise for all setters; test_live_setter_forwarding.cc only covers selected behavior |
 | 5.6 / 5.7: executors and nonreturning handlers | D-1 handles owned/external executors with progress preconditions; cannot promise bounded stop when a user callback never returns |
@@ -177,16 +177,18 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
    An explicit freshness policy or timeout API remains optional future work.
 3. **Execution scopes:** [UDP timer/receive serialization](udp_callback_serialization.md) and
    [TCP/UDS connection ordering](server_connect_order.md) are implemented.
-   Settle batch/session ownership and verify its multi-thread callback boundaries.
-   Extend or explicitly limit the nonwaiting rule for ordinary executor tasks.
-4. **Events:** decide recovered loss versus terminal error, and UDP virtual
-   expiry notification. Waiting UDP work now expires; active work keeps its outcome.
+   [Session-specific batches and ordinary executor waits](executor_and_session_batches.md)
+   are implemented for built-in transports. Universal no-inline behavior and
+   unknown custom executor dependencies remain to be established.
+4. **Events:** implement the approved recovered-loss/terminal-error distinction
+   and separate UDP expiry notification. Waiting UDP work expires; active work keeps its outcome.
 5. **Finish the public contract:** live-setter allowlist, receive-memory limits,
    exception/configuration policy, migration docs and satellite release pins.
 
 See [the accounting/event implementation proposal](post_acceptance_policy_v0.10.md)
 for a concrete design and acceptance scenarios. Built-in client/session accounting
-is implemented; remaining execution and event proposals are not silently approved.
+is implemented; remaining memory/event/configuration choices are recorded in the decisions document;
+implementation and release verification are still required.
 
 ## Validation for this review
 
