@@ -345,7 +345,7 @@ thrown by `on_error` itself is only logged.
 | `stop()` | Discarded before write | Aborted during write | Woken; `CancelledWhileWaiting` | None, see [6.2](#62-on_disconnect) | Counted apart from connection loss |
 | Restart (`stop()` then `start()`) | – | – | – | – | Handlers and configuration kept, statistics reset (the existing #444 contract) |
 | Server session ended | Discarded before write | Aborted during write | That session's senders woken | `on_disconnect(session, reason)` | Session statistics closed, server totals updated |
-| UDP server virtual session expired | Discarded before write | Aborted during write | That session's senders woken | **Open:** distinct from a remote disconnect, which UDP cannot observe | – |
+| UDP server virtual session expired | Discarded before write (**Decided**) | Keeps actual completion/stop/socket-error outcome (**Decided**) | That session's senders woken; no other endpoint cancelled | **Open:** distinct from a remote disconnect, which UDP cannot observe | Separate session_expiry cause; socket totals retain expired contributors |
 
 - **Decided:** data from a previous connection is never sent on a new one.
   Offline buffering, keeping unsent data across a reconnect, is allowed only as
