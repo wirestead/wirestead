@@ -27,6 +27,7 @@
 #include "wirestead/base/constants.hpp"
 #include "wirestead/base/visibility.hpp"
 #include "wirestead/wrapper/ichannel.hpp"
+#include "wirestead/wrapper/receive_limits.hpp"
 
 namespace boost {
 namespace asio {
@@ -76,6 +77,9 @@ class WIRESTEAD_API TcpClient : public ChannelInterface {
   [[nodiscard]] SendResult try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
   bool connected() const override;
   RuntimeStats stats() const override;
+  /// Configure library receive storage while stopped. Custom framer internals are excluded.
+  TcpClient& receive_limits(ReceiveLimits limits);
+  ReceiveMemoryStats receive_stats() const;
   void reset_stats() override;
 
   TcpClient& on_data(MessageHandler handler) override;

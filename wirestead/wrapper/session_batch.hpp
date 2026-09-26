@@ -19,15 +19,17 @@
 #include <boost/asio/steady_timer.hpp>
 #include <vector>
 
-#include "wirestead/wrapper/context.hpp"
+#include "wirestead/wrapper/bounded_receive.hpp"
 
 namespace wirestead::wrapper::detail {
 // Access is protected by the owning wrapper mutex. Timer handlers run on the
 // session executor; weak ownership and run gates exclude retired sessions.
 struct SessionBatch {
-  explicit SessionBatch(boost::asio::any_io_executor executor) : timer(std::move(executor)) {}
-  std::vector<MessageContext> data;
-  std::vector<MessageContext> messages;
+  SessionBatch(boost::asio::any_io_executor executor, std::shared_ptr<ReceiveScope> scope)
+      : receive(std::move(scope)), timer(std::move(executor)) {}
+  ReceiveState receive;
+  ReceiveBatch data;
+  ReceiveBatch messages;
   boost::asio::steady_timer timer;
   bool scheduled = false;
   ~SessionBatch() { timer.cancel(); }

@@ -24,6 +24,9 @@
 #include "wirestead/framer/iframer.hpp"
 
 namespace wirestead {
+namespace wrapper::detail {
+struct ReceiveFramerAccess;
+}
 namespace framer {
 
 /**
@@ -80,6 +83,7 @@ class WIRESTEAD_API LengthPrefixFramer : public IFramer {
   void reset() override;
 
  private:
+  friend struct wrapper::detail::ReceiveFramerAccess;
   // Returns false when the buffer does not yet hold a whole header.
   bool read_length(size_t offset, size_t& out) const;
 

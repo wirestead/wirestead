@@ -106,6 +106,8 @@ foreach(
   test_server_send_accounting.cc
   test_server_connect_order.cc
   test_server_executor_policy.cc
+  test_receive_memory_servers.cc
+  test_receive_memory_clients.cc
   test_udp_stop_admission.cc
   test_udp_stop_completion.cc
   test_udp_stop_lifecycle.cc

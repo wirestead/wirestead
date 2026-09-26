@@ -25,6 +25,7 @@
 #include "wirestead/base/visibility.hpp"
 #include "wirestead/config/udp_config.hpp"
 #include "wirestead/wrapper/iserver.hpp"
+#include "wirestead/wrapper/receive_limits.hpp"
 
 namespace wirestead {
 namespace interface {
@@ -56,6 +57,9 @@ class WIRESTEAD_API UdpServer : public ServerInterface {
   void stop() override;
   bool listening() const override;
   RuntimeStats stats() const override;
+  /// Configure library receive storage while stopped. Custom framer internals are excluded.
+  UdpServer& receive_limits(ReceiveLimits limits);
+  ReceiveMemoryStats receive_stats() const;
   std::optional<RuntimeStats> client_stats(ClientId client_id) const override;
   void reset_stats() override;
 

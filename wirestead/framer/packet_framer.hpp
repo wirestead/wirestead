@@ -22,6 +22,9 @@
 #include "wirestead/framer/iframer.hpp"
 
 namespace wirestead {
+namespace wrapper::detail {
+struct ReceiveFramerAccess;
+}
 namespace framer {
 
 /**
@@ -69,6 +72,7 @@ class WIRESTEAD_API PacketFramer : public IFramer {
   void reset() override;
 
  private:
+  friend struct wrapper::detail::ReceiveFramerAccess;
   enum class State {
     Sync,    // Waiting for start pattern
     Collect  // Collecting data until end pattern

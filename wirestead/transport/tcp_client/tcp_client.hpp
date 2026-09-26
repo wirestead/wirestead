@@ -112,6 +112,7 @@ class WIRESTEAD_API TcpClient : public interface::ResultChannel, public std::ena
  private:
   // The built-in wrapper pins capacity waits without extending Channel's ABI.
   friend class wrapper::TcpClient;
+  void fail_receive();
   std::optional<uint64_t> write_connection() const;
   std::shared_ptr<detail::TcpWriteWait> capture_write_wait() const;
   std::optional<wrapper::SendResult> poll_write_wait(const std::shared_ptr<detail::TcpWriteWait>& wait) const;

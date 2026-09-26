@@ -73,11 +73,11 @@ implementation symbols above describe the specific decision being assessed.
 
 | Target | Completed core path | Remaining target-specific limitations |
 | --- | --- | --- |
-| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Reconnect event mapping and receive-memory bounds |
-| UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Retried loss can report on_error; receive-memory bounds |
-| UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Receive-memory bounds; batch timers share the socket strand |
-| Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Recovered loss notification and receive-memory bounds; physical-device validation remains separate |
-| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Receive-memory bounds and remaining event/configuration policy |
+| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Reconnect event mapping; receive bounds now cover built-in framing and queues |
+| UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Retried loss can report on_error; custom framer internals remain outside receive bounds |
+| UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Receive bounds implemented for built-in framing/queues; batch timers share the socket strand |
+| Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Recovered loss notification; receive bounds implemented, physical-device validation remains separate |
+| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Remaining event/configuration policy; receive bounds implemented |
 | UDS server | Same public guarantees; native move rejection fixed here | Same server gaps; legacy native bool fanout is distinct from public FanoutResult |
 | UDP server | D-1/D-2, endpoint/run-pinned sends, fixed fanout, peer accounting and waiting-work expiry | Shared socket pressure and serialized callbacks; per-peer batches implemented, distinct expiry event still pending |
 
@@ -152,7 +152,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | 3.4 / 4: receive lifetime | MessageContext copy constructor clones borrowed data; move remains cheap. Retaining only a data view beyond callback is unsupported |
 | 4: framer limit and resynchronization | Framer-specific implementations/tests exist; no universal recovery guarantee for length-prefix framing |
 | 4: batch count/latency | Count and timer flush tests pass. Latency schedules work, not a callback deadline; blocked executors can delay it |
-| 4: receive memory/unbounded items | Open: no consolidated bound on aggregate batch/session/context memory, especially when user handlers stall |
+| 4: receive memory/unbounded items | Implemented for built-in receive storage: aggregate byte and session-slot reservations include queued/in-flight batches and transactional framing; see [scope and exclusions](receive_memory_limits.md). Custom framer internals and process RSS are excluded |
 | 5.1 / 5.2: cross-scope ordering | Built-in session batches and TCP/UDS connect-before-receive are covered; no cross-session parallelism or total-order promise |
 | 5.4: destruction, signals and concurrent start | Caller preconditions remain: no concurrent destruction/use, serialize start/start and start/stop, no signal-handler guarantee; tests do not make unsupported calls safe |
 | 5.4 / 5.5: registration and live configuration | Open policy: locks on some setters are not a verified allowlist or a thread-safety promise for all setters; test_live_setter_forwarding.cc only covers selected behavior |
@@ -182,7 +182,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
    unknown custom executor dependencies remain to be established.
 4. **Events:** implement the approved recovered-loss/terminal-error distinction
    and separate UDP expiry notification. Waiting UDP work expires; active work keeps its outcome.
-5. **Finish the public contract:** live-setter allowlist, receive-memory limits,
+5. **Finish the public contract:** live-setter allowlist,
    exception/configuration policy, migration docs and satellite release pins.
 
 See [the accounting/event implementation proposal](post_acceptance_policy_v0.10.md)

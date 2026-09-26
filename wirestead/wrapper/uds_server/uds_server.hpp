@@ -28,6 +28,7 @@
 #include "wirestead/base/constants.hpp"
 #include "wirestead/base/visibility.hpp"
 #include "wirestead/wrapper/iserver.hpp"
+#include "wirestead/wrapper/receive_limits.hpp"
 
 namespace boost {
 namespace asio {
@@ -66,6 +67,9 @@ class WIRESTEAD_API UdsServer : public ServerInterface {
   void stop() override;
   bool listening() const override;
   RuntimeStats stats() const override;
+  /// Configure library receive storage while stopped. Custom framer internals are excluded.
+  UdsServer& receive_limits(ReceiveLimits limits);
+  ReceiveMemoryStats receive_stats() const;
   void reset_stats() override;
 
   // Transmission

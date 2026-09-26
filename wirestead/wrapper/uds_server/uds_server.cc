@@ -99,6 +99,8 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
   std::unordered_map<ClientId, std::shared_ptr<framer::IFramer>> framers_;
 
   // Batching logic
+  ReceiveLimits receive_limits_;
+  std::shared_ptr<detail::ReceiveBudget> receive_budget_{std::make_shared<detail::ReceiveBudget>(receive_limits_)};
   std::unordered_map<ClientId, std::shared_ptr<detail::SessionBatch>> batches_;
   size_t max_batch_size_ = 100;
   std::chrono::milliseconds max_batch_latency_{1};
@@ -413,6 +415,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
 
     std::weak_ptr<bool> weak_alive = alive_marker_;
     std::weak_ptr<Impl> weak_impl = weak_from_this();
+    receive_budget_->reset_stats();
     const auto generation = callback_gate_.open_new_generation();
     callback_generation_.store(generation);
 
@@ -431,10 +434,16 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
             auto native = weak_native.lock();
             auto executor = native ? native->client_executor(id) : std::nullopt;
             if (!executor) return;
+            auto receive_scope = receive_budget_->open_scope();
+            if (!receive_scope) {
+              native->fail_receive(id);
+              return;
+            }
+
             ConnectionHandler handler;
             {
               std::unique_lock<std::shared_mutex> lock(mutex_);
-              batches_[id] = std::make_shared<detail::SessionBatch>(*executor);
+              batches_[id] = std::make_shared<detail::SessionBatch>(*executor, std::move(receive_scope));
               if (framer_factory_) {
                 framers_[id] = framer_factory_();
                 attach_framer_callback(id);
@@ -462,10 +471,14 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
             // locking level so it no longer blocks concurrent sends even
             // briefly.
             bool batch_mode;
+            std::shared_ptr<detail::SessionBatch> receive;
             interface::SharedCallback<MessageHandler> handler;
             std::shared_ptr<framer::IFramer> framer_to_push;
             {
               std::shared_lock<std::shared_mutex> lock(mutex_);
+              auto state = batches_.find(id);
+              if (state == batches_.end()) return;
+              receive = state->second;
               batch_mode = static_cast<bool>(data_batch_handler_);
               handler = data_handler_;
               auto it = framers_.find(id);
@@ -474,32 +487,56 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
               }
             }
 
-            if (batch_mode) {
-              // #441: build the copy before taking the exclusive lock, so the
-              // lock is only held for the queue mutation itself, not the
-              // allocation.
-              MessageContext ctx(id, memory::SafeDataBuffer(data_span));
-              interface::SharedCallback<BatchMessageHandler> flush_handler;
-              std::vector<MessageContext> batch;
+            try {
+              auto prepared = detail::prepare_receive(receive->receive, framer_to_push, id, data_span, batch_mode);
+              if (batch_mode) {
+                // #441: build the copy before taking the exclusive lock, so the
+                // lock is only held for the queue mutation itself, not the
+                // allocation.
+                auto ctx = std::move(*prepared.raw);
+                interface::SharedCallback<BatchMessageHandler> flush_handler;
+                detail::ReceiveBatch batch;
+                {
+                  std::unique_lock<std::shared_mutex> lock(mutex_);
+                  auto state = batches_.find(id);
+                  if (state == batches_.end() || callback_generation_ != generation) return;
+                  state->second->data.emplace_back(std::move(ctx));
+                  if (batches_.at(id)->data.size() >= max_batch_size_) {
+                    flush_handler = data_batch_handler_;
+                    batch = std::move(batches_.at(id)->data);
+                    batches_.at(id)->data.clear();
+                  } else if (batches_.at(id)->data.size() == 1) {
+                    schedule_batch_timer(generation, id);
+                  }
+                }
+                detail::invoke_user_callback("uds_server", "on_data_batch", flush_handler, batch);
+              } else {
+                detail::invoke_user_callback("uds_server", "on_data", handler, MessageContext(id, data_span));
+              }
+
+              prepared.deliver();
+            } catch (const detail::ReceiveOverflow& overflow) {
+              receive->receive.scope->overflow(data_span.size(), overflow.reason);
+
               {
                 std::unique_lock<std::shared_mutex> lock(mutex_);
-                auto state = batches_.find(id);
-                if (state == batches_.end() || callback_generation_ != generation) return;
-                state->second->data.emplace_back(std::move(ctx));
-                if (batches_.at(id)->data.size() >= max_batch_size_) {
-                  flush_handler = data_batch_handler_;
-                  batch = std::move(batches_.at(id)->data);
-                  batches_.at(id)->data.clear();
-                } else if (batches_.at(id)->data.size() == 1) {
-                  schedule_batch_timer(generation, id);
-                }
+                receive->data.clear();
+                receive->messages.clear();
+                receive->receive.reset(framer_to_push.get());
               }
-              detail::invoke_user_callback("uds_server", "on_data_batch", flush_handler, batch);
-            } else {
-              detail::invoke_user_callback("uds_server", "on_data", handler, MessageContext(id, data_span));
-            }
+              if (auto native = std::dynamic_pointer_cast<transport::UdsServer>(server_)) native->fail_receive(id);
 
-            if (framer_to_push) framer_to_push->push_bytes(data_span);
+            } catch (const std::bad_alloc&) {
+              receive->receive.scope->overflow(data_span.size(), ReceiveOverflowReason::AllocationFailure);
+
+              {
+                std::unique_lock<std::shared_mutex> lock(mutex_);
+                receive->data.clear();
+                receive->messages.clear();
+                receive->receive.reset(framer_to_push.get());
+              }
+              if (auto native = std::dynamic_pointer_cast<transport::UdsServer>(server_)) native->fail_receive(id);
+            }
           });
       transport_server->on_multi_disconnect([this, generation, weak_impl, weak_alive](ClientId id) {
         auto impl_keepalive = weak_impl.lock();
@@ -515,7 +552,8 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
           auto it = batches_.find(id);
           if (it != batches_.end()) pending = it->second;
         }
-        if (pending) flush_batches(generation, id, pending);
+        if (!pending) return;
+        flush_batches(generation, id, pending);
         auto after_flush = callback_gate_.enter(generation);
         if (!after_flush.admitted()) return;
         ConnectionHandler handler;
@@ -582,6 +620,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
 
   void reset_stats() {
     std::shared_lock<std::shared_mutex> lock(mutex_);
+    receive_budget_->reset_stats();
     if (server_) server_->reset_stats();
   }
 
@@ -593,6 +632,7 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
     it->second->on_message([this, id, generation](memory::ConstByteSpan msg) {
       auto message_lease = callback_gate_.enter(generation);
       if (!message_lease.admitted()) return;
+      auto prepared = detail::take_prepared_message(id, msg);
       // #441: snapshot under a shared_lock (pure read), build the copy
       // before taking the exclusive lock for queue mutation.
       bool batch_mode;
@@ -604,9 +644,16 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
       }
 
       if (batch_mode) {
-        MessageContext ctx(id, memory::SafeDataBuffer(msg));
+        std::shared_ptr<detail::SessionBatch> receive;
+        {
+          std::shared_lock<std::shared_mutex> lock(mutex_);
+          auto state = batches_.find(id);
+          if (state == batches_.end()) return;
+          receive = state->second;
+        }
+        auto ctx = prepared ? std::move(*prepared) : detail::retain_received(receive->receive.scope, id, msg);
         interface::SharedCallback<BatchMessageHandler> flush_handler;
-        std::vector<MessageContext> batch;
+        detail::ReceiveBatch batch;
         {
           std::unique_lock<std::shared_mutex> lock(mutex_);
           auto state = batches_.find(id);
@@ -642,6 +689,22 @@ UdsServer::~UdsServer() = default;
 
 UdsServer::UdsServer(UdsServer&&) noexcept = default;
 UdsServer& UdsServer::operator=(UdsServer&&) noexcept = default;
+
+UdsServer& UdsServer::receive_limits(ReceiveLimits limits) {
+  limits.validate();
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  if (impl_->started_ || impl_->stop_callers_.load() || (impl_->stop_requested_ && impl_->alive_marker_) ||
+      detail::in_data_callback())
+    throw std::logic_error("receive limits require completed stop");
+  auto budget = std::make_shared<detail::ReceiveBudget>(limits);
+  impl_->receive_limits_ = limits;
+  impl_->receive_budget_ = std::move(budget);
+  return *this;
+}
+ReceiveMemoryStats UdsServer::receive_stats() const {
+  std::shared_lock<std::shared_mutex> lock(impl_->mutex_);
+  return impl_->receive_budget_->stats();
+}
 
 std::future<bool> UdsServer::start() { return impl_->start(); }
 

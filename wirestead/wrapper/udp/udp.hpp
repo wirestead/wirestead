@@ -28,6 +28,7 @@
 #include "wirestead/base/visibility.hpp"
 #include "wirestead/config/udp_config.hpp"
 #include "wirestead/wrapper/ichannel.hpp"
+#include "wirestead/wrapper/receive_limits.hpp"
 
 namespace boost {
 namespace asio {
@@ -76,6 +77,8 @@ class WIRESTEAD_API UdpClient : public ChannelInterface {
   [[nodiscard]] SendResult try_send_shared(std::shared_ptr<const std::vector<uint8_t>> data) override;
   bool connected() const override;
   RuntimeStats stats() const override;
+  UdpClient& receive_limits(ReceiveLimits limits);
+  ReceiveMemoryStats receive_stats() const;
   void reset_stats() override;
 
   UdpClient& on_data(MessageHandler handler) override;

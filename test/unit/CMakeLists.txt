@@ -149,6 +149,8 @@ foreach(
   test_batch_latency_flush.cc
   test_backpressure_getters.cc
   test_callback_blocking_send.cc
+  test_receive_budget.cc
+  test_bounded_receive.cc
   test_send_result.cc
   test_connection_channel.cc
   test_client_send_results.cc

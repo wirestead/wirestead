@@ -107,6 +107,7 @@ class WIRESTEAD_API UdsClient : public interface::ResultChannel, public std::ena
  private:
   // The built-in wrapper pins capacity waits without extending Channel's ABI.
   friend class wrapper::UdsClient;
+  void fail_receive();
   std::optional<uint64_t> write_connection() const;
   std::shared_ptr<detail::UdsWriteWait> capture_write_wait() const;
   std::optional<wrapper::SendResult> poll_write_wait(const std::shared_ptr<detail::UdsWriteWait>& wait) const;
