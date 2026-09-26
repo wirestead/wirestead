@@ -167,6 +167,14 @@ TEST_P(ServerSendAccountingTest, StopRetainsCompletedSessionsExactlyOnce) {
   expect_conserved();
 }
 TEST_P(ServerSendAccountingTest, StopBeforeEnqueuePreservesDiscardCauseThroughRetirement) {
+  retiring_action = [&] {
+    const auto snapshot = server->stats();
+    EXPECT_EQ(snapshot.queued_bytes, 0u);
+    EXPECT_EQ(snapshot.pending_bytes, 0u);
+    EXPECT_FALSE(snapshot.backpressure_active);
+    EXPECT_EQ(snapshot.send_accounting->explicit_stop.discarded_before_write.requests, 2u);
+  };
+  transport::detail::g_server_sessions_retiring_hook = on_retiring;
   net::post(native->get_executor(), [&] {
     EXPECT_TRUE(server->broadcast("abcdefgh"));
     server->stop();
