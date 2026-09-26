@@ -65,7 +65,7 @@ expose optional [logical-request accounting](tcp_send_accounting.md): pre-write
 discards and active-write aborts are separated by stop, connection loss and
 queue pressure. [UDP socket accounting](udp_send_accounting.md) uses the same
 fields; connection_loss there means a terminal local socket error. TCP/UDS
-servers and per-virtual-session UDP statistics remain unsupported.
+server sessions and aggregates now expose the same accounting; per-virtual-session UDP statistics remain unsupported.
 
 ## Liveness and idle timeout
 

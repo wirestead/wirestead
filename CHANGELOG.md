@@ -11,6 +11,15 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking ABI:** TCP/UDS server sessions now expose logical-request send
+  accounting and change their exported class layouts; rebuild C++ consumers.
+  Server aggregates retain closed and stopping sessions exactly once, including
+  legacy totals previously lost at explicit stop. Reset includes retiring
+  contributors. TCP handshake/read state changes and TCP/UDS write completions
+  explicitly return to the session strand; short writes/initiation exceptions
+  terminate outstanding requests. Queue completion preserves concurrent send
+  reservations. See docs/tcp_send_accounting.md.
+
 - Extend logical-request send accounting to UDP sockets, including explicit
   destinations, stop, local socket errors, queue pressure and reset epochs.
   Terminal socket states drain queued requests; write initiation exceptions

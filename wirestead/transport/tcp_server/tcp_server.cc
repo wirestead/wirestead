@@ -120,6 +120,16 @@ struct TcpServer::Impl {
     stop_cv_.wait(lock, [this] { return cleanup_done_; });
   }
   std::unordered_map<ClientId, std::shared_ptr<TcpServerSession>> sessions_;
+  // Stop removes targets immediately, but their counters remain visible until
+  // asynchronous cleanup transfers the final snapshot exactly once.
+  std::unordered_map<ClientId, std::shared_ptr<TcpServerSession>> retiring_sessions_;
+  wrapper::SendAccounting closed_send_accounting_;
+
+  void absorb_session(const std::shared_ptr<TcpServerSession>& session) {
+    const auto snapshot = session->stats();
+    stats_.absorb(snapshot);
+    diagnostics::accumulate_send_accounting(closed_send_accounting_, *snapshot.send_accounting);
+  }
 
   size_t max_clients_;
   bool client_limit_enabled_;
@@ -471,7 +481,7 @@ struct TcpServer::Impl {
               // erase below, which makes it exactly once even if on_close re-fires.
               auto it = close_impl->sessions_.find(client_id);
               if (it != close_impl->sessions_.end() && it->second) {
-                close_impl->stats_.absorb(it->second->stats());
+                close_impl->absorb_session(it->second);
               }
               close_impl->sessions_.erase(client_id);
               was_current = (close_impl->current_session_ == new_session);
@@ -524,13 +534,14 @@ struct TcpServer::Impl {
     if (cleanup_started_.exchange(true)) return;
     boost::system::error_code ec;
     if (acceptor_) acceptor_->close(ec);
-    std::vector<std::shared_ptr<TcpServerSession>> sessions;
+    std::vector<std::pair<ClientId, std::shared_ptr<TcpServerSession>>> sessions;
     {
       std::lock_guard<std::mutex> lock(sessions_mutex_);
-      for (auto& entry : sessions_) sessions.push_back(entry.second);
-      sessions_.clear();
+      retiring_sessions_.swap(sessions_);
+      for (const auto& entry : retiring_sessions_) sessions.push_back(entry);
       current_session_.reset();
     }
+    if (auto hook = detail::g_server_sessions_retiring_hook.load()) hook();
     if (sessions.empty()) {
       finish_cleanup();
       return;
@@ -539,9 +550,17 @@ struct TcpServer::Impl {
     // session owns its outstanding I/O; final state changes are serialized
     // with accept/retry handlers on the server's management strand.
     auto remaining = std::make_shared<size_t>(sessions.size());
-    for (auto& session : sessions) {
-      session->async_stop([this, self, remaining] {
-        net::post(strand_, [this, self, remaining] {
+    for (auto& [client_id, session] : sessions) {
+      session->async_stop([this, self, remaining, client_id] {
+        net::post(strand_, [this, self, remaining, client_id] {
+          {
+            std::lock_guard<std::mutex> lock(sessions_mutex_);
+            const auto it = retiring_sessions_.find(client_id);
+            if (it != retiring_sessions_.end()) {
+              absorb_session(it->second);
+              retiring_sessions_.erase(it);
+            }
+          }
           if (--*remaining == 0) finish_cleanup();
         });
       });
@@ -557,7 +576,7 @@ struct TcpServer::Impl {
       if (first) {
         std::lock_guard<std::mutex> sessions_lock(sessions_mutex_);
         for (auto& entry : sessions_)
-          if (entry.second) entry.second->cancel_write_wait();
+          if (entry.second) entry.second->request_stop();
       }
     }
     if (first) {
@@ -640,7 +659,11 @@ void TcpServer::start() {
   // counters now outlive the sessions that fed them, so clearing them here is
   // what keeps that promise - before absorption they were empty and a restart
   // zeroed the aggregate for free.
-  impl->stats_.reset(0);
+  {
+    std::lock_guard<std::mutex> lock(impl->sessions_mutex_);
+    impl->stats_.reset(0);
+    impl->closed_send_accounting_ = {};
+  }
 
   // Load the certificate before binding. A server asked for TLS that cannot
   // provide it must not come up in plaintext instead - that is the failure mode
@@ -737,35 +760,45 @@ wrapper::RuntimeStats TcpServer::stats() const {
   // disconnect transfer; otherwise a retiring session can disappear from both.
   std::lock_guard<std::mutex> lock(impl->sessions_mutex_);
   auto aggregate = impl->stats_.snapshot(0, 0, false);
-  for (const auto& entry : impl->sessions_) {
-    if (!entry.second) continue;
-    const auto session_stats = entry.second->stats();
-    aggregate.bytes_accepted += session_stats.bytes_accepted;
-    aggregate.messages_accepted += session_stats.messages_accepted;
-    aggregate.bytes_sent += session_stats.bytes_sent;
-    aggregate.messages_sent += session_stats.messages_sent;
-    aggregate.bytes_received += session_stats.bytes_received;
-    aggregate.messages_received += session_stats.messages_received;
-    aggregate.failed_sends += session_stats.failed_sends;
-    aggregate.dropped_messages += session_stats.dropped_messages;
-    aggregate.dropped_bytes += session_stats.dropped_bytes;
-    aggregate.backpressure_events += session_stats.backpressure_events;
-    aggregate.queued_bytes += session_stats.queued_bytes;
-    aggregate.pending_bytes += session_stats.pending_bytes;
-    // Peak, not a total: summing per-session peaks would report a depth no
-    // session ever reached, because the peaks need not have been simultaneous.
-    aggregate.max_queued_bytes = std::max(aggregate.max_queued_bytes, session_stats.max_queued_bytes);
-    aggregate.backpressure_active = aggregate.backpressure_active || session_stats.backpressure_active;
+  aggregate.send_accounting = impl->closed_send_accounting_;
+  for (const auto* sessions : {&impl->sessions_, &impl->retiring_sessions_}) {
+    for (const auto& entry : *sessions) {
+      if (!entry.second) continue;
+      const auto session_stats = entry.second->stats();
+      diagnostics::accumulate_send_accounting(*aggregate.send_accounting, *session_stats.send_accounting);
+      aggregate.bytes_accepted += session_stats.bytes_accepted;
+      aggregate.messages_accepted += session_stats.messages_accepted;
+      aggregate.bytes_sent += session_stats.bytes_sent;
+      aggregate.messages_sent += session_stats.messages_sent;
+      aggregate.bytes_received += session_stats.bytes_received;
+      aggregate.messages_received += session_stats.messages_received;
+      aggregate.failed_sends += session_stats.failed_sends;
+      aggregate.dropped_messages += session_stats.dropped_messages;
+      aggregate.dropped_bytes += session_stats.dropped_bytes;
+      aggregate.backpressure_events += session_stats.backpressure_events;
+      // Retiring sessions retain cumulative totals, not live queue gauges.
+      if (sessions == &impl->sessions_) {
+        aggregate.queued_bytes += session_stats.queued_bytes;
+        aggregate.pending_bytes += session_stats.pending_bytes;
+        aggregate.backpressure_active = aggregate.backpressure_active || session_stats.backpressure_active;
+      }
+      // Peak, not a total: summing per-session peaks would report a depth no
+      // session ever reached, because the peaks need not have been simultaneous.
+      aggregate.max_queued_bytes = std::max(aggregate.max_queued_bytes, session_stats.max_queued_bytes);
+    }
   }
   return aggregate;
 }
 
 void TcpServer::reset_stats() {
   auto impl = get_impl();
-  impl->stats_.reset(0);
   std::lock_guard<std::mutex> lock(impl->sessions_mutex_);
-  for (const auto& entry : impl->sessions_) {
-    if (entry.second) entry.second->reset_stats();
+  impl->stats_.reset(0);
+  impl->closed_send_accounting_ = {};
+  for (const auto* sessions : {&impl->sessions_, &impl->retiring_sessions_}) {
+    for (const auto& entry : *sessions) {
+      if (entry.second) entry.second->reset_stats();
+    }
   }
 }
 

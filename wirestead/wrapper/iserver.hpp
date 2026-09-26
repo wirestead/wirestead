@@ -87,7 +87,10 @@ class WIRESTEAD_API ServerInterface {
    *
    * The cumulative fields (`bytes_*`, `messages_*`, `failed_sends`, `dropped_*`,
    * `backpressure_events`, `max_queued_bytes`) cover every session this server
-   * has accepted, including ones that have since disconnected. The
+   * has accepted, including ones that have since disconnected or stopped.
+   * Native TCP/UDS send_accounting also covers those contributors. During stop,
+   * retiring sessions remain in the aggregate until their final totals transfer.
+   * The
    * instantaneous fields (`queued_bytes`, `pending_bytes`,
    * `backpressure_active`) describe only the sessions that are live right now.
    *

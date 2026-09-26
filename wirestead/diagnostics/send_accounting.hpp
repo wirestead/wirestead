@@ -26,6 +26,26 @@
 
 namespace wirestead::diagnostics {
 
+// Server callers hold their session-map mutex while transferring or reading
+// contributors. Each source is a coherent ledger snapshot.
+inline void accumulate_send_accounting(wrapper::SendAccounting& total, const wrapper::SendAccounting& source) {
+  const auto add = [](wrapper::SendRequestTotals& to, const wrapper::SendRequestTotals& from) {
+    to.requests += from.requests;
+    to.bytes += from.bytes;
+  };
+  const auto loss = [&](wrapper::SendLossTotals& to, const wrapper::SendLossTotals& from) {
+    add(to.discarded_before_write, from.discarded_before_write);
+    add(to.aborted_during_write, from.aborted_during_write);
+  };
+  add(total.accepted, source.accepted);
+  add(total.written, source.written);
+  add(total.outstanding, source.outstanding);
+  loss(total.explicit_stop, source.explicit_stop);
+  loss(total.connection_loss, source.connection_loss);
+  loss(total.queue_pressure, source.queue_pressure);
+  total.confirmed_written_bytes += source.confirmed_written_bytes;
+}
+
 // Shared by admission threads and the transport executor. IDs never repeat
 // across reset; old completions cannot change a replacement measurement epoch.
 class SendAccountingLedger {

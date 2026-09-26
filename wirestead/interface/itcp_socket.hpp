@@ -62,8 +62,8 @@ class WIRESTEAD_API TcpSocketInterface {
   // proceeds exactly as it did before this existed; a TLS socket performs the
   // handshake here. Failure is the session's cue to close rather than read.
   //
-  // The handler runs on the caller's executor, not necessarily inline - bind it
-  // to the session strand the same way a read completion is bound.
+  // This std::function interface does not preserve associated executors.
+  // Callers must explicitly dispatch/post state changes onto their strand.
   virtual void async_handshake(std::function<void(const boost::system::error_code&)> handler);
 };
 

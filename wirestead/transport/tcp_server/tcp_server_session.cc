@@ -82,16 +82,18 @@ void TcpServerSession::start() {
     // No-op on a plain socket, the TLS handshake on an encrypted one. Reading
     // before it completes would hand the session ciphertext, so the first read
     // waits on it - and a failed handshake closes rather than reads.
-    self->socket_->async_handshake(net::bind_executor(self->strand_, [self](const boost::system::error_code& ec) {
-      if (self->closing_ || !self->alive_) return;
-      if (ec) {
-        WIRESTEAD_LOG_WARNING("tcp_server_session", "handshake", "Handshake failed: " + ec.message());
-        self->do_close();
-        return;
-      }
-      self->reset_idle_timer();
-      self->start_read();
-    }));
+    self->socket_->async_handshake([self](const boost::system::error_code& ec) {
+      net::dispatch(self->strand_, [self, ec] {
+        if (self->closing_ || !self->alive_) return;
+        if (ec) {
+          WIRESTEAD_LOG_WARNING("tcp_server_session", "handshake", "Handshake failed: " + ec.message());
+          self->do_close();
+          return;
+        }
+        self->reset_idle_timer();
+        self->start_read();
+      });
+    });
   });
 }
 
@@ -131,16 +133,19 @@ wrapper::SendResult TcpServerSession::write_copy(memory::ConstByteSpan data) {
         stats_.record_failed_send();
         return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
       }
+      Ledger::Admission admission(send_accounting_, size);
       stats_.record_accepted(size);
-      net::post(strand_, [self = shared_from_this(), buf = std::move(pooled_buffer)]() mutable {
-        const auto added = buf.size();
-        if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
-          queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
-          self->stats_.record_failed_send();
-          return;
-        }
-        self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
-      });
+      net::post(strand_,
+                [self = shared_from_this(), buf = std::move(pooled_buffer), request = admission.request()]() mutable {
+                  const auto added = buf.size();
+                  if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
+                    queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
+                    self->stats_.record_failed_send();
+                    return;
+                  }
+                  self->route_enqueued_buffer(TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
+                });
+      admission.commit();
       return wrapper::SendResult::accept();
     }
   }
@@ -152,16 +157,19 @@ wrapper::SendResult TcpServerSession::write_copy(memory::ConstByteSpan data) {
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   std::vector<uint8_t> fallback(data.begin(), data.end());
+  Ledger::Admission admission(send_accounting_, size);
   stats_.record_accepted(size);
 
-  net::post(strand_, [self = shared_from_this(), buf = std::move(fallback), size]() mutable {
-    if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
-      queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, size);
-      self->stats_.record_failed_send();
-      return;
-    }
-    self->route_enqueued_buffer(BufferVariant{std::move(buf)}, size);
-  });
+  net::post(strand_,
+            [self = shared_from_this(), buf = std::move(fallback), size, request = admission.request()]() mutable {
+              if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
+                queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, size);
+                self->stats_.record_failed_send();
+                return;
+              }
+              self->route_enqueued_buffer(TrackedBuffer{BufferVariant{std::move(buf)}, request}, size);
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -193,15 +201,18 @@ wrapper::SendResult TcpServerSession::write_move(std::vector<uint8_t>&& data) {
     stats_.record_failed_send();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
+  Ledger::Admission admission(send_accounting_, added);
   stats_.record_accepted(added);
-  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (!self->alive_ || self->closing_) {
-      queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
-      self->stats_.record_failed_send();
-      return;
-    }
-    self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
-  });
+  net::post(strand_,
+            [self = shared_from_this(), buf = std::move(data), added, request = admission.request()]() mutable {
+              if (!self->alive_ || self->closing_) {
+                queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
+                self->stats_.record_failed_send();
+                return;
+              }
+              self->route_enqueued_buffer(TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -233,15 +244,18 @@ wrapper::SendResult TcpServerSession::write_shared(std::shared_ptr<const std::ve
     stats_.record_failed_send();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
+  Ledger::Admission admission(send_accounting_, added);
   stats_.record_accepted(added);
-  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (!self->alive_ || self->closing_) {
-      queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
-      self->stats_.record_failed_send();
-      return;
-    }
-    self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
-  });
+  net::post(strand_,
+            [self = shared_from_this(), buf = std::move(data), added, request = admission.request()]() mutable {
+              if (!self->alive_ || self->closing_) {
+                queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
+                self->stats_.record_failed_send();
+                return;
+              }
+              self->route_enqueued_buffer(TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -296,20 +310,23 @@ wrapper::SendResult TcpServerSession::try_write_move(std::vector<uint8_t>&& data
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
+  Ledger::Admission admission(send_accounting_, added);
   stats_.record_accepted(added);
 
-  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (!self->alive_ || self->closing_) {
-      queue_util::release_reserved_write_bytes(self->queue_bytes_, added);
-      self->stats_.record_failed_send();
-      return;
-    }
+  net::post(strand_,
+            [self = shared_from_this(), buf = std::move(data), added, request = admission.request()]() mutable {
+              if (!self->alive_ || self->closing_) {
+                queue_util::release_reserved_write_bytes(self->queue_bytes_, added);
+                self->stats_.record_failed_send();
+                return;
+              }
 
-    self->tx_.emplace_back(std::move(buf));
-    self->observe_queue();
-    self->report_backpressure(self->queue_bytes_);
-    if (!self->writing_) self->do_write();
-  });
+              self->tx_.push_back(TrackedBuffer{BufferVariant{std::move(buf)}, request});
+              self->observe_queue();
+              self->report_backpressure(self->queue_bytes_);
+              if (!self->writing_) self->do_write();
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -352,20 +369,23 @@ wrapper::SendResult TcpServerSession::try_write_shared(std::shared_ptr<const std
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
+  Ledger::Admission admission(send_accounting_, added);
   stats_.record_accepted(added);
 
-  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (!self->alive_ || self->closing_) {
-      queue_util::release_reserved_write_bytes(self->queue_bytes_, added);
-      self->stats_.record_failed_send();
-      return;
-    }
+  net::post(strand_,
+            [self = shared_from_this(), buf = std::move(data), added, request = admission.request()]() mutable {
+              if (!self->alive_ || self->closing_) {
+                queue_util::release_reserved_write_bytes(self->queue_bytes_, added);
+                self->stats_.record_failed_send();
+                return;
+              }
 
-    self->tx_.emplace_back(std::move(buf));
-    self->observe_queue();
-    self->report_backpressure(self->queue_bytes_);
-    if (!self->writing_) self->do_write();
-  });
+              self->tx_.push_back(TrackedBuffer{BufferVariant{std::move(buf)}, request});
+              self->observe_queue();
+              self->report_backpressure(self->queue_bytes_);
+              if (!self->writing_) self->do_write();
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -399,6 +419,13 @@ std::optional<wrapper::SendResult> TcpServerSession::poll_write_wait() const {
   return std::nullopt;
 }
 
+void TcpServerSession::request_stop() {
+  std::lock_guard<std::mutex> lock(submission_mtx_);
+  send_accounting_.end(Ledger::Cause::ExplicitStop);
+  closing_ = true;
+  if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::CancelledWhileWaiting;
+}
+
 void TcpServerSession::cancel_write_wait() {
   std::lock_guard<std::mutex> lock(submission_mtx_);
   if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::CancelledWhileWaiting;
@@ -407,11 +434,16 @@ void TcpServerSession::cancel_write_wait() {
 bool TcpServerSession::alive() const { return alive_.load(); }
 
 wrapper::RuntimeStats TcpServerSession::stats() const {
-  return stats_.snapshot(queue_bytes_.load(std::memory_order_relaxed), pending_bytes_.load(std::memory_order_relaxed),
-                         backpressure_active_.load(std::memory_order_relaxed));
+  auto snapshot =
+      stats_.snapshot(queue_bytes_.load(std::memory_order_relaxed), pending_bytes_.load(std::memory_order_relaxed),
+                      backpressure_active_.load(std::memory_order_relaxed));
+  snapshot.send_accounting = send_accounting_.snapshot();
+  return snapshot;
 }
 
 void TcpServerSession::reset_stats() {
+  std::lock_guard<std::mutex> lock(submission_mtx_);
+  send_accounting_.reset();
   stats_.reset(queue_bytes_.load(std::memory_order_relaxed) + pending_bytes_.load(std::memory_order_relaxed));
 }
 
@@ -419,6 +451,7 @@ void TcpServerSession::stop() { async_stop({}); }
 
 void TcpServerSession::async_stop(std::function<void()> completion) {
   std::lock_guard<std::mutex> admission_lock(submission_mtx_);
+  send_accounting_.end(Ledger::Cause::ExplicitStop);
   closing_.store(true);
   if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::NotReady;
   auto self = shared_from_this();
@@ -447,69 +480,92 @@ void TcpServerSession::cancel() {
 }
 
 void TcpServerSession::start_read() {
+  if (closing_ || !alive_) return;
   auto self = shared_from_this();
   socket_->async_read_some(
-      net::buffer(rx_.data(), rx_.size()), net::bind_executor(strand_, [self](auto ec, std::size_t n) {
-        if (self->closing_ || !self->alive_) return;
-        if (ec) {
-          self->do_close();
-          return;
-        }
-        self->reset_idle_timer();
-        if (n > 0) self->stats_.record_received(n);
-        if (self->on_bytes_) {
-          try {
-            self->on_bytes_(memory::ConstByteSpan(self->rx_.data(), n));
-          } catch (const std::exception& e) {
-            WIRESTEAD_LOG_ERROR("tcp_server_session", "on_bytes",
-                                "Exception in on_bytes callback: " + std::string(e.what()));
-            self->do_close();
-            return;
-          } catch (...) {
-            WIRESTEAD_LOG_ERROR("tcp_server_session", "on_bytes", "Unknown exception in on_bytes callback");
+      net::buffer(rx_.data(), rx_.size()), [self](const boost::system::error_code& ec, std::size_t n) {
+        net::dispatch(self->strand_, [self, ec, n] {
+          if (self->closing_ || !self->alive_) return;
+          if (ec) {
             self->do_close();
             return;
           }
-        }
-        self->start_read();
-      }));
+          self->reset_idle_timer();
+          if (n > 0) self->stats_.record_received(n);
+          if (self->on_bytes_) {
+            try {
+              self->on_bytes_(memory::ConstByteSpan(self->rx_.data(), n));
+            } catch (const std::exception& e) {
+              WIRESTEAD_LOG_ERROR("tcp_server_session", "on_bytes",
+                                  "Exception in on_bytes callback: " + std::string(e.what()));
+              self->do_close();
+              return;
+            } catch (...) {
+              WIRESTEAD_LOG_ERROR("tcp_server_session", "on_bytes", "Unknown exception in on_bytes callback");
+              self->do_close();
+              return;
+            }
+          }
+          self->start_read();
+        });
+      });
 }
 
 void TcpServerSession::do_write() {
-  if (tx_.empty()) {
-    writing_ = false;
-    return;
-  }
+  // Serialize the actual handoff with stop, not only the enqueue handler.
+  std::unique_lock<std::mutex> lock(submission_mtx_);
+  if (closing_ || !alive_ || tx_.empty() || writing_) return;
   writing_ = true;
+  const size_t bytes_to_write = queue_util::take_gather_batch(tx_, current_write_batch_, current_write_views_, payload);
+  for (const auto& item : current_write_batch_) send_accounting_.begin(item.request);
   auto self = shared_from_this();
-
-  // Drain several queued buffers into one scatter-gather write rather than one
-  // send syscall per message. The batch and its views stay alive for the whole
-  // operation because `writing_` keeps do_write() from re-entering.
-  queue_util::take_gather_batch(tx_, current_write_batch_, current_write_views_);
-
-  auto on_write = [self](const boost::system::error_code& ec, std::size_t n) {
-    // Release the buffers immediately
-    self->current_write_batch_.clear();
-
-    if (self->closing_ || !self->alive_) return;
-    if (self->queue_bytes_ >= n) {
-      self->queue_bytes_ -= n;
-    } else {
-      self->queue_bytes_ = 0;
-    }
-    self->report_backpressure(self->queue_bytes_);
-
-    if (ec) {
-      self->do_close();
-      return;
-    }
-    self->stats_.record_sent(n);
-    self->reset_idle_timer();
-    self->do_write();
-  };
-
-  socket_->async_write(current_write_views_, net::bind_executor(strand_, on_write));
+  try {
+    socket_->async_write(current_write_views_, [self, bytes_to_write](const boost::system::error_code& ec, size_t n) {
+      // The interface erases associated executors. Post explicitly, including
+      // for endpoints that complete inline while initiation holds the lock.
+      net::post(self->strand_, [self, bytes_to_write, ec, n] {
+        const bool failed = ec || n != bytes_to_write;
+        {
+          std::lock_guard<std::mutex> completion_lock(self->submission_mtx_);
+          if (self->closing_ || !self->alive_) {
+            self->current_write_batch_.clear();
+            return;
+          }
+          size_t remaining = std::min(n, bytes_to_write);
+          for (const auto& item : self->current_write_batch_) {
+            const auto size = std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
+            const auto confirmed = std::min(remaining, size);
+            self->send_accounting_.complete(item.request, confirmed);
+            remaining -= confirmed;
+          }
+          self->current_write_batch_.clear();
+          if (failed) {
+            self->send_accounting_.end(Ledger::Cause::ConnectionLoss);
+            self->closing_ = true;
+            if (!self->wait_ended_by_) self->wait_ended_by_ = wrapper::SendRejection::NotReady;
+          }
+        }
+        if (failed) {
+          self->do_close();
+          return;
+        }
+        queue_util::release_reserved_write_bytes(self->queue_bytes_, bytes_to_write);
+        self->stats_.record_sent(n);
+        // Keep writing_ set while callbacks move pending data or enqueue writes.
+        self->report_backpressure(self->queue_bytes_);
+        self->writing_ = false;
+        if (self->closing_ || !self->alive_) return;
+        self->reset_idle_timer();
+        self->do_write();
+      });
+    });
+  } catch (...) {
+    send_accounting_.end(Ledger::Cause::ConnectionLoss);
+    closing_ = true;
+    if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::NotReady;
+    lock.unlock();
+    do_close();
+  }
 }
 
 void TcpServerSession::do_close() {
@@ -517,6 +573,7 @@ void TcpServerSession::do_close() {
 
   {
     std::lock_guard<std::mutex> lock(submission_mtx_);
+    send_accounting_.end(Ledger::Cause::ConnectionLoss);
     if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::NotReady;
     alive_.store(false);
     closing_.store(true);
@@ -568,13 +625,16 @@ queue_util::BackpressureFields TcpServerSession::bp_fields() {
                                         bp_low_,      bp_limit_,      bp_strategy_};
 }
 
-void TcpServerSession::route_enqueued_buffer(BufferVariant&& buf, size_t added) {
+void TcpServerSession::route_enqueued_buffer(TrackedBuffer&& buf, size_t added) {
   auto f = bp_fields();
   queue_util::DropAccounting dropped;
-  auto decision = queue_util::decide_enqueue(f, added, tx_, dropped);
+  auto decision = queue_util::decide_enqueue(f, added, tx_, dropped, payload, [this](const TrackedBuffer& item) {
+    send_accounting_.discard(item.request, Ledger::Cause::QueuePressure);
+  });
   if (dropped.any()) stats_.record_dropped(dropped.messages, dropped.bytes);
 
   if (decision == queue_util::EnqueueDecision::Rejected) {
+    send_accounting_.discard(buf.request, Ledger::Cause::QueuePressure);
     WIRESTEAD_LOG_ERROR("tcp_server_session", "write", "Queue limit exceeded, dropping message");
     // #448: record as dropped so it's reflected in RuntimeStats instead of
     // silently vanishing after being counted as accepted.

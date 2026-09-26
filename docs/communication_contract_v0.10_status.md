@@ -13,14 +13,15 @@ and the additional draft clauses in the section inventory below. A rule not
 proved by a targeted test is not promoted to verified simply because a whole
 suite passes. No Proposed/Open rule is silently made Decided by this report.
 
-## Client and socket accounting follow-up
+## Transport and session accounting follow-up
 
 The built-in TCP/UDS clients and Serial now implement optional logical-request accounting:
 [API, epoch semantics and evidence](tcp_send_accounting.md). Its stop/loss/
 queue-pressure discards and active aborts are separate, with exactly-once
 termination and gather-prefix attribution. [UDP socket accounting](udp_send_accounting.md)
 now also covers default-peer and explicit-destination datagrams. TCP/UDS server
-aggregation, UDP virtual-session totals and expiry remain incomplete.
+sessions and aggregation now have the same ledger, exactly-once retirement and
+reset handling. UDP virtual-session totals and expiry remain incomplete.
 TCP implementation baseline validation: 1,957 full-suite cases discovered (1,945 passed, 12 existing UDP
 skips); all 71 new accounting cases passed 100 repeats each and AddressSanitizer
 with leak detection. The installed shared-library consumer smoke also passed.
@@ -54,7 +55,7 @@ Paths below are relative to the repository. Evidence groups:
 | Fanout | [TCP](../wirestead/transport/tcp_server/tcp_server.cc), [UDS](../wirestead/transport/uds/uds_server.cc) broadcast_result; [UDP](../wirestead/wrapper/udp/udp_server.cc) try_broadcast | test_server_broadcast_contract.cc, test_server_broadcast_slow_consumer_contract.cc |
 | Ownership | Native four-client admission paths, TCP/UDS sessions; [context copies](../wirestead/wrapper/context.hpp); UDS server move adapters | test_send_buffer_apis.cc, test_connection_channel.cc, test_send_result.cc, test_message_context.cc; UdsMoveOwnershipTest added here |
 | Queue policy | All six native queue-routing implementations call [decide_enqueue](../wirestead/transport/base/bp_state_machine.hpp); [keep-latest helper](../wirestead/transport/base/bp_utils.hpp) | BpStateMachineTest.BestEffortTrimsOldestEntriesToFitNewBuffer / BestEffortDropsEverythingWhenNewBufferAloneExceedsHigh; bounded retry tests |
-| Statistics | [RuntimeStats](../wirestead/wrapper/runtime_stats.hpp), [counter implementation](../wirestead/diagnostics/runtime_stats_counter.hpp); each native cleanup/write-completion path | Legacy counter tests plus test_send_accounting.cc and test_tcp_send_accounting.cc, transport_stream_send_accounting.cc and test_udp_send_accounting.cc; discard/abort accounting is established for TCP/UDS clients, Serial and UDP sockets |
+| Statistics | [RuntimeStats](../wirestead/wrapper/runtime_stats.hpp), [counter implementation](../wirestead/diagnostics/runtime_stats_counter.hpp); each native cleanup/write-completion path | Legacy counter tests plus test_send_accounting.cc and test_tcp_send_accounting.cc, transport_stream_send_accounting.cc and test_udp_send_accounting.cc, transport_session_send_accounting.cc and test_server_send_accounting.cc; discard/abort accounting covers TCP/UDS clients and server sessions/aggregates, Serial and UDP sockets |
 | Events | TCP/UDS/serial retry transitions; each wrapper on_state; UDP server run_reaper | Lifecycle/reconnect tests exercise current behavior, not the proposed unified event contract |
 
 Full file names are searchable under test/unit and test/integration; the
@@ -68,7 +69,7 @@ implementation symbols above describe the specific decision being assessed.
 | UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Same queue/retry/executor gaps; retried loss can report on_error |
 | UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Same queue/retry/executor gaps; batch timer uses the raw io_context executor |
 | Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Same queue/retry/executor gaps; recovered loss notification; physical-device validation remains separate |
-| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Explicit blocking queue policy, retries/executor waiting, session connect/batch ordering, session cleanup counters |
+| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Explicit blocking queue policy, retries/executor waiting, session connect/batch ordering |
 | UDS server | Same public guarantees; native move rejection fixed here | Same server gaps; legacy native bool fanout is distinct from public FanoutResult |
 | UDP server | D-1/D-2, endpoint/run-pinned targeted sends, fixed virtual-target traversal | Shared socket accounting rather than per-session counters; expiry only ends wait records, not queued datagrams for that endpoint; timer/receive serialization and expiry event policy |
 
@@ -104,7 +105,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | C-3.6-4 | Covered: zero targets distinct | empty() is true, counts zero; bool alone intentionally cannot distinguish it from all-rejected |
 | C-3.6-5 | Partial: TCP/UDS session statistics; gap for UDP virtual sessions | UDP server only forwards channel stats and inherits ServerInterface::client_stats returning nullopt |
 | C-3.7-1 | Covered for C++ wrappers; explicit compatibility boundary elsewhere | SendResult/FanoutResult replace public bool; low-level bool adapters remain. Python PR #72 deliberately retains bool |
-| C-3.8-1 | Partial: all four native client transports implemented; server-session gaps remain | Optional SendAccounting distinguishes stages/causes on TCP/UDS clients, Serial and the UDP socket; TCP/UDS server aggregation and per-session UDP accounting remain unsupported |
+| C-3.8-1 | Partial: native clients and TCP/UDS server sessions/aggregates implemented | Optional SendAccounting distinguishes stages/causes, with exactly-once retirement and reset epochs; per-session UDP accounting remains unsupported |
 | C-5.1-1 | Partial: native TCP/UDS/Serial client strands; UDP batch callbacks not proven serialized | UDP get_executor returns raw io_context; its batch timer is not bound to transport strand. Multi-thread timer/receive overlap needs a regression |
 | C-5.1-2a | Covered for TCP/UDS session receive/backpressure/close paths | Session strand bindings; this does not establish connect/batch serialization |
 | C-5.1-2b | Open evidence: TCP/UDS all callbacks attributed to a session | Connect runs on accept path, batches use a server-level path; need multi-thread overlap probes |
@@ -118,7 +119,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | C-5.4-4 | Covered: blocking send from any wrapper callback refuses waiting | D-2 guards all callback kinds and nested/cross-channel callbacks |
 | C-5.4-5 | Gap against proposal: ordinary tasks on the required executor can wait | Blocking-send loops check callback depth, unlike shutdown_needs_this_thread; no general executor admission guard |
 | C-5.5-1 | Covered for native concurrent send admission | Wrapper shared locks plus native submission/reservation locks |
-| C-5.5-2 | Partial: all four native client transports now have a separate post-admission ledger | Legacy failed_sends semantics remain; TCP/UDS server sessions and per-session UDP totals still lack logical-request accounting |
+| C-5.5-2 | Partial: native clients and TCP/UDS server sessions have a separate post-admission ledger | Legacy failed_sends semantics remain; per-session UDP totals still lack logical-request accounting |
 | C-5.5-3 | Covered: cancellation while waiting | Admission tests check CancelledWhileWaiting and first-cause retention |
 | C-5.5-4 | Covered: observational stats | Legacy fields remain independent atomics; the optional stream-client ledger is a separately consistent snapshot, not atomic with legacy fields |
 | C-6.1-1 | Covered for TCP/UDS/Serial no replay; partial for wider event table | Queues and active batches fenced by connection generation. UDP expiry does not purge queued endpoint datagrams |
@@ -128,7 +129,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | C-6.1-3 | Partial: server session close event; client event policy differs | TCP/Serial retries can skip on_disconnect; UDS retry passes through Error; plain UDP has no peer loss |
 | C-6.1-4 | Partial: terminal error paths exist, unified event semantics open | Retry-exhaustion tests cover current transitions, not exactly-once terminal-event contract across all failures |
 | C-6.1-5 | Covered for restart state tested under D-1 | Handlers/config retained, new run resets stats; does not establish arbitrary live-setter safety |
-| C-6.1-6 | Covered for current TCP/UDS counters; incomplete new telemetry | Session erase absorbs totals; UDP per-session totals and future discard/abort counters are absent |
+| C-6.1-6 | Covered for TCP/UDS counters and logical-request accounting | Disconnect/stop transfer totals exactly once; retiring sessions participate in reset. UDP per-session totals remain absent |
 | C-6.1-7 | Open policy and implementation gap: UDP expiry | run_reaper removes endpoint/wait and invokes on_disconnect; distinct expiry notification and queued endpoint cancellation absent |
 | C-6.2-1 | Covered for public wrapper stop callback suppression | Callback gate closes before teardown; direct transport callbacks are a separate boundary |
 | C-6.3-1 | Gap against proposed unified events | UDS retry can invoke on_error; TCP/Serial retry can be silent. A result type does not repair event semantics |
@@ -150,7 +151,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | 5.6 / 5.7: executors and nonreturning handlers | D-1 handles owned/external executors with progress preconditions; cannot promise bounded stop when a user callback never returns |
 | 5.8: callback exceptions | Wrapper invoke_user_callback catches/logs standard and unknown exceptions; no recursive on_error forwarding. Direct native callbacks have transport-specific policies; no single finalized exception policy |
 | 6.1: retry exhaustion/restart | Current lifecycle tests cover restart after stop. Whether any other restart transition is supported must be stated in the final contract |
-| 6.1: cause-separated cleanup statistics | TCP/UDS clients, Serial and UDP sockets distinguish explicit stop, loss and queue pressure. UDP loss means local socket error; server-session/expiry accounting remains missing |
+| 6.1: cause-separated cleanup statistics | TCP/UDS clients and server sessions/aggregates, Serial and UDP sockets distinguish explicit stop, loss and queue pressure. UDP loss means local socket error; UDP per-session/expiry accounting remains missing |
 | 6.2 / 6.3 / 7: event versus error versus send refusal | Wrapper structured send refusals are implemented; global event taxonomy and configuration error policy are still open |
 | 7: configuration validation | Different paths throw, clamp or fail start; exception/result and build/start timing need a documented choice |
 | Python | Bool compatibility with old/new core is verified by PR #72; rich result exposure is optional new API work, not an unfinished bool adapter |
@@ -158,13 +159,11 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 
 ## Completion gates and next work
 
-1. **Post-acceptance accounting (required Decided gap):** extend the implemented
-   client/socket ledgers to server sessions and aggregation; track
-   request identity from caller-thread admission through pending post, queued
-   storage, active gather batch and terminal cleanup. Publish separate
-   discarded-before-write and aborted-during-write counts with stop/loss/expiry
-   causes. Tests must prove exactly-once accounting across stale completions,
-   partial writes, reset/restart and session aggregation.
+1. **Remaining accounting:** TCP/UDS client/session and Serial/UDP socket
+   ledgers now track logical requests, gather prefixes, terminal causes and reset
+   epochs. TCP/UDS aggregates retain closed/retiring contributors exactly once.
+   Per-virtual-session UDP accounting and expiry attribution remain to be
+   specified and implemented; socket-wide totals cannot substitute for them.
 2. **Queue semantics:** choose removal of implicit keep-latest from explicit
    blocking sends, or an explicitly scoped opt-in policy; decide the five-attempt
    bound instead of claiming unconditional Reliable waiting.
@@ -177,7 +176,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
    exception/configuration policy, migration docs and satellite release pins.
 
 See [the accounting/event implementation proposal](post_acceptance_policy_v0.10.md)
-for a concrete design and acceptance scenarios. TCP/UDS/Serial and UDP socket accounting are now implemented as documented above; the remaining
+for a concrete design and acceptance scenarios. TCP/UDS client/session and Serial/UDP socket accounting are implemented as documented above; the remaining
 transport/event proposals are not implemented or silently approved.
 
 ## Validation for this review
