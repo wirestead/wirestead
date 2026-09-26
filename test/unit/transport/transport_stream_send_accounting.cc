@@ -376,7 +376,7 @@ TEST_P(StreamSendAccountingTest, RejectionDoesNotCreateAcceptedRequest) {
   EXPECT_EQ(stats().queue_pressure.discarded_before_write.requests, 0u);
   expect_conserved();
 }
-TEST_P(StreamSendAccountingTest, KeepLatestOnlyDiscardsRemovedQueueEntries) {
+TEST_P(StreamSendAccountingTest, BestEffortPreservesEveryAcceptedQueueEntry) {
   ASSERT_TRUE(connect(true));
   ASSERT_TRUE(send(800));
   drain();
@@ -387,7 +387,9 @@ TEST_P(StreamSendAccountingTest, KeepLatestOnlyDiscardsRemovedQueueEntries) {
   ASSERT_TRUE(client->async_write_move(std::vector<uint8_t>(400)));
   drain();
   const auto s = stats();
-  EXPECT_GT(s.queue_pressure.discarded_before_write.requests, 0u);
+  EXPECT_EQ(s.queue_pressure.discarded_before_write.requests, 0u);
+  EXPECT_EQ(s.outstanding.requests, 4u);
+  EXPECT_EQ(s.outstanding.bytes, 2000u);
   EXPECT_EQ(s.queue_pressure.aborted_during_write.requests, 0u);
   EXPECT_EQ(s.connection_loss.aborted_during_write.requests, 0u);
   expect_conserved();

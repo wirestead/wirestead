@@ -56,6 +56,18 @@ inline bool try_reserve_write_bytes(std::atomic<size_t>& queue_bytes, const std:
   }
 }
 
+// Nonblocking admission shares the plain-write reservation lock and includes
+// accepted posts that have not reached the executor yet.
+inline bool try_reserve_write_bytes(std::mutex& mutex, const std::atomic<size_t>& inflight_bytes,
+                                    std::atomic<size_t>& queue_bytes, const std::atomic<size_t>& pending_bytes,
+                                    const std::atomic<bool>& backpressure_active, size_t bytes, size_t bp_high,
+                                    size_t bp_limit) {
+  std::lock_guard<std::mutex> lock(mutex);
+  const size_t inflight = inflight_bytes.load(std::memory_order_relaxed);
+  if (inflight > bp_limit) return false;
+  return try_reserve_write_bytes(queue_bytes, pending_bytes, backpressure_active, bytes, bp_high, bp_limit - inflight);
+}
+
 inline void release_reserved_write_bytes(std::atomic<size_t>& queue_bytes, size_t bytes) {
   size_t current = queue_bytes.load(std::memory_order_relaxed);
   for (;;) {
@@ -128,15 +140,8 @@ inline void commit_reserved_limit_bytes(std::mutex& mtx, std::atomic<size_t>& co
   inflight_bytes.store(current > bytes ? current - bytes : 0, std::memory_order_relaxed);
 }
 
-// Locked increment for the rare plain-write path that skips
-// try_reserve_limit_bytes() entirely (tcp_client's BestEffort fallback,
-// which - unlike every other transport's plain path - has no precheck at
-// all, matching its pre-existing behavior). Still must go through the same
-// `mtx` as try_reserve_limit_bytes()/commit_reserved_limit_bytes() for this
-// transport instance: an increment landing outside the lock could let a
-// concurrent Reliable reservation's already-approved check get silently
-// invalidated by bytes it never accounted for, reopening the same race for
-// Reliable messages that this whole reservation scheme exists to close.
+// Legacy locked increment utility. Built-in plain writes now always reserve
+// capacity and use commit_reserved_limit_bytes() instead.
 inline void commit_unreserved_limit_bytes(std::mutex& mtx, std::atomic<size_t>& counter, size_t bytes) {
   std::lock_guard<std::mutex> lock(mtx);
   counter.fetch_add(bytes, std::memory_order_relaxed);
@@ -162,11 +167,8 @@ inline size_t variant_buffer_size(const T& buf) {
 // all ready at once. Draining several into one scatter-gather write collapses
 // those into one.
 //
-// Caps on how much of tx_ a single gather write may take. These matter for
-// BestEffort: buffers moved into the in-flight batch have left tx_ and can no
-// longer be dropped by maybe_flush_for_keep_latest(), so an unbounded batch
-// would let stale data survive a keep-latest trim that was supposed to discard
-// it. They also bound how much gets re-queued when a write fails.
+// Caps on how much of tx_ a single gather write may take. These bound the
+// active batch and the work re-queued when a write fails.
 // 16, not an arbitrary round number: asio fills at most 16 buffers per
 // prepared_buffers (detail/consuming_buffers.hpp, max_buffers), which is also
 // the iovec count a single sendmsg gets. Staying at or under it keeps each

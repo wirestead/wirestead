@@ -17,14 +17,14 @@ cause groups:
 | --- | --- | --- |
 | explicit_stop | Accepted but not handed to local I/O when stop takes effect | Handed to local I/O but not completed when stop takes effect |
 | connection_loss | Same distinction at connection loss | Same distinction at connection loss |
-| queue_pressure | Accepted request removed by existing keep-latest/queue routing | Zero for current stream routing; active writes are not trimmed |
+| queue_pressure | Defensive post-admission hard-limit rejection; zero under fixed-limit reserved admission | Zero for current stream routing; active writes are not trimmed |
 | session_expiry | UDP virtual-session waiting work only; zero for stream transports | Zero; UDP active work retains its actual outcome |
 
 Each group is a SendLossTotals with discarded_before_write and
 aborted_during_write members. Rejected admissions do not contribute to these
 totals. Ordinary BestEffort try refusal therefore differs from the existing
-plain-write keep-latest disposal; this change does not adopt that queue policy
-as the final v0.10 policy.
+legacy plain-write BestEffort queue preservation. [The selected queue policy](blocking_queue_policy.md)
+now preserves accepted writes under both strategies.
 
 The request's acceptance result never changes. There is no per-request error
 callback. Written means local completion, not peer receipt or processing.
@@ -90,7 +90,7 @@ semantics. Python's existing bound statistics/API are not extended here.
 Ledger unit tests cover partial gather prefixes, terminal races, first cause, reset
 epochs, replacement-connection identity, rollback and unsupported capability. TCP loopback tests cover every
 admission family, stop before enqueue, stop after handoff with late completion,
-gather request counts, real peer loss, reset, rejected inputs, keep-latest versus
+gather request counts, real peer loss, reset, rejected inputs, queue preservation versus
 try refusal, and injected initiation failure.
 
 UDS/Serial controlled-interface tests cover seven input families on each
@@ -98,7 +98,7 @@ transport: pooled/fallback copy, move, shared and all three try variants.
 They verify pre-enqueue stop, active versus queued loss, partial gather prefix,
 inline interface completion, initiation exceptions, reset before enqueue and
 during I/O, stale completions after reconnect, write EOF/short completion,
-rejected admission and keep-latest disposal. These tests do not require a
+rejected admission and BestEffort queue preservation. These tests do not require a
 physical serial device. Existing real-I/O tests remain regression coverage.
 
 UDS/Serial write completions are posted to the transport strand even if an

@@ -163,7 +163,7 @@ TEST(TransportTcpServerSessionTest, SharedWriteRespectsQueueLimit) {
   EXPECT_TRUE(session->alive());
 }
 
-TEST(TransportTcpServerSessionTest, BestEffortDropStatsExcludeInFlightWrite) {
+TEST(TransportTcpServerSessionTest, BestEffortPreservesAcceptedWritesUnderPressure) {
   net::io_context ioc;
   auto work = net::make_work_guard(ioc);
   size_t bp_threshold = 1024;
@@ -187,8 +187,8 @@ TEST(TransportTcpServerSessionTest, BestEffortDropStatsExcludeInFlightWrite) {
   EXPECT_EQ(stats.messages_accepted, 3u);
   EXPECT_EQ(stats.bytes_accepted, payload.size() * 3);
   EXPECT_EQ(stats.failed_sends, 0u);
-  EXPECT_EQ(stats.dropped_messages, 1u);
-  EXPECT_EQ(stats.dropped_bytes, payload.size());
+  EXPECT_EQ(stats.dropped_messages, 0u);
+  EXPECT_EQ(stats.dropped_bytes, 0u);
 }
 
 TEST(TransportTcpServerSessionTest, BackpressureReliefAfterDrain) {

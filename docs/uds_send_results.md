@@ -27,7 +27,7 @@ submission mutex. Internal result hooks run after the admission locks release.
 Explicit try forms return internal WouldBlock for insufficient capacity.
 Ordinary BestEffort wrapper forms map that refusal to QueueFull. Reliable
 and explicit blocking forms retry only transient native WouldBlock, at most
-five times. Callback scopes never enter a capacity wait or retry after refusal.
+without an attempt limit. Callback scopes never enter a capacity wait or retry after refusal.
 
 Each successful native connection owns a wait record. Stop selects
 CancelledWhileWaiting; connection loss selects NotReady. The first event
@@ -67,7 +67,7 @@ targeted sends and fanout aggregation remain separate work.
 ## Verification
 
 Tests cover wrapper validation/state/capacity precedence, all send forms,
-callback refusals, bounded retries, stop/loss ordering, reconnection with both
+callback refusals, unbounded capacity retries, stop/loss ordering, reconnection with both
 free and pressured capacity, final-admission loss, and delayed old completions.
 The delayed socket tests borrow actual gather views, cover all six native forms
 with pooling on/off and both strategies, and check drop/sent/queue accounting.

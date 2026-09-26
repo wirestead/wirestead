@@ -113,5 +113,5 @@ connection-pinned wait/admission implementations.
 ResultChannel tests cover all six forms and native admission counters.
 ConnectionChannel tests now inspect public returned results across all four
 wrappers and three ownership forms, including deterministic stop/loss/restart,
-replacement after capacity release, bounded retries, callback refusal,
+replacement after capacity release, unbounded capacity retries, callback refusal,
 validation, explicit try and BestEffort behavior.

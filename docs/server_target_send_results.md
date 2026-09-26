@@ -46,7 +46,7 @@ Reliable send_to/send_to_line and explicit send_to_blocking now keep a single
 internal result across validation, waiting and final native admission.
 Validation precedes lifecycle and capacity, and includes the line delimiter
 and target hard queue limit. A callback scope never waits for capacity or
-retries after refusal. Only native WouldBlock is retried, at most five times;
+retries after refusal. Only native WouldBlock is retried, without an attempt limit;
 a terminal rejection is returned immediately.
 
 A send retains the exact selected session and wrapper generation at entry.
@@ -93,7 +93,7 @@ the sender at wait entry, selected release or final native admission. They
 cover connection loss before stop, native/wrapper stop before restart,
 replacement peers, capacity release before stop/restart, callback refusal and
 late loss at final admission. Replacement-session accepted counters stay zero.
-Separate tests check five-attempt capacity retries, single callback attempts,
+Separate tests check capacity retries beyond five attempts, single callback attempts,
 and validation before waiting without incrementing native counters.
 
 

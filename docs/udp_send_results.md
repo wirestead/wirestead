@@ -24,7 +24,7 @@ including when its injected native channel is already ready.
 Native entry points retain typed validation, lifecycle and capacity decisions
 under the submission mutex. Explicit try forms report WouldBlock for pressure.
 Ordinary BestEffort wrapper forms map capacity refusal to QueueFull. Reliable
-and explicit blocking forms retry only transient WouldBlock, at most five times.
+and explicit blocking forms retry only transient WouldBlock, without an attempt limit.
 Callback scopes never enter a capacity wait or retry after a capacity refusal.
 
 ## Wait identity and terminal causes

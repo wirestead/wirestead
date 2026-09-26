@@ -248,14 +248,16 @@ TEST_P(UdpSendAccountingTest, RejectedInputsDoNotBecomeAcceptedLoss) {
   EXPECT_EQ(stats().queue_pressure.discarded_before_write.requests, 0u);
   conserved();
 }
-TEST_P(UdpSendAccountingTest, KeepLatestDisposesOnlyQueuedDatagrams) {
+TEST_P(UdpSendAccountingTest, BestEffortPreservesAllAcceptedDatagrams) {
   ASSERT_TRUE(open(true));
   ASSERT_TRUE(send(800));
   std::vector<uint8_t> b(400);
   for (int i = 0; i != 3; ++i)
     ASSERT_TRUE(channel->async_write_to(memory::ConstByteSpan(b.data(), b.size()), peer.local_endpoint()));
   ASSERT_TRUE(pump([&] { return stats().outstanding.requests == 0; }));
-  EXPECT_GT(stats().queue_pressure.discarded_before_write.requests, 0u);
+  EXPECT_EQ(stats().queue_pressure.discarded_before_write.requests, 0u);
+  EXPECT_EQ(stats().written.requests, 4u);
+  EXPECT_EQ(stats().written.bytes, 2000u);
   EXPECT_EQ(stats().queue_pressure.aborted_during_write.requests, 0u);
   EXPECT_EQ(stats().connection_loss.aborted_during_write.requests, 0u);
   conserved();
@@ -381,6 +383,44 @@ class UdpSessionAccountingTest : public ::testing::TestWithParam<int> {
     if (server) stop();
   }
 };
+
+TEST_P(UdpSessionAccountingTest, BestEffortBlockingPreservesEveryAcceptedDatagram) {
+  ASSERT_TRUE(open(true));
+  a = connect(first);
+  ASSERT_NE(a, 0u);
+  channel->set_backpressure_strategy(base::constants::BackpressureStrategy::BestEffort);
+  ASSERT_TRUE(server->send_to_blocking(a, std::string(800, 'a')));
+  for (int i = 0; i < 3; ++i) ASSERT_TRUE(server->send_to_blocking(a, std::string(400, 'b')));
+  settle();
+  EXPECT_EQ(peer(a).accepted.requests, 4u);
+  EXPECT_EQ(peer(a).written.requests, 4u);
+  EXPECT_EQ(peer(a).written.bytes, 2000u);
+  EXPECT_EQ(peer(a).queue_pressure.discarded_before_write.requests, 0u);
+}
+
+TEST_P(UdpSessionAccountingTest, BlockingCapacityRetriesBeyondFiveAndStopReleasesSender) {
+  ASSERT_TRUE(open(true));
+  a = connect(first);
+  ASSERT_NE(a, 0u);
+  ASSERT_TRUE(server->send_to_blocking(a, std::string(*channel->write_queue_limit(), 'f')));
+  const auto failures = channel->stats().failed_sends;
+  auto sender = std::async(std::launch::async, [&] { return server->send_to_blocking(a, "abc"); });
+  const auto deadline = std::chrono::steady_clock::now() + 5s;
+  while (channel->stats().failed_sends < failures + 12 && std::chrono::steady_clock::now() < deadline)
+    std::this_thread::sleep_for(1ms);
+  const bool retried = channel->stats().failed_sends >= failures + 12;
+  auto stopper = std::async(std::launch::async, [&] { server->stop(); });
+  const bool released = sender.wait_for(5s) == std::future_status::ready;
+  EXPECT_TRUE(pump([&] { return stopper.wait_for(0ms) == std::future_status::ready; }));
+  stopper.get();
+  ASSERT_TRUE(released);
+  EXPECT_TRUE(retried);
+  const auto result = sender.get();
+  EXPECT_FALSE(result.accepted());
+  EXPECT_TRUE(result.reason() == wrapper::SendRejection::CancelledWhileWaiting ||
+              result.reason() == wrapper::SendRejection::Stopping);
+}
+
 TEST_P(UdpSessionAccountingTest, PeerTotalsAndBroadcastCountEachAcceptedTargetOnce) {
   ASSERT_TRUE(open());
   a = connect(first);

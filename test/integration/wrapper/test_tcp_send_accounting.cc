@@ -233,7 +233,7 @@ TEST_P(TcpSendAccountingTest, PeerLossAbortsActiveAndDiscardsQueuedRequests) {
   EXPECT_EQ(s.explicit_stop.discarded_before_write.requests, 0u);
 }
 
-TEST_P(TcpSendAccountingTest, KeepLatestLossExcludesRejectedTryAdmission) {
+TEST_P(TcpSendAccountingTest, BestEffortPreservesAcceptedWorkAndRejectsTryAdmission) {
   ASSERT_TRUE(connect(true));
   after_write_start = [&] {
     after_write_start = {};
@@ -246,12 +246,12 @@ TEST_P(TcpSendAccountingTest, KeepLatestLossExcludesRejectedTryAdmission) {
     EXPECT_TRUE(client->async_write_move(std::vector<uint8_t>(512, 2)));
     EXPECT_TRUE(client->async_write_move(std::vector<uint8_t>(600, 3)));
   });
-  ASSERT_TRUE(pump([&] { return stats().written.requests == 2; }));
+  ASSERT_TRUE(pump([&] { return stats().written.requests == 3; }));
   const auto s = stats();
   EXPECT_EQ(s.accepted.requests, 3u);
-  EXPECT_EQ(s.queue_pressure.discarded_before_write.requests, 1u);
-  EXPECT_EQ(s.queue_pressure.discarded_before_write.bytes, 512u);
-  EXPECT_EQ(s.written.bytes, 1624u);
+  EXPECT_EQ(s.queue_pressure.discarded_before_write.requests, 0u);
+  EXPECT_EQ(s.queue_pressure.discarded_before_write.bytes, 0u);
+  EXPECT_EQ(s.written.bytes, 2136u);
   EXPECT_EQ(s.outstanding.requests, 0u);
   EXPECT_EQ(s.queue_pressure.aborted_during_write.requests, 0u);
 }

@@ -499,7 +499,8 @@ struct UdpChannel::Impl {
                                           bp_high_,
                                           bp_low_,
                                           bp_limit_,
-                                          bp_strategy_.load(std::memory_order_relaxed)};
+                                          bp_strategy_.load(std::memory_order_relaxed),
+                                          &write_reserve_mtx_};
   }
 
   // Drops all queued (tx_) and pending (pending_, reliable-mode overflow) writes and clears
@@ -1331,8 +1332,9 @@ wrapper::SendResult UdpChannel::try_write_move(std::vector<uint8_t>&& data, std:
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  if (!queue_util::try_reserve_write_bytes(impl->queue_bytes_, impl->pending_bytes_, impl->backpressure_active_, size,
-                                           impl->bp_high_, impl->bp_limit_)) {
+  if (!queue_util::try_reserve_write_bytes(impl->write_reserve_mtx_, impl->inflight_bytes_, impl->queue_bytes_,
+                                           impl->pending_bytes_, impl->backpressure_active_, size, impl->bp_high_,
+                                           impl->bp_limit_)) {
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
@@ -1395,8 +1397,9 @@ wrapper::SendResult UdpChannel::try_write_shared(std::shared_ptr<const std::vect
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  if (!queue_util::try_reserve_write_bytes(impl->queue_bytes_, impl->pending_bytes_, impl->backpressure_active_, size,
-                                           impl->bp_high_, impl->bp_limit_)) {
+  if (!queue_util::try_reserve_write_bytes(impl->write_reserve_mtx_, impl->inflight_bytes_, impl->queue_bytes_,
+                                           impl->pending_bytes_, impl->backpressure_active_, size, impl->bp_high_,
+                                           impl->bp_limit_)) {
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
@@ -1576,8 +1579,9 @@ wrapper::SendResult UdpChannel::try_write_to(memory::ConstByteSpan data,
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  if (!queue_util::try_reserve_write_bytes(impl->queue_bytes_, impl->pending_bytes_, impl->backpressure_active_, size,
-                                           impl->bp_high_, impl->bp_limit_)) {
+  if (!queue_util::try_reserve_write_bytes(impl->write_reserve_mtx_, impl->inflight_bytes_, impl->queue_bytes_,
+                                           impl->pending_bytes_, impl->backpressure_active_, size, impl->bp_high_,
+                                           impl->bp_limit_)) {
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }

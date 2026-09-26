@@ -801,16 +801,21 @@ TEST_P(TcpServerTargetResultTest, CombinesValidationLifecycleAndSessionAdmission
   else
     ASSERT_TRUE(native->try_send_to_client(id, std::string(fill, 'f')));
   const auto failures_before = native->stats().failed_sends;
-  EXPECT_FALSE(write("full"));
-  reason(GetParam() >= 2 && GetParam() < 4 ? Rejection::QueueFull : Rejection::WouldBlock);
+  {
+    // A paused executor cannot free this reservation. Callback callers must
+    // refuse immediately; independent tests cover unbounded retries and stop.
+    wrapper::detail::CallbackGuard callback;
+    EXPECT_FALSE(write("full"));
+    reason(GetParam() >= 2 && GetParam() < 4 ? Rejection::QueueFull : Rejection::WouldBlock);
+  }
   if (reliable_form) {
-    EXPECT_EQ(native->stats().failed_sends, failures_before + 5);
+    EXPECT_EQ(native->stats().failed_sends, failures_before + 1);
     {
       wrapper::detail::CallbackGuard callback;
       EXPECT_FALSE(write("callback"));
       reason(Rejection::WouldBlock);
     }
-    EXPECT_EQ(native->stats().failed_sends, failures_before + 6);
+    EXPECT_EQ(native->stats().failed_sends, failures_before + 2);
     const auto failures = native->stats().failed_sends;
     EXPECT_FALSE(write(std::string(*native->write_queue_limit(id) + 1, 'x')));
     reason(Rejection::TooLarge);

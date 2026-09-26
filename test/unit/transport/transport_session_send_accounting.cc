@@ -352,7 +352,7 @@ TEST_P(SessionSendAccountingTest, RejectionDoesNotCreateAcceptedRequest) {
   EXPECT_EQ(stats().queue_pressure.discarded_before_write.requests, 0u);
   expect_conserved();
 }
-TEST_P(SessionSendAccountingTest, KeepLatestOnlyDiscardsRemovedQueueEntries) {
+TEST_P(SessionSendAccountingTest, BestEffortPreservesEveryAcceptedQueueEntry) {
   ASSERT_TRUE(connect(true));
   ASSERT_TRUE(send(800));
   drain();
@@ -363,7 +363,9 @@ TEST_P(SessionSendAccountingTest, KeepLatestOnlyDiscardsRemovedQueueEntries) {
   ASSERT_TRUE(plain(400));
   drain();
   const auto s = stats();
-  EXPECT_GT(s.queue_pressure.discarded_before_write.requests, 0u);
+  EXPECT_EQ(s.queue_pressure.discarded_before_write.requests, 0u);
+  EXPECT_EQ(s.outstanding.requests, 4u);
+  EXPECT_EQ(s.outstanding.bytes, 2000u);
   EXPECT_EQ(s.queue_pressure.aborted_during_write.requests, 0u);
   EXPECT_EQ(s.connection_loss.aborted_during_write.requests, 0u);
   expect_conserved();

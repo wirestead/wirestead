@@ -992,7 +992,7 @@ TEST_P(TcpAdmissionResultTest, RetainsDecisionAndExistingAccounting) {
   oversized.clear();
 
   // No executor progress after readiness: reservations cannot drain before the
-  // second call. Ordinary Reliable fills its hard cap; try writes fill high-water.
+  // second call. Plain writes fill their hard cap; try writes fill high-water.
   const size_t capacity = form < 3 ? *peer.client->write_queue_limit() : 1024;
   std::vector<uint8_t> fill(capacity, 'f');
   EXPECT_TRUE(write(fill));
@@ -1003,13 +1003,11 @@ TEST_P(TcpAdmissionResultTest, RetainsDecisionAndExistingAccounting) {
   EXPECT_EQ(before_pressure.dropped_messages, 0u);
   payload.assign(16, 'a');
   const bool accepted_under_pressure = write(payload);
-  const bool ordinary_best_effort = form < 3 && best_effort;
-  EXPECT_EQ(accepted_under_pressure, ordinary_best_effort);
-  if (!ordinary_best_effort) expect_reason(wrapper::SendRejection::WouldBlock);
+  EXPECT_FALSE(accepted_under_pressure);
+  expect_reason(wrapper::SendRejection::WouldBlock);
   const auto after_pressure = peer.client->stats();
-  if (ordinary_best_effort) {
-    EXPECT_EQ(after_pressure.messages_accepted, 2u);
-  } else if (best_effort) {
+  EXPECT_EQ(after_pressure.messages_accepted, 1u);
+  if (best_effort && form >= 3) {
     EXPECT_EQ(after_pressure.dropped_messages, before_pressure.dropped_messages + 1);
     EXPECT_EQ(after_pressure.failed_sends, before_pressure.failed_sends);
   } else {

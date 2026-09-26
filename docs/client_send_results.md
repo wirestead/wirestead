@@ -54,7 +54,7 @@ terminal event during a capacity wait selects NotReady for loss or
 CancelledWhileWaiting for stop, and later changes cannot overwrite that
 selected rejection. Capacity release only permits another admission attempt.
 
-Only WouldBlock is retried, at most five times on the same pin. A callback
+Only WouldBlock is retried, without an attempt limit on the same pin. A callback
 scope cannot wait and attempts final admission at most once. Rejection does
 not consume a moved vector or retain shared storage. Late I/O errors cannot
 change an already returned result.

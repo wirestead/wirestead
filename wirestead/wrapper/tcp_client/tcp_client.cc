@@ -40,6 +40,7 @@
 #include "wirestead/transport/tcp_client/tcp_client.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
+#include "wirestead/wrapper/send_retry.hpp"
 #include "wirestead/wrapper/send_validation.hpp"
 
 namespace wirestead {
@@ -466,9 +467,8 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   // #509: high-water pressure and hard-limit reservations are different
   // thresholds. Capacity can be refilled between a wait and admission, so
-  // retry transient native WouldBlock at most five times. Validation and
+  // retry transient native WouldBlock until admission or cancellation. Validation and
   // terminal state failures return immediately.
-  static constexpr int kMaxBlockingSendAttempts = 5;
 
   template <typename NativeWrite, typename CustomWrite>
   SendResult blocking_send(size_t size, NativeWrite native_write, CustomWrite custom_write) {
@@ -499,7 +499,8 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
           if (!connection.wait) return SendResult::reject(SendRejection::NotReady);
         }
       }
-      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+      for (bool retry = false;; retry = true) {
+        if (retry) detail::pause_send_retry(bp_cv_, bp_mutex_);
         std::unique_lock<std::mutex> bp_lock(bp_mutex_);
         const auto released = wait_for_backpressure_clear(bp_lock, size, generation, connection);
         if (!released.accepted()) return released;  // Never overwrite the cause of release.
@@ -515,7 +516,6 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
         // result. Callback callers must return without entering another wait.
         if (detail::in_data_callback()) return admitted;
       }
-      return SendResult::reject(SendRejection::WouldBlock);
     }();
     return finish_send(result);
   }

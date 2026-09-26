@@ -18,6 +18,7 @@
 
 #include <atomic>
 #include <deque>
+#include <future>
 #include <variant>
 #include <vector>
 
@@ -29,12 +30,7 @@ using wirestead::interface::Channel;
 
 namespace {
 
-// maybe_flush_for_keep_latest() (reused by decide_enqueue() for BestEffort
-// trimming) visits each deque element via std::visit, so elements must
-// actually be a std::variant - a single-alternative one is enough here,
-// matching how TCP/UDS/Serial transports store tx_ as deque<BufferVariant>
-// directly (UDP's deque<TxItem{BufferVariant, destination}> is the one
-// exception, handled separately when UDP migrates to this header).
+// Match the variant-backed queues used by the stream transports.
 using TestBuffer = std::variant<std::vector<uint8_t>>;
 
 // Isolated fixture: no sockets, no io_context.
@@ -91,7 +87,7 @@ TEST(BpStateMachineTest, ReliableIsImmediateWhenBackpressureNotActive) {
   EXPECT_FALSE(dropped.any());
 }
 
-TEST(BpStateMachineTest, BestEffortTrimsOldestEntriesToFitNewBuffer) {
+TEST(BpStateMachineTest, BestEffortPreservesOldestEntriesWhenNewBufferCrossesHigh) {
   FakeQueues q;
   q.tx.push_back(std::vector<uint8_t>(40, 0));
   q.tx.push_back(std::vector<uint8_t>(40, 0));
@@ -99,16 +95,16 @@ TEST(BpStateMachineTest, BestEffortTrimsOldestEntriesToFitNewBuffer) {
   auto f = q.fields(BackpressureStrategy::BestEffort);  // bp_high = 100
   DropAccounting dropped;
 
-  // queue_bytes(80) + added(30) = 110 > bp_high(100): must trim.
+  // Crossing the pressure watermark does not authorize removal after acceptance.
   auto decision = decide_enqueue(f, 30, q.tx, dropped);
 
   EXPECT_EQ(decision, EnqueueDecision::Immediate);
-  EXPECT_TRUE(dropped.any());
-  EXPECT_EQ(dropped.messages, 1u);  // dropping the oldest 40-byte entry brings us to 40+30=70 <= 100
-  EXPECT_EQ(q.tx.size(), 1u);
+  EXPECT_FALSE(dropped.any());
+  EXPECT_EQ(q.tx.size(), 2u);
+  EXPECT_EQ(q.queue_bytes.load(), 80u);
 }
 
-TEST(BpStateMachineTest, BestEffortDropsEverythingWhenNewBufferAloneExceedsHigh) {
+TEST(BpStateMachineTest, BestEffortPreservesQueueWhenNewBufferAloneExceedsHigh) {
   FakeQueues q;
   q.tx.push_back(std::vector<uint8_t>(10, 0));
   q.queue_bytes.store(10);
@@ -118,9 +114,9 @@ TEST(BpStateMachineTest, BestEffortDropsEverythingWhenNewBufferAloneExceedsHigh)
   auto decision = decide_enqueue(f, 150, q.tx, dropped);  // added alone >= bp_high
 
   EXPECT_EQ(decision, EnqueueDecision::Immediate);
-  EXPECT_EQ(dropped.messages, 1u);
-  EXPECT_TRUE(q.tx.empty());
-  EXPECT_EQ(q.queue_bytes.load(), 0u);
+  EXPECT_EQ(dropped.messages, 0u);
+  EXPECT_EQ(q.tx.size(), 1u);
+  EXPECT_EQ(q.queue_bytes.load(), 10u);
 }
 
 TEST(BpStateMachineTest, ReportBackpressureFiresOnWhenCrossingHighWatermark) {
@@ -230,4 +226,66 @@ TEST(BpStateMachineTest, DrainIsNoOpIfBackpressureWasNotActive) {
 
   EXPECT_TRUE(cleared);  // clear_queues always runs regardless of whether bp was active
   EXPECT_FALSE(fired);   // but on_bp only fires if there was something to clear
+}
+
+TEST(BpStateMachineTest, BestEffortRoutesAcceptedWorkToPendingUnderPressure) {
+  FakeQueues q;
+  q.backpressure_active = true;
+  q.queue_bytes = 120;
+  auto f = q.fields(BackpressureStrategy::BestEffort);
+  DropAccounting dropped;
+  EXPECT_EQ(decide_enqueue(f, 30, q.tx, dropped), EnqueueDecision::Pending);
+  EXPECT_FALSE(dropped.any());
+}
+TEST(BpStateMachineTest, MixedTryAndPlainReservationsRespectHardLimit) {
+  std::mutex mutex;
+  std::atomic<size_t> queued{0}, pending{0}, inflight{0};
+  std::atomic<bool> pressure{false};
+  ASSERT_TRUE(try_reserve_limit_bytes(mutex, queued, pending, inflight, 390, 400));
+  EXPECT_FALSE(try_reserve_write_bytes(mutex, inflight, queued, pending, pressure, 11, 100, 400));
+  ASSERT_TRUE(try_reserve_write_bytes(mutex, inflight, queued, pending, pressure, 10, 100, 400));
+  EXPECT_EQ(queued + pending + inflight, 400u);
+  EXPECT_FALSE(try_reserve_limit_bytes(mutex, queued, pending, inflight, 1, 400));
+}
+
+TEST(BpStateMachineTest, PendingTransferHoldsReservationLockAndReleasesItBeforeCallbacks) {
+  FakeQueues q;
+  std::mutex reservation;
+  std::atomic<size_t> inflight{0};
+  q.pending_bytes = 390;
+  q.backpressure_active = true;
+  auto fields = q.fields(BackpressureStrategy::BestEffort);
+  fields.reservation_mutex = &reservation;
+  auto available_to_producer = [&] {
+    return std::async(std::launch::async,
+                      [&] {
+                        if (!reservation.try_lock()) return false;
+                        reservation.unlock();
+                        return true;
+                      })
+        .get();
+  };
+  bool callback = false;
+  bool kicked = false;
+  report_backpressure(
+      fields, 0,
+      [&](size_t) {
+        callback = true;
+        EXPECT_TRUE(available_to_producer());
+        EXPECT_EQ(q.queue_bytes.load(), 390u);
+        EXPECT_EQ(q.pending_bytes.load(), 0u);
+        EXPECT_FALSE(try_reserve_limit_bytes(reservation, q.queue_bytes, q.pending_bytes, inflight, 11, 400));
+      },
+      q.stats,
+      [&] {
+        const auto moved = q.pending_bytes.exchange(0);
+        EXPECT_FALSE(available_to_producer());
+        return moved;
+      },
+      [&] {
+        kicked = true;
+        EXPECT_TRUE(available_to_producer());
+      });
+  EXPECT_TRUE(callback);
+  EXPECT_TRUE(kicked);
 }
