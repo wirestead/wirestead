@@ -135,7 +135,7 @@ TEST_F(TransportUdsServerTest, BindFailure) {
 // Regression test for jwsung91/wirestead#453: a transient accept() failure
 // (e.g. EMFILE) used to be logged and silently swallowed, permanently
 // stopping the server from ever accepting again. It must now surface an
-// Error state transition and keep retrying do_accept().
+// diagnostic record and keep retrying do_accept() without a terminal Error.
 TEST_F(TransportUdsServerTest, AcceptFailureRetriesAndKeepsAccepting) {
   EXPECT_CALL(*mock_acceptor, open(_, _)).WillOnce(Return());
   EXPECT_CALL(*mock_acceptor, bind(_, _)).WillOnce(Return());
@@ -163,12 +163,15 @@ TEST_F(TransportUdsServerTest, AcceptFailureRetriesAndKeepsAccepting) {
 
   server->start();
 
-  for (int i = 0; i < 50 && !(has_error && retried); ++i) {
+  for (int i = 0; i < 50 && !retried; ++i) {
     ioc.poll();
     TestUtils::waitFor(10);
   }
 
-  EXPECT_TRUE(has_error);
+  EXPECT_FALSE(has_error);
+  EXPECT_EQ(server->state(), base::LinkState::Listening);
+  ASSERT_TRUE(server->last_error_info());
+  EXPECT_EQ(server->last_error_info()->operation, "accept");
   EXPECT_TRUE(retried);
 }
 

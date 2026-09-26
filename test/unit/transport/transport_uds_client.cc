@@ -132,7 +132,9 @@ TEST_F(TransportUdsClientTest, ConnectionFailure) {
       }));
 
   std::atomic<bool> has_error{false};
-  client->on_state([&has_error](base::LinkState state) {
+  std::atomic<base::LinkState> last_state{base::LinkState::Idle};
+  client->on_state([&](base::LinkState state) {
+    last_state = state;
     if (state == base::LinkState::Error) {
       has_error = true;
     }
@@ -143,7 +145,8 @@ TEST_F(TransportUdsClientTest, ConnectionFailure) {
   ioc.run_for(std::chrono::milliseconds(100));
 
   EXPECT_FALSE(client->is_connected());
-  EXPECT_TRUE(has_error);
+  EXPECT_FALSE(has_error);
+  EXPECT_EQ(last_state.load(), base::LinkState::Connecting);
 }
 
 // Regression test for jwsung91/wirestead#445: record_error()'s retry_count
@@ -332,7 +335,9 @@ TEST_F(TransportUdsClientTest, ReadCallbackReceivesDataThenCloseSchedulesRetry) 
   std::atomic<bool> error_seen{false};
   client->on_bytes(
       [&](memory::ConstByteSpan data) { received.assign(reinterpret_cast<const char*>(data.data()), data.size()); });
+  std::atomic<base::LinkState> last_state{base::LinkState::Idle};
   client->on_state([&](base::LinkState state) {
+    last_state = state;
     if (state == base::LinkState::Error) {
       error_seen = true;
     }
@@ -343,7 +348,10 @@ TEST_F(TransportUdsClientTest, ReadCallbackReceivesDataThenCloseSchedulesRetry) 
   ioc.run_for(std::chrono::milliseconds(100));
 
   EXPECT_EQ(received, payload);
-  EXPECT_TRUE(error_seen.load());
+  EXPECT_FALSE(error_seen.load());
+  EXPECT_EQ(last_state.load(), base::LinkState::Connecting);
+  ASSERT_TRUE(client->last_error_info());
+  EXPECT_EQ(client->last_error_info()->boost_error, make_error_code(boost::asio::error::eof));
 }
 
 TEST_F(TransportUdsClientTest, MoveAndSharedWritesUseSocket) {

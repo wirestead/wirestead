@@ -181,6 +181,7 @@ TEST(UdsClientWrapperLifecycleTest, StartFutureReflectsTransportFailure) {
   boost::asio::io_context ioc;
   config::UdsClientConfig cfg;
   cfg.socket_path = test::TestUtils::makeUniqueUdsSocketPath("uwc-fail").string();
+  cfg.max_retries = 0;  // The start future fails only at terminal exhaustion.
 
   auto* mock_socket = new test::mocks::MockUdsSocket();
   auto transport_client =

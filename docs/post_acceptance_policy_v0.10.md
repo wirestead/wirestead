@@ -1,12 +1,12 @@
 # Post-acceptance accounting and event proposal
 
-**Status: accounting implemented; remaining event proposal.** The
+**Status: accounting and lifecycle event policy implemented.** The
 [stream accounting implementation](tcp_send_accounting.md) now implements
 the TCP/UDS client/session and Serial request ledger with explicit measurement epochs and cause groups.
 [UDP socket accounting](udp_send_accounting.md) also implements these totals.
 TCP/UDS session aggregation and UDP virtual-session accounting are implemented.
 The selected UDP expiry policy discards waiting requests and preserves active
-completion outcomes. The event-policy choices below remain proposals.
+completion outcomes. The approved event choices below are implemented; see [lifecycle events](lifecycle_events.md).
 The [current conformance report](communication_contract_v0.10_status.md)
 identifies the missing behavior. This document specifies implementation gates.
 Existing SendResult/FanoutResult admission semantics do not change.
@@ -20,7 +20,7 @@ must not be replayed after reconnect. Reliable queue pressure must not remove
 accepted requests.
 
 The implementation documents define counter names and reset epochs. UDP expiry
-now has an explicit queued-versus-active decision; event signatures remain open.
+now has an explicit queued-versus-active decision; the expiry event is on_session_expired.
 
 ## Proposed request accounting
 
@@ -81,7 +81,7 @@ active work to complete, and removes only that token's physical queues on the
 strand. client_stats exposes live peer projections; socket totals retain expired
 contributors without a second aggregation step. Endpoint reuse gets a new token.
 
-## Proposed event choices requiring a decision
+## Approved event choices
 
 - Established connection loss emits one disconnect even if retry succeeds.
   Retry attempts are queryable state, not per-attempt on_error.
@@ -91,7 +91,7 @@ contributors without a second aggregation step. Endpoint reuse gets a new token.
   boundary, consistent with the current wrapper callback gate.
 - UDP expiry has a distinct event/reason, never asserting remote disconnect.
   Waiting endpoint work now expires; active work keeps its completion outcome.
-  The distinct event/reason remains undecided.
+  The concrete UDP server exposes on_session_expired.
 - Wrapper callback exceptions are logged without recursive on_error.
   Direct native callbacks need their own documented boundary.
 - Configuration failure timing and exception/result delivery remain separate.
@@ -124,5 +124,5 @@ Use deterministic gates rather than timing-only sleeps.
    verify event counts and multi-thread ordering separately.
 
 Counter compatibility, reset semantics and UDP expiry are documented in the
-implementation contracts. Remaining event choices are completion gates, not
+implementation contracts. Event regression and platform verification are completion gates, not
 assumptions supplied by passing the existing suite.

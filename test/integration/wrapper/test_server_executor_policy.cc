@@ -134,6 +134,12 @@ class ServerExecutorPolicyTest : public ::testing::TestWithParam<int> {
     else
       udp.at(i)->send_to(buffer, {net::ip::make_address("127.0.0.1"), port});
   }
+  void on_session_end(wrapper::ServerInterface::ConnectionHandler handler) {
+    if (GetParam() == 2)
+      static_cast<wrapper::UdpServer&>(*server).on_session_expired(std::move(handler));
+    else
+      server->on_disconnect(std::move(handler));
+  }
   void TearDown() override {
     unblock();
     if (server) test::stop_wrapper_with_context(*server, *io);
@@ -211,7 +217,7 @@ TEST_P(ServerExecutorPolicyTest, SessionEndFlushesPartialBatchBeforeNotification
   server->on_message_batch([&](const auto& batch) {
     for (const auto& message : batch) events.push_back(message.data_as_string());
   });
-  server->on_disconnect([&](const auto& ctx) {
+  on_session_end([&](const auto& ctx) {
     if (ctx.client_id() == ids[0]) events.push_back("disconnect");
   });
   send_peer(0, "tail\n");
@@ -222,7 +228,7 @@ TEST_P(ServerExecutorPolicyTest, SessionEndFlushesPartialBatchBeforeNotification
     uds[0]->close();
   ASSERT_TRUE(pump([&] { return events.size() >= 2; }));
   EXPECT_EQ(events, (std::vector<std::string>{"tail", "disconnect"}));
-  server->on_disconnect({});
+  on_session_end({});
 }
 
 TEST_P(ServerExecutorPolicyTest, NativeStopWaitsForSessionEndCallback) {
@@ -230,7 +236,7 @@ TEST_P(ServerExecutorPolicyTest, NativeStopWaitsForSessionEndCallback) {
   std::promise<void> entered;
   auto entry = entered.get_future();
   std::atomic<bool> notified{false}, callback_finished{false};
-  server->on_disconnect([&](const auto& ctx) {
+  on_session_end([&](const auto& ctx) {
     if (ctx.client_id() != ids[0] || notified.exchange(true)) return;
     if (GetParam() != 2) {
       EXPECT_EQ(server->client_count(), 1u);

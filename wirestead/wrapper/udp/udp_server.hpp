@@ -77,6 +77,8 @@ class WIRESTEAD_API UdpServer : public ServerInterface {
   // Event handlers
   UdpServer& on_connect(ConnectionHandler handler) override;
   UdpServer& on_disconnect(ConnectionHandler handler) override;
+  /// Idle expiry of a local virtual session; does not imply remote disconnect.
+  UdpServer& on_session_expired(ConnectionHandler handler);
   UdpServer& on_data(MessageHandler handler) override;
   UdpServer& on_data_batch(BatchMessageHandler handler) override;
   UdpServer& on_error(ErrorHandler handler) override;

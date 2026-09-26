@@ -481,7 +481,7 @@ TEST_F(TransportTcpServerTest, InjectedAcceptorListenFailureMovesToError) {
   server_.reset();
 }
 
-TEST_F(TransportTcpServerTest, InjectedAcceptErrorMovesToError) {
+TEST_F(TransportTcpServerTest, RetriedAcceptErrorKeepsListening) {
   net::io_context ioc;
   config::TcpServerConfig cfg;
   cfg.port = TestUtils::getAvailableTestPort();
@@ -497,7 +497,10 @@ TEST_F(TransportTcpServerTest, InjectedAcceptErrorMovesToError) {
   server_->start();
   ioc.run_for(std::chrono::milliseconds(50));
 
-  EXPECT_TRUE(error_seen.load());
+  EXPECT_FALSE(error_seen.load());
+  EXPECT_EQ(server_->state(), base::LinkState::Listening);
+  ASSERT_TRUE(server_->last_error_info());
+  EXPECT_EQ(server_->last_error_info()->operation, "accept");
 
   stop_with_context(server_, ioc);
   server_.reset();

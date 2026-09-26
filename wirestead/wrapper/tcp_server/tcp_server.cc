@@ -122,6 +122,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
   interface::SharedCallback<BatchMessageHandler> message_batch_handler_;
 
   // Batching logic
+  bool terminal_error_reported_ = false;
   ReceiveLimits receive_limits_;
   std::shared_ptr<detail::ReceiveBudget> receive_budget_{std::make_shared<detail::ReceiveBudget>(receive_limits_)};
   std::unordered_map<ClientId, std::shared_ptr<detail::SessionBatch>> batches_;
@@ -520,6 +521,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     // Opening this run's generation and admitting again are one step under
     // the gate's lock.
     receive_budget_->reset_stats();
+    terminal_error_reported_ = false;
     const uint64_t generation = callback_gate_.open_new_generation();
     callback_generation_.store(generation);
     auto transport_server = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
@@ -743,6 +745,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
       if (state == base::LinkState::Listening) {
         is_listening_.store(true);
         std::unique_lock<std::shared_mutex> lock(mutex_);
+        terminal_error_reported_ = false;
         fulfill_all_locked(true);
       } else if (state == base::LinkState::Error || state == base::LinkState::Closed ||
                  state == base::LinkState::Idle) {
@@ -751,7 +754,8 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         {
           std::unique_lock<std::shared_mutex> lock(mutex_);
           fulfill_all_locked(false);
-          if (state == base::LinkState::Error) {
+          if (state == base::LinkState::Error && !terminal_error_reported_) {
+            terminal_error_reported_ = true;
             handler = on_error_;
           }
         }
