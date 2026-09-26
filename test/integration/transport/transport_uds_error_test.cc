@@ -35,12 +35,13 @@ TEST_F(UdsErrorTest, PathPermissionDenied) {
 #else
   config::UdsServerConfig cfg;
 
-  // Create a temporary directory and remove all permissions
-  std::string restricted_dir = TestUtils::makeUniqueTempFilePath("wirestead_restricted").string();
+  // macOS temporary directories can already approach the UDS path limit.
+  // Keep this a permission test, with a syntactically valid short socket path.
+  const auto restricted_dir = TestUtils::makeUniqueUdsSocketPath("ul_perm");
+  cfg.socket_path = (restricted_dir / "s").string();
+  ASSERT_TRUE(cfg.is_valid());
   std::filesystem::create_directory(restricted_dir);
   std::filesystem::permissions(restricted_dir, std::filesystem::perms::none);
-
-  cfg.socket_path = restricted_dir + "/test.sock";
 
   auto server = UdsServer::create(cfg);
   ASSERT_NE(server, nullptr);
