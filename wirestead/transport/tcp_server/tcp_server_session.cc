@@ -74,16 +74,21 @@ TcpServerSession::TcpServerSession(net::io_context& ioc, std::unique_ptr<interfa
       std::clamp(read_buffer_size, base::constants::MIN_READ_BUFFER_SIZE, base::constants::MAX_READ_BUFFER_SIZE));
 }
 
-void TcpServerSession::start() {
+void TcpServerSession::start() { start_with_notification({}); }
+
+void TcpServerSession::start_with_notification(std::function<void()> notify) {
   if (alive_.exchange(true)) return;
   auto self = shared_from_this();
-  net::dispatch(strand_, [self] {
+  net::post(strand_, [self, notify = std::move(notify)] {
+    if (self->closing_ || !self->alive_) return;
     self->reset_idle_timer();
     // No-op on a plain socket, the TLS handshake on an encrypted one. Reading
     // before it completes would hand the session ciphertext, so the first read
     // waits on it - and a failed handshake closes rather than reads.
     self->socket_->async_handshake([self](const boost::system::error_code& ec) {
-      net::dispatch(self->strand_, [self, ec] {
+      // Plain sockets may complete inline. Queue read startup so connection
+      // notification finishes first, just as it does for an async TLS handshake.
+      net::post(self->strand_, [self, ec] {
         if (self->closing_ || !self->alive_) return;
         if (ec) {
           WIRESTEAD_LOG_WARNING("tcp_server_session", "handshake", "Handshake failed: " + ec.message());
@@ -94,6 +99,7 @@ void TcpServerSession::start() {
         self->start_read();
       });
     });
+    if (notify) notify();
   });
 }
 

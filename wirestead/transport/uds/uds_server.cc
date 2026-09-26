@@ -863,22 +863,17 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self, uint64_t genera
           });
         });
 
-        // alive_ must be true before the session enters sessions_, so that
-        // broadcast() callers who observe client_count() >= 1 are guaranteed
-        // to pass the alive() check inside async_try_write_shared().
-        session->start();
-
         {
           std::lock_guard<std::mutex> lock(self->impl_->sessions_mutex_);
           self->impl_->sessions_[client_id] = session;
+          auto connect_handler = self->impl_->on_multi_connect_;
+          // Admission becomes visible only after connect is queued on the
+          // session strand, ahead of reads, writes and pressure callbacks.
+          session->start_with_notification([self, client_id, generation, connect_handler = std::move(connect_handler)] {
+            if (self->impl_->stopping_ || self->impl_->generation_ != generation) return;
+            if (connect_handler) connect_handler(client_id, "UDS Client");
+          });
         }
-
-        MultiClientConnectHandler connect_handler;
-        {
-          std::lock_guard<std::mutex> lock(self->impl_->sessions_mutex_);
-          connect_handler = self->impl_->on_multi_connect_;
-        }
-        if (connect_handler) connect_handler(client_id, "UDS Client");
 
         // Continue accepting
         auto* impl = self->impl_.get();

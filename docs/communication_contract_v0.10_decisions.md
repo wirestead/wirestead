@@ -550,3 +550,12 @@ batch and expiry timers: they use the native socket strand. This is an
 implementation correction, not a decision on mixed-peer batch scope,
 cross-scope parallelism or expiry event signatures. See
 [the implementation and regression evidence](udp_callback_serialization.md).
+
+## TCP/UDS connection ordering implementation
+
+Built-in server connection notification now runs as session-strand startup,
+ahead of receive and backpressure callbacks. Alive admission is published only
+after that startup is queued. This implements the existing connect-before-receive
+requirement; it does not decide mixed-session batch ownership, event taxonomy,
+or cross-session parallelism guarantees. TCP notification remains independent
+of TLS handshake success. See [scope and verification](server_connect_order.md).

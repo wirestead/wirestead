@@ -105,6 +105,8 @@ void run_case(int event, int form, boost::asio::io_context& io, const std::share
               Connect connect, Hooks hooks) {
   auto work = boost::asio::make_work_guard(io);
   Wrapper server(native);
+  std::atomic<int> connections{0};
+  server.on_connect([&](const auto&) { ++connections; });
   if (form == 3) server.backpressure_strategy(base::constants::BackpressureStrategy::BestEffort);
   Observation state;
   state.park_selected = event == 6 || event == 9;
@@ -145,7 +147,9 @@ void run_case(int event, int form, boost::asio::io_context& io, const std::share
   ASSERT_TRUE(pump_until([&] { return ready.wait_for(0s) == std::future_status::ready; }));
   ASSERT_TRUE(ready.get());
   connect(peer);
-  ASSERT_TRUE(pump_until([&] { return native->client_count() == 1; }));
+  // Finish connection initialization before parking a send while it holds the
+  // wrapper lock; the session must be free to observe the later peer close.
+  ASSERT_TRUE(pump_until([&] { return native->client_count() == 1 && connections == 1; }));
   const auto id = native->connected_clients().front();
   if (event != 8) {
     ASSERT_TRUE(native->send_to_client(id, std::string(1024, 'p')));

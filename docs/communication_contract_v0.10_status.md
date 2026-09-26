@@ -77,7 +77,7 @@ implementation symbols above describe the specific decision being assessed.
 | UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Same executor gaps; retried loss can report on_error |
 | UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Bare-executor waiting remains; batch timers now share the socket strand |
 | Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Same executor gaps; recovered loss notification; physical-device validation remains separate |
-| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Executor waiting, session connect/batch ordering |
+| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Executor waiting and server batch scope/serialization |
 | UDS server | Same public guarantees; native move rejection fixed here | Same server gaps; legacy native bool fanout is distinct from public FanoutResult |
 | UDP server | D-1/D-2, endpoint/run-pinned sends, fixed fanout, peer accounting and waiting-work expiry | Shared socket pressure and serialized callbacks; mixed-peer batch scope and distinct expiry event remain open |
 
@@ -115,11 +115,11 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | C-3.7-1 | Covered for C++ wrappers; explicit compatibility boundary elsewhere | SendResult/FanoutResult replace public bool; low-level bool adapters remain. Python PR #72 deliberately retains bool |
 | C-3.8-1 | Covered for built-in clients and server sessions/aggregates | Separate stages/causes and reset epochs; UDP expiry affects waiting work, aggregate retention requires no peer-total copying |
 | C-5.1-1 | UDP timer/receive gap closed; native TCP/UDS/Serial client strands unchanged | Built-in UDP timers now share the socket strand; controlled two-runner data/message batch regressions fail before the fix |
-| C-5.1-2a | Covered for TCP/UDS session receive/backpressure/close paths | Session strand bindings; this does not establish connect/batch serialization |
-| C-5.1-2b | Open evidence: TCP/UDS all callbacks attributed to a session | Connect runs on accept path, batches use a server-level path; need multi-thread overlap probes |
+| C-5.1-2a | Covered for TCP/UDS session connect/receive/backpressure/close paths | Connection startup joins the session strand; controlled two-runner native/wrapper tests cover connect ordering, callback stop and external stop |
+| C-5.1-2b | Partial: TCP/UDS callbacks attributed to a session | Connect/receive/backpressure ordering covered; server-level batch paths and mixed-session ownership remain open |
 | C-5.1-2 | Covered for built-in UDP receive/batch/expiry callback non-overlap | One shared socket strand serializes these paths, including across peers; two-runner expiry regression verifies a held receive excludes the reaper callback |
 | C-5.1-3 | Gap against proposed session-only batch scope | TCP/UDS/UDP server batch queues mix session contexts; scope assignment needs a policy |
-| C-5.2-1 | Open evidence: TCP/UDS connect-before-receive | Session start precedes connect-handler invocation on accept path; test with immediate peer data and several executor threads |
+| C-5.2-1 | Covered for built-in TCP/UDS connect-before-receive | Immediate peer data and queued pressure wait for connection notification; wrapper framing and stop boundaries covered by two-runner regressions |
 | C-5.3-1 | Open evidence for the universal no-inline-callback proposal | Inspected native sends post work, but configuration/start/stop, direct transports and custom channels need separate caller-stack probes |
 | C-5.4-1 | Covered: external stop completion, all targets | Lifecycle tests, including externally run executors |
 | C-5.4-2 | Covered: every concurrent external stop waits | Lifecycle tests distinguish repeated stop from overlapping callers |
@@ -153,7 +153,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | 4: framer limit and resynchronization | Framer-specific implementations/tests exist; no universal recovery guarantee for length-prefix framing |
 | 4: batch count/latency | Count and timer flush tests pass. Latency schedules work, not a callback deadline; blocked executors can delay it |
 | 4: receive memory/unbounded items | Open: no consolidated bound on aggregate batch/session/context memory, especially when user handlers stall |
-| 5.1 / 5.2: cross-scope ordering | Open: assigning mixed-session batches and proving timer/connect/receive ordering requires explicit scope design |
+| 5.1 / 5.2: cross-scope ordering | TCP/UDS connect-before-receive is covered; mixed-session batch ownership and timer/receive ordering still require explicit scope design |
 | 5.4: destruction, signals and concurrent start | Caller preconditions remain: no concurrent destruction/use, serialize start/start and start/stop, no signal-handler guarantee; tests do not make unsupported calls safe |
 | 5.4 / 5.5: registration and live configuration | Open policy: locks on some setters are not a verified allowlist or a thread-safety promise for all setters; test_live_setter_forwarding.cc only covers selected behavior |
 | 5.6 / 5.7: executors and nonreturning handlers | D-1 handles owned/external executors with progress preconditions; cannot promise bounded stop when a user callback never returns |
@@ -171,14 +171,14 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
    ledgers now track logical requests, gather prefixes, terminal causes and reset
    epochs. TCP/UDS aggregates retain closed/retiring contributors exactly once.
    UDP peer projections and expiry attribution are implemented; controlled
-   controlled completion gates cover posted/pending/active boundaries and unrelated peers.
+   completion gates cover posted/pending/active boundaries and unrelated peers.
 2. **Queue semantics implemented:** [selected preservation/retry policy](blocking_queue_policy.md).
    No implicit keep-latest; blocking capacity retries have no attempt limit.
    An explicit freshness policy or timeout API remains optional future work.
-3. **Execution scopes:** [UDP timer/receive serialization](udp_callback_serialization.md) is implemented.
-   Settle batch/session ownership and add deterministic
-   multi-thread callback overlap/order tests. Extend or explicitly limit the
-   nonwaiting rule for ordinary executor tasks.
+3. **Execution scopes:** [UDP timer/receive serialization](udp_callback_serialization.md) and
+   [TCP/UDS connection ordering](server_connect_order.md) are implemented.
+   Settle batch/session ownership and verify its multi-thread callback boundaries.
+   Extend or explicitly limit the nonwaiting rule for ordinary executor tasks.
 4. **Events:** decide recovered loss versus terminal error, and UDP virtual
    expiry notification. Waiting UDP work now expires; active work keeps its outcome.
 5. **Finish the public contract:** live-setter allowlist, receive-memory limits,
