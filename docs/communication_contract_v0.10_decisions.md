@@ -509,3 +509,23 @@ result. All seven wrappers continue to use it, leaving actual rejection,
 callbacks and accounting in the transport. This is validation-stage success,
 not acceptance by the queue. Public client sends now return SendResult.
 See [payload reason validation](send_payload_reasons.md).
+
+## UDP virtual-session expiry decision
+
+**Decided:** when a virtual session expires, discard its accepted work that has
+not started, including pending enqueue handlers and queued datagrams. A datagram
+already handed to local I/O retains its actual completion, explicit-stop or
+local-socket-error outcome. Expiry does not cancel other endpoints on the shared
+socket. A later session at the same endpoint cannot inherit old requests or
+their completions.
+
+The request ledger records waiting-work removal as session_expiry, separately
+from explicit stop, socket error and queue pressure. Server totals already own
+each request and retain it after session removal; per-peer projections therefore
+need no second accumulation step. Reset excludes old measurement epochs.
+SendAccounting and RuntimeStats grow, so C++ consumers must rebuild.
+
+This choice does not finalize the expiry notification API. The current
+on_disconnect callback is retained until a separate event decision is made.
+See [implementation and verification](udp_send_accounting.md), including
+two-thread pending/active expiry, other-peer preservation and endpoint reuse.

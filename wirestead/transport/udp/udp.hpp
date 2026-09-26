@@ -108,10 +108,12 @@ class WIRESTEAD_API UdpChannel : public interface::ResultChannel, public std::en
  private:
   friend class wrapper::UdpClient;
   friend class wrapper::UdpServer;
-  std::shared_ptr<detail::UdpWriteWait> capture_write_wait(bool require_remote = true);
+  std::shared_ptr<detail::UdpWriteWait> capture_write_wait(bool require_remote = true, bool track_session = false);
   std::optional<wrapper::SendResult> poll_write_wait(const std::shared_ptr<detail::UdpWriteWait>& wait);
   void end_write_wait(const std::shared_ptr<detail::UdpWriteWait>& wait, wrapper::SendRejection reason);
   void cancel_write_waits();
+  void expire_session(const std::shared_ptr<detail::UdpWriteWait>& wait);
+  wrapper::RuntimeStats session_stats(const std::shared_ptr<detail::UdpWriteWait>& wait) const;
   std::optional<uint64_t> write_connection() const;
   wrapper::SendResult write_state(bool require_remote = true);
   wrapper::SendResult write_copy(memory::ConstByteSpan data, std::optional<uint64_t> expected_run = std::nullopt);
@@ -123,9 +125,11 @@ class WIRESTEAD_API UdpChannel : public interface::ResultChannel, public std::en
   wrapper::SendResult try_write_shared(std::shared_ptr<const std::vector<uint8_t>> data,
                                        std::optional<uint64_t> expected_run = std::nullopt);
   wrapper::SendResult write_to(memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& destination,
-                               std::optional<uint64_t> expected_run = std::nullopt);
+                               std::optional<uint64_t> expected_run = std::nullopt,
+                               std::shared_ptr<detail::UdpWriteWait> session = {});
   wrapper::SendResult try_write_to(memory::ConstByteSpan data, const boost::asio::ip::udp::endpoint& destination,
-                                   std::optional<uint64_t> expected_run = std::nullopt);
+                                   std::optional<uint64_t> expected_run = std::nullopt,
+                                   std::shared_ptr<detail::UdpWriteWait> session = {});
   explicit UdpChannel(const config::UdpConfig& cfg);
   UdpChannel(const config::UdpConfig& cfg, boost::asio::io_context& ioc);
 

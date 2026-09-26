@@ -17,6 +17,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 
 namespace boost::system {
 class error_code;
@@ -44,6 +45,8 @@ inline std::atomic<void (*)()> g_uds_write_admission_hook{nullptr};
 inline std::atomic<void (*)()> g_uds_pinned_write_hook{nullptr};
 inline std::atomic<void (*)(const wrapper::SendResult&)> g_uds_write_result_hook{nullptr};
 inline std::atomic<void (*)()> g_uds_io_completion_hook{nullptr};
+// Controlled virtual-session time for expiry boundary tests.
+inline std::atomic<std::chrono::steady_clock::time_point (*)()> g_udp_session_clock_hook{nullptr};
 inline std::atomic<void (*)()> g_udp_pinned_write_hook{nullptr};
 inline std::atomic<void (*)(const wrapper::SendResult&)> g_udp_write_result_hook{nullptr};
 inline std::atomic<void (*)()> g_udp_io_completion_hook{nullptr};
@@ -51,6 +54,8 @@ inline std::atomic<void (*)()> g_udp_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_udp_write_initiation_hook{nullptr};
 // After initiation and before completion, with no admission lock held.
 inline std::atomic<void (*)()> g_udp_write_started_hook{nullptr};
+// Before classifying a write completion, outside the admission lock.
+inline std::atomic<void (*)()> g_udp_write_completion_hook{nullptr};
 // Override a live receive completion for terminal-read accounting regressions.
 inline std::atomic<void (*)(boost::system::error_code&)> g_udp_receive_result_hook{nullptr};
 inline std::atomic<void (*)()> g_serial_write_admission_hook{nullptr};

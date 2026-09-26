@@ -56,6 +56,7 @@ class WIRESTEAD_API UdpServer : public ServerInterface {
   void stop() override;
   bool listening() const override;
   RuntimeStats stats() const override;
+  std::optional<RuntimeStats> client_stats(ClientId client_id) const override;
   void reset_stats() override;
 
   // Transmission
@@ -93,7 +94,8 @@ class WIRESTEAD_API UdpServer : public ServerInterface {
    *
    * A value of 0ms disables idle timeout. When enabled, stale UDP virtual
    * sessions are removed and a later datagram from the same endpoint creates a
-   * new virtual session.
+   * new virtual session. Expiry discards accepted writes that have not started;
+   * an active datagram retains its actual completion outcome.
    */
   UdpServer& idle_timeout(std::chrono::milliseconds timeout);
   UdpServer& max_clients(size_t max);

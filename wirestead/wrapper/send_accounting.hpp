@@ -42,6 +42,9 @@ struct SendAccounting {
   // this nor written proves peer delivery. Late completions cannot revise a
   // request already terminated by stop/loss.
   uint64_t confirmed_written_bytes = 0;
+  // UDP virtual-session expiry discards only work not handed to local I/O.
+  // Active datagrams keep their actual completion/stop/socket-error outcome.
+  SendLossTotals session_expiry;
 };
 
 }  // namespace wirestead::wrapper

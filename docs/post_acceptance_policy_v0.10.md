@@ -1,11 +1,12 @@
 # Post-acceptance accounting and event proposal
 
-**Status: remaining transport/event proposal.** The
+**Status: accounting implemented; remaining event proposal.** The
 [stream accounting implementation](tcp_send_accounting.md) now implements
 the TCP/UDS client/session and Serial request ledger with explicit measurement epochs and cause groups.
 [UDP socket accounting](udp_send_accounting.md) also implements these totals.
-TCP/UDS session aggregation is implemented. UDP virtual-session accounting/expiry
-and event-policy choices remain proposals, not completed APIs or new decisions.
+TCP/UDS session aggregation and UDP virtual-session accounting are implemented.
+The selected UDP expiry policy discards waiting requests and preserves active
+completion outcomes. The event-policy choices below remain proposals.
 The [current conformance report](communication_contract_v0.10_status.md)
 identifies the missing behavior. This document specifies implementation gates.
 Existing SendResult/FanoutResult admission semantics do not change.
@@ -18,8 +19,8 @@ counted separately, with no per-request error callback. Old connection data
 must not be replayed after reconnect. Reliable queue pressure must not remove
 accepted requests.
 
-These requirements do not decide counter names, event signatures or UDP expiry.
-The choices below remain proposals.
+The implementation documents define counter names and reset epochs. UDP expiry
+now has an explicit queued-versus-active decision; event signatures remain open.
 
 ## Proposed request accounting
 
@@ -74,12 +75,11 @@ pending posts, queues and active writes. TCP/UDS sessions now provide exactly-on
 aggregation, including stop retirement and reset. UDP now retains a record per admitted datagram and socket-run identity;
 its shared socket snapshot is distinct from per-virtual-session statistics.
 
-UDP virtual sessions currently identify endpoints in the wrapper; native
-queued datagrams retain destination and socket run. Expiry removes endpoint
-and wait records. Implementing the draft expiry cleanup requires a virtual
-session generation token and a policy for queued versus active shared-socket
-work. Do not cancel unrelated endpoints. Public per-session UDP statistics
-need a design; current client_stats returns no value.
+UDP datagrams carry a retained virtual-session token in addition to destination
+and socket run. Expiry discards waiting work under the admission mutex, leaves
+active work to complete, and removes only that token's physical queues on the
+strand. client_stats exposes live peer projections; socket totals retain expired
+contributors without a second aggregation step. Endpoint reuse gets a new token.
 
 ## Proposed event choices requiring a decision
 
@@ -90,7 +90,8 @@ need a design; current client_stats returns no value.
 - Explicit stop suppresses disconnect; external stop remains the completion
   boundary, consistent with the current wrapper callback gate.
 - UDP expiry has a distinct event/reason, never asserting remote disconnect.
-  Decide whether accepted endpoint work expires with the virtual session.
+  Waiting endpoint work now expires; active work keeps its completion outcome.
+  The distinct event/reason remains undecided.
 - Wrapper callback exceptions are logged without recursive on_error.
   Direct native callbacks need their own documented boundary.
 - Configuration failure timing and exception/result delivery remain separate.
@@ -122,5 +123,6 @@ Use deterministic gates rather than timing-only sleeps.
 9. Recovered loss, retry exhaustion, explicit stop and callback exceptions:
    verify event counts and multi-thread ordering separately.
 
-Counter compatibility, reset semantics, UDP expiry and event choices are
-completion gates, not assumptions supplied by passing the existing suite.
+Counter compatibility, reset semantics and UDP expiry are documented in the
+implementation contracts. Remaining event choices are completion gates, not
+assumptions supplied by passing the existing suite.

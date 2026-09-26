@@ -11,6 +11,14 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking ABI:** SendAccounting gains session_expiry, changing RuntimeStats
+  and embedded ledger layouts; rebuild C++ consumers. UDP server client_stats
+  now exposes virtual-session totals. Expiry discards accepted waiting work,
+  lets active datagrams retain their completion outcome, and leaves other peers
+  untouched. Socket totals retain expired/stopped contributors exactly once;
+  reset and wrapper restart isolate statistics epochs. Shared-socket pressure
+  remains shared in peer snapshots. See docs/udp_send_accounting.md.
+
 - **Breaking ABI:** TCP/UDS server sessions now expose logical-request send
   accounting and change their exported class layouts; rebuild C++ consumers.
   Server aggregates retain closed and stopping sessions exactly once, including
@@ -23,8 +31,8 @@ and ABI policy.
 - Extend logical-request send accounting to UDP sockets, including explicit
   destinations, stop, local socket errors, queue pressure and reset epochs.
   Terminal socket states drain queued requests; write initiation exceptions
-  terminate outstanding work. UDP server totals remain socket-wide, without
-  virtual-session/expiry attribution. See docs/udp_send_accounting.md.
+  terminate outstanding work. See docs/udp_send_accounting.md for socket and
+  virtual-session scopes.
 
 - Extend logical-request send accounting to UDS clients and Serial, including
   partial gather completion, reset epochs, stop/loss and queue-pressure causes.

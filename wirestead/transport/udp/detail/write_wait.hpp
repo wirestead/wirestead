@@ -18,14 +18,25 @@
 #include <cstdint>
 #include <optional>
 
+#include "wirestead/diagnostics/runtime_stats_counter.hpp"
+#include "wirestead/diagnostics/send_accounting.hpp"
 #include "wirestead/wrapper/send_result.hpp"
 
 namespace wirestead::transport::detail {
+struct UdpSessionStats {
+  diagnostics::SendAccountingLedger::GroupHandle accounting =
+      std::make_shared<diagnostics::SendAccountingLedger::Group>();
+  diagnostics::RuntimeStatsCounters counters;
+  std::atomic<size_t> queued{0}, pending{0};
+  void observe_queue() { counters.observe_queue(queued.load() + pending.load()); }
+};
+
 // Access is serialized by UdpChannel's submission mutex.
 struct UdpWriteWait {
   uint64_t sequence;
   bool require_remote;
   std::optional<wrapper::SendRejection> ended_by;
+  std::shared_ptr<UdpSessionStats> stats;
   void end(wrapper::SendRejection reason) {
     if (!ended_by) ended_by = reason;
   }
