@@ -113,9 +113,12 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo;MinSizeRel")
-if(NOT CMAKE_BUILD_TYPE IN_LIST CMAKE_CONFIGURATION_TYPES)
+# Debian packaging uses None to preserve externally supplied compiler flags.
+if(NOT CMAKE_BUILD_TYPE IN_LIST CMAKE_CONFIGURATION_TYPES
+   AND NOT CMAKE_BUILD_TYPE STREQUAL "None"
+)
   message(FATAL_ERROR "Invalid build type: ${CMAKE_BUILD_TYPE}. "
-                      "Valid options are: ${CMAKE_CONFIGURATION_TYPES}"
+                      "Valid options are: ${CMAKE_CONFIGURATION_TYPES};None"
   )
 endif()
 
