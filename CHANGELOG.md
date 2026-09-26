@@ -17,7 +17,8 @@ and ABI policy.
   legacy totals previously lost at explicit stop. Reset includes retiring
   contributors. TCP handshake/read state changes and TCP/UDS write completions
   explicitly return to the session strand; short writes/initiation exceptions
-  terminate outstanding requests. See docs/tcp_send_accounting.md.
+  terminate outstanding requests. Queue completion preserves concurrent send
+  reservations. See docs/tcp_send_accounting.md.
 
 - Extend logical-request send accounting to UDP sockets, including explicit
   destinations, stop, local socket errors, queue pressure and reset epochs.

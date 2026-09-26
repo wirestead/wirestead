@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <boost/asio.hpp>
 #include <functional>
 #include <memory>
@@ -410,6 +411,31 @@ TEST_P(SessionSendAccountingTest, OffExecutorReadCompletionIsSerialized) {
   drain();
   EXPECT_FALSE(alive());
   EXPECT_EQ(stats().connection_loss.aborted_during_write.requests, 1u);
+  expect_conserved();
+}
+TEST_P(SessionSendAccountingTest, ConcurrentAdmissionsAndCompletionsConserveRequests) {
+  ASSERT_TRUE(connect());
+  endpoint->inline_write = true;
+  io.restart();
+  auto work = net::make_work_guard(io);
+  std::thread runner([&] { io.run(); });
+  std::atomic<size_t> rejected{0};
+  std::vector<std::thread> producers;
+  for (int i = 0; i < 4; ++i) {
+    producers.emplace_back([&] {
+      for (int j = 0; j < 100; ++j)
+        if (!send()) ++rejected;
+    });
+  }
+  for (auto& producer : producers) producer.join();
+  work.reset();
+  runner.join();
+  EXPECT_EQ(rejected.load(), 0u);
+  EXPECT_EQ(stats().accepted.requests, 400u);
+  EXPECT_EQ(stats().written.requests, 400u);
+  EXPECT_EQ(stats().confirmed_written_bytes, 3200u);
+  EXPECT_EQ(stats().outstanding.requests, 0u);
+  EXPECT_EQ(runtime_stats().queued_bytes, 0u);
   expect_conserved();
 }
 INSTANTIATE_TEST_SUITE_P(TcpAndUdsInputs, SessionSendAccountingTest,

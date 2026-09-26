@@ -492,7 +492,7 @@ void UdsServerSession::do_write() {
           self->do_close();
           return;
         }
-        self->queue_bytes_ = self->queue_bytes_ >= bytes_to_write ? self->queue_bytes_ - bytes_to_write : 0;
+        queue_util::release_reserved_write_bytes(self->queue_bytes_, bytes_to_write);
         self->stats_.record_sent(n);
         // Keep writing_ set while callbacks move pending data or enqueue writes.
         self->report_backpressure(self->queue_bytes_);

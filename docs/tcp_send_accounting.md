@@ -143,7 +143,8 @@ This changes the binary layout of exported TcpServerSession and UdsServerSession
 classes: rebuild C++ consumers together with the library. Public send signatures
 are unchanged. Controlled-session tests exercise seven input families for both
 transports, including partial gather writes, reset epochs, pressure disposal,
-inline/off-executor callbacks and late completions. Real-I/O two-client tests
+inline/off-executor callbacks, concurrent admissions/completions and late
+completions. Real-I/O two-client tests
 cover per-target totals, disconnect, repeated stop, retirement-time reset and
 native restart.
 
