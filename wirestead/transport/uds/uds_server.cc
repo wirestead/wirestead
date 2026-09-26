@@ -701,6 +701,12 @@ wrapper::SendResult UdsServer::target_state() const {
   return wrapper::SendResult::accept();
 }
 
+void UdsServer::fail_receive(ClientId id) {
+  auto session = capture_target(id);
+  if (!session) return;
+  net::dispatch(session->strand_, [session] { session->do_close(); });
+}
+
 std::optional<boost::asio::any_io_executor> UdsServer::client_executor(ClientId client_id) const {
   auto session = capture_target(client_id);
   if (!session) return std::nullopt;

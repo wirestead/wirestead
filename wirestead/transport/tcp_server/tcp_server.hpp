@@ -121,6 +121,7 @@ class WIRESTEAD_API TcpServer : public interface::Channel, public std::enable_sh
 
  private:
   friend class wrapper::TcpServer;
+  void fail_receive(ClientId id);
   wrapper::FanoutResult broadcast_result(memory::ConstByteSpan data, wrapper::SendResult wrapper_state,
                                          bool append_newline);
   wrapper::SendResult target_state() const;

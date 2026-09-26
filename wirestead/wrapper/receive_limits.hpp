@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
@@ -25,7 +26,7 @@ namespace wirestead::wrapper {
 // kernel buffers, allocator bookkeeping or copies retained by application code.
 struct ReceiveLimits {
   size_t max_bytes = 64 * 1024 * 1024;
-  size_t max_frame_bytes = 64 * 1024;
+  size_t max_frame_bytes = 1024 * 1024;
   size_t max_sessions = 1024;
 
   void validate() const {
@@ -34,11 +35,14 @@ struct ReceiveLimits {
   }
 };
 
+enum class ReceiveOverflowReason { ByteLimit, FrameLimit, SessionLimit, AllocationFailure };
+
 struct ReceiveMemoryStats {
   size_t reserved_bytes = 0;
   size_t peak_reserved_bytes = 0;
   size_t sessions = 0;
   uint64_t overflow_events = 0;
   uint64_t overflow_bytes = 0;
+  std::array<uint64_t, 4> overflow_by_reason{};
 };
 }  // namespace wirestead::wrapper

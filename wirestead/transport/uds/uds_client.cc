@@ -422,6 +422,16 @@ void UdsClient::reset_stats() {
                       impl_->pending_bytes_.load(std::memory_order_relaxed));
 }
 
+void UdsClient::fail_receive() {
+  const auto connection = write_connection();
+  if (!connection) return;
+  const auto run = impl_->current_seq_.load();
+  net::dispatch(impl_->strand_, [self = shared_from_this(), connection, run] {
+    if (run != self->impl_->current_seq_.load() || self->write_connection() != connection) return;
+    self->impl_->handle_close(self, run, make_error_code(boost::system::errc::no_buffer_space));
+  });
+}
+
 boost::asio::any_io_executor UdsClient::get_executor() { return impl_->strand_; }
 
 std::shared_ptr<detail::UdsWriteWait> UdsClient::capture_write_wait() const {

@@ -38,6 +38,7 @@
 #include "wirestead/interface/connection_channel.hpp"
 #include "wirestead/transport/tcp_client/detail/write_wait.hpp"
 #include "wirestead/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/wrapper/bounded_receive.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
 #include "wirestead/wrapper/send_retry.hpp"
@@ -106,9 +107,13 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   std::shared_ptr<framer::IFramer> framer_{nullptr};
 
+  ReceiveLimits receive_limits_;
+  std::shared_ptr<detail::ReceiveBudget> receive_budget_{std::make_shared<detail::ReceiveBudget>(receive_limits_)};
+  std::shared_ptr<detail::ReceiveState> receive_state_{
+      std::make_shared<detail::ReceiveState>(receive_budget_->open_scope())};
   // Batching logic
-  std::vector<MessageContext> data_batch_queue_;
-  std::vector<MessageContext> message_batch_queue_;
+  detail::ReceiveBatch data_batch_queue_;
+  detail::ReceiveBatch message_batch_queue_;
   std::unique_ptr<boost::asio::steady_timer> batch_timer_;
   size_t max_batch_size_ = 100;
   std::chrono::milliseconds max_batch_latency_{1};
@@ -326,7 +331,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       if (!injected_channel_) channel_.reset();
       data_batch_queue_.clear();
       message_batch_queue_.clear();
-      if (framer_) framer_->reset();
+      receive_state_->reset(framer_.get());
     }
     if (use_external_context_.load() && manage_external_context_.load()) {
       if (work_guard_) work_guard_.reset();
@@ -570,6 +575,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   void reset_stats() {
     std::shared_lock<std::shared_mutex> lock(mutex_);
+    receive_budget_->reset_stats();
     if (channel_) channel_->reset_stats();
   }
 
@@ -583,6 +589,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     // Opening the generation and admitting again are the same step, under the
     // gate's lock: a handler of an earlier run can never be admitted into
     // this one.
+    receive_budget_->reset_stats();
     const uint64_t generation = callback_gate_.open_new_generation();
     callback_generation_.store(generation);
 
@@ -610,38 +617,64 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       // level so it no longer blocks concurrent sends even briefly.
       bool batch_mode;
       interface::SharedCallback<MessageHandler> handler;
+      std::shared_ptr<detail::ReceiveState> receive;
       std::shared_ptr<framer::IFramer> framer_to_push;
       {
         std::shared_lock<std::shared_mutex> lock(mutex_);
         batch_mode = static_cast<bool>(data_batch_handler_);
         handler = data_handler_;
         framer_to_push = framer_;
+        receive = receive_state_;
       }
 
-      if (batch_mode) {
-        // #441: build the copy before taking the exclusive lock, so the
-        // lock is only held for the queue mutation itself, not the
-        // allocation.
-        MessageContext ctx(0, memory::SafeDataBuffer(data));
-        interface::SharedCallback<BatchMessageHandler> flush_handler;
-        std::vector<MessageContext> batch;
+      try {
+        auto prepared = detail::prepare_receive(*receive, framer_to_push, 0, data, batch_mode);
+        if (batch_mode) {
+          // #441: build the copy before taking the exclusive lock, so the
+          // lock is only held for the queue mutation itself, not the
+          // allocation.
+          auto ctx = std::move(*prepared.raw);
+          interface::SharedCallback<BatchMessageHandler> flush_handler;
+          detail::ReceiveBatch batch;
+          {
+            std::unique_lock<std::shared_mutex> lock(mutex_);
+            data_batch_queue_.emplace_back(std::move(ctx));
+            if (data_batch_queue_.size() >= max_batch_size_) {
+              flush_handler = data_batch_handler_;
+              batch = std::move(data_batch_queue_);
+              data_batch_queue_.clear();
+            } else if (data_batch_queue_.size() == 1) {
+              schedule_batch_timer(generation);
+            }
+          }
+          detail::invoke_user_callback("tcp_client", "on_data_batch", flush_handler, batch);
+        } else {
+          detail::invoke_user_callback("tcp_client", "on_data", handler, MessageContext(0, data));
+        }
+
+        prepared.deliver();
+      } catch (const detail::ReceiveOverflow& overflow) {
+        receive->scope->overflow(data.size(), overflow.reason);
+
         {
           std::unique_lock<std::shared_mutex> lock(mutex_);
-          data_batch_queue_.emplace_back(std::move(ctx));
-          if (data_batch_queue_.size() >= max_batch_size_) {
-            flush_handler = data_batch_handler_;
-            batch = std::move(data_batch_queue_);
-            data_batch_queue_.clear();
-          } else if (data_batch_queue_.size() == 1) {
-            schedule_batch_timer(generation);
-          }
+          data_batch_queue_.clear();
+          message_batch_queue_.clear();
+          receive->reset(framer_to_push.get());
         }
-        detail::invoke_user_callback("tcp_client", "on_data_batch", flush_handler, batch);
-      } else {
-        detail::invoke_user_callback("tcp_client", "on_data", handler, MessageContext(0, data));
-      }
+        if (auto native = std::dynamic_pointer_cast<transport::TcpClient>(channel_)) native->fail_receive();
 
-      if (framer_to_push) framer_to_push->push_bytes(data);
+      } catch (const std::bad_alloc&) {
+        receive->scope->overflow(data.size(), ReceiveOverflowReason::AllocationFailure);
+
+        {
+          std::unique_lock<std::shared_mutex> lock(mutex_);
+          data_batch_queue_.clear();
+          message_batch_queue_.clear();
+          receive->reset(framer_to_push.get());
+        }
+        if (auto native = std::dynamic_pointer_cast<transport::TcpClient>(channel_)) native->fail_receive();
+      }
     });
 
     channel_->on_state([this, generation, weak_impl, weak_alive](base::LinkState state) {
@@ -659,6 +692,9 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       if (state == base::LinkState::Connected) {
         {
           std::unique_lock<std::shared_mutex> lock(mutex_);
+          receive_state_->reset(framer_.get());
+          data_batch_queue_.clear();
+          message_batch_queue_.clear();
           fulfill_all_locked(true);
           connect_handler = connect_handler_;
         }
@@ -711,6 +747,9 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     // the first start(), for a framer set on the builder.
     framer_->on_message([this](memory::ConstByteSpan msg) {
       const uint64_t generation = callback_generation_.load();
+      auto message_lease = callback_gate_.enter(generation);
+      if (!message_lease.admitted()) return;
+      auto prepared = detail::take_prepared_message(0, msg);
       // #441: snapshot under a shared_lock (pure read), build the copy
       // before taking the exclusive lock for queue mutation.
       bool batch_mode;
@@ -722,9 +761,9 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
       }
 
       if (batch_mode) {
-        MessageContext ctx(0, memory::SafeDataBuffer(msg));
+        auto ctx = prepared ? std::move(*prepared) : detail::retain_received(receive_state_->scope, 0, msg);
         interface::SharedCallback<BatchMessageHandler> flush_handler;
-        std::vector<MessageContext> batch;
+        detail::ReceiveBatch batch;
         {
           std::unique_lock<std::shared_mutex> lock(mutex_);
           message_batch_queue_.emplace_back(std::move(ctx));
@@ -746,7 +785,9 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   void set_framer(std::unique_ptr<framer::IFramer> framer) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
+    auto receive = std::make_shared<detail::ReceiveState>(receive_state_->scope);
     framer_ = std::shared_ptr<framer::IFramer>(std::move(framer));
+    receive_state_ = std::move(receive);
     if (framer_ && (message_handler_ || message_batch_handler_)) attach_framer_callback();
   }
 
@@ -773,6 +814,26 @@ TcpClient::~TcpClient() = default;
 
 TcpClient::TcpClient(TcpClient&&) noexcept = default;
 TcpClient& TcpClient::operator=(TcpClient&&) noexcept = default;
+
+TcpClient& TcpClient::receive_limits(ReceiveLimits limits) {
+  limits.validate();
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  if (impl_->started_ || impl_->stop_callers_.load() || (impl_->stop_requested_ && impl_->alive_marker_) ||
+      detail::in_data_callback())
+    throw std::logic_error("receive limits require completed stop");
+  auto budget = std::make_shared<detail::ReceiveBudget>(limits);
+  auto scope = budget->open_scope();
+  auto receive = std::make_shared<detail::ReceiveState>(std::move(scope));
+  impl_->receive_state_->reset(impl_->framer_.get());
+  impl_->receive_limits_ = limits;
+  impl_->receive_budget_ = std::move(budget);
+  impl_->receive_state_ = std::move(receive);
+  return *this;
+}
+ReceiveMemoryStats TcpClient::receive_stats() const {
+  std::shared_lock<std::shared_mutex> lock(impl_->mutex_);
+  return impl_->receive_budget_->stats();
+}
 
 std::future<bool> TcpClient::start() { return impl_->start(); }
 void TcpClient::stop() { impl_->stop(); }

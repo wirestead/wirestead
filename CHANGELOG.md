@@ -11,6 +11,14 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking behavior:** built-in wrappers enforce configurable aggregate receive
+  storage, framing-buffer and server session limits. TCP/UDS end only the affected
+  connection; Serial follows its reopen policy; UDP drops the new input while
+  preserving prior built-in framing/batch state. Concrete receive_stats exposes
+  cause-separated receive counters without changing RuntimeStats or IFramer.
+  Receive-limit changes require completed stop.
+  See docs/receive_memory_limits.md for defaults, costs and excluded storage.
+
 - **Breaking behavior:** built-in plain native writes preserve accepted work
   under BestEffort instead of implicitly dropping older queued data. Ordinary
   BestEffort wrapper sends still reject new requests under pressure. Blocking

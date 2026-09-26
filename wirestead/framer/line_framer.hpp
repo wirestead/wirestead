@@ -25,6 +25,9 @@
 #include "wirestead/framer/iframer.hpp"
 
 namespace wirestead {
+namespace wrapper::detail {
+struct ReceiveFramerAccess;
+}
 namespace framer {
 
 /**
@@ -50,6 +53,7 @@ class WIRESTEAD_API LineFramer : public IFramer {
   void reset() override;
 
  private:
+  friend struct wrapper::detail::ReceiveFramerAccess;
   std::string delimiter_;
   bool include_delimiter_;
   size_t max_length_;

@@ -35,12 +35,21 @@ class ReceiveBudget : public std::enable_shared_from_this<ReceiveBudget> {
   std::shared_ptr<ReceiveScope> open_scope();
   ReceiveMemoryStats stats() const {
     const auto used = used_.load();
-    return {used, std::max(used, peak_.load()), sessions_.load(), overflows_.load(), overflow_bytes_.load()};
+    ReceiveMemoryStats result{used, std::max(used, peak_.load()), sessions_.load(), overflows_.load(),
+                              overflow_bytes_.load()};
+    for (size_t i = 0; i < reasons_.size(); ++i) result.overflow_by_reason[i] = reasons_[i].load();
+    return result;
   }
   void reset_stats() {
     peak_ = used_.load();
     overflows_ = 0;
     overflow_bytes_ = 0;
+    for (auto& reason : reasons_) reason = 0;
+  }
+  void overflow(ReceiveOverflowReason reason, size_t bytes) {
+    ++overflows_;
+    overflow_bytes_ += bytes;
+    ++reasons_[static_cast<size_t>(reason)];
   }
 
  private:
@@ -58,6 +67,7 @@ class ReceiveBudget : public std::enable_shared_from_this<ReceiveBudget> {
   ReceiveLimits limits_;
   std::atomic<size_t> used_{0}, peak_{0}, sessions_{0};
   std::atomic<uint64_t> overflows_{0}, overflow_bytes_{0};
+  std::array<std::atomic<uint64_t>, 4> reasons_{};
 };
 
 class ReceiveScope : public std::enable_shared_from_this<ReceiveScope> {
@@ -68,11 +78,10 @@ class ReceiveScope : public std::enable_shared_from_this<ReceiveScope> {
   ReceiveScope(std::shared_ptr<ReceiveBudget> budget, ConstructionKey) : budget_(std::move(budget)) {}
   ~ReceiveScope() { --budget_->sessions_; }
   std::shared_ptr<ReceiveCharge> reserve(size_t bytes);
-  void overflow(size_t bytes) {
+  void overflow(size_t bytes, ReceiveOverflowReason reason = ReceiveOverflowReason::ByteLimit) {
     ++overflows_;
     overflow_bytes_ += bytes;
-    ++budget_->overflows_;
-    budget_->overflow_bytes_ += bytes;
+    budget_->overflow(reason, bytes);
   }
   ReceiveMemoryStats stats() const {
     const auto used = used_.load();
@@ -137,7 +146,10 @@ inline std::shared_ptr<ReceiveCharge> ReceiveScope::reserve(size_t bytes) {
 inline std::shared_ptr<ReceiveScope> ReceiveBudget::open_scope() {
   auto count = sessions_.load();
   do {
-    if (count >= limits_.max_sessions) return {};
+    if (count >= limits_.max_sessions) {
+      overflow(ReceiveOverflowReason::SessionLimit, 0);
+      return {};
+    }
   } while (!sessions_.compare_exchange_weak(count, count + 1));
   try {
     return std::make_shared<ReceiveScope>(shared_from_this(), ReceiveScope::ConstructionKey{});
