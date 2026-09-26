@@ -64,7 +64,12 @@ The configuration/callback update passes the full Debug suite: 2,762 discovered,
 detection passes 49 affected policy, callback and connection-fence cases; the 28
 new policy cases also pass 50 repetitions each (1,400 executions).
 
-An installed static-package consumer builds and runs request/reply, fanout,
+All five TLS loopback tests pass, including rejection of an incomplete certificate/key
+pair while preserving the previous working TLS configuration.
+
+Installed static and TLS shared-package consumers build and run request/reply, fanout,
 session layout, all seven concrete receive-limit APIs, the new UDP expiry
 registration and an unchanged telemetry custom framer from wirestead-examples.
-These checks do not publish a release or advance satellite release pins.
+The TLS consumer explicitly resolves OpenSSL before the wirestead package, matching
+the existing dependency-discovery requirement. These checks do not publish a
+release or advance satellite release pins.
