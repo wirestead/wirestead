@@ -76,12 +76,12 @@ implementation symbols above describe the specific decision being assessed.
 
 | Target | Completed core path | Remaining target-specific limitations |
 | --- | --- | --- |
-| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Built-in receive bounds and recovered-loss events implemented; settings policy remains |
+| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Built-in receive bounds, recovered-loss events and settings policy implemented; custom framer internals remain excluded |
 | UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Retry attempts remain Connecting; custom framer internals remain outside receive bounds |
 | UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Receive bounds implemented for built-in framing/queues; batch timers share the socket strand |
 | Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Recovered loss and receive bounds implemented; physical-device validation remains separate |
-| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Remaining configuration policy; receive bounds implemented |
-| UDS server | Same public guarantees; native move rejection fixed here | Same server gaps; legacy native bool fanout is distinct from public FanoutResult |
+| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Configuration policy and receive bounds implemented; custom framer internals remain excluded |
+| UDS server | Same public guarantees; native move rejection fixed here | Configuration policy and receive bounds implemented; legacy native bool fanout is distinct from public FanoutResult |
 | UDP server | D-1/D-2, endpoint/run-pinned sends, fixed fanout, peer accounting and waiting-work expiry | Shared socket pressure and serialized callbacks; per-peer batches implemented, distinct expiry event implemented |
 
 UDP client loss means socket failure/run end, not a remotely detected disconnect.
