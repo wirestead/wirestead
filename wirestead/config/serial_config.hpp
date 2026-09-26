@@ -104,7 +104,7 @@ struct SerialConfig {
   size_t backpressure_threshold = base::constants::DEFAULT_BACKPRESSURE_THRESHOLD;
   base::constants::BackpressureStrategy backpressure_strategy = base::constants::BackpressureStrategy::Reliable;
   bool enable_memory_pool = true;
-  // Controls whether callback exceptions halt the link (true) or trigger the normal retry flow (false)
+  // Receive callback exceptions request quiet stop when true; false logs and continues receiving.
   bool stop_on_callback_exception = false;
 
   unsigned retry_interval_ms = base::constants::DEFAULT_RETRY_INTERVAL_MS;

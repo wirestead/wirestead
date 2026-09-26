@@ -11,6 +11,12 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking behavior:** invalid configuration is rejected before application;
+  native construction no longer silently clamps it. Settings outside the explicit
+  runtime allowlist require completed stop. Native callback exceptions are logged
+  and contained without recursive error events; opt-in Serial/UDP callback stop
+  remains quiet. See docs/configuration_and_callbacks.md.
+
 - **Breaking behavior:** established client loss emits one disconnect even when
   retry succeeds; start failure or retry exhaustion emits one terminal error.
   UDP virtual-session idle expiry now uses the concrete on_session_expired

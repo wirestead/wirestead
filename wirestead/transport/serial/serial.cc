@@ -39,6 +39,8 @@
 #include "wirestead/concurrency/io_context_manager.hpp"
 #include "wirestead/concurrency/io_thread_hook.hpp"
 #include "wirestead/concurrency/thread_safe_state.hpp"
+#include "wirestead/config/validation.hpp"
+#include "wirestead/diagnostics/callback.hpp"
 #include "wirestead/diagnostics/error_handler.hpp"
 #include "wirestead/diagnostics/logger.hpp"
 #include "wirestead/diagnostics/runtime_stats_counter.hpp"
@@ -362,7 +364,7 @@ struct Serial::Impl {
   }
 
   void init() {
-    cfg_.validate_and_clamp();
+    config::detail::validate(cfg_);
     bp_high_ = cfg_.backpressure_threshold;
     bp_limit_ = std::min(std::max(bp_high_ * 4, base::constants::DEFAULT_BACKPRESSURE_THRESHOLD),
                          base::constants::MAX_BUFFER_SIZE);
@@ -510,40 +512,10 @@ struct Serial::Impl {
             std::lock_guard<std::mutex> lock(impl->callback_mtx_);
             on_bytes = impl->on_bytes_;
           }
-          if (on_bytes) {
-            try {
-              (*on_bytes)(memory::ConstByteSpan(buffer->data(), n));
-            } catch (const std::exception& e) {
-              std::string msg = fmt::format("Exception in callback: {}", e.what());
-              WIRESTEAD_LOG_ERROR("serial", "on_bytes", msg);
-              if (impl->cfg_.stop_on_callback_exception) {
-                impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR,
-                                                      diagnostics::ErrorCategory::COMMUNICATION, "on_bytes", {}, msg,
-                                                      false, 0);
-                impl->mark_disconnected();
-                impl->discard_connection_writes();
-                impl->close_port();
-                impl->state_.set(LinkState::Error);
-                impl->notify_state();
-                return;
-              }
-              impl->handle_error(self, "on_bytes_callback", make_error_code(boost::system::errc::io_error));
-              return;
-            } catch (...) {
-              if (impl->cfg_.stop_on_callback_exception) {
-                impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR,
-                                                      diagnostics::ErrorCategory::COMMUNICATION, "on_bytes", {},
-                                                      "Unknown exception in callback", false, 0);
-                impl->mark_disconnected();
-                impl->discard_connection_writes();
-                impl->close_port();
-                impl->state_.set(LinkState::Error);
-                impl->notify_state();
-                return;
-              }
-              impl->handle_error(self, "on_bytes_callback", make_error_code(boost::system::errc::io_error));
-              return;
-            }
+          if (!diagnostics::invoke_callback("serial", "on_bytes", on_bytes, memory::ConstByteSpan(buffer->data(), n)) &&
+              impl->cfg_.stop_on_callback_exception) {
+            self->stop();  // Explicit opt-in stops quietly, without recursive error notification.
+            return;
           }
           impl->start_read(self);
         }));
@@ -727,10 +699,7 @@ struct Serial::Impl {
       on_state = on_state_;
     }
     if (!on_state) return;
-    try {
-      (*on_state)(state_.get());
-    } catch (...) {
-    }
+    diagnostics::invoke_callback("serial", "on_state", on_state, state_.get());
   }
 
   // Unlike every other migrated transport, this deliberately keeps taking no
@@ -1305,15 +1274,13 @@ void Serial::on_backpressure(OnBackpressure cb) {
 }
 
 void Serial::set_backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+  config::detail::strategy(strategy);
   get_impl()->bp_strategy_.store(strategy, std::memory_order_relaxed);
 }
 
 void Serial::set_retry_interval(unsigned interval_ms) {
-  if (interval_ms < base::constants::MIN_RETRY_INTERVAL_MS) {
-    interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;
-  } else if (interval_ms > base::constants::MAX_RETRY_INTERVAL_MS) {
-    interval_ms = base::constants::MAX_RETRY_INTERVAL_MS;
-  }
+  config::detail::range(interval_ms, base::constants::MIN_RETRY_INTERVAL_MS, base::constants::MAX_RETRY_INTERVAL_MS,
+                        "invalid retry interval");
   get_impl()->retry_interval_ms_.store(interval_ms, std::memory_order_relaxed);
 }
 

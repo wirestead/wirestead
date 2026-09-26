@@ -26,8 +26,12 @@
 #include "wirestead/interface/iuds_socket.hpp"
 #include "wirestead/transport/serial/serial.hpp"
 #include "wirestead/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/transport/tcp_server/boost_tcp_acceptor.hpp"
+#include "wirestead/transport/tcp_server/tcp_server.hpp"
 #include "wirestead/transport/udp/udp.hpp"
+#include "wirestead/transport/uds/boost_uds_acceptor.hpp"
 #include "wirestead/transport/uds/uds_client.hpp"
+#include "wirestead/transport/uds/uds_server.hpp"
 #include "wirestead/wrapper/serial/serial.hpp"
 #include "wirestead/wrapper/tcp_client/tcp_client.hpp"
 #include "wirestead/wrapper/udp/udp.hpp"
@@ -118,7 +122,7 @@ class Endpoint : public interface::SerialPortInterface, public interface::UdsSoc
   }
 };
 
-class NativeLifecycleEventsTest : public ::testing::TestWithParam<int> {
+class NativeCallbackPolicyTest : public ::testing::TestWithParam<int> {
  protected:
   net::io_context io;
   std::shared_ptr<interface::Channel> native;
@@ -144,7 +148,7 @@ class NativeLifecycleEventsTest : public ::testing::TestWithParam<int> {
       config::TcpClientConfig cfg;
       cfg.port = acceptor->local_endpoint().port();
       cfg.max_retries = retry ? 2 : 0;
-      cfg.retry_interval_ms = 100;
+      cfg.retry_interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;
       if (fail_start)
         acceptor->close();
       else
@@ -159,14 +163,14 @@ class NativeLifecycleEventsTest : public ::testing::TestWithParam<int> {
         config::UdsClientConfig cfg;
         cfg.socket_path = "/fake/lifecycle";
         cfg.max_retries = retry ? 2 : 0;
-        cfg.retry_interval_ms = 100;
+        cfg.retry_interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;
         native = transport::UdsClient::create(cfg, std::move(fake), io);
         client = std::make_unique<wrapper::UdsClient>(native);
       } else {
         config::SerialConfig cfg;
-        cfg.device = "/dev/ttyLIFECYCLE";
+        cfg.device = "/dev/ttyTEST";
         cfg.reopen_on_error = retry;
-        cfg.retry_interval_ms = 100;
+        cfg.retry_interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;
         native = transport::Serial::create(cfg, std::move(fake), io);
         client = std::make_unique<wrapper::Serial>(native);
       }
@@ -176,6 +180,7 @@ class NativeLifecycleEventsTest : public ::testing::TestWithParam<int> {
       cfg.bind_address = fail_start ? "203.0.113.1" : "127.0.0.1";
       cfg.remote_address = "127.0.0.1";
       cfg.remote_port = udp->local_endpoint().port();
+      cfg.local_port = test::TestUtils::getAvailableTestPort();
       native = transport::UdpChannel::create(cfg, io);
       client = std::make_unique<wrapper::UdpClient>(native);
     }
@@ -222,42 +227,188 @@ class NativeLifecycleEventsTest : public ::testing::TestWithParam<int> {
     io.poll();
   }
 };
-TEST_P(NativeLifecycleEventsTest, TerminalLossReportsDisconnectBeforeError) {
+TEST_P(NativeCallbackPolicyTest, BytesAndStateExceptionsDoNotEscapeOrCloseTheLink) {
   create(false);
-  ASSERT_TRUE(start());
-  lose();
-  ASSERT_TRUE(pump([&] { return events.size() >= 3; }));
-  EXPECT_EQ(events, (std::vector<char>{'C', 'D', 'E'}));
-  test::stop_wrapper_with_context(*client, io);
-  EXPECT_EQ(events, (std::vector<char>{'C', 'D', 'E'}));
+  int states = 0, received = 0, errors = 0, from = 0;
+  native->on_state([&](auto state) {
+    ++states;
+    if (state == base::LinkState::Error) ++errors;
+    throw std::runtime_error("state notification");
+  });
+  native->on_bytes([&](auto) {
+    ++received;
+    if (received == 1) throw std::runtime_error("bytes");
+    throw 7;
+  });
+  if (auto datagram = std::dynamic_pointer_cast<transport::UdpChannel>(native))
+    datagram->on_bytes_from([&](auto, const auto&) {
+      ++from;
+      throw 3;
+    });
+  native->start();
+  ASSERT_TRUE(pump([&] { return native->is_connected(); }));
+  if (tcp) {
+    ASSERT_TRUE(pump([&] { return accepted; }));
+  }
+  auto send = [&] {
+    if (tcp)
+      net::write(*tcp, net::buffer("x", 1));
+    else if (udp)
+      udp->send_to(net::buffer("x", 1), std::dynamic_pointer_cast<transport::UdpChannel>(native)->local_endpoint());
+    else
+      net::post(native->get_executor(), [&] { endpoint->receive("x"); });
+  };
+  send();
+  ASSERT_TRUE(pump([&] { return received == 1; }));
+  send();
+  ASSERT_TRUE(pump([&] { return received == 2; }));
+  EXPECT_TRUE(native->is_connected());
+  EXPECT_EQ(errors, 0);
+  EXPECT_GT(states, 0);
+  if (udp) {
+    EXPECT_EQ(from, 2);
+  }
+  test::stop_with_context(native, io);
 }
-TEST_P(NativeLifecycleEventsTest, StartFailureReportsErrorWithoutDisconnect) {
-  create(false, true);
-  EXPECT_FALSE(start());
-  EXPECT_EQ(events, (std::vector<char>{'E'}));
+TEST_P(NativeCallbackPolicyTest, ThrowingTerminalStateDoesNotGenerateAnotherError) {
+  create(false);
+  int errors = 0;
+  native->on_state([&](auto state) {
+    if (state == base::LinkState::Error) {
+      ++errors;
+      throw 42;
+    }
+  });
+  native->start();
+  ASSERT_TRUE(pump([&] { return native->is_connected(); }));
+  if (tcp) {
+    ASSERT_TRUE(pump([&] { return accepted; }));
+  }
+  if (tcp)
+    tcp->close();
+  else if (endpoint) {
+    ASSERT_TRUE(pump([&] { return bool(endpoint->read); }));
+    net::post(native->get_executor(), [&] {
+      auto h = std::move(endpoint->read);
+      h(net::error::connection_reset, 0);
+    });
+  } else
+    EXPECT_TRUE(native->async_write_move(std::vector<uint8_t>(65536, 1)));
+  ASSERT_TRUE(pump([&] { return errors == 1; }));
+  io.restart();
+  io.poll();
+  EXPECT_EQ(errors, 1);
+  test::stop_with_context(native, io);
 }
-class NativeRecoverableEventsTest : public NativeLifecycleEventsTest {};
-TEST_P(NativeRecoverableEventsTest, SuccessfulRetryRetainsLossNotification) {
-  create(true);
-  ASSERT_TRUE(start());
-  lose();
-  if (GetParam() == 0) accept();
-  ASSERT_TRUE(pump([&] { return events.size() >= 3; }));
-  EXPECT_EQ(events, (std::vector<char>{'C', 'D', 'C'}));
-}
-class NativeRetryExhaustionEventsTest : public NativeLifecycleEventsTest {};
-TEST_P(NativeRetryExhaustionEventsTest, FailedRetriesReportOneTerminalError) {
-  create(true);
-  ASSERT_TRUE(start());
-  if (GetParam() == 0)
-    acceptor->close();
+INSTANTIATE_TEST_SUITE_P(AllClients, NativeCallbackPolicyTest, ::testing::Values(0, 1, 2, 3));
+class NativeServerCallbackPolicyTest : public ::testing::TestWithParam<bool> {};
+TEST_P(NativeServerCallbackPolicyTest, ThrowingNotificationsPreserveReceiveAndSessionCleanup) {
+  net::io_context io;
+  std::shared_ptr<transport::TcpServer> tcp_server;
+  std::shared_ptr<transport::UdsServer> uds_server;
+  std::shared_ptr<interface::Channel> native;
+  std::unique_ptr<net::ip::tcp::socket> tcp_peer;
+  std::unique_ptr<net::local::stream_protocol::socket> uds_peer;
+  const auto path = test::TestUtils::makeUniqueUdsSocketPath("native-callback").string();
+  const auto port = test::TestUtils::getAvailableTestPort();
+  bool listening = false;
+  int connected = 0, disconnected = 0, bytes = 0, data = 0, errors = 0;
+  auto configure = [&](auto& server) {
+    server->on_multi_connect([&](auto, const auto&) {
+      ++connected;
+      throw std::runtime_error("connect");
+    });
+    server->on_multi_disconnect([&](auto) {
+      ++disconnected;
+      throw 4;
+    });
+    server->on_multi_data([&](auto, auto) {
+      ++data;
+      throw std::runtime_error("multi data");
+    });
+  };
+  if (GetParam()) {
+    config::UdsServerConfig cfg;
+    cfg.socket_path = path;
+    uds_server = transport::UdsServer::create(cfg, std::make_unique<transport::BoostUdsAcceptor>(io), io);
+    configure(uds_server);
+    native = uds_server;
+  } else {
+    config::TcpServerConfig cfg;
+    cfg.port = port;
+    tcp_server = transport::TcpServer::create(cfg, std::make_unique<transport::BoostTcpAcceptor>(io), io);
+    configure(tcp_server);
+    native = tcp_server;
+  }
+  struct Cleanup {
+    std::function<void()> action;
+    ~Cleanup() { action(); }
+  } cleanup{[&] {
+    test::stop_with_context(native, io);
+    test::TestUtils::removeFileIfExists(path);
+  }};
+  native->on_state([&](auto state) {
+    if (state == base::LinkState::Listening) listening = true;
+    if (state == base::LinkState::Error) ++errors;
+    throw std::runtime_error("state");
+  });
+  native->on_bytes([&](auto) {
+    ++bytes;
+    throw 5;
+  });
+  auto pump = [&](auto done) {
+    const auto deadline = std::chrono::steady_clock::now() + 5s;
+    while (!done() && std::chrono::steady_clock::now() < deadline) {
+      if (io.stopped()) io.restart();
+      io.run_one_for(5ms);
+    }
+    return done();
+  };
+  native->start();
+  ASSERT_TRUE(pump([&] { return listening; }));
+  if (GetParam()) {
+    uds_peer = std::make_unique<net::local::stream_protocol::socket>(io);
+    uds_peer->connect(net::local::stream_protocol::endpoint(path));
+  } else {
+    tcp_peer = std::make_unique<net::ip::tcp::socket>(io);
+    tcp_peer->connect({net::ip::make_address("127.0.0.1"), port});
+  }
+  ASSERT_TRUE(pump([&] { return connected == 1; }));
+  for (int n = 1; n <= 2; ++n) {
+    if (tcp_peer)
+      net::write(*tcp_peer, net::buffer("x", 1));
+    else
+      net::write(*uds_peer, net::buffer("x", 1));
+    ASSERT_TRUE(pump([&] { return bytes == n && data == n; }));
+  }
+  if (tcp_peer)
+    tcp_peer->close();
   else
-    endpoint->fail_open = true;
-  lose();
-  ASSERT_TRUE(pump([&] { return !events.empty() && events.back() == 'E'; }));
-  EXPECT_EQ(events, (std::vector<char>{'C', 'D', 'E'}));
+    uds_peer->close();
+  ASSERT_TRUE(pump([&] {
+    return disconnected == 1 && (tcp_server ? tcp_server->client_count() : uds_server->client_count()) == 0;
+  }));
+  EXPECT_EQ(errors, 0);
 }
-INSTANTIATE_TEST_SUITE_P(AllClients, NativeLifecycleEventsTest, ::testing::Values(0, 1, 2, 3));
-INSTANTIATE_TEST_SUITE_P(ReconnectingClients, NativeRecoverableEventsTest, ::testing::Values(0, 1, 2));
-INSTANTIATE_TEST_SUITE_P(BoundedRetries, NativeRetryExhaustionEventsTest, ::testing::Values(0, 1));
+INSTANTIATE_TEST_SUITE_P(StreamServers, NativeServerCallbackPolicyTest, ::testing::Bool());
+TEST(NativeConfigPolicy, InvalidConfigurationIsRejectedBeforeStart) {
+  config::TcpClientConfig tcp;
+  tcp.retry_interval_ms = 0;
+  EXPECT_THROW(transport::TcpClient::create(tcp), std::invalid_argument);
+  config::TcpServerConfig server;
+  server.backpressure_threshold = 0;
+  EXPECT_THROW(transport::TcpServer::create(server), std::invalid_argument);
+  config::UdsClientConfig uds;
+  uds.socket_path.clear();
+  EXPECT_THROW(transport::UdsClient::create(uds), std::invalid_argument);
+  config::UdsServerConfig us;
+  us.socket_permissions = 01000;
+  EXPECT_THROW(transport::UdsServer::create(us), std::invalid_argument);
+  config::UdpConfig udp;
+  udp.remote_address = "127.0.0.1";
+  EXPECT_THROW(transport::UdpChannel::create(udp), std::invalid_argument);
+  config::SerialConfig serial;
+  serial.char_size = 0;
+  EXPECT_THROW(transport::Serial::create(serial), std::invalid_argument);
+}
 }  // namespace

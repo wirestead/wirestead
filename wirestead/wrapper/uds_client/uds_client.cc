@@ -34,11 +34,13 @@
 #include "wirestead/base/constants.hpp"
 #include "wirestead/concurrency/io_thread_hook.hpp"
 #include "wirestead/config/uds_config.hpp"
+#include "wirestead/config/validation.hpp"
 #include "wirestead/diagnostics/error_mapping.hpp"
 #include "wirestead/factory/channel_factory.hpp"
 #include "wirestead/interface/connection_channel.hpp"
 #include "wirestead/transport/uds/detail/write_wait.hpp"
 #include "wirestead/transport/uds/uds_client.hpp"
+#include "wirestead/util/input_validator.hpp"
 #include "wirestead/wrapper/bounded_receive.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
@@ -109,6 +111,10 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
   std::shared_ptr<framer::IFramer> framer_{nullptr};
 
   detail::LifecycleEvents lifecycle_events_;
+  void require_stopped_config() const {
+    if (started_.load() || stop_callers_.load() || (stop_requested_ && alive_marker_) || detail::in_data_callback())
+      throw std::logic_error("configuration requires completed stop");
+  }
   ReceiveLimits receive_limits_;
   std::shared_ptr<detail::ReceiveBudget> receive_budget_{std::make_shared<detail::ReceiveBudget>(receive_limits_)};
   std::shared_ptr<detail::ReceiveState> receive_state_{
@@ -787,10 +793,14 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
   }
 };
 
-UdsClient::UdsClient(const std::string& socket_path) : impl_(std::make_shared<Impl>(socket_path)) {}
+UdsClient::UdsClient(const std::string& socket_path) : impl_(std::make_shared<Impl>(socket_path)) {
+  config::detail::require(util::InputValidator::is_valid_uds_path(socket_path), "invalid UDS path");
+}
 
 UdsClient::UdsClient(const std::string& socket_path, std::shared_ptr<boost::asio::io_context> external_ioc)
-    : impl_(std::make_shared<Impl>(socket_path, std::move(external_ioc))) {}
+    : impl_(std::make_shared<Impl>(socket_path, std::move(external_ioc))) {
+  config::detail::require(util::InputValidator::is_valid_uds_path(socket_path), "invalid UDS path");
+}
 
 UdsClient::UdsClient(std::shared_ptr<interface::Channel> channel) : impl_(std::make_shared<Impl>(std::move(channel))) {
   impl_->setup_internal_handlers();
@@ -910,6 +920,8 @@ UdsClient& UdsClient::auto_start(bool manage) {
 }
 
 UdsClient& UdsClient::retry_interval(std::chrono::milliseconds interval) {
+  config::detail::duration(interval, base::constants::MIN_RETRY_INTERVAL_MS, base::constants::MAX_RETRY_INTERVAL_MS,
+                           false, "invalid retry_interval");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->retry_interval_ = interval;
   if (impl_->channel_) {
@@ -920,30 +932,42 @@ UdsClient& UdsClient::retry_interval(std::chrono::milliseconds interval) {
 }
 
 UdsClient& UdsClient::max_retries(int max_retries) {
+  config::detail::range(max_retries, -1, base::constants::MAX_RETRIES_LIMIT, "invalid retry limit");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->max_retries_ = max_retries;
   return *this;
 }
 
 UdsClient& UdsClient::connection_timeout(std::chrono::milliseconds timeout) {
+  config::detail::duration(timeout, base::constants::MIN_CONNECTION_TIMEOUT_MS,
+                           base::constants::MAX_CONNECTION_TIMEOUT_MS, false, "invalid connection_timeout");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->connection_timeout_ = timeout;
   return *this;
 }
 
 UdsClient& UdsClient::backpressure_threshold(size_t threshold) {
+  config::detail::range(threshold, base::constants::MIN_BACKPRESSURE_THRESHOLD,
+                        base::constants::MAX_BACKPRESSURE_THRESHOLD, "invalid backpressure_threshold");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->backpressure_threshold_ = threshold;
   return *this;
 }
 
 UdsClient& UdsClient::read_buffer_size(size_t bytes) {
+  config::detail::range(bytes, base::constants::MIN_READ_BUFFER_SIZE, base::constants::MAX_READ_BUFFER_SIZE,
+                        "invalid read_buffer_size");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->read_buffer_size_ = bytes;
   return *this;
 }
 
 UdsClient& UdsClient::backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+  config::detail::strategy(strategy);
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->backpressure_strategy_ = strategy;
   if (impl_->channel_) {
@@ -964,17 +988,21 @@ base::constants::BackpressureStrategy UdsClient::backpressure_strategy() const {
 }
 
 UdsClient& UdsClient::manage_external_context(bool manage) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->manage_external_context_.store(manage);
   return *this;
 }
 
 UdsClient& UdsClient::batch_size(size_t size) {
+  config::detail::require(size > 0, "batch size must be positive");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_batch_size_ = size;
   return *this;
 }
 
 UdsClient& UdsClient::batch_latency(std::chrono::milliseconds latency) {
+  config::detail::duration(latency, 0, std::numeric_limits<int>::max(), true, "invalid batch latency");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_batch_latency_ = latency;
   return *this;

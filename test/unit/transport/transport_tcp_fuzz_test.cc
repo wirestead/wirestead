@@ -78,7 +78,7 @@ TEST(TransportTcpFuzzTest, FuzzingData) {
   EXPECT_FALSE(session->alive());
 }
 
-TEST(TransportTcpFuzzTest, MockParserCrash) {
+TEST(TransportTcpFuzzTest, MockParserExceptionKeepsSessionReadable) {
   net::io_context ioc;
   auto work_guard = net::make_work_guard(ioc);
   size_t bp_threshold = 65536;
@@ -113,8 +113,11 @@ TEST(TransportTcpFuzzTest, MockParserCrash) {
   socket_raw->emit_read(13);
   ioc.run_for(5ms);
 
-  EXPECT_TRUE(closed.load());
-  EXPECT_FALSE(session->alive());
+  EXPECT_FALSE(closed.load());
+  EXPECT_TRUE(session->alive());
+  session->stop();
+  ioc.restart();
+  ioc.run_for(10ms);
 }
 
 TEST(TransportTcpFuzzTest, PacketSegmentation) {

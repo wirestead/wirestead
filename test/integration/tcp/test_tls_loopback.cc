@@ -216,20 +216,20 @@ TEST(TcpTlsLoopbackTest, ClientRejectsAnUntrustedServerCertificate) {
 // Half a TLS config used to leave tls_enabled() false, which meant the server
 // came up in plaintext without a word - an empty env var or a typo away from
 // serving unencrypted traffic to a caller who asked for TLS.
-TEST(TcpTlsLoopbackTest, StartFailsWhenOnlyHalfTheTlsConfigIsSet) {
+TEST(TcpTlsLoopbackTest, InvalidTlsPairIsRejectedAndPreservesPreviousSettings) {
   SelfSignedCert certs;
   if (!certs.ok()) {
     GTEST_SKIP() << "openssl CLI unavailable, cannot generate a test certificate";
   }
-
   for (const auto& [cert, key] :
        std::vector<std::pair<std::string, std::string>>{{certs.cert().string(), ""}, {"", certs.key().string()}}) {
-    auto server = std::make_shared<wirestead::wrapper::TcpServer>(TestUtils::getAvailableTestPort());
-    server->tls(cert, key);
-    server->on_error([](const wirestead::ErrorContext&) {});
-
-    EXPECT_FALSE(server->start().get()) << "half a TLS config started anyway";
-    EXPECT_FALSE(server->listening());
+    const auto port = TestUtils::getAvailableTestPort();
+    auto server = std::make_shared<wirestead::wrapper::TcpServer>(port);
+    server->tls(certs.cert().string(), certs.key().string());
+    EXPECT_THROW(server->tls(cert, key), std::invalid_argument);
+    server->on_data([&](const wirestead::MessageContext&) { (void)server->broadcast("pong"); });
+    ASSERT_TRUE(server->start().get());
+    EXPECT_EQ(tls_round_trip(port, certs.cert(), "ping"), "pong");
     server->stop();
   }
 }

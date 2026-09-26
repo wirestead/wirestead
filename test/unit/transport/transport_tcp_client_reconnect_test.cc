@@ -84,10 +84,10 @@ TEST_F(TcpClientReconnectTest, ReconnectAfterServerStop) {
 // with no re-validation, unlike the one-time validate_and_clamp() call at
 // construction. Calling it live with 0 used to produce an unbounded tight
 // reconnect loop (the same bug class reported for connection_timeout_ms).
-// Verifies retry_interval(0) on an already-running client is floored at
+// Verifies rejected retry_interval(0) leaves an already-running client at
 // MIN_RETRY_INTERVAL_MS, by measuring spacing between repeated failed
 // connect attempts against a port nothing is listening on.
-TEST_F(TcpClientReconnectTest, LiveSetRetryIntervalIsClampedNotUnbounded) {
+TEST_F(TcpClientReconnectTest, LiveSetInvalidRetryIntervalPreservesPreviousDelay) {
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
   cfg.port = port_;  // nothing listens here
@@ -111,7 +111,7 @@ TEST_F(TcpClientReconnectTest, LiveSetRetryIntervalIsClampedNotUnbounded) {
   client->start();
 
   // Wait for the first connect attempt before flipping the live setter, so
-  // the 0-clamp is guaranteed to apply to every retry timer scheduled
+  // the invalid value is rejected before every subsequent retry timer is scheduled
   // afterward rather than racing the client's own startup.
   {
     std::unique_lock<std::mutex> lock(mtx);
@@ -119,14 +119,14 @@ TEST_F(TcpClientReconnectTest, LiveSetRetryIntervalIsClampedNotUnbounded) {
         << "Client never made its first connect attempt";
   }
 
-  client->set_retry_interval(0);  // the live setter-bypass scenario from #432
+  EXPECT_THROW(client->set_retry_interval(0), std::invalid_argument);  // the live setter-bypass scenario from #432
 
   std::unique_lock<std::mutex> lock(mtx);
   ASSERT_TRUE(cv.wait_for(lock, 10s, [&] { return connecting_at.size() >= 3; }))
       << "Client never retried enough times to measure spacing";
 
   // Use the last gap: guaranteed to be scheduled after set_retry_interval(0)
-  // took effect.
+  // was rejected.
   auto it = connecting_at.end();
   auto t_last = *(--it);
   auto t_prev = *(--it);

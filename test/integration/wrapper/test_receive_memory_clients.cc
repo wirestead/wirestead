@@ -149,9 +149,9 @@ class ReceiveMemoryClientTest : public ::testing::TestWithParam<int> {
         client = std::make_unique<wrapper::UdsClient>(native);
       } else {
         config::SerialConfig cfg;
-        cfg.device = "/fake/receive-memory";
+        cfg.device = "/dev/ttyRECEIVE";
         cfg.reopen_on_error = reopen;
-        cfg.retry_interval_ms = 1;
+        cfg.retry_interval_ms = 100;
         native = transport::Serial::create(cfg, std::move(fake), io);
         client = std::make_unique<wrapper::Serial>(native);
       }

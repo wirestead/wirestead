@@ -110,7 +110,7 @@ TEST_F(TransportTcpClientTest, BackpressureTriggersWhenConnected) {
 TEST_F(TransportTcpClientTest, CreateProvidesSharedFromThis) {
   config::TcpClientConfig cfg;
   cfg.host = "localhost";
-  cfg.port = 0;
+  cfg.port = TestUtils::getAvailableTestPort();
 
   auto client = TcpClient::create(cfg);
   EXPECT_NO_THROW({
@@ -122,7 +122,7 @@ TEST_F(TransportTcpClientTest, CreateProvidesSharedFromThis) {
 
 TEST_F(TransportTcpClientTest, TcpServerCreateProvidesSharedFromThis) {
   config::TcpServerConfig cfg;
-  cfg.port = 0;
+  cfg.port = TestUtils::getAvailableTestPort();
   auto server = TcpServer::create(cfg);
   EXPECT_NO_THROW({
     auto self = server->shared_from_this();
@@ -136,7 +136,7 @@ TEST_F(TransportTcpClientTest, StopPreventsReconnectAfterManualStop) {
   config::TcpClientConfig cfg;
   cfg.host = "256.256.256.256";  // force resolve failure quickly
   cfg.port = TestUtils::getAvailableTestPort();
-  cfg.retry_interval_ms = 30;
+  cfg.retry_interval_ms = 100;
 
   client_ = TcpClient::create(cfg, ioc);
 
@@ -166,8 +166,8 @@ TEST_F(TransportTcpClientTest, ExternalIoContextFlowsThroughLifecycle) {
   boost::asio::io_context ioc;
   config::TcpClientConfig cfg;
   cfg.host = "localhost";
-  cfg.port = 0;  // invalid port to avoid real connect
-  cfg.retry_interval_ms = 20;
+  cfg.port = TestUtils::getAvailableTestPort();  // invalid port to avoid real connect
+  cfg.retry_interval_ms = 100;
 
   client_ = TcpClient::create(cfg, ioc);
 
@@ -187,7 +187,7 @@ TEST_F(TransportTcpClientTest, StartStopIdempotent) {
   boost::asio::io_context ioc;
   config::TcpClientConfig cfg;
   cfg.host = "localhost";
-  cfg.port = 0;  // invalid/closed port
+  cfg.port = TestUtils::getAvailableTestPort();  // invalid/closed port
 
   client_ = TcpClient::create(cfg, ioc);
 
@@ -240,46 +240,35 @@ TEST_F(TransportTcpClientTest, QueueLimitDropsMessage) {
   client_.reset();
 }
 
-TEST_F(TransportTcpClientTest, OnBytesExceptionTriggersReconnect) {
+TEST_F(TransportTcpClientTest, OnBytesExceptionKeepsConnectionAndContinuesReads) {
   net::io_context ioc;
-
-  // Spin up a local acceptor to allow a real connection and deliver one read.
   tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), 0));
-  auto port = acceptor.local_endpoint().port();
-
   config::TcpClientConfig cfg;
-  cfg.host = "127.0.0.1";
-  cfg.port = port;
-  cfg.retry_interval_ms = 20;
-
+  cfg.port = acceptor.local_endpoint().port();
+  cfg.retry_interval_ms = 100;
   client_ = TcpClient::create(cfg, ioc);
-
-  std::atomic<int> connecting_events{0};
-  std::atomic<int> error_events{0};
+  int connecting = 0, errors = 0, received = 0;
   client_->on_state([&](base::LinkState state) {
-    if (state == base::LinkState::Connecting) connecting_events.fetch_add(1);
-    if (state == base::LinkState::Error) error_events.fetch_add(1);
+    if (state == base::LinkState::Connecting) ++connecting;
+    if (state == base::LinkState::Error) ++errors;
   });
-
-  client_->on_bytes([](memory::ConstByteSpan) { throw std::runtime_error("boom"); });
-
-  // Accept a client and send a small payload to trigger on_bytes
-  acceptor.async_accept([&](const boost::system::error_code& ec, tcp::socket sock) {
-    if (!ec) {
-      auto data = std::make_shared<std::string>("ping");
-      net::async_write(sock, net::buffer(*data), [data](auto, auto) {});
-    }
+  client_->on_bytes([&](memory::ConstByteSpan) {
+    ++received;
+    throw std::runtime_error("boom");
   });
-
+  tcp::socket peer(ioc);
+  bool accepted = false;
+  acceptor.async_accept(peer, [&](auto ec) { accepted = !ec; });
   client_->start();
-
-  // Run enough to connect, receive, throw, and schedule a retry
-  run_until(ioc, [&] { return connecting_events.load() >= 2; });
-
-  EXPECT_EQ(error_events.load(), 0);
-  // At least two Connecting states: initial + post-exception reconnect attempt
-  EXPECT_GE(connecting_events.load(), 2);
-
+  ASSERT_TRUE(run_until(ioc, [&] { return accepted && client_->is_connected(); }));
+  const auto initial_connecting = connecting;
+  net::write(peer, net::buffer("a", 1));
+  ASSERT_TRUE(run_until(ioc, [&] { return received == 1; }));
+  net::write(peer, net::buffer("b", 1));
+  ASSERT_TRUE(run_until(ioc, [&] { return received == 2; }));
+  EXPECT_EQ(connecting, initial_connecting);
+  EXPECT_EQ(errors, 0);
+  EXPECT_TRUE(client_->is_connected());
   stop_with_context(client_, ioc);
   client_.reset();
 }
@@ -371,7 +360,7 @@ TEST_F(TransportTcpClientTest, ConnectionRefusedTriggersRetry) {
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
   cfg.port = TestUtils::getAvailableTestPort();  // Port not listening
-  cfg.retry_interval_ms = 50;
+  cfg.retry_interval_ms = 100;
   // Ensure we timeout quickly if OS doesn't send RST immediately (common on Windows)
   cfg.connection_timeout_ms = 100;
 
@@ -401,7 +390,7 @@ TEST_F(TransportTcpClientTest, ResolveFailureTriggersRetry) {
   config::TcpClientConfig cfg;
   cfg.host = "invalid.host.name.that.does.not.exist";
   cfg.port = 80;
-  cfg.retry_interval_ms = 50;
+  cfg.retry_interval_ms = 100;
 
   client_ = TcpClient::create(cfg, ioc);
 
@@ -432,7 +421,7 @@ TEST_F(TransportTcpClientTest, MaxRetriesStopsReconnection) {
 
   cfg.port = TestUtils::getAvailableTestPort();
 
-  cfg.retry_interval_ms = 50;
+  cfg.retry_interval_ms = 100;
 
   cfg.connection_timeout_ms = 200;  // Increased slightly
 
@@ -491,8 +480,8 @@ TEST_F(TransportTcpClientTest, ConnectionTimeoutTriggersRetry) {
   config::TcpClientConfig cfg;
   cfg.host = "10.255.255.1";  // Unreachable IP to force timeout (or route failure)
   cfg.port = 80;
-  cfg.connection_timeout_ms = 50;  // Short timeout
-  cfg.retry_interval_ms = 50;
+  cfg.connection_timeout_ms = 100;  // Short timeout
+  cfg.retry_interval_ms = 100;
   cfg.max_retries = 2;
 
   client_ = TcpClient::create(cfg, ioc);
@@ -520,9 +509,9 @@ TEST_F(TransportTcpClientTest, UnlimitedRetriesKeepsConnecting) {
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
   cfg.port = TestUtils::getAvailableTestPort();
-  cfg.retry_interval_ms = 50;      // Increased to 50ms for better timer resolution on Windows
-  cfg.connection_timeout_ms = 50;  // Ensure fast failure
-  cfg.max_retries = -1;            // Unlimited
+  cfg.retry_interval_ms = 100;      // Increased to 50ms for better timer resolution on Windows
+  cfg.connection_timeout_ms = 100;  // Ensure fast failure
+  cfg.max_retries = -1;             // Unlimited
 
   client_ = TcpClient::create(cfg, ioc);
 
@@ -549,7 +538,7 @@ TEST_F(TransportTcpClientTest, UnlimitedRetriesKeepsConnecting) {
 TEST_F(TransportTcpClientTest, OwnedIoContextRestartAfterStopStart) {
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
-  cfg.port = 0;
+  cfg.port = TestUtils::getAvailableTestPort();
   cfg.max_retries = 0;  // avoid retry storm
 
   client_ = TcpClient::create(cfg);
@@ -627,8 +616,8 @@ TEST_F(TransportTcpClientTest, SettersAndClearedReconnectPolicyAffectRetry) {
   client_ = TcpClient::create(cfg, ioc);
   client_->set_reconnect_policy(FixedInterval(5ms));
   client_->set_reconnect_policy(nullptr);
-  client_->set_retry_interval(20);
-  client_->set_connection_timeout(20);
+  client_->set_retry_interval(100);
+  client_->set_connection_timeout(100);
   client_->set_max_retries(0);
 
   std::atomic<bool> error_state{false};
@@ -739,14 +728,14 @@ TEST_F(TransportTcpClientTest, SharedWriteSendsPayloadWhenConnected) {
   client_.reset();
 }
 
-TEST_F(TransportTcpClientTest, UnknownOnBytesExceptionTriggersReconnect) {
+TEST_F(TransportTcpClientTest, UnknownOnBytesExceptionKeepsConnection) {
   net::io_context ioc;
   tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), 0));
 
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
   cfg.port = acceptor.local_endpoint().port();
-  cfg.retry_interval_ms = 20;
+  cfg.retry_interval_ms = 100;
   cfg.connection_timeout_ms = 100;
 
   client_ = TcpClient::create(cfg, ioc);
@@ -767,12 +756,19 @@ TEST_F(TransportTcpClientTest, UnknownOnBytesExceptionTriggersReconnect) {
       connecting_events.fetch_add(1);
     }
   });
-  client_->on_bytes([](memory::ConstByteSpan) { throw 7; });
+  int received = 0;
+  client_->on_bytes([&](memory::ConstByteSpan) {
+    ++received;
+    throw 7;
+  });
 
   client_->start();
-  run_until(ioc, [&] { return connecting_events.load() >= 2; });
-
-  EXPECT_GE(connecting_events.load(), 2);
+  ASSERT_TRUE(run_until(ioc, [&] { return received == 1; }));
+  const int before = connecting_events.load();
+  net::write(*server_socket, net::buffer("again", 5));
+  ASSERT_TRUE(run_until(ioc, [&] { return received == 2; }));
+  EXPECT_EQ(connecting_events.load(), before);
+  EXPECT_TRUE(client_->is_connected());
 
   client_->on_state(nullptr);
   client_->on_bytes(nullptr);
@@ -799,14 +795,13 @@ struct ReconnectWritePeer {
     cfg.send_buffer_size = 1024;
     cfg.backpressure_threshold = threshold;
     cfg.backpressure_strategy = strategy;
-    cfg.retry_interval_ms = 20;
+    cfg.retry_interval_ms = 100;
     client = TcpClient::create(cfg, io);
     client->on_state([this](base::LinkState state) {
       if (state == base::LinkState::Connected && ++connections == 2) {
         fresh_accepted = client->async_write_move(std::vector<uint8_t>{'n', 'e', 'w', '\n'});
       }
     });
-    client->on_bytes([](memory::ConstByteSpan) { throw std::runtime_error("end first connection"); });
     acceptor.async_accept(first, [this](auto ec) {
       if (ec) return;
       acceptor.async_accept(second, [this](auto next_ec) {
@@ -824,7 +819,10 @@ struct ReconnectWritePeer {
     client->on_state(nullptr);
     stop_with_context(client, io);
   }
-  void trigger_loss() { net::write(first, net::buffer("!", 1)); }
+  void trigger_loss() {
+    first.set_option(net::socket_base::linger(true, 0));
+    first.close();
+  }
   std::string line() {
     std::istream stream(&received);
     std::string result;
@@ -862,17 +860,24 @@ TEST_P(TcpReconnectPostedWriteTest, OldSubmissionNeverReachesNewConnection) {
         old_accepted = peer.client->async_try_write_shared(shared);
         break;
     }
-    // The posted write cannot run until this callback closes the connection.
-    throw std::runtime_error("end first connection after submission");
+    // Cause real peer loss; user callback exceptions no longer close a link.
+    peer.trigger_loss();
   });
-  peer.trigger_loss();
+  net::write(peer.first, net::buffer("!", 1));
   ASSERT_TRUE(run_until(peer.io, [&] { return peer.read_done; }));
   EXPECT_FALSE(peer.read_error);
   EXPECT_TRUE(old_accepted);
   EXPECT_TRUE(peer.fresh_accepted);
   EXPECT_EQ(peer.line(), "new");
-  EXPECT_EQ(peer.client->stats().dropped_messages, 1u);
-  EXPECT_EQ(peer.client->stats().dropped_bytes, 4u);
+  ASSERT_TRUE(run_until(peer.io, [&] { return peer.client->stats().send_accounting->outstanding.requests == 0; }));
+  const auto accounting = *peer.client->stats().send_accounting;
+  EXPECT_EQ(accounting.accepted.requests, 2u);
+  EXPECT_EQ(accounting.accepted.bytes, 8u);
+  // The old write can reach local I/O before peer reset is observed, but it
+  // must terminate on that original connection and never be replayed.
+  EXPECT_EQ(accounting.written.requests + accounting.connection_loss.discarded_before_write.requests +
+                accounting.connection_loss.aborted_during_write.requests,
+            2u);
 }
 INSTANTIATE_TEST_SUITE_P(AllStrategiesAndWriteForms, TcpReconnectPostedWriteTest, ::testing::Range(0, 12));
 

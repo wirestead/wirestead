@@ -346,7 +346,7 @@ class FakeSerialPort : public interface::SerialPortInterface {
 
 std::shared_ptr<transport::Serial> make_transport(boost::asio::io_context& io) {
   config::SerialConfig cfg;
-  cfg.device = "fake";
+  cfg.device = "/dev/ttyTEST";
   cfg.reopen_on_error = false;
   return transport::Serial::create(cfg, std::make_unique<FakeSerialPort>(io), io);
 }
@@ -458,7 +458,7 @@ class HeldWritePort : public FakeSerialPort {
 TEST(SerialWriteStopTest, GatherStorageRemainsValidUntilCancelledCompletionIsReleased) {
   Context context;
   config::SerialConfig cfg;
-  cfg.device = "fake";
+  cfg.device = "/dev/ttyTEST";
   auto port = std::make_unique<HeldWritePort>(*context.io);
   auto* raw = port.get();
   auto channel = transport::Serial::create(cfg, std::move(port), *context.io);
@@ -510,7 +510,7 @@ TEST(SerialWriteStopTest, GatherStorageRemainsValidUntilCancelledCompletionIsRel
 TEST(SerialWriteStopTest, DiscardedCompletionAlsoReleasesShutdownWaiters) {
   Context context;
   config::SerialConfig cfg;
-  cfg.device = "fake";
+  cfg.device = "/dev/ttyTEST";
   auto port = std::make_unique<HeldWritePort>(*context.io);
   auto* raw = port.get();
   auto channel = transport::Serial::create(cfg, std::move(port), *context.io);
@@ -546,8 +546,8 @@ TEST(SerialWriteStopTest, DiscardedCompletionAlsoReleasesShutdownWaiters) {
 TEST(SerialRetryStopTest, FailedOpenRetryIsCancelledBeforeRestart) {
   Context context;
   config::SerialConfig cfg;
-  cfg.device = "fake";
-  cfg.retry_interval_ms = 50;
+  cfg.device = "/dev/ttyTEST";
+  cfg.retry_interval_ms = 100;
   auto port = std::make_unique<FakeSerialPort>(*context.io);
   auto* raw = port.get();
   raw->set_open_error(make_error_code(boost::asio::error::access_denied));

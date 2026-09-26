@@ -160,7 +160,7 @@ TEST(TransportUdpExtendedTest, BackpressureReporting) {
   boost::asio::ip::udp::socket dummy(ioc, {boost::asio::ip::udp::v4(), 0});
   cfg.remote_port = dummy.local_endpoint().port();
 
-  cfg.backpressure_threshold = 100;
+  cfg.backpressure_threshold = 1024;
 
   auto channel = transport::UdpChannel::create(cfg, ioc);
 
@@ -168,7 +168,7 @@ TEST(TransportUdpExtendedTest, BackpressureReporting) {
   std::atomic<bool> bp_cleared{false};
 
   channel->on_backpressure([&](size_t q) {
-    if (q >= 100) bp_triggered = true;
+    if (q >= cfg.backpressure_threshold) bp_triggered = true;
     if (q == 0 && bp_triggered) bp_cleared = true;
   });
 

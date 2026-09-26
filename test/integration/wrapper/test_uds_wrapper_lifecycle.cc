@@ -485,7 +485,9 @@ TEST(UdsServerWrapperLifecycleTest, FramedMessageBatchFlushesAtBatchSize) {
 TEST(UdsServerWrapperLifecycleTest, LineSendingVariantsReachConnectedClients) {
   test::wrapper_support::UdsServerLoopbackHarness harness("uws-line-sending");
   auto server = harness.start_server();
+  server->stop();
   server->backpressure_strategy(base::constants::BackpressureStrategy::BestEffort);
+  ASSERT_TRUE(server->start().get());
 
   std::atomic<int> received{0};
   std::string received_data;
@@ -691,10 +693,10 @@ TEST(UdsClientWrapperContractTest, StartWhileConnectedAndBestEffortWriteFailure)
 TEST(UdsClientWrapperContractTest, ConfigurationSettersBeforeStartRemainFluent) {
   UdsClient client(test::TestUtils::makeUniqueUdsSocketPath("uwc-config").string());
 
-  EXPECT_EQ(&client, &client.retry_interval(7ms));
+  EXPECT_EQ(&client, &client.retry_interval(100ms));
   EXPECT_EQ(&client, &client.max_retries(3));
-  EXPECT_EQ(&client, &client.connection_timeout(25ms));
-  EXPECT_EQ(&client, &client.backpressure_threshold(512));
+  EXPECT_EQ(&client, &client.connection_timeout(100ms));
+  EXPECT_EQ(&client, &client.backpressure_threshold(1024));
   EXPECT_EQ(&client, &client.backpressure_strategy(base::constants::BackpressureStrategy::BestEffort));
   EXPECT_EQ(&client, &client.batch_size(3));
   EXPECT_EQ(&client, &client.batch_latency(15ms));

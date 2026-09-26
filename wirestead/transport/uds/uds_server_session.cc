@@ -16,6 +16,7 @@
 
 #include "wirestead/transport/uds/uds_server_session.hpp"
 
+#include "wirestead/diagnostics/callback.hpp"
 #include "wirestead/transport/base/bp_utils.hpp"
 #include "wirestead/transport/base/stop_test_hook.hpp"
 #include "wirestead/transport/uds/boost_uds_socket.hpp"
@@ -66,7 +67,7 @@ void UdsServerSession::start_with_notification(std::function<void()> notify) {
   alive_ = true;
   net::post(strand_, [self = shared_from_this(), notify = std::move(notify)] {
     if (self->closing_ || !self->alive_) return;
-    if (notify) notify();
+    diagnostics::invoke_callback("uds_server_session", "on_connect", notify);
     if (self->closing_ || !self->alive_) return;
     self->reset_idle_timer();
     self->start_read();
@@ -451,7 +452,8 @@ void UdsServerSession::start_read() {
                                  return;
                                }
                                if (bytes > 0) self->stats_.record_received(bytes);
-                               if (self->on_bytes_) self->on_bytes_(memory::ConstByteSpan(self->rx_.data(), bytes));
+                               diagnostics::invoke_callback("uds_server_session", "on_bytes", self->on_bytes_,
+                                                            memory::ConstByteSpan(self->rx_.data(), bytes));
                                if (self->closing_ || !self->alive_) return;
                                self->reset_idle_timer();
                                self->start_read();
@@ -552,10 +554,7 @@ void UdsServerSession::do_close() {
   on_bp_ = nullptr;
   on_close_ = nullptr;
   if (close_cb) {
-    try {
-      close_cb();
-    } catch (...) {
-    }
+    diagnostics::invoke_callback("uds_server_session", "on_close", close_cb);
   }
 }
 

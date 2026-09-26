@@ -308,25 +308,13 @@ TEST_P(TcpStopAdmissionTest, NeverStartedStopNeedsNoExecutorAndRetainsNoWork) {
 // Validation can fail before any I/O work is dispatched. This must not
 // wait on an owned thread that was never created or an unused external context.
 TEST(TcpFailedStartStopTest, ValidationFailureNeedsNoExecutorForCleanup) {
-  for (bool external : {false, true}) {
-    boost::asio::io_context io;
-    config::TcpServerConfig cfg;
-    cfg.port = test::TestUtils::getAvailableTestPort();
-    cfg.tls_certificate_file = "unused-certificate";
-    // A certificate without a key is invalid even in builds with TLS off.
-    auto server = external ? transport::TcpServer::create(cfg, std::make_unique<transport::BoostTcpAcceptor>(io), io)
-                           : transport::TcpServer::create(cfg);
-    std::weak_ptr<transport::TcpServer> weak = server;
-    for (int cycle = 0; cycle < 2; ++cycle) {
-      server->start();
-      ASSERT_EQ(server->state(), base::LinkState::Error);
-      server->stop();
-      EXPECT_EQ(server->state(), base::LinkState::Closed);
-    }
-    server.reset();
-    EXPECT_TRUE(weak.expired());
-    EXPECT_EQ(io.poll(), 0u);
-  }
+  boost::asio::io_context io;
+  config::TcpServerConfig cfg;
+  cfg.tls_certificate_file = "unused-certificate";
+  EXPECT_THROW(transport::TcpServer::create(cfg, std::make_unique<transport::BoostTcpAcceptor>(io), io),
+               std::invalid_argument);
+  EXPECT_THROW(transport::TcpServer::create(cfg), std::invalid_argument);
+  EXPECT_EQ(io.poll(), 0u);
 }
 
 // Closing the socket is not the same event as leaving its cancelled read
@@ -636,7 +624,7 @@ TEST_P(TcpCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   cfg.port = acceptor.local_endpoint().port();
   cfg.send_buffer_size = 1024;
   cfg.backpressure_threshold = 1024;
-  cfg.retry_interval_ms = 20;
+  cfg.retry_interval_ms = 100;
   auto transport = transport::TcpClient::create(cfg, *context.io);
   wrapper::TcpClient client(transport);
   std::atomic<int> connections{0};

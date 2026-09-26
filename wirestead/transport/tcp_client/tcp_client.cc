@@ -17,6 +17,8 @@
 #include "wirestead/transport/tcp_client/tcp_client.hpp"
 
 #include "wirestead/concurrency/io_thread_hook.hpp"
+#include "wirestead/config/validation.hpp"
+#include "wirestead/diagnostics/callback.hpp"
 #include "wirestead/transport/base/stop_test_hook.hpp"
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -305,7 +307,7 @@ struct TcpClient::Impl {
     writing_ = false;
     queue_bytes_ = 0;
     pending_bytes_ = 0;
-    cfg_.validate_and_clamp();
+    config::detail::validate(cfg_);
     rx_ = std::make_shared<std::vector<uint8_t>>(cfg_.read_buffer_size);
     recalculate_backpressure_bounds();
     first_retry_interval_ms_ = std::min(first_retry_interval_ms_, cfg_.retry_interval_ms);
@@ -909,30 +911,41 @@ void TcpClient::on_backpressure(OnBackpressure cb) {
   impl_->on_bp_ = std::move(shared);
 }
 void TcpClient::set_backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+  config::detail::strategy(strategy);
   impl_->bp_strategy_.store(strategy, std::memory_order_relaxed);
 }
 
 void TcpClient::set_retry_interval(unsigned interval_ms) {
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
+  auto candidate = impl_->cfg_;
+  candidate.retry_interval_ms = interval_ms;
+  config::detail::validate(candidate);
   impl_->cfg_.retry_interval_ms = interval_ms;
-  impl_->cfg_.validate_and_clamp();
 }
 void TcpClient::set_max_retries(int max_retries) {
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
+  auto candidate = impl_->cfg_;
+  candidate.max_retries = max_retries;
+  config::detail::validate(candidate);
   impl_->cfg_.max_retries = max_retries;
-  impl_->cfg_.validate_and_clamp();
 }
 void TcpClient::set_connection_timeout(unsigned timeout_ms) {
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
+  auto candidate = impl_->cfg_;
+  candidate.connection_timeout_ms = timeout_ms;
+  config::detail::validate(candidate);
   impl_->cfg_.connection_timeout_ms = timeout_ms;
-  impl_->cfg_.validate_and_clamp();
 }
 void TcpClient::set_idle_timeout(unsigned timeout_ms) {
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
+  auto candidate = impl_->cfg_;
+  candidate.idle_timeout_ms = timeout_ms;
+  config::detail::validate(candidate);
   impl_->cfg_.idle_timeout_ms = timeout_ms;
-  impl_->cfg_.validate_and_clamp();
 }
 void TcpClient::set_idle_timeout_action(IdleTimeoutAction action) {
+  config::detail::require(action == IdleTimeoutAction::Close || action == IdleTimeoutAction::Reconnect,
+                          "invalid idle timeout action");
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
   impl_->cfg_.idle_timeout_action = action;
 }
@@ -1295,22 +1308,7 @@ void TcpClient::Impl::start_read(std::shared_ptr<TcpClient> self, uint64_t seq) 
 
     self->impl_->stats_.record_received(n);
 
-    if (on_bytes) {
-      try {
-        (*on_bytes)(memory::ConstByteSpan(buffer->data(), n));
-      } catch (const std::exception& e) {
-        WIRESTEAD_LOG_ERROR("tcp_client", "on_bytes", fmt::format("Exception in on_bytes callback: {}", e.what()));
-        self->impl_->record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::COMMUNICATION, "on_bytes",
-                                  boost::asio::error::connection_aborted,
-                                  fmt::format("Exception in on_bytes: {}", e.what()), false, 0);
-        self->impl_->handle_close(self, seq, make_error_code(boost::asio::error::connection_aborted));
-        return;
-      } catch (...) {
-        WIRESTEAD_LOG_ERROR("tcp_client", "on_bytes", "Unknown exception in on_bytes callback");
-        self->impl_->handle_close(self, seq, make_error_code(boost::asio::error::connection_aborted));
-        return;
-      }
-    }
+    diagnostics::invoke_callback("tcp_client", "on_bytes", on_bytes, memory::ConstByteSpan(buffer->data(), n));
     self->impl_->start_read(self, seq);
   };
 #ifdef WIRESTEAD_TLS_ENABLED

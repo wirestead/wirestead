@@ -275,7 +275,7 @@ TEST(TransportSerialTest, RxIdleTimeoutReopensASilentPort) {
   boost::asio::io_context ioc;
   config::SerialConfig cfg;
   cfg.rx_idle_timeout_ms = 30;
-  cfg.retry_interval_ms = 20;
+  cfg.retry_interval_ms = 100;
   cfg.reopen_on_error = true;
 
   auto port = std::make_unique<FakeSerialPort>(ioc);
@@ -299,7 +299,7 @@ TEST(TransportSerialTest, RxIdleTimeoutReopensASilentPort) {
 TEST(TransportSerialTest, RxIdleTimeoutIsOffByDefault) {
   boost::asio::io_context ioc;
   config::SerialConfig cfg;
-  cfg.retry_interval_ms = 20;
+  cfg.retry_interval_ms = 100;
   auto port = std::make_unique<FakeSerialPort>(ioc);
   auto serial = Serial::create(cfg, std::move(port), ioc);
 
@@ -322,7 +322,7 @@ TEST(TransportSerialTest, ReceivedDataRearmsTheRxIdleTimeout) {
   boost::asio::io_context ioc;
   config::SerialConfig cfg;
   cfg.rx_idle_timeout_ms = 30;
-  cfg.retry_interval_ms = 20;
+  cfg.retry_interval_ms = 100;
 
   auto port = std::make_unique<FakeSerialPort>(ioc);
   auto* port_raw = port.get();
@@ -456,7 +456,7 @@ TEST(TransportSerialTest, ModemLinesAreAppliedWhenSet) {
 TEST(TransportSerialTest, StopPreventsReopenAfterOperationAborted) {
   boost::asio::io_context ioc;
   config::SerialConfig cfg;
-  cfg.retry_interval_ms = 20;
+  cfg.retry_interval_ms = 100;
   auto port = std::make_unique<FakeSerialPort>(ioc);
   auto* port_raw = port.get();
 
@@ -608,7 +608,7 @@ TEST(TransportSerialTest, CallbackExceptionStopsWhenConfigured) {
   boost::asio::io_context ioc;
   config::SerialConfig cfg;
   cfg.stop_on_callback_exception = true;
-  cfg.retry_interval_ms = 10;
+  cfg.retry_interval_ms = 100;
 
   auto port = std::make_unique<FakeSerialPort>(ioc);
   auto* port_raw = port.get();
@@ -629,16 +629,17 @@ TEST(TransportSerialTest, CallbackExceptionStopsWhenConfigured) {
 
   ioc.run_for(20ms);
 
-  EXPECT_TRUE(error_seen.load());
+  EXPECT_FALSE(error_seen.load());
+  EXPECT_FALSE(serial->is_connected());
   wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }
 
-TEST(TransportSerialTest, CallbackExceptionRetriesWhenAllowed) {
+TEST(TransportSerialTest, CallbackExceptionContinuesReceivingByDefault) {
   boost::asio::io_context ioc;
   config::SerialConfig cfg;
   cfg.stop_on_callback_exception = false;
-  cfg.retry_interval_ms = 10;
+  cfg.retry_interval_ms = 100;
 
   auto port = std::make_unique<FakeSerialPort>(ioc);
   auto* port_raw = port.get();
@@ -658,20 +659,21 @@ TEST(TransportSerialTest, CallbackExceptionRetriesWhenAllowed) {
 
   port_raw->emit_read(4);
 
-  // Allow retry timer to fire at least once.
+  // A callback exception must not initiate a retry.
   ioc.run_for(40ms);
 
   EXPECT_EQ(error_events.load(), 0);
-  EXPECT_GE(connecting_events.load(), 2);  // initial start + retry attempt
+  EXPECT_EQ(connecting_events.load(), 1);
+  EXPECT_TRUE(serial->is_connected());  // Only the initial start.
   wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }
 
-TEST(TransportSerialTest, CallbackUnknownExceptionRetriesWhenAllowed) {
+TEST(TransportSerialTest, CallbackUnknownExceptionContinuesReceivingByDefault) {
   boost::asio::io_context ioc;
   config::SerialConfig cfg;
   cfg.stop_on_callback_exception = false;
-  cfg.retry_interval_ms = 10;
+  cfg.retry_interval_ms = 100;
 
   auto port = std::make_unique<FakeSerialPort>(ioc);
   auto* port_raw = port.get();
@@ -689,7 +691,8 @@ TEST(TransportSerialTest, CallbackUnknownExceptionRetriesWhenAllowed) {
   port_raw->emit_read(4);
   ioc.run_for(40ms);
 
-  EXPECT_GE(connecting_events.load(), 2);
+  EXPECT_EQ(connecting_events.load(), 1);
+  EXPECT_TRUE(serial->is_connected());
   wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(10ms);
 }
@@ -870,7 +873,7 @@ TEST_P(SerialConnectionFenceTest, DropsQueuedAndPostedWritesAndKeepsOldBuffersAl
   boost::asio::io_context io;
   config::SerialConfig cfg;
 
-  cfg.retry_interval_ms = 1;
+  cfg.retry_interval_ms = 100;
   cfg.enable_memory_pool = (GetParam() / 6) % 2 == 0;
   cfg.backpressure_strategy = GetParam() >= 12 ? base::constants::BackpressureStrategy::BestEffort
                                                : base::constants::BackpressureStrategy::Reliable;
@@ -1384,7 +1387,7 @@ TEST_P(SerialCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   namespace net = boost::asio;
   config::SerialConfig cfg;
   cfg.backpressure_threshold = 1024;
-  cfg.retry_interval_ms = 20;
+  cfg.retry_interval_ms = 100;
   auto port = std::make_unique<FakeSerialPort>(*context.io);
   auto* fake = port.get();
   fake->set_complete_writes(false);
@@ -1525,7 +1528,7 @@ TEST(SerialReadFenceTest, IdleReopenKeepsOldReadBufferAndIgnoresItsCompletion) {
   boost::asio::io_context io;
   config::SerialConfig cfg;
   cfg.rx_idle_timeout_ms = 30;
-  cfg.retry_interval_ms = 1;
+  cfg.retry_interval_ms = 100;
   auto port = std::make_unique<DelayedSerialPort>(io);
   auto* delayed = port.get();
   delayed->retain_reads = true;

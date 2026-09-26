@@ -91,7 +91,7 @@ TEST_F(SerialTimeoutTest, ReadTimeoutWhenNoData) {
   }
 
   // Open port V0 with Wirestead::Serial
-  auto serial = std::make_shared<wrapper::Serial>("/tmp/ttyV0", 9600);
+  auto serial = std::make_shared<wrapper::Serial>(std::filesystem::canonical("/tmp/ttyV0").string(), 9600);
 
   std::promise<std::string> read_promise;
   auto read_future = read_promise.get_future();

@@ -348,7 +348,7 @@ TEST(UdpServerWrapperLifecycleTest, ConfigurationSettersBeforeStartRemainFluent)
   EXPECT_EQ(&server, &server.bind_address("127.0.0.1"));
   EXPECT_EQ(&server, &server.idle_timeout(25ms));
   EXPECT_EQ(&server, &server.max_clients(0));
-  EXPECT_EQ(&server, &server.backpressure_threshold(256));
+  EXPECT_EQ(&server, &server.backpressure_threshold(1024));
   EXPECT_EQ(&server, &server.backpressure_strategy(base::constants::BackpressureStrategy::BestEffort));
   EXPECT_EQ(&server, &server.batch_size(3));
   EXPECT_EQ(&server, &server.batch_latency(15ms));

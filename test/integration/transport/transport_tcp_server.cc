@@ -218,7 +218,7 @@ TEST_F(TransportTcpServerTest, BindFailureTriggerError) {
 
   cfg.port = port;
 
-  cfg.port_retry_interval_ms = constants::kShortTimeout.count();
+  cfg.port_retry_interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;
 
   cfg.max_port_retries = 0;  // Fail immediately after first attempt
 
@@ -305,7 +305,7 @@ TEST_F(TransportTcpServerTest, PortBindingRetrySuccess) {
     cfg.port = port;
     cfg.enable_port_retry = true;
     cfg.max_port_retries = 15;  // Increased to 15 to allow sufficient time for port release
-    cfg.port_retry_interval_ms = constants::kShortTimeout.count();
+    cfg.port_retry_interval_ms = base::constants::MIN_RETRY_INTERVAL_MS;
 
     server_ = TcpServer::create(cfg);
     server_->start();
@@ -414,24 +414,14 @@ TEST_F(TransportTcpServerTest, InjectedNullAcceptorThrows) {
   EXPECT_THROW((void)TcpServer::create(cfg, nullptr, ioc), diagnostics::BuilderException);
 }
 
-TEST_F(TransportTcpServerTest, InvalidBindAddressMovesToErrorAndSwallowsStateException) {
+TEST_F(TransportTcpServerTest, InvalidBindAddressIsRejectedBeforeConstruction) {
   net::io_context ioc;
   config::TcpServerConfig cfg;
   cfg.bind_address = "not an address";
   cfg.port = TestUtils::getAvailableTestPort();
-
-  server_ = TcpServer::create(cfg, std::make_unique<FakeTcpAcceptor>(ioc, FakeTcpAcceptor::FailureMode::None), ioc);
-  server_->on_state([](base::LinkState) { throw std::runtime_error("state"); });
-
-  EXPECT_NO_THROW({
-    server_->start();
-    ioc.run_for(std::chrono::milliseconds(50));
-  });
-  EXPECT_EQ(server_->state(), base::LinkState::Error);
-
-  server_->on_state(nullptr);
-  stop_with_context(server_, ioc);
-  server_.reset();
+  EXPECT_THROW(TcpServer::create(cfg, std::make_unique<FakeTcpAcceptor>(ioc, FakeTcpAcceptor::FailureMode::None), ioc),
+               std::invalid_argument);
+  EXPECT_EQ(ioc.poll(), 0u);
 }
 
 TEST_F(TransportTcpServerTest, InjectedAcceptorOpenFailureMovesToError) {

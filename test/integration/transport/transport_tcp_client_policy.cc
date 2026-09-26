@@ -71,7 +71,7 @@ TEST_F(TransportTcpClientPolicyTest, FixedIntervalPolicyRetriesWithDelay) {
   cfg.host = "127.0.0.1";
   cfg.port = TestUtils::getAvailableTestPort();
   cfg.retry_interval_ms = 1000;
-  cfg.connection_timeout_ms = 50;
+  cfg.connection_timeout_ms = 100;
 
   client_ = TcpClient::create(cfg, ioc);
 
@@ -123,7 +123,7 @@ TEST_F(TransportTcpClientPolicyTest, ExponentialBackoffPolicyIncreasesDelay) {
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
   cfg.port = TestUtils::getAvailableTestPort();
-  cfg.connection_timeout_ms = 20;
+  cfg.connection_timeout_ms = 100;
 
   client_ = TcpClient::create(cfg, ioc);
 
@@ -172,7 +172,7 @@ TEST_F(TransportTcpClientPolicyTest, PolicyCanStopRetries) {
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
   cfg.port = TestUtils::getAvailableTestPort();
-  cfg.connection_timeout_ms = 20;
+  cfg.connection_timeout_ms = 100;
   cfg.max_retries = -1;  // Infinite in config
 
   client_ = TcpClient::create(cfg, ioc);
@@ -262,7 +262,7 @@ TEST_F(TransportTcpClientPolicyTest, MaxRetriesEnforcedOverPolicy) {
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
   cfg.port = TestUtils::getAvailableTestPort();
-  cfg.connection_timeout_ms = 20;
+  cfg.connection_timeout_ms = 100;
   cfg.max_retries = 2;  // Strict limit
 
   client_ = TcpClient::create(cfg, ioc);
@@ -309,7 +309,7 @@ TEST_F(TransportTcpClientPolicyTest, NonRetryableErrorPreventsRetry) {
   cfg.host = "127.0.0.1";
   cfg.port = 0;  // Will be set after acceptor creation
   cfg.connection_timeout_ms = 100;
-  cfg.backpressure_threshold = 10;  // Low threshold
+  cfg.backpressure_threshold = 1024;  // Low threshold
 
   // Connect to a real server so we can write
   tcp::acceptor acceptor(ioc, tcp::endpoint(tcp::v4(), 0));

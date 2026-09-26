@@ -661,7 +661,8 @@ TEST_F(TransportUdpTest, BytesFromExceptionStopsWhenConfigured) {
   udp::socket sender(ioc, udp::endpoint(udp::v4(), 0));
   sender.send_to(net::buffer("boom", 4), udp::endpoint(net::ip::make_address("127.0.0.1"), port));
 
-  EXPECT_TRUE(TestUtils::waitForCondition([&] { return error_seen.load(); }, 1000));
+  EXPECT_TRUE(TestUtils::waitForCondition([&] { return !channel->is_connected(); }, 1000));
+  EXPECT_FALSE(error_seen.load());
   channel->stop();
 }
 
@@ -671,5 +672,5 @@ TEST_F(TransportUdpTest, InvalidRemoteAddressThrows) {
   cfg.remote_address = "not a valid address";
   cfg.remote_port = 12345;
 
-  EXPECT_THROW((void)UdpChannel::create(cfg), std::runtime_error);
+  EXPECT_THROW((void)UdpChannel::create(cfg), std::invalid_argument);
 }

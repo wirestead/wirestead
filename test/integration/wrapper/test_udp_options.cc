@@ -53,6 +53,7 @@ TEST_F(UdpOptionsTest, SetterCoverage) {
   // It returns ChannelInterface& so we can chain it, but UdpClient wrapper implements it.
   udp.auto_start(true);
   udp.auto_start(false);
+  udp.stop();
 
   // Test manage_external_context
   udp.manage_external_context(true);
@@ -68,6 +69,7 @@ TEST_F(UdpOptionsTest, ConstructorWithExternalContext) {
 
   // Should not throw
   udp.auto_start(false);
+  udp.stop();
 }
 
 TEST_F(UdpOptionsTest, AutoManageStartsInjectedTransport) {

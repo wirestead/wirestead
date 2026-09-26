@@ -1,6 +1,6 @@
 # Post-acceptance accounting and event proposal
 
-**Status: accounting and lifecycle event policy implemented.** The
+**Status: accounting, lifecycle events and configuration/callback policy implemented.** The
 [stream accounting implementation](tcp_send_accounting.md) now implements
 the TCP/UDS client/session and Serial request ledger with explicit measurement epochs and cause groups.
 [UDP socket accounting](udp_send_accounting.md) also implements these totals.
@@ -8,7 +8,8 @@ TCP/UDS session aggregation and UDP virtual-session accounting are implemented.
 The selected UDP expiry policy discards waiting requests and preserves active
 completion outcomes. The approved event choices below are implemented; see [lifecycle events](lifecycle_events.md).
 The [current conformance report](communication_contract_v0.10_status.md)
-identifies the missing behavior. This document specifies implementation gates.
+records scope and remaining verification. The [configuration and callback policy](configuration_and_callbacks.md)
+implements the approved validation and live-setting decisions. This document records implementation gates.
 Existing SendResult/FanoutResult admission semantics do not change.
 
 ## Requirements already decided

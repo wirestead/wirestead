@@ -36,6 +36,8 @@
 #include "wirestead/concurrency/io_context_manager.hpp"
 #include "wirestead/concurrency/io_thread_hook.hpp"
 #include "wirestead/concurrency/thread_safe_state.hpp"
+#include "wirestead/config/validation.hpp"
+#include "wirestead/diagnostics/callback.hpp"
 #include "wirestead/diagnostics/logger.hpp"
 #include "wirestead/diagnostics/runtime_stats_counter.hpp"
 #include "wirestead/interface/iuds_acceptor.hpp"
@@ -181,7 +183,7 @@ struct UdsServer::Impl {
         strand_(net::make_strand(*ioc_)),
         owns_ioc_(!ioc_ptr),
         cfg_(cfg) {
-    cfg_.validate_and_clamp();
+    config::detail::validate(cfg_);
     acceptor_ = std::make_unique<BoostUdsAcceptor>(*ioc_);
   }
   ~Impl() {
@@ -779,6 +781,7 @@ std::optional<wrapper::RuntimeStats> UdsServer::client_stats(ClientId client_id)
 }
 
 void UdsServer::set_client_limit(size_t max_clients) {
+  config::detail::range(max_clients, 0, base::constants::MAX_MAX_CONNECTIONS, "invalid client limit");
   std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
   impl_->cfg_.max_connections =
       static_cast<int>(std::min(max_clients, static_cast<size_t>(base::constants::MAX_MAX_CONNECTIONS)));
@@ -839,8 +842,8 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self, uint64_t genera
             data_handler = s->impl_->on_multi_data_;
             bytes_handler = s->impl_->on_bytes_;
           }
-          if (data_handler) (*data_handler)(client_id, data);
-          if (bytes_handler) (*bytes_handler)(data);
+          diagnostics::invoke_callback("uds_server", "on_multi_data", data_handler, client_id, data);
+          diagnostics::invoke_callback("uds_server", "on_bytes", bytes_handler, data);
         });
 
         // Forward each session's pressure transitions through the current
@@ -854,7 +857,7 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self, uint64_t genera
             std::lock_guard<std::mutex> lock(s->impl_->sessions_mutex_);
             handler = s->impl_->on_bp_;
           }
-          if (handler) (*handler)(queued);
+          diagnostics::invoke_callback("uds_server", "on_backpressure", handler, queued);
         });
 
         session->on_close([weak_self, client_id, generation]() {
@@ -867,7 +870,7 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self, uint64_t genera
           }
           // Keep the closing session visible to stop until notification returns,
           // so native shutdown also waits for this session-strand callback.
-          if (disconnect_handler) disconnect_handler(client_id);
+          diagnostics::invoke_callback("uds_server", "on_disconnect", disconnect_handler, client_id);
           {
             std::lock_guard<std::mutex> lock(s->impl_->sessions_mutex_);
             if (s->impl_->stopping_ || generation != s->impl_->generation_) return;
@@ -885,7 +888,7 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self, uint64_t genera
           // session strand, ahead of reads, writes and pressure callbacks.
           session->start_with_notification([self, client_id, generation, connect_handler = std::move(connect_handler)] {
             if (self->impl_->stopping_ || self->impl_->generation_ != generation) return;
-            if (connect_handler) connect_handler(client_id, "UDS Client");
+            diagnostics::invoke_callback("uds_server", "on_connect", connect_handler, client_id, "UDS Client");
           });
         }
 
@@ -926,7 +929,7 @@ void UdsServer::Impl::notify_state() {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
     cb = on_state_;
   }
-  if (cb) (*cb)(state_.get());
+  diagnostics::invoke_callback("uds_server", "on_state", cb, state_.get());
 }
 
 }  // namespace transport

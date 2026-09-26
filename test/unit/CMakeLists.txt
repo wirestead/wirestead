@@ -152,6 +152,7 @@ foreach(
   test_receive_budget.cc
   test_bounded_receive.cc
   test_lifecycle_events.cc
+  test_config_policy.cc
   test_send_result.cc
   test_connection_channel.cc
   test_client_send_results.cc

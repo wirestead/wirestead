@@ -17,6 +17,8 @@
 #include "wirestead/transport/uds/uds_client.hpp"
 
 #include "wirestead/concurrency/io_thread_hook.hpp"
+#include "wirestead/config/validation.hpp"
+#include "wirestead/diagnostics/callback.hpp"
 #include "wirestead/diagnostics/send_accounting.hpp"
 
 #if defined(__GNUC__) || defined(__clang__)
@@ -247,7 +249,7 @@ struct UdsClient::Impl {
     writing_ = false;
     queue_bytes_ = 0;
     pending_bytes_ = 0;
-    cfg_.validate_and_clamp();
+    config::detail::validate(cfg_);
     rx_ = std::make_shared<std::vector<uint8_t>>(cfg_.read_buffer_size);
     recalculate_backpressure_bounds();
   }
@@ -844,13 +846,16 @@ void UdsClient::on_backpressure(OnBackpressure cb) {
 }
 
 void UdsClient::set_backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+  config::detail::strategy(strategy);
   impl_->bp_strategy_.store(strategy, std::memory_order_relaxed);
 }
 
 void UdsClient::set_retry_interval(unsigned interval_ms) {
   std::lock_guard<std::mutex> lock(impl_->cfg_mtx_);
+  auto candidate = impl_->cfg_;
+  candidate.retry_interval_ms = interval_ms;
+  config::detail::validate(candidate);
   impl_->cfg_.retry_interval_ms = interval_ms;
-  impl_->cfg_.validate_and_clamp();
 }
 
 void UdsClient::set_reconnect_policy(ReconnectPolicy policy) {
@@ -977,25 +982,26 @@ void UdsClient::Impl::start_read(std::shared_ptr<UdsClient> self, uint64_t seq) 
   if (stop_requested_.load() || seq != current_seq_.load() || !connected_.load()) return;
   const auto connection = connection_seq_.load();
   auto buffer = rx_;
-  socket_->async_read_some(net::buffer(*buffer), track_io(self, [self, seq, connection, buffer](
-                                                                    const boost::system::error_code& ec, size_t bytes) {
-                             auto* impl = self->impl_.get();
-                             if (ec == net::error::operation_aborted || seq != impl->current_seq_.load() ||
-                                 connection != impl->connection_seq_.load() || impl->stop_requested_.load())
-                               return;
-                             if (ec) {
-                               impl->handle_close(self, seq, ec);
-                               return;
-                             }
-                             interface::SharedCallback<OnBytes> cb;
-                             {
-                               std::lock_guard<std::mutex> lock(impl->callback_mtx_);
-                               cb = impl->on_bytes_;
-                             }
-                             if (bytes > 0) impl->stats_.record_received(bytes);
-                             if (cb) (*cb)(memory::ConstByteSpan(buffer->data(), bytes));
-                             impl->start_read(self, seq);
-                           }));
+  socket_->async_read_some(
+      net::buffer(*buffer),
+      track_io(self, [self, seq, connection, buffer](const boost::system::error_code& ec, size_t bytes) {
+        auto* impl = self->impl_.get();
+        if (ec == net::error::operation_aborted || seq != impl->current_seq_.load() ||
+            connection != impl->connection_seq_.load() || impl->stop_requested_.load())
+          return;
+        if (ec) {
+          impl->handle_close(self, seq, ec);
+          return;
+        }
+        interface::SharedCallback<OnBytes> cb;
+        {
+          std::lock_guard<std::mutex> lock(impl->callback_mtx_);
+          cb = impl->on_bytes_;
+        }
+        if (bytes > 0) impl->stats_.record_received(bytes);
+        diagnostics::invoke_callback("uds_client", "on_bytes", cb, memory::ConstByteSpan(buffer->data(), bytes));
+        impl->start_read(self, seq);
+      }));
 }
 
 void UdsClient::Impl::do_write(std::shared_ptr<UdsClient> self, uint64_t seq) {
@@ -1107,7 +1113,7 @@ void UdsClient::Impl::transition_to(LinkState next, const boost::system::error_c
     std::lock_guard<std::mutex> lock(callback_mtx_);
     cb = on_state_;
   }
-  if (cb) (*cb)(next);
+  diagnostics::invoke_callback("uds_client", "on_state", cb, next);
 }
 
 void UdsClient::Impl::perform_stop_cleanup() {

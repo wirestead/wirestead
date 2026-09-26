@@ -37,10 +37,12 @@
 #include <vector>
 
 #include "wirestead/base/common.hpp"
+#include "wirestead/config/validation.hpp"
 #include "wirestead/factory/channel_factory.hpp"
 #include "wirestead/interface/connection_channel.hpp"
 #include "wirestead/transport/udp/detail/write_wait.hpp"
 #include "wirestead/transport/udp/udp.hpp"
+#include "wirestead/util/input_validator.hpp"
 #include "wirestead/wrapper/bounded_receive.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
@@ -107,6 +109,10 @@ struct UdpClient::Impl : public std::enable_shared_from_this<Impl> {
   std::shared_ptr<framer::IFramer> framer{nullptr};
 
   detail::LifecycleEvents lifecycle_events_;
+  void require_stopped_config() const {
+    if (started_.load() || stop_callers_.load() || (stop_requested_ && alive_marker) || detail::in_data_callback())
+      throw std::logic_error("configuration requires completed stop");
+  }
   ReceiveLimits receive_limits_;
   std::shared_ptr<detail::ReceiveBudget> receive_budget_{std::make_shared<detail::ReceiveBudget>(receive_limits_)};
   std::shared_ptr<detail::ReceiveState> receive_state_{
@@ -740,9 +746,13 @@ struct UdpClient::Impl : public std::enable_shared_from_this<Impl> {
   }
 };
 
-UdpClient::UdpClient(const config::UdpConfig& cfg) : impl_(std::make_shared<Impl>(cfg)) {}
+UdpClient::UdpClient(const config::UdpConfig& cfg) : impl_(std::make_shared<Impl>(cfg)) {
+  config::detail::validate(cfg);
+}
 UdpClient::UdpClient(const config::UdpConfig& cfg, std::shared_ptr<boost::asio::io_context> ioc)
-    : impl_(std::make_shared<Impl>(cfg, ioc)) {}
+    : impl_(std::make_shared<Impl>(cfg, ioc)) {
+  config::detail::validate(cfg);
+}
 UdpClient::UdpClient(std::shared_ptr<interface::Channel> ch) : impl_(std::make_shared<Impl>(ch)) {
   impl_->setup_internal_handlers();
 }
@@ -846,12 +856,16 @@ UdpClient& UdpClient::auto_start(bool m) {
 }
 
 UdpClient& UdpClient::backpressure_threshold(size_t threshold) {
+  config::detail::range(threshold, base::constants::MIN_BACKPRESSURE_THRESHOLD,
+                        base::constants::MAX_BACKPRESSURE_THRESHOLD, "invalid backpressure_threshold");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->cfg.backpressure_threshold = threshold;
   return *this;
 }
 
 UdpClient& UdpClient::backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+  config::detail::strategy(strategy);
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->cfg.backpressure_strategy = strategy;
   if (impl_->channel) {
@@ -873,29 +887,41 @@ base::constants::BackpressureStrategy UdpClient::backpressure_strategy() const {
 }
 
 UdpClient& UdpClient::send_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid send_buffer_size");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->cfg.send_buffer_size = bytes;
   return *this;
 }
 
 UdpClient& UdpClient::receive_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid receive_buffer_size");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->cfg.receive_buffer_size = bytes;
   return *this;
 }
 
 UdpClient& UdpClient::manage_external_context(bool m) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->manage_external_context.store(m);
   return *this;
 }
 
 UdpClient& UdpClient::batch_size(size_t size) {
+  config::detail::require(size > 0, "batch size must be positive");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_batch_size_ = size;
   return *this;
 }
 
 UdpClient& UdpClient::batch_latency(std::chrono::milliseconds latency) {
+  config::detail::duration(latency, 0, std::numeric_limits<int>::max(), true, "invalid batch latency");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_batch_latency_ = latency;
   return *this;

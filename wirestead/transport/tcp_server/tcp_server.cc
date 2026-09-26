@@ -33,6 +33,8 @@
 #include "wirestead/concurrency/io_context_manager.hpp"
 #include "wirestead/concurrency/io_thread_hook.hpp"
 #include "wirestead/concurrency/thread_safe_state.hpp"
+#include "wirestead/config/validation.hpp"
+#include "wirestead/diagnostics/callback.hpp"
 #include "wirestead/diagnostics/exceptions.hpp"
 #include "wirestead/diagnostics/logger.hpp"
 #include "wirestead/diagnostics/runtime_stats_counter.hpp"
@@ -152,7 +154,7 @@ struct TcpServer::Impl {
     } catch (const std::exception& e) {
       throw diagnostics::BuilderException("Failed to create TCP acceptor: " + std::string(e.what()), "tcp_server");
     }
-    cfg_.validate_and_clamp();
+    config::detail::validate(cfg_);
     max_clients_ = cfg_.max_connections > 0 ? static_cast<size_t>(cfg_.max_connections) : 0;
     client_limit_enabled_ = cfg_.max_connections > 0;
   }
@@ -169,7 +171,7 @@ struct TcpServer::Impl {
     if (!acceptor_) {
       throw diagnostics::BuilderException("Failed to create TCP acceptor", "tcp_server");
     }
-    cfg_.validate_and_clamp();
+    config::detail::validate(cfg_);
     max_clients_ = cfg_.max_connections > 0 ? static_cast<size_t>(cfg_.max_connections) : 0;
     client_limit_enabled_ = cfg_.max_connections > 0;
   }
@@ -193,16 +195,11 @@ struct TcpServer::Impl {
   void notify_state() {
     if (stopping_.load()) return;
     interface::SharedCallback<OnState> cb;
-    try {
-      {
-        std::lock_guard<std::mutex> lock(sessions_mutex_);
-        cb = on_state_;
-      }
-      if (cb) {
-        (*cb)(state_.get());
-      }
-    } catch (...) {
+    {
+      std::lock_guard<std::mutex> lock(sessions_mutex_);
+      cb = on_state_;
     }
+    diagnostics::invoke_callback("tcp_server", "on_state", cb, state_.get());
   }
 
   // One context for the whole server, shared by every accepted connection.
@@ -445,9 +442,9 @@ struct TcpServer::Impl {
             cb = bytes_impl->on_bytes_;
             multi_cb = bytes_impl->on_multi_data_;
           }
-          if (cb) (*cb)(data);
+          diagnostics::invoke_callback("tcp_server", "on_bytes", cb, data);
           if (multi_cb) {
-            (*multi_cb)(client_id, data);
+            diagnostics::invoke_callback("tcp_server", "on_multi_data", multi_cb, client_id, data);
           }
         });
 
@@ -468,7 +465,7 @@ struct TcpServer::Impl {
             std::lock_guard<std::mutex> lock(notify_impl->sessions_mutex_);
             disconnect_cb = notify_impl->on_multi_disconnect_;
           }
-          if (disconnect_cb) disconnect_cb(client_id);
+          diagnostics::invoke_callback("tcp_server", "on_disconnect", disconnect_cb, client_id);
           net::dispatch(shared_self->get_impl()->strand_, [shared_self, client_id, new_session, generation] {
             auto* close_impl = shared_self->get_impl();
             if (close_impl->stopping_.load() || close_impl->generation_.load() != generation) return;
@@ -510,7 +507,7 @@ struct TcpServer::Impl {
               [self, generation, client_id, client_info, connect_cb = std::move(connect_cb)] {
                 auto* impl = self->get_impl();
                 if (impl->stopping_ || impl->generation_ != generation) return;
-                if (connect_cb) connect_cb(client_id, client_info);
+                diagnostics::invoke_callback("tcp_server", "on_connect", connect_cb, client_id, client_info);
                 net::post(impl->strand_, [self, generation, client_id] {
                   auto* state_impl = self->get_impl();
                   if (state_impl->stopping_ || state_impl->generation_ != generation) return;
@@ -1162,6 +1159,7 @@ void TcpServer::on_multi_disconnect(MultiClientDisconnectHandler h) {
 }
 
 void TcpServer::set_client_limit(size_t max) {
+  config::detail::range(max, 0, base::constants::MAX_MAX_CONNECTIONS, "invalid client limit");
   auto impl = get_impl();
   if (max > base::constants::MAX_MAX_CONNECTIONS) {
     max = base::constants::MAX_MAX_CONNECTIONS;

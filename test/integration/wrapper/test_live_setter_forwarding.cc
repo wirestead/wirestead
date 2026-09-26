@@ -73,7 +73,7 @@ TEST(LiveSetterForwardingTest, TuningSettersAreAcceptedWhileConnected) {
   client->retry_interval(300ms);
   client->max_retries(7);
   client->connection_timeout(2500ms);
-  client->read_buffer_size(8192);
+  EXPECT_THROW(client->read_buffer_size(8192), std::logic_error);
 
   EXPECT_TRUE(client->connected());
   ASSERT_TRUE(client->send("still here"));

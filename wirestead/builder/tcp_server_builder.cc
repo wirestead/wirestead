@@ -19,7 +19,9 @@
 #include <boost/asio/io_context.hpp>
 
 #include "wirestead/builder/auto_initializer.hpp"
+#include "wirestead/config/validation.hpp"
 #include "wirestead/diagnostics/exceptions.hpp"
+#include "wirestead/util/input_validator.hpp"
 
 namespace wirestead {
 namespace builder {
@@ -109,6 +111,8 @@ TcpServerBuilder& TcpServerBuilder::auto_start(bool auto_start) {
 }
 
 TcpServerBuilder& TcpServerBuilder::bind_address(const std::string& address) {
+  config::detail::require(util::InputValidator::is_valid_ipv4(address) || util::InputValidator::is_valid_ipv6(address),
+                          "invalid bind address");
   bind_address_ = address;
   bind_address_set_ = true;
   return *this;
@@ -125,6 +129,7 @@ TcpServerBuilder& TcpServerBuilder::shared_context(bool use_shared) {
 }
 
 TcpServerBuilder& TcpServerBuilder::max_clients(uint32_t max_clients) {
+  config::detail::range(max_clients, 0, base::constants::MAX_MAX_CONNECTIONS, "invalid client limit");
   max_clients_ = max_clients;
   client_limit_enabled_ = true;
   return *this;
@@ -161,24 +166,33 @@ TcpServerBuilder& TcpServerBuilder::keep_alive(bool enable) {
 }
 
 TcpServerBuilder& TcpServerBuilder::tls(const std::string& certificate_file, const std::string& private_key_file) {
+  config::detail::require(certificate_file.empty() == private_key_file.empty(), "TLS requires certificate and key");
   tls_certificate_file_ = certificate_file;
   tls_private_key_file_ = private_key_file;
   return *this;
 }
 
 TcpServerBuilder& TcpServerBuilder::send_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid send_buffer_size");
   send_buffer_size_ = bytes;
   send_buffer_size_set_ = true;
   return *this;
 }
 
 TcpServerBuilder& TcpServerBuilder::receive_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid receive_buffer_size");
   receive_buffer_size_ = bytes;
   receive_buffer_size_set_ = true;
   return *this;
 }
 
 TcpServerBuilder& TcpServerBuilder::read_buffer_size(size_t bytes) {
+  config::detail::range(bytes, base::constants::MIN_READ_BUFFER_SIZE, base::constants::MAX_READ_BUFFER_SIZE,
+                        "invalid read_buffer_size");
   read_buffer_size_ = bytes;
   read_buffer_size_set_ = true;
   return *this;
@@ -186,6 +200,9 @@ TcpServerBuilder& TcpServerBuilder::read_buffer_size(size_t bytes) {
 
 // Backward compatibility implementations
 TcpServerBuilder& TcpServerBuilder::port_retry(bool enable, int max_retries, int retry_interval_ms) {
+  config::detail::range(max_retries, 0, base::constants::MAX_RETRIES_LIMIT, "invalid port retry count");
+  config::detail::range(retry_interval_ms, base::constants::MIN_RETRY_INTERVAL_MS,
+                        base::constants::MAX_RETRY_INTERVAL_MS, "invalid port retry interval");
   port_retry_enabled_ = enable;
   port_retry_enabled_set_ = true;
   max_port_retries_ = static_cast<uint32_t>(max_retries);
@@ -196,6 +213,8 @@ TcpServerBuilder& TcpServerBuilder::port_retry(bool enable, int max_retries, int
 }
 
 TcpServerBuilder& TcpServerBuilder::idle_timeout(std::chrono::milliseconds timeout) {
+  config::detail::duration(timeout, base::constants::MIN_IDLE_TIMEOUT_MS, base::constants::MAX_IDLE_TIMEOUT_MS, true,
+                           "invalid idle_timeout");
   idle_timeout_ = timeout;
   idle_timeout_set_ = true;
   return *this;

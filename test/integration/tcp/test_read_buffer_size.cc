@@ -112,11 +112,9 @@ TEST(ReadBufferSizeIntegrationTest, DefaultBufferCapsChunksAtTheOldSize) {
   EXPECT_LE(result.largest_chunk, base::constants::DEFAULT_READ_BUFFER_SIZE);
 }
 
-// An out-of-range request must be clamped rather than honoured or rejected.
-TEST(ReadBufferSizeIntegrationTest, OversizedRequestIsClampedNotHonoured) {
+// An out-of-range request must be rejected before changing the client.
+TEST(ReadBufferSizeIntegrationTest, OversizedRequestIsRejectedBeforeStart) {
   const uint16_t port = test::TestUtils::getAvailableTestPort();
-  auto result = run_transfer(port, base::constants::MAX_READ_BUFFER_SIZE * 8);
-
-  EXPECT_EQ(result.total, kPayloadBytes);
-  EXPECT_LE(result.largest_chunk, base::constants::MAX_READ_BUFFER_SIZE);
+  wrapper::TcpClient client("127.0.0.1", port);
+  EXPECT_THROW(client.read_buffer_size(base::constants::MAX_READ_BUFFER_SIZE * 8), std::invalid_argument);
 }
