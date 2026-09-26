@@ -18,6 +18,10 @@
 
 #include <atomic>
 
+namespace boost::system {
+class error_code;
+}
+
 namespace wirestead::wrapper {
 class SendResult;
 }
@@ -43,6 +47,12 @@ inline std::atomic<void (*)()> g_uds_io_completion_hook{nullptr};
 inline std::atomic<void (*)()> g_udp_pinned_write_hook{nullptr};
 inline std::atomic<void (*)(const wrapper::SendResult&)> g_udp_write_result_hook{nullptr};
 inline std::atomic<void (*)()> g_udp_io_completion_hook{nullptr};
+// Handoff failure injection; do not call channel APIs under the admission lock.
+inline std::atomic<void (*)()> g_udp_write_initiation_hook{nullptr};
+// After initiation and before completion, with no admission lock held.
+inline std::atomic<void (*)()> g_udp_write_started_hook{nullptr};
+// Override a live receive completion for terminal-read accounting regressions.
+inline std::atomic<void (*)(boost::system::error_code&)> g_udp_receive_result_hook{nullptr};
 inline std::atomic<void (*)()> g_serial_write_admission_hook{nullptr};
 inline std::atomic<void (*)()> g_serial_pinned_write_hook{nullptr};
 inline std::atomic<void (*)(const wrapper::SendResult&)> g_serial_write_result_hook{nullptr};

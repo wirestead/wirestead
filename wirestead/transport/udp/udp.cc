@@ -41,6 +41,7 @@
 #include "wirestead/diagnostics/error_handler.hpp"
 #include "wirestead/diagnostics/logger.hpp"
 #include "wirestead/diagnostics/runtime_stats_counter.hpp"
+#include "wirestead/diagnostics/send_accounting.hpp"
 #include "wirestead/memory/memory_pool.hpp"
 #include "wirestead/transport/base/bp_state_machine.hpp"
 #include "wirestead/transport/base/bp_utils.hpp"
@@ -72,9 +73,12 @@ struct UdpChannel::Impl {
 
   using BufferVariant =
       std::variant<memory::PooledBuffer, std::vector<uint8_t>, std::shared_ptr<const std::vector<uint8_t>>>;
+  using Ledger = diagnostics::SendAccountingLedger;
+  Ledger send_accounting_;
   struct TxItem {
     BufferVariant buffer;
     std::optional<udp::endpoint> destination;
+    Ledger::Request request;
   };
 
   std::array<uint8_t, 65536> rx_{};
@@ -147,6 +151,15 @@ struct UdpChannel::Impl {
     for (auto& weak : write_waits_)
       if (auto wait = weak.lock()) wait->end(reason);
     write_waits_.clear();
+  }
+
+  // Caller holds submission_mtx_. For UDP, loss means terminal local socket
+  // failure; there is no peer connection or delivery acknowledgement.
+  void fail_writes_locked() {
+    send_accounting_.end(Ledger::Cause::ConnectionLoss);
+    opened_ = false;
+    connected_ = false;
+    end_write_waits(wrapper::SendRejection::NotReady);
   }
 
   void mark_cleanup_done() {
@@ -360,7 +373,7 @@ struct UdpChannel::Impl {
                                });
   }
 
-  void handle_receive(std::shared_ptr<UdpChannel> self, const boost::system::error_code& ec, std::size_t bytes) {
+  void handle_receive(std::shared_ptr<UdpChannel> self, boost::system::error_code ec, std::size_t bytes) {
     if (ec == boost::asio::error::operation_aborted) {
       return;
     }
@@ -369,6 +382,8 @@ struct UdpChannel::Impl {
         state_.is_state(LinkState::Error)) {
       return;
     }
+
+    if (auto hook = detail::g_udp_receive_result_hook.load()) hook(ec);
 
     if (ec == boost::asio::error::message_size || bytes >= rx_.size()) {
       WIRESTEAD_LOG_ERROR("udp", "receive", "Datagram truncated (buffer too small)");
@@ -495,6 +510,8 @@ struct UdpChannel::Impl {
       return;
     }
 
+    std::unique_lock<std::mutex> submission_lock(submission_mtx_);
+    if (stop_requested_.load() || !opened_.load()) return;
     auto current = std::move(tx_.front());
     tx_.pop_front();
 
@@ -502,7 +519,11 @@ struct UdpChannel::Impl {
 
     if (!dest_endpoint) {
       WIRESTEAD_LOG_WARNING("udp", "write", "Remote endpoint not set; dropping write request");
+      send_accounting_.discard(current.request, Ledger::Cause::ConnectionLoss);
+      const auto bytes = std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, current.buffer);
+      queue_util::release_reserved_write_bytes(queue_bytes_, bytes);
       writing_ = false;
+      submission_lock.unlock();
       do_write(self);  // Process next in queue
       return;
     }
@@ -520,15 +541,23 @@ struct UdpChannel::Impl {
         },
         current.buffer);
 
-    auto on_write = [self, bytes_queued](const boost::system::error_code& ec, std::size_t bytes_written) {
+    const auto request = current.request;
+    const auto generation = generation_.load();
+    send_accounting_.begin(request);
+    auto on_write = [self, bytes_queued, request, generation](boost::system::error_code ec, std::size_t bytes_written) {
       auto impl = self->get_impl();
+      {
+        std::lock_guard<std::mutex> lock(impl->submission_mtx_);
+        if (generation != impl->generation_) return;
+        impl->send_accounting_.complete(request, bytes_written);
+        if (!ec && bytes_written != bytes_queued) ec = net::error::message_size;
+        if (ec && !impl->stop_requested_) {
+          impl->fail_writes_locked();
+          if (ec == net::error::operation_aborted) ec = net::error::connection_aborted;
+        }
+      }
       impl->queue_bytes_ = (impl->queue_bytes_ > bytes_queued) ? (impl->queue_bytes_ - bytes_queued) : 0;
       impl->report_backpressure(self, impl->queue_bytes_);
-
-      if (ec == boost::asio::error::operation_aborted) {
-        impl->writing_ = false;
-        return;
-      }
 
       if (impl->stop_requested_.load() || impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) ||
           impl->state_.is_state(LinkState::Error)) {
@@ -553,39 +582,52 @@ struct UdpChannel::Impl {
       impl->do_write(self);
     };
 
-    std::visit(
-        [&](auto&& buf) {
-          using T = std::decay_t<decltype(buf)>;
+    ++pending_io_;
+    try {
+      if (auto hook = detail::g_udp_write_initiation_hook.load()) hook();
+      std::visit(
+          [&](auto&& buf) {
+            using T = std::decay_t<decltype(buf)>;
 
-          auto* data_ptr = [&]() {
-            if constexpr (std::is_same_v<T, std::shared_ptr<const std::vector<uint8_t>>>) {
-              return buf->data();
-            } else {
-              return buf.data();
-            }
-          }();
+            auto* data_ptr = [&]() {
+              if constexpr (std::is_same_v<T, std::shared_ptr<const std::vector<uint8_t>>>) {
+                return buf->data();
+              } else {
+                return buf.data();
+              }
+            }();
 
-          auto size = [&]() {
-            if constexpr (std::is_same_v<T, std::shared_ptr<const std::vector<uint8_t>>>) {
-              return buf->size();
-            } else {
-              return buf.size();
-            }
-          }();
+            auto size = [&]() {
+              if constexpr (std::is_same_v<T, std::shared_ptr<const std::vector<uint8_t>>>) {
+                return buf->size();
+              } else {
+                return buf.size();
+              }
+            }();
 
-          ++pending_io_;
-          socket_.async_send_to(net::buffer(data_ptr, size), *dest_endpoint,
-                                [self, buf_captured = std::move(buf), on_write = std::move(on_write)](
-                                    const boost::system::error_code& ec, std::size_t bytes) mutable {
-                                  IoCompletion completed{self->get_impl()};
-                                  // Return pooled storage while its owning transport is alive,
-                                  // before signalling the run's I/O completion.
-                                  auto buffer = std::move(buf_captured);
-                                  (void)buffer;
-                                  on_write(ec, bytes);
-                                });
-        },
-        std::move(current.buffer));
+            socket_.async_send_to(net::buffer(data_ptr, size), *dest_endpoint,
+                                  [self, buf_captured = std::move(buf), on_write = std::move(on_write)](
+                                      const boost::system::error_code& ec, std::size_t bytes) mutable {
+                                    IoCompletion completed{self->get_impl()};
+                                    // Return pooled storage while its owning transport is alive,
+                                    // before signalling the run's I/O completion.
+                                    auto buffer = std::move(buf_captured);
+                                    (void)buffer;
+                                    on_write(ec, bytes);
+                                  });
+          },
+          std::move(current.buffer));
+    } catch (...) {
+      --pending_io_;
+      fail_writes_locked();
+      submission_lock.unlock();
+      writing_ = false;
+      transition_to(LinkState::Error, make_error_code(boost::system::errc::no_buffer_space), "write",
+                    "Failed to initiate datagram write");
+      return;
+    }
+    submission_lock.unlock();
+    if (auto hook = detail::g_udp_write_started_hook.load()) hook();
   }
 
   void close_socket() {
@@ -645,7 +687,7 @@ struct UdpChannel::Impl {
     stats_.observe_queue(queue_bytes_.load(std::memory_order_relaxed) + pending_bytes_.load(std::memory_order_relaxed));
   }
 
-  bool enqueue_buffer(std::shared_ptr<UdpChannel> self, BufferVariant&& buffer, size_t size,
+  bool enqueue_buffer(std::shared_ptr<UdpChannel> self, BufferVariant&& buffer, size_t size, Ledger::Request request,
                       std::optional<udp::endpoint> dest = std::nullopt) {
     if (stopping_.load() || stop_requested_.load() || state_.is_state(LinkState::Closed) ||
         state_.is_state(LinkState::Error)) {
@@ -659,13 +701,15 @@ struct UdpChannel::Impl {
     // TxItem carries a destination endpoint alongside the BufferVariant that
     // decide_enqueue()'s BestEffort trim needs to visit - project onto
     // `.buffer` rather than the item itself (#434).
-    auto decision =
-        queue_util::decide_enqueue(f, size, tx_, dropped, [](TxItem& item) -> BufferVariant& { return item.buffer; });
+    auto decision = queue_util::decide_enqueue(
+        f, size, tx_, dropped, [](TxItem& item) -> BufferVariant& { return item.buffer; },
+        [this](const TxItem& item) { send_accounting_.discard(item.request, Ledger::Cause::QueuePressure); });
     if (dropped.any()) {
       stats_.record_dropped(dropped.messages, dropped.bytes);
     }
 
     if (decision == queue_util::EnqueueDecision::Rejected) {
+      send_accounting_.discard(request, Ledger::Cause::QueuePressure);
       WIRESTEAD_LOG_ERROR("udp", "write",
                           fmt::format("Queue limit exceeded ({} bytes)", queue_bytes_ + pending_bytes_ + size));
       // Always reporting here (rather than only for the non-Reliable-pending
@@ -683,13 +727,13 @@ struct UdpChannel::Impl {
 
     if (decision == queue_util::EnqueueDecision::Pending) {
       queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, pending_bytes_, inflight_bytes_, size);
-      pending_.push_back({std::move(buffer), dest});
+      pending_.push_back({std::move(buffer), dest, request});
       observe_queue();
       return true;
     }
 
     queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, queue_bytes_, inflight_bytes_, size);
-    tx_.push_back({std::move(buffer), dest});
+    tx_.push_back({std::move(buffer), dest, request});
     observe_queue();
     report_backpressure(self, queue_bytes_);
     return true;
@@ -732,9 +776,10 @@ struct UdpChannel::Impl {
 
     {
       std::lock_guard<std::mutex> lock(submission_mtx_);
-      if (target == LinkState::Closed || target == LinkState::Error) end_write_waits(wrapper::SendRejection::NotReady);
+      if (target == LinkState::Closed || target == LinkState::Error) fail_writes_locked();
       state_.set(target);
     }
+    if (target == LinkState::Closed || target == LinkState::Error) drain_queue_and_clear_backpressure();
     notify_state();
   }
 
@@ -880,6 +925,7 @@ void UdpChannel::stop() {
     // Accepted writes are posted before this cleanup request.
     std::lock_guard<std::mutex> lock(impl->submission_mtx_);
     if (!impl->stop_requested_.exchange(true)) {
+      impl->send_accounting_.end(Impl::Ledger::Cause::ExplicitStop);
       impl->end_write_waits(wrapper::SendRejection::CancelledWhileWaiting);
       impl->stopping_ = true;
       if (impl->generation_.load() == 0) {
@@ -906,12 +952,16 @@ bool UdpChannel::is_backpressure_active() const { return get_impl()->backpressur
 std::optional<size_t> UdpChannel::write_queue_limit() const { return get_impl()->bp_limit_; }
 wrapper::RuntimeStats UdpChannel::stats() const {
   auto impl = get_impl();
-  return impl->stats_.snapshot(impl->queue_bytes_.load(std::memory_order_relaxed),
-                               impl->pending_bytes_.load(std::memory_order_relaxed),
-                               impl->backpressure_active_.load(std::memory_order_relaxed));
+  auto result = impl->stats_.snapshot(impl->queue_bytes_.load(std::memory_order_relaxed),
+                                      impl->pending_bytes_.load(std::memory_order_relaxed),
+                                      impl->backpressure_active_.load(std::memory_order_relaxed));
+  result.send_accounting = impl->send_accounting_.snapshot();
+  return result;
 }
 void UdpChannel::reset_stats() {
   auto impl = get_impl();
+  std::lock_guard<std::mutex> lock(impl->submission_mtx_);
+  impl->send_accounting_.reset();
   impl->stats_.reset(impl->queue_bytes_.load(std::memory_order_relaxed) +
                      impl->pending_bytes_.load(std::memory_order_relaxed));
 }
@@ -990,12 +1040,16 @@ wrapper::SendResult UdpChannel::write_copy(memory::ConstByteSpan data, std::opti
         return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
       }
       impl->stats_.record_accepted(size);
-      net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(pooled), size]() mutable {
-        auto impl = self->get_impl();
-        if (generation != impl->generation_) return;
-        if (!impl->enqueue_buffer(self, std::move(buf), size)) return;
-        impl->do_write(self);
-      });
+      Impl::Ledger::Admission admission(impl->send_accounting_, size);
+      const auto request = admission.request();
+      net::post(impl->strand_,
+                [self = shared_from_this(), generation, buf = std::move(pooled), size, request]() mutable {
+                  auto impl = self->get_impl();
+                  if (generation != impl->generation_) return;
+                  if (!impl->enqueue_buffer(self, std::move(buf), size, request)) return;
+                  impl->do_write(self);
+                });
+      admission.commit();
       return wrapper::SendResult::accept();
     }
   }
@@ -1007,12 +1061,15 @@ wrapper::SendResult UdpChannel::write_copy(memory::ConstByteSpan data, std::opti
   }
   std::vector<uint8_t> copy(data.begin(), data.end());
   impl->stats_.record_accepted(size);
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(copy), size]() mutable {
+  Impl::Ledger::Admission admission(impl->send_accounting_, size);
+  const auto request = admission.request();
+  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(copy), size, request]() mutable {
     auto impl = self->get_impl();
     if (generation != impl->generation_) return;
-    if (!impl->enqueue_buffer(self, std::move(buf), size)) return;
+    if (!impl->enqueue_buffer(self, std::move(buf), size, request)) return;
     impl->do_write(self);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -1056,12 +1113,15 @@ wrapper::SendResult UdpChannel::write_move(std::vector<uint8_t>&& data, std::opt
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl->stats_.record_accepted(size);
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), size]() mutable {
+  Impl::Ledger::Admission admission(impl->send_accounting_, size);
+  const auto request = admission.request();
+  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), size, request]() mutable {
     auto impl = self->get_impl();
     if (generation != impl->generation_) return;
-    if (!impl->enqueue_buffer(self, std::move(buf), size)) return;
+    if (!impl->enqueue_buffer(self, std::move(buf), size, request)) return;
     impl->do_write(self);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -1106,12 +1166,15 @@ wrapper::SendResult UdpChannel::write_shared(std::shared_ptr<const std::vector<u
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl->stats_.record_accepted(size);
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), size]() mutable {
+  Impl::Ledger::Admission admission(impl->send_accounting_, size);
+  const auto request = admission.request();
+  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), size, request]() mutable {
     auto impl = self->get_impl();
     if (generation != impl->generation_) return;
-    if (!impl->enqueue_buffer(self, std::move(buf), size)) return;
+    if (!impl->enqueue_buffer(self, std::move(buf), size, request)) return;
     impl->do_write(self);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -1171,8 +1234,10 @@ wrapper::SendResult UdpChannel::try_write_move(std::vector<uint8_t>&& data, std:
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl->stats_.record_accepted(size);
+  Impl::Ledger::Admission admission(impl->send_accounting_, size);
+  const auto request = admission.request();
 
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), size]() mutable {
+  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), size, request]() mutable {
     auto impl = self->get_impl();
     if (generation != impl->generation_) return;
     if (impl->stop_requested_.load() || impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) ||
@@ -1182,11 +1247,12 @@ wrapper::SendResult UdpChannel::try_write_move(std::vector<uint8_t>&& data, std:
       return;
     }
 
-    impl->tx_.push_back({std::move(buf), std::nullopt});
+    impl->tx_.push_back({std::move(buf), std::nullopt, request});
     impl->observe_queue();
     impl->report_backpressure(self, impl->queue_bytes_);
     impl->do_write(self);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -1232,8 +1298,10 @@ wrapper::SendResult UdpChannel::try_write_shared(std::shared_ptr<const std::vect
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   impl->stats_.record_accepted(size);
+  Impl::Ledger::Admission admission(impl->send_accounting_, size);
+  const auto request = admission.request();
 
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), size]() mutable {
+  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(data), size, request]() mutable {
     auto impl = self->get_impl();
     if (generation != impl->generation_) return;
     if (impl->stop_requested_.load() || impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) ||
@@ -1243,11 +1311,12 @@ wrapper::SendResult UdpChannel::try_write_shared(std::shared_ptr<const std::vect
       return;
     }
 
-    impl->tx_.push_back({std::move(buf), std::nullopt});
+    impl->tx_.push_back({std::move(buf), std::nullopt, request});
     impl->observe_queue();
     impl->report_backpressure(self, impl->queue_bytes_);
     impl->do_write(self);
   });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -1307,13 +1376,16 @@ wrapper::SendResult UdpChannel::write_to(memory::ConstByteSpan data, const boost
         return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
       }
       impl->stats_.record_accepted(size);
+      Impl::Ledger::Admission admission(impl->send_accounting_, size);
+      const auto request = admission.request();
       net::post(impl->strand_,
-                [self = shared_from_this(), generation, buf = std::move(pooled), size, destination]() mutable {
+                [self = shared_from_this(), generation, buf = std::move(pooled), size, destination, request]() mutable {
                   auto impl = self->get_impl();
                   if (generation != impl->generation_) return;
-                  if (!impl->enqueue_buffer(self, std::move(buf), size, destination)) return;
+                  if (!impl->enqueue_buffer(self, std::move(buf), size, request, destination)) return;
                   impl->do_write(self);
                 });
+      admission.commit();
       return wrapper::SendResult::accept();
     }
   }
@@ -1325,12 +1397,16 @@ wrapper::SendResult UdpChannel::write_to(memory::ConstByteSpan data, const boost
   }
   std::vector<uint8_t> copy(data.begin(), data.end());
   impl->stats_.record_accepted(size);
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(copy), size, destination]() mutable {
-    auto impl = self->get_impl();
-    if (generation != impl->generation_) return;
-    if (!impl->enqueue_buffer(self, std::move(buf), size, destination)) return;
-    impl->do_write(self);
-  });
+  Impl::Ledger::Admission admission(impl->send_accounting_, size);
+  const auto request = admission.request();
+  net::post(impl->strand_,
+            [self = shared_from_this(), generation, buf = std::move(copy), size, destination, request]() mutable {
+              auto impl = self->get_impl();
+              if (generation != impl->generation_) return;
+              if (!impl->enqueue_buffer(self, std::move(buf), size, request, destination)) return;
+              impl->do_write(self);
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -1379,21 +1455,25 @@ wrapper::SendResult UdpChannel::try_write_to(memory::ConstByteSpan data,
 
   std::vector<uint8_t> copy(data.begin(), data.end());
   impl->stats_.record_accepted(size);
-  net::post(impl->strand_, [self = shared_from_this(), generation, buf = std::move(copy), size, destination]() mutable {
-    auto impl = self->get_impl();
-    if (generation != impl->generation_) return;
-    if (impl->stop_requested_.load() || impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) ||
-        impl->state_.is_state(LinkState::Error)) {
-      queue_util::release_reserved_write_bytes(impl->queue_bytes_, size);
-      impl->stats_.record_failed_send();
-      return;
-    }
+  Impl::Ledger::Admission admission(impl->send_accounting_, size);
+  const auto request = admission.request();
+  net::post(impl->strand_,
+            [self = shared_from_this(), generation, buf = std::move(copy), size, destination, request]() mutable {
+              auto impl = self->get_impl();
+              if (generation != impl->generation_) return;
+              if (impl->stop_requested_.load() || impl->stopping_.load() || impl->state_.is_state(LinkState::Closed) ||
+                  impl->state_.is_state(LinkState::Error)) {
+                queue_util::release_reserved_write_bytes(impl->queue_bytes_, size);
+                impl->stats_.record_failed_send();
+                return;
+              }
 
-    impl->tx_.push_back({std::move(buf), destination});
-    impl->observe_queue();
-    impl->report_backpressure(self, impl->queue_bytes_);
-    impl->do_write(self);
-  });
+              impl->tx_.push_back({std::move(buf), destination, request});
+              impl->observe_queue();
+              impl->report_backpressure(self, impl->queue_bytes_);
+              impl->do_write(self);
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 

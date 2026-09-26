@@ -3,7 +3,8 @@
 The built-in TCP and UDS clients and Serial transport expose logical-request accounting through
 RuntimeStats::send_accounting. It is an optional SendAccounting snapshot:
 nullopt means the transport does not implement it, not that it has zero loss.
-UDP and server-session aggregation remain follow-up work.
+UDP socket accounting is covered in [its transport-specific contract](udp_send_accounting.md).
+TCP/UDS server-session accounting and aggregation remain follow-up work.
 The corresponding wrappers forward their native channel snapshots unchanged.
 
 ## Public counters
@@ -106,7 +107,8 @@ A short composed write without an error is treated as connection loss.
 Serial read EOF keeps its existing transient retry behavior; write EOF instead
 terminates the device instance, following the configured reopen policy.
 This extension adds no public fields beyond the optional member introduced
-with TCP accounting. UDP and server aggregation remain unsupported.
+with TCP accounting. UDP socket accounting is documented separately; TCP/UDS server aggregation
+and per-virtual-session UDP accounting remain unsupported.
 
 See [current policy coverage](communication_contract_v0.10_status.md) and the
 [remaining accounting/event proposal](post_acceptance_policy_v0.10.md).

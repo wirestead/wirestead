@@ -11,6 +11,12 @@ and ABI policy.
 
 ### Changed
 
+- Extend logical-request send accounting to UDP sockets, including explicit
+  destinations, stop, local socket errors, queue pressure and reset epochs.
+  Terminal socket states drain queued requests; write initiation exceptions
+  terminate outstanding work. UDP server totals remain socket-wide, without
+  virtual-session/expiry attribution. See docs/udp_send_accounting.md.
+
 - Extend logical-request send accounting to UDS clients and Serial, including
   partial gather completion, reset epochs, stop/loss and queue-pressure causes.
   Injected inline write completions are deferred to the strand. Serial write
