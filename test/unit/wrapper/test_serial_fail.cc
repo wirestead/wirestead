@@ -28,10 +28,10 @@ using namespace wirestead;
 
 // Test wrapper behavior when open fails
 TEST(WrapperSerialFailTest, OpenInvalidPort) {
-  // Use a device name that is guaranteed to not exist or fail
+  // Use a syntactically valid device name that is unavailable on CI.
   std::string invalid_device = "/dev/non_existent_device_wirestead_test";
 #ifdef _WIN32
-  invalid_device = "COM999";
+  invalid_device = "COM255";
 #endif
 
   wrapper::Serial serial(invalid_device, 9600);
