@@ -63,10 +63,10 @@ struct RuntimeStats {
   std::optional<uint64_t> last_receive_age_ms;
 
   // Present only for transports with logical request accounting (currently
-  // built-in TCP/UDS clients and server sessions/aggregates, Serial and UDP sockets).
+  // built-in TCP/UDS clients and server sessions/aggregates, Serial, UDP sockets and virtual sessions).
   // nullopt means unsupported, not zero loss.
   // Independent of legacy sent/dropped counters; see docs/tcp_send_accounting.md
-  // and docs/udp_send_accounting.md (UDP totals are socket-wide).
+  // and docs/udp_send_accounting.md (UDP aggregate and per-session scopes).
   std::optional<SendAccounting> send_accounting;
 };
 

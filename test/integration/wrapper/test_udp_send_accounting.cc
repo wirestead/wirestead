@@ -27,6 +27,7 @@
 #include "tcp_stop_with_context.hpp"
 #include "wirestead/transport/base/stop_test_hook.hpp"
 #include "wirestead/transport/udp/udp.hpp"
+#include "wirestead/wrapper/udp/udp_server.hpp"
 
 namespace {
 using namespace wirestead;
@@ -70,6 +71,8 @@ class UdpSendAccountingTest : public ::testing::TestWithParam<int> {
   void TearDown() override {
     transport::detail::g_udp_write_started_hook = nullptr;
     transport::detail::g_udp_write_initiation_hook = nullptr;
+    transport::detail::g_udp_pinned_write_hook = nullptr;
+    transport::detail::g_udp_write_completion_hook = nullptr;
     after_start = {};
     before_receive_error = {};
     transport::detail::g_udp_receive_result_hook = nullptr;
@@ -306,4 +309,285 @@ TEST_P(UdpSendAccountingTest, ReceiveFailureDiscardsAcceptedPostsBeforeEnqueue) 
   conserved();
 }
 INSTANTIATE_TEST_SUITE_P(AllInputs, UdpSendAccountingTest, ::testing::Range(0, 10));
+}  // namespace
+
+namespace {
+using namespace std::chrono_literals;
+auto virtual_now = std::chrono::steady_clock::time_point(1s);
+class UdpSessionAccountingTest : public ::testing::TestWithParam<int> {
+ protected:
+  net::io_context io;
+  udp::socket first{io, udp::endpoint(net::ip::address_v4::loopback(), 0)};
+  udp::socket second{io, udp::endpoint(net::ip::address_v4::loopback(), 0)};
+  udp::endpoint destination;
+  std::shared_ptr<transport::UdpChannel> channel;
+  std::unique_ptr<wrapper::UdpServer> server;
+  wirestead::ClientId a{}, b{};
+  template <class F>
+  bool pump(F ready) {
+    const auto end = std::chrono::steady_clock::now() + 5s;
+    while (!ready()) {
+      if (std::chrono::steady_clock::now() >= end) return false;
+      if (io.stopped()) io.restart();
+      io.run_one_for(5ms);
+    }
+    return true;
+  }
+  bool open(bool pressure = false, bool factory = false) {
+    udp::socket reservation(io, udp::endpoint(net::ip::address_v4::loopback(), 0));
+    destination = reservation.local_endpoint();
+    reservation.close();
+    config::UdpConfig cfg;
+    cfg.bind_address = "127.0.0.1";
+    cfg.local_port = destination.port();
+    cfg.enable_memory_pool = GetParam() != 2;
+    cfg.backpressure_threshold = pressure ? 1024 : 4 * 1024 * 1024;
+    if (factory) {
+      auto borrowed = std::shared_ptr<net::io_context>(&io, [](auto*) {});
+      server = std::make_unique<wrapper::UdpServer>(cfg, borrowed);
+    } else {
+      channel = transport::UdpChannel::create(cfg, io);
+      server = std::make_unique<wrapper::UdpServer>(channel);
+    }
+    virtual_now = std::chrono::steady_clock::time_point(1s);
+    transport::detail::g_udp_session_clock_hook = +[] { return virtual_now; };
+    auto ready = server->start();
+    return pump([&] { return ready.wait_for(0ms) == std::future_status::ready; }) && ready.get();
+  }
+  wirestead::ClientId connect(udp::socket& peer) {
+    const auto before = server->client_count();
+    peer.send_to(net::buffer("hello", 5), destination);
+    if (!pump([&] { return server->client_count() > before; })) return 0;
+    const auto ids = server->connected_clients();
+    return *std::max_element(ids.begin(), ids.end());
+  }
+  wrapper::SendResult send(wirestead::ClientId id, std::string_view data = "1234567") {
+    if (GetParam() == 0) return server->try_send_to(id, data);
+    return server->send_to_blocking(id, data);
+  }
+  wrapper::SendAccounting total() { return *server->stats().send_accounting; }
+  wrapper::SendAccounting peer(wirestead::ClientId id) { return *server->client_stats(id)->send_accounting; }
+  void settle() {
+    ASSERT_TRUE(pump([&] { return total().outstanding.requests == 0; }));
+  }
+  void stop() { test::stop_wrapper_with_context(*server, io); }
+  void TearDown() override {
+    transport::detail::g_udp_write_started_hook = nullptr;
+    transport::detail::g_udp_write_initiation_hook = nullptr;
+    transport::detail::g_udp_pinned_write_hook = nullptr;
+    transport::detail::g_udp_write_completion_hook = nullptr;
+    transport::detail::g_udp_session_clock_hook = nullptr;
+    after_start = {};
+    if (server) stop();
+  }
+};
+TEST_P(UdpSessionAccountingTest, PeerTotalsAndBroadcastCountEachAcceptedTargetOnce) {
+  ASSERT_TRUE(open());
+  a = connect(first);
+  b = connect(second);
+  ASSERT_NE(a, 0u);
+  ASSERT_NE(b, 0u);
+  ASSERT_TRUE(send(a).accepted());
+  ASSERT_TRUE(send(b, "12345678901").accepted());
+  auto result = server->broadcast("abc");
+  ASSERT_EQ(result.accepted_count(), 2u);
+  settle();
+  EXPECT_EQ(peer(a).written.bytes, 10u);
+  EXPECT_EQ(peer(b).written.bytes, 14u);
+  EXPECT_EQ(total().written.bytes, 24u);
+  EXPECT_EQ(total().accepted.requests, 4u);
+  EXPECT_EQ(server->client_stats(a)->messages_received, 1u);
+  EXPECT_EQ(server->client_stats(b)->bytes_received, 5u);
+  EXPECT_EQ(server->stats().bytes_received, 10u);
+  EXPECT_FALSE(server->client_stats(99999));
+  EXPECT_FALSE(send(99999).accepted());
+  EXPECT_EQ(total().accepted.requests, 4u);
+}
+TEST_P(UdpSessionAccountingTest, ResetExcludesOldPostedAndActiveWritesFromEveryLedger) {
+  ASSERT_TRUE(open());
+  a = connect(first);
+  b = connect(second);
+  ASSERT_TRUE(send(a).accepted());
+  server->reset_stats();
+  EXPECT_EQ(peer(a).accepted.requests, 0u);
+  EXPECT_EQ(server->client_stats(a)->messages_received, 0u);
+  after_start = [&] {
+    server->reset_stats();
+    EXPECT_TRUE(send(b, "abc").accepted());
+  };
+  transport::detail::g_udp_write_started_hook = started;
+  ASSERT_TRUE(pump([&] { return total().written.requests == 1; }));
+  EXPECT_EQ(total().accepted.requests, 1u);
+  EXPECT_EQ(total().written.bytes, 3u);
+  EXPECT_EQ(peer(a).accepted.requests, 0u);
+  EXPECT_EQ(peer(b).written.bytes, 3u);
+}
+TEST_P(UdpSessionAccountingTest, ExpiryDiscardsPostedWorkPreservesActiveAndOtherPeer) {
+  ASSERT_TRUE(open());
+  a = connect(first);
+  virtual_now += 100ms;
+  b = connect(second);
+  server->idle_timeout(100ms);
+  after_start = [&] {
+    virtual_now += 50ms;
+    // A second executor thread advances the reaper while this strand holds
+    // the active write. Nested polling on this thread can dispatch reentrantly.
+    bool expired = false;
+    std::jthread reaper([&] { expired = pump([&] { return !server->client_stats(a).has_value(); }); });
+    reaper.join();
+    EXPECT_TRUE(expired);
+    EXPECT_TRUE(server->client_stats(b).has_value());
+    EXPECT_EQ(total().session_expiry.discarded_before_write.requests, 2u);
+    EXPECT_EQ(total().outstanding.requests, 2u);
+  };
+  transport::detail::g_udp_write_started_hook = started;
+  ASSERT_TRUE(send(a).accepted());
+  ASSERT_TRUE(send(a, "abc").accepted());
+  ASSERT_TRUE(send(a, "abcde").accepted());
+  ASSERT_TRUE(send(b, "abcdefghi").accepted());
+  settle();
+  EXPECT_EQ(total().session_expiry.discarded_before_write.bytes, 8u);
+  EXPECT_EQ(total().session_expiry.aborted_during_write.requests, 0u);
+  EXPECT_EQ(total().written.bytes, 16u);
+  EXPECT_EQ(peer(b).written.bytes, 9u);
+  EXPECT_FALSE(send(a).accepted());
+  auto replacement = connect(first);
+  ASSERT_NE(replacement, a);
+  EXPECT_EQ(peer(replacement).accepted.requests, 0u);
+  ASSERT_TRUE(send(replacement, "ab").accepted());
+  settle();
+  EXPECT_EQ(peer(replacement).written.bytes, 2u);
+  EXPECT_EQ(total().accepted.requests, 5u);
+  EXPECT_EQ(total().written.requests, 3u);
+}
+TEST_P(UdpSessionAccountingTest, ExpiryThenStopKeepsFirstCauseForWaitingWrites) {
+  ASSERT_TRUE(open());
+  a = connect(first);
+  server->idle_timeout(100ms);
+  after_start = [&] {
+    virtual_now += 101ms;
+    // A second executor thread advances the reaper while this strand holds
+    // the active write. Nested polling on this thread can dispatch reentrantly.
+    bool expired = false;
+    std::jthread reaper([&] { expired = pump([&] { return !server->client_stats(a).has_value(); }); });
+    reaper.join();
+    EXPECT_TRUE(expired);
+    server->stop();
+  };
+  transport::detail::g_udp_write_started_hook = started;
+  ASSERT_TRUE(send(a).accepted());
+  ASSERT_TRUE(send(a).accepted());
+  settle();
+  stop();
+  EXPECT_EQ(total().session_expiry.discarded_before_write.requests, 1u);
+  EXPECT_EQ(total().explicit_stop.aborted_during_write.requests, 1u);
+  EXPECT_EQ(total().explicit_stop.discarded_before_write.requests, 0u);
+  EXPECT_EQ(total().written.requests, 0u);
+}
+TEST_P(UdpSessionAccountingTest, SharedCapacityRejectsWithoutAcceptedLoss) {
+  ASSERT_TRUE(open(true));
+  a = connect(first);
+  b = connect(second);
+  // Use try admission for deterministic rejection without pumping the executor.
+  ASSERT_TRUE(server->try_send_to(a, std::string(800, 'a')).accepted());
+  EXPECT_FALSE(server->try_send_to(b, std::string(800, 'b')).accepted());
+  EXPECT_EQ(peer(a).accepted.requests, 1u);
+  EXPECT_EQ(peer(b).accepted.requests, 0u);
+  EXPECT_EQ(peer(b).queue_pressure.discarded_before_write.requests, 0u);
+  EXPECT_EQ(total().accepted.requests, 1u);
+  settle();
+}
+TEST_P(UdpSessionAccountingTest, StopRetainsTotalsAndRestartStartsFreshForBothChannelOwners) {
+  for (bool factory : {false, true}) {
+    ASSERT_TRUE(open(false, factory));
+    a = connect(first);
+    ASSERT_TRUE(send(a).accepted());
+    settle();
+    stop();
+    EXPECT_EQ(total().written.bytes, 7u);
+    EXPECT_FALSE(server->client_stats(a));
+    stop();
+    EXPECT_EQ(total().written.bytes, 7u);
+    auto ready = server->start();
+    ASSERT_TRUE(pump([&] { return ready.wait_for(0ms) == std::future_status::ready; }));
+    ASSERT_TRUE(ready.get());
+    EXPECT_EQ(total().accepted.requests, 0u);
+    a = connect(first);
+    ASSERT_TRUE(send(a, "abc").accepted());
+    settle();
+    stop();
+    EXPECT_EQ(total().written.bytes, 3u);
+    server->reset_stats();
+    EXPECT_EQ(total().accepted.requests, 0u);
+    server.reset();
+    channel.reset();
+  }
+}
+
+TEST_P(UdpSessionAccountingTest, ExpiryRemovesQueuedAndReliablePendingStorage) {
+  ASSERT_TRUE(open(true));
+  a = connect(first);
+  virtual_now += 100ms;
+  b = connect(second);
+  server->idle_timeout(100ms);
+  // Plain writes may enter the Reliable pending queue. All admissions precede
+  // executor progress, and their enqueue handlers precede the completion gate.
+  ASSERT_TRUE(server->send_to_blocking(a, std::string(800, 'a')).accepted());
+  ASSERT_TRUE(server->send_to_blocking(a, std::string(800, 'b')).accepted());
+  ASSERT_TRUE(server->send_to_blocking(a, std::string(800, 'c')).accepted());
+  ASSERT_TRUE(server->send_to_blocking(b, std::string(800, 'd')).accepted());
+  after_start = [&] {
+    EXPECT_GT(server->client_stats(a)->pending_bytes, 0u);
+    virtual_now += 50ms;
+    bool expired = false;
+    std::jthread reaper([&] { expired = pump([&] { return !server->client_stats(a).has_value(); }); });
+    reaper.join();
+    EXPECT_TRUE(expired);
+    EXPECT_EQ(total().session_expiry.discarded_before_write.requests, 2u);
+    EXPECT_EQ(total().outstanding.requests, 2u);
+  };
+  transport::detail::g_udp_write_completion_hook = started;
+  settle();
+  EXPECT_EQ(total().written.bytes, 1600u);
+  EXPECT_EQ(total().session_expiry.discarded_before_write.bytes, 1600u);
+  EXPECT_EQ(peer(b).written.bytes, 800u);
+  EXPECT_EQ(server->client_stats(b)->pending_bytes, 0u);
+  EXPECT_EQ(server->client_stats(b)->queued_bytes, 0u);
+  EXPECT_EQ(server->stats().pending_bytes, 0u);
+  EXPECT_EQ(server->stats().queued_bytes, 0u);
+}
+TEST_P(UdpSessionAccountingTest, SocketFailureAndResetKeepPeerProjectionConsistent) {
+  ASSERT_TRUE(open());
+  a = connect(first);
+  b = connect(second);
+  transport::detail::g_udp_write_initiation_hook = +[] { throw std::runtime_error("initiation failure"); };
+  ASSERT_TRUE(send(a).accepted());
+  ASSERT_TRUE(send(b).accepted());
+  settle();
+  EXPECT_EQ(peer(a).connection_loss.aborted_during_write.requests, 1u);
+  EXPECT_EQ(peer(b).connection_loss.discarded_before_write.requests, 1u);
+  EXPECT_EQ(total().connection_loss.aborted_during_write.requests, 1u);
+  EXPECT_EQ(total().connection_loss.discarded_before_write.requests, 1u);
+  server->reset_stats();
+  EXPECT_EQ(peer(a).accepted.requests, 0u);
+  EXPECT_EQ(peer(b).accepted.requests, 0u);
+  EXPECT_EQ(server->client_stats(a)->messages_accepted, 0u);
+  EXPECT_EQ(server->client_stats(b)->messages_accepted, 0u);
+}
+TEST_P(UdpSessionAccountingTest, StopAtFinalAdmissionPreservesStoppingReason) {
+  ASSERT_TRUE(open());
+  a = connect(first);
+  after_start = [&] { channel->stop(); };
+  transport::detail::g_udp_pinned_write_hook = started;
+  bool done = false;
+  net::post(io, [&] {
+    const auto result = send(a);
+    EXPECT_FALSE(result.accepted());
+    EXPECT_EQ(result.reason(), wrapper::SendRejection::Stopping);
+    done = true;
+  });
+  ASSERT_TRUE(pump([&] { return done; }));
+  EXPECT_EQ(total().accepted.requests, 0u);
+}
+INSTANTIATE_TEST_SUITE_P(Admissions, UdpSessionAccountingTest, ::testing::Range(0, 3));
 }  // namespace

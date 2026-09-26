@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 
@@ -43,6 +44,7 @@ inline void accumulate_send_accounting(wrapper::SendAccounting& total, const wra
   loss(total.explicit_stop, source.explicit_stop);
   loss(total.connection_loss, source.connection_loss);
   loss(total.queue_pressure, source.queue_pressure);
+  loss(total.session_expiry, source.session_expiry);
   total.confirmed_written_bytes += source.confirmed_written_bytes;
 }
 
@@ -51,21 +53,37 @@ inline void accumulate_send_accounting(wrapper::SendAccounting& total, const wra
 class SendAccountingLedger {
  public:
   using Request = uint64_t;
-  enum class Cause { ExplicitStop, ConnectionLoss, QueuePressure };
+  enum class Cause { ExplicitStop, ConnectionLoss, QueuePressure, SessionExpiry };
 
-  Request admit(size_t bytes) {
+  // A contributor belongs to this ledger's measurement epoch. Entries retain
+  // it while I/O is outstanding, even after a virtual session leaves its map.
+  struct Group {
+    wrapper::SendAccounting totals;
+    uint64_t epoch = 0;
+  };
+  using GroupHandle = std::shared_ptr<Group>;
+
+  Request admit(size_t bytes, GroupHandle group = {}) {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto id = ++next_id_;
-    entries_.emplace(id, Entry{bytes, epoch_, false});
-    add(totals_.accepted, bytes);
-    add(totals_.outstanding, bytes);
+    if (group && group->epoch != epoch_) {
+      group->totals = {};
+      group->epoch = epoch_;
+    }
+    const Entry entry{bytes, epoch_, false, std::move(group)};
+    entries_.emplace(id, entry);
+    update(entry, [&](auto& totals) {
+      add(totals.accepted, bytes);
+      add(totals.outstanding, bytes);
+    });
     return id;
   }
 
   // Roll back tracking if posting throws before the API returns acceptance.
   class Admission {
    public:
-    Admission(SendAccountingLedger& ledger, size_t bytes) : ledger_(ledger), request_(ledger.admit(bytes)) {}
+    Admission(SendAccountingLedger& ledger, size_t bytes, GroupHandle group = {})
+        : ledger_(ledger), request_(ledger.admit(bytes, std::move(group))) {}
     Admission(const Admission&) = delete;
     Admission& operator=(const Admission&) = delete;
     ~Admission() {
@@ -96,16 +114,16 @@ class SendAccountingLedger {
     const auto it = entries_.find(id);
     if (it == entries_.end()) return;
     const auto entry = it->second;
-    if (entry.epoch == epoch_) {
+    update(entry, [&](auto& totals) {
       const auto confirmed = std::min(confirmed_bytes, entry.bytes);
-      totals_.confirmed_written_bytes += confirmed;
-      remove(totals_.outstanding, entry.bytes);
+      totals.confirmed_written_bytes += confirmed;
+      remove(totals.outstanding, entry.bytes);
       if (confirmed == entry.bytes) {
-        add(totals_.written, entry.bytes);
+        add(totals.written, entry.bytes);
       } else {
-        add(totals_.connection_loss.aborted_during_write, entry.bytes);
+        add(totals.connection_loss.aborted_during_write, entry.bytes);
       }
-    }
+    });
     entries_.erase(it);
   }
 
@@ -115,6 +133,26 @@ class SendAccountingLedger {
     if (it == entries_.end()) return;
     terminate(it->second, cause);
     entries_.erase(it);
+  }
+
+  bool contains(Request id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return entries_.contains(id);
+  }
+
+  // Expiry races with handoff under the caller's admission mutex. Active
+  // operations keep their actual outcome; unrelated contributors are untouched.
+  void discard_waiting(const GroupHandle& group, Cause cause) {
+    if (!group) return;
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto it = entries_.begin(); it != entries_.end();) {
+      if (it->second.group == group && !it->second.active) {
+        terminate(it->second, cause);
+        it = entries_.erase(it);
+      } else {
+        ++it;
+      }
+    }
   }
 
   // The caller serializes this boundary with admission. Clearing every entry
@@ -130,6 +168,11 @@ class SendAccountingLedger {
     return totals_;
   }
 
+  wrapper::SendAccounting snapshot(const GroupHandle& group) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return group && group->epoch == epoch_ ? group->totals : wrapper::SendAccounting{};
+  }
+
   // A measurement epoch includes only requests accepted since reset. Retained
   // old requests still transmit but their later completions/cleanup are ignored.
   void reset() {
@@ -143,10 +186,10 @@ class SendAccountingLedger {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto it = entries_.find(id);
     if (it == entries_.end()) return;
-    if (it->second.epoch == epoch_) {
-      remove(totals_.accepted, it->second.bytes);
-      remove(totals_.outstanding, it->second.bytes);
-    }
+    update(it->second, [&](auto& totals) {
+      remove(totals.accepted, it->second.bytes);
+      remove(totals.outstanding, it->second.bytes);
+    });
     entries_.erase(it);
   }
 
@@ -154,7 +197,14 @@ class SendAccountingLedger {
     size_t bytes;
     uint64_t epoch;
     bool active;
+    GroupHandle group;
   };
+  template <typename F>
+  void update(const Entry& entry, F&& apply) {
+    if (entry.epoch != epoch_) return;
+    apply(totals_);
+    if (entry.group) apply(entry.group->totals);
+  }
   static void add(wrapper::SendRequestTotals& totals, size_t bytes) {
     ++totals.requests;
     totals.bytes += bytes;
@@ -164,12 +214,14 @@ class SendAccountingLedger {
     totals.bytes -= bytes;
   }
   void terminate(const Entry& entry, Cause cause) {
-    if (entry.epoch != epoch_) return;
-    auto& loss = cause == Cause::ExplicitStop     ? totals_.explicit_stop
-                 : cause == Cause::ConnectionLoss ? totals_.connection_loss
-                                                  : totals_.queue_pressure;
-    add(entry.active ? loss.aborted_during_write : loss.discarded_before_write, entry.bytes);
-    remove(totals_.outstanding, entry.bytes);
+    update(entry, [&](auto& totals) {
+      auto& loss = cause == Cause::ExplicitStop     ? totals.explicit_stop
+                   : cause == Cause::ConnectionLoss ? totals.connection_loss
+                   : cause == Cause::SessionExpiry  ? totals.session_expiry
+                                                    : totals.queue_pressure;
+      add(entry.active ? loss.aborted_during_write : loss.discarded_before_write, entry.bytes);
+      remove(totals.outstanding, entry.bytes);
+    });
   }
 
   mutable std::mutex mutex_;

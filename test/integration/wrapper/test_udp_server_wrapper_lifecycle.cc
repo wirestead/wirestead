@@ -86,11 +86,8 @@ TEST(UdpServerWrapperLifecycleTest, SessionReaping) {
   server.stop();
 }
 
-// UDP groups datagrams into virtual sessions by source endpoint. Those have no
-// queues or counters of their own, so there is nothing per-client to report -
-// client_stats() says so rather than inventing a number, even while a virtual
-// session is live and visible through client_count().
-TEST(UdpServerWrapperLifecycleTest, ClientStatsUnsupportedForVirtualSessions) {
+// Virtual sessions expose their own traffic while the socket retains totals.
+TEST(UdpServerWrapperLifecycleTest, ClientStatsReportsVirtualSessionTraffic) {
   auto port = TestUtils::getAvailableTestPort();
   config::UdpConfig cfg;
   cfg.bind_address = "127.0.0.1";
@@ -109,10 +106,15 @@ TEST(UdpServerWrapperLifecycleTest, ClientStatsUnsupportedForVirtualSessions) {
 
   const auto ids = server.connected_clients();
   ASSERT_EQ(ids.size(), 1u);
-  EXPECT_FALSE(server.client_stats(ids[0]).has_value());
+  const auto peer = server.client_stats(ids[0]);
+  ASSERT_TRUE(peer.has_value());
+  EXPECT_EQ(peer->bytes_received, 5u);
+  EXPECT_EQ(peer->messages_received, 1u);
+  ASSERT_TRUE(peer->send_accounting.has_value());
+  EXPECT_EQ(peer->send_accounting->accepted.requests, 0u);
   EXPECT_FALSE(server.client_stats(999999).has_value());
 
-  // The traffic is still accounted for, just not per client.
+  // The shared aggregate includes the same traffic exactly once.
   EXPECT_GT(server.stats().bytes_received, 0u);
 
   server.stop();

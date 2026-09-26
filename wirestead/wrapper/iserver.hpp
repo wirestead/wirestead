@@ -107,9 +107,9 @@ class WIRESTEAD_API ServerInterface {
    * server-wide stats() and the session itself is gone. Sample this while the
    * client is connected if you need its numbers in isolation.
    *
-   * Not every server can answer. UDP servers group datagrams into virtual
-   * sessions that have no queues or counters of their own, so they always
-   * return nullopt; their traffic is only visible in the aggregate.
+   * Built-in UDP servers expose per-virtual-session traffic and accounting.
+   * Their backpressure state/events describe shared socket capacity. Custom
+   * servers may return nullopt when per-client statistics are unsupported.
    */
   virtual std::optional<RuntimeStats> client_stats(ClientId /*client_id*/) const { return std::nullopt; }
 

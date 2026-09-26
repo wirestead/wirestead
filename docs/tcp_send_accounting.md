@@ -18,6 +18,7 @@ cause groups:
 | explicit_stop | Accepted but not handed to local I/O when stop takes effect | Handed to local I/O but not completed when stop takes effect |
 | connection_loss | Same distinction at connection loss | Same distinction at connection loss |
 | queue_pressure | Accepted request removed by existing keep-latest/queue routing | Zero for current stream routing; active writes are not trimmed |
+| session_expiry | UDP virtual-session waiting work only; zero for stream transports | Zero; UDP active work retains its actual outcome |
 
 Each group is a SendLossTotals with discarded_before_write and
 aborted_during_write members. Rejected admissions do not contribute to these
@@ -106,8 +107,8 @@ initiation to share one mutex without reentrant completion deadlocks.
 A short composed write without an error is treated as connection loss.
 Serial read EOF keeps its existing transient retry behavior; write EOF instead
 terminates the device instance, following the configured reopen policy.
-UDP socket accounting is documented separately; per-virtual-session UDP
-accounting remains unsupported.
+UDP socket and virtual-session accounting are documented separately, including
+the additional session_expiry cause.
 
 ## Server sessions and aggregation
 

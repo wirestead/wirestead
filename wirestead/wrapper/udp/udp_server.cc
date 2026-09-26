@@ -33,6 +33,7 @@
 #include "wirestead/base/common.hpp"
 #include "wirestead/concurrency/io_thread_hook.hpp"
 #include "wirestead/factory/channel_factory.hpp"
+#include "wirestead/transport/base/stop_test_hook.hpp"
 #include "wirestead/transport/udp/detail/write_wait.hpp"
 #include "wirestead/transport/udp/udp.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
@@ -43,6 +44,10 @@ namespace wirestead {
 namespace wrapper {
 
 namespace {
+std::chrono::steady_clock::time_point session_now() {
+  if (auto hook = transport::detail::g_udp_session_clock_hook.load()) return hook();
+  return std::chrono::steady_clock::now();
+}
 // std::hash<boost::asio::ip::udp::endpoint> is not available before Boost 1.74.
 // Provide a portable hash by combining the raw address bytes and port.
 struct UdpEndpointHash {
@@ -67,6 +72,7 @@ struct UdpEndpointHash {
 struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   config::UdpConfig cfg;
   std::shared_ptr<transport::UdpChannel> channel;
+  RuntimeStats stopped_stats_;
   std::shared_ptr<boost::asio::io_context> external_ioc;
   std::atomic<bool> use_external_context{false};
   std::atomic<bool> manage_external_context{false};
@@ -248,7 +254,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
 
   void run_reaper() {
     std::vector<std::pair<ClientId, std::string>> to_remove_with_info;
-    auto now = std::chrono::steady_clock::now();
+    auto now = session_now();
 
     ConnectionHandler disconnect_handler;
     {
@@ -258,7 +264,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         if (now - it->second.last_seen > session_timeout) {
           std::string info =
               fmt::format("{}:{}", it->second.endpoint.address().to_string(), it->second.endpoint.port());
-          if (channel) channel->end_write_wait(it->second.wait, SendRejection::NotReady);
+          if (channel) channel->expire_session(it->second.wait);
           bp_cv_.notify_all();
           endpoint_to_id.erase(it->second.endpoint);
           to_remove_with_info.push_back({it->first, info});
@@ -305,6 +311,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
 
           {
             std::unique_lock<std::shared_mutex> lock(mutex);
+            if (!started.load() || generation != callback_generation_.load()) return;
             auto it = endpoint_to_id.find(ep);
             if (it == endpoint_to_id.end()) {
               if (client_limit_enabled.load() && sessions.size() >= max_clients_limit.load()) {
@@ -314,8 +321,8 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
               endpoint_to_id[ep] = client_id;
               SessionEntry entry;
               entry.endpoint = ep;
-              entry.wait = channel->capture_write_wait(false);
-              entry.last_seen = std::chrono::steady_clock::now();
+              entry.wait = channel->capture_write_wait(false, true);
+              entry.last_seen = session_now();
               is_new = true;
 
               // Create framer for new session
@@ -361,8 +368,10 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
               sessions[client_id] = std::move(entry);
             } else {
               client_id = it->second;
-              sessions[client_id].last_seen = std::chrono::steady_clock::now();
+              sessions[client_id].last_seen = session_now();
             }
+            if (auto wait = sessions[client_id].wait; wait && wait->stats)
+              wait->stats->counters.record_received(data.size());
             connect_handler_copy = on_connect;
           }
 
@@ -483,6 +492,8 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
     if (!channel) {
       channel = std::dynamic_pointer_cast<transport::UdpChannel>(factory::ChannelFactory::create(cfg, external_ioc));
     }
+    channel->reset_stats();
+    stopped_stats_ = {};
     setup_internal_handlers();
 
     auto channel_copy = channel;
@@ -553,6 +564,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         channel->on_state(nullptr);
         channel->on_backpressure(nullptr);
       }
+      if (channel) stopped_stats_ = channel->stats();
       if (factory_managed_channel_) channel.reset();
       data_batch_queue_.clear();
       message_batch_queue_.clear();
@@ -593,7 +605,8 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
     for (const auto& [id, entry] : sessions) {
       result.add(state.accepted()
                      ? channel->try_write_to({bytes.first, bytes.second}, entry.endpoint,
-                                             entry.wait ? std::optional<uint64_t>(entry.wait->sequence) : std::nullopt)
+                                             entry.wait ? std::optional<uint64_t>(entry.wait->sequence) : std::nullopt,
+                                             entry.wait)
                      : state);
     }
     return result;
@@ -634,7 +647,9 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
       auto it = sessions.find(client_id);
       if (it == sessions.end()) return SendResult::reject(SendRejection::NotReady);
       auto bytes = base::safe_convert::string_to_bytes(data);
-      auto admitted = channel->try_write_to({bytes.first, bytes.second}, it->second.endpoint);
+      auto admitted = channel->try_write_to(
+          {bytes.first, bytes.second}, it->second.endpoint,
+          it->second.wait ? std::optional<uint64_t>(it->second.wait->sequence) : std::nullopt, it->second.wait);
       if (best_effort_send && !admitted.accepted() && admitted.reason() == SendRejection::WouldBlock)
         return SendResult::reject(SendRejection::QueueFull);
       return admitted;
@@ -682,7 +697,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         if (callback_generation_.load() != generation || it == sessions.end() || it->second.wait != wait)
           return SendResult::reject(SendRejection::NotReady);
         auto bytes = base::safe_convert::string_to_bytes(data);
-        const auto admitted = native->write_to({bytes.first, bytes.second}, it->second.endpoint, wait->sequence);
+        const auto admitted = native->write_to({bytes.first, bytes.second}, it->second.endpoint, wait->sequence, wait);
         if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock) return admitted;
         if (detail::in_data_callback()) return admitted;
       }
@@ -693,12 +708,22 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
 
   RuntimeStats stats() const {
     std::shared_lock<std::shared_mutex> lock(mutex);
-    return channel ? channel->stats() : RuntimeStats{};
+    return channel ? channel->stats() : stopped_stats_;
+  }
+
+  std::optional<RuntimeStats> client_stats(ClientId id) const {
+    std::shared_lock<std::shared_mutex> lock(mutex);
+    auto it = sessions.find(id);
+    if (!started.load() || !channel || it == sessions.end() || !it->second.wait) return std::nullopt;
+    return channel->session_stats(it->second.wait);
   }
 
   void reset_stats() {
-    std::shared_lock<std::shared_mutex> lock(mutex);
+    std::unique_lock<std::shared_mutex> lock(mutex);
     if (channel) channel->reset_stats();
+    const bool supported = stopped_stats_.send_accounting.has_value();
+    stopped_stats_ = {};
+    if (supported) stopped_stats_.send_accounting.emplace();
   }
 };
 
@@ -726,6 +751,7 @@ std::future<bool> UdpServer::start() { return impl_->start(); }
 void UdpServer::stop() { impl_->stop(); }
 bool UdpServer::listening() const { return impl_->is_listening.load(); }
 RuntimeStats UdpServer::stats() const { return impl_->stats(); }
+std::optional<RuntimeStats> UdpServer::client_stats(ClientId id) const { return impl_->client_stats(id); }
 void UdpServer::reset_stats() { impl_->reset_stats(); }
 
 FanoutResult UdpServer::broadcast(std::string_view data) { return impl_->broadcast(data); }
