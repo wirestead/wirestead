@@ -34,6 +34,7 @@
 #include "wirestead/diagnostics/error_handler.hpp"
 #include "wirestead/diagnostics/logger.hpp"
 #include "wirestead/diagnostics/runtime_stats_counter.hpp"
+#include "wirestead/diagnostics/send_accounting.hpp"
 #include "wirestead/interface/channel.hpp"
 #include "wirestead/interface/itcp_socket.hpp"
 #include "wirestead/memory/memory_pool.hpp"
@@ -90,6 +91,14 @@ class WIRESTEAD_API TcpServerSession : public std::enable_shared_from_this<TcpSe
   void cancel();
 
  private:
+  using Ledger = diagnostics::SendAccountingLedger;
+  struct TrackedBuffer {
+    BufferVariant buffer;
+    Ledger::Request request;
+  };
+  static const BufferVariant& payload(const TrackedBuffer& item) { return item.buffer; }
+  Ledger send_accounting_;
+  void request_stop();
   friend class TcpServer;
   // Admission and close share this lock. Release it before invoking callbacks
   // that may acquire the owning server session-map lock.
@@ -111,7 +120,7 @@ class WIRESTEAD_API TcpServerSession : public std::enable_shared_from_this<TcpSe
   void reset_idle_timer();
   void observe_queue();
   // Shared decide_enqueue()/route dispatch used by all 3 async_write_* variants (#434).
-  void route_enqueued_buffer(BufferVariant&& buf, size_t added);
+  void route_enqueued_buffer(TrackedBuffer&& buf, size_t added);
   queue_util::BackpressureFields bp_fields();
 
  private:
@@ -133,12 +142,12 @@ class WIRESTEAD_API TcpServerSession : public std::enable_shared_from_this<TcpSe
   // std::array: this buffer exists per connection, so a server trades memory
   // against read completions here with max_connections as the multiplier.
   std::vector<uint8_t> rx_;
-  std::deque<BufferVariant> tx_;
-  std::deque<BufferVariant> pending_;
+  std::deque<TrackedBuffer> tx_;
+  std::deque<TrackedBuffer> pending_;
   std::atomic<size_t> pending_bytes_{0};
   // Buffers handed to the in-flight gather write; `current_write_views_`
   // points into the batch, so neither is touched while a write is in flight.
-  std::vector<BufferVariant> current_write_batch_;
+  std::vector<TrackedBuffer> current_write_batch_;
   std::vector<net::const_buffer> current_write_views_;
   bool writing_ = false;
   std::atomic<size_t> queue_bytes_{0};

@@ -1,11 +1,11 @@
 # Post-acceptance accounting and event proposal
 
 **Status: remaining transport/event proposal.** The
-[stream-client accounting implementation](tcp_send_accounting.md) now implements
-the TCP/UDS/Serial request ledger with explicit measurement epochs and cause groups.
+[stream accounting implementation](tcp_send_accounting.md) now implements
+the TCP/UDS client/session and Serial request ledger with explicit measurement epochs and cause groups.
 [UDP socket accounting](udp_send_accounting.md) also implements these totals.
-Server-session aggregation/expiry and event-policy
-choices remain proposals, not completed APIs or new decisions.
+TCP/UDS session aggregation is implemented. UDP virtual-session accounting/expiry
+and event-policy choices remain proposals, not completed APIs or new decisions.
 The [current conformance report](communication_contract_v0.10_status.md)
 identifies the missing behavior. This document specifies implementation gates.
 Existing SendResult/FanoutResult admission semantics do not change.
@@ -70,8 +70,8 @@ reconstruct this ledger alone.
 ## Transport-specific work
 
 TCP, UDS and Serial clients now retain records spanning caller admission,
-pending posts, queues and active writes. TCP/UDS sessions still need exactly-once server
-aggregation. UDP now retains a record per admitted datagram and socket-run identity;
+pending posts, queues and active writes. TCP/UDS sessions now provide exactly-once server
+aggregation, including stop retirement and reset. UDP now retains a record per admitted datagram and socket-run identity;
 its shared socket snapshot is distinct from per-virtual-session statistics.
 
 UDP virtual sessions currently identify endpoints in the wrapper; native

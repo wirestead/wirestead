@@ -72,6 +72,7 @@ void UdsServerSession::stop() { async_stop({}); }
 
 void UdsServerSession::async_stop(std::function<void()> completion) {
   std::lock_guard<std::mutex> admission_lock(submission_mtx_);
+  send_accounting_.end(Ledger::Cause::ExplicitStop);
   closing_.store(true);
   if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::NotReady;
   net::post(strand_, [self = shared_from_this(), completion = std::move(completion)] {
@@ -92,6 +93,13 @@ std::optional<wrapper::SendResult> UdsServerSession::poll_write_wait() const {
   return std::nullopt;
 }
 
+void UdsServerSession::request_stop() {
+  std::lock_guard<std::mutex> lock(submission_mtx_);
+  send_accounting_.end(Ledger::Cause::ExplicitStop);
+  closing_ = true;
+  if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::CancelledWhileWaiting;
+}
+
 void UdsServerSession::cancel_write_wait() {
   std::lock_guard<std::mutex> lock(submission_mtx_);
   if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::CancelledWhileWaiting;
@@ -100,11 +108,16 @@ void UdsServerSession::cancel_write_wait() {
 bool UdsServerSession::alive() const { return alive_.load(); }
 
 wrapper::RuntimeStats UdsServerSession::stats() const {
-  return stats_.snapshot(queue_bytes_.load(std::memory_order_relaxed), pending_bytes_.load(std::memory_order_relaxed),
-                         backpressure_active_.load(std::memory_order_relaxed));
+  auto snapshot =
+      stats_.snapshot(queue_bytes_.load(std::memory_order_relaxed), pending_bytes_.load(std::memory_order_relaxed),
+                      backpressure_active_.load(std::memory_order_relaxed));
+  snapshot.send_accounting = send_accounting_.snapshot();
+  return snapshot;
 }
 
 void UdsServerSession::reset_stats() {
+  std::lock_guard<std::mutex> lock(submission_mtx_);
+  send_accounting_.reset();
   stats_.reset(queue_bytes_.load(std::memory_order_relaxed) + pending_bytes_.load(std::memory_order_relaxed));
 }
 
@@ -144,16 +157,19 @@ wrapper::SendResult UdsServerSession::write_copy(memory::ConstByteSpan data) {
         stats_.record_failed_send();
         return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
       }
+      Ledger::Admission admission(send_accounting_, size);
       stats_.record_accepted(size);
-      net::post(strand_, [self = shared_from_this(), buf = std::move(pooled_buffer)]() mutable {
-        const auto added = buf.size();
-        if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
-          queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
-          self->stats_.record_failed_send();
-          return;
-        }
-        self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
-      });
+      net::post(strand_,
+                [self = shared_from_this(), buf = std::move(pooled_buffer), request = admission.request()]() mutable {
+                  const auto added = buf.size();
+                  if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
+                    queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
+                    self->stats_.record_failed_send();
+                    return;
+                  }
+                  self->route_enqueued_buffer(TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
+                });
+      admission.commit();
       return wrapper::SendResult::accept();
     }
   }
@@ -165,16 +181,19 @@ wrapper::SendResult UdsServerSession::write_copy(memory::ConstByteSpan data) {
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
   std::vector<uint8_t> fallback(data.begin(), data.end());
+  Ledger::Admission admission(send_accounting_, size);
   stats_.record_accepted(size);
 
-  net::post(strand_, [self = shared_from_this(), buf = std::move(fallback), size]() mutable {
-    if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
-      queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, size);
-      self->stats_.record_failed_send();
-      return;
-    }
-    self->route_enqueued_buffer(BufferVariant{std::move(buf)}, size);
-  });
+  net::post(strand_,
+            [self = shared_from_this(), buf = std::move(fallback), size, request = admission.request()]() mutable {
+              if (!self->alive_ || self->closing_) {  // Double-check in case session was closed
+                queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, size);
+                self->stats_.record_failed_send();
+                return;
+              }
+              self->route_enqueued_buffer(TrackedBuffer{BufferVariant{std::move(buf)}, request}, size);
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -206,15 +225,18 @@ wrapper::SendResult UdsServerSession::write_move(std::vector<uint8_t>&& data) {
     stats_.record_failed_send();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
+  Ledger::Admission admission(send_accounting_, added);
   stats_.record_accepted(added);
-  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (!self->alive_ || self->closing_) {
-      queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
-      self->stats_.record_failed_send();
-      return;
-    }
-    self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
-  });
+  net::post(strand_,
+            [self = shared_from_this(), buf = std::move(data), added, request = admission.request()]() mutable {
+              if (!self->alive_ || self->closing_) {
+                queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
+                self->stats_.record_failed_send();
+                return;
+              }
+              self->route_enqueued_buffer(TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -246,15 +268,18 @@ wrapper::SendResult UdsServerSession::write_shared(std::shared_ptr<const std::ve
     stats_.record_failed_send();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
+  Ledger::Admission admission(send_accounting_, added);
   stats_.record_accepted(added);
-  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (!self->alive_ || self->closing_) {
-      queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
-      self->stats_.record_failed_send();
-      return;
-    }
-    self->route_enqueued_buffer(BufferVariant{std::move(buf)}, added);
-  });
+  net::post(strand_,
+            [self = shared_from_this(), buf = std::move(data), added, request = admission.request()]() mutable {
+              if (!self->alive_ || self->closing_) {
+                queue_util::release_reserved_limit_bytes(self->write_reserve_mtx_, self->inflight_bytes_, added);
+                self->stats_.record_failed_send();
+                return;
+              }
+              self->route_enqueued_buffer(TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -309,20 +334,23 @@ wrapper::SendResult UdsServerSession::try_write_move(std::vector<uint8_t>&& data
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
+  Ledger::Admission admission(send_accounting_, added);
   stats_.record_accepted(added);
 
-  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (!self->alive_ || self->closing_) {
-      queue_util::release_reserved_write_bytes(self->queue_bytes_, added);
-      self->stats_.record_failed_send();
-      return;
-    }
+  net::post(strand_,
+            [self = shared_from_this(), buf = std::move(data), added, request = admission.request()]() mutable {
+              if (!self->alive_ || self->closing_) {
+                queue_util::release_reserved_write_bytes(self->queue_bytes_, added);
+                self->stats_.record_failed_send();
+                return;
+              }
 
-    self->tx_.emplace_back(std::move(buf));
-    self->observe_queue();
-    self->report_backpressure(self->queue_bytes_);
-    if (!self->writing_) self->do_write();
-  });
+              self->tx_.push_back(TrackedBuffer{BufferVariant{std::move(buf)}, request});
+              self->observe_queue();
+              self->report_backpressure(self->queue_bytes_);
+              if (!self->writing_) self->do_write();
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -365,20 +393,23 @@ wrapper::SendResult UdsServerSession::try_write_shared(std::shared_ptr<const std
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
+  Ledger::Admission admission(send_accounting_, added);
   stats_.record_accepted(added);
 
-  net::post(strand_, [self = shared_from_this(), buf = std::move(data), added]() mutable {
-    if (!self->alive_ || self->closing_) {
-      queue_util::release_reserved_write_bytes(self->queue_bytes_, added);
-      self->stats_.record_failed_send();
-      return;
-    }
+  net::post(strand_,
+            [self = shared_from_this(), buf = std::move(data), added, request = admission.request()]() mutable {
+              if (!self->alive_ || self->closing_) {
+                queue_util::release_reserved_write_bytes(self->queue_bytes_, added);
+                self->stats_.record_failed_send();
+                return;
+              }
 
-    self->tx_.emplace_back(std::move(buf));
-    self->observe_queue();
-    self->report_backpressure(self->queue_bytes_);
-    if (!self->writing_) self->do_write();
-  });
+              self->tx_.push_back(TrackedBuffer{BufferVariant{std::move(buf)}, request});
+              self->observe_queue();
+              self->report_backpressure(self->queue_bytes_);
+              if (!self->writing_) self->do_write();
+            });
+  admission.commit();
   return wrapper::SendResult::accept();
 }
 
@@ -424,25 +455,58 @@ void UdsServerSession::start_read() {
 }
 
 void UdsServerSession::do_write() {
+  // Serialize the actual handoff with stop, not only the enqueue handler.
+  std::unique_lock<std::mutex> lock(submission_mtx_);
   if (closing_ || !alive_ || tx_.empty() || writing_) return;
   writing_ = true;
-  const size_t bytes_to_write = queue_util::take_gather_batch(tx_, current_write_batch_, current_write_views_);
-  socket_->async_write(current_write_views_, [self = shared_from_this(), bytes_to_write](
-                                                 const boost::system::error_code& ec, size_t written) {
-    net::dispatch(self->strand_, [self, bytes_to_write, ec, written] {
-      self->current_write_batch_.clear();
-      self->writing_ = false;
-      if (self->closing_ || !self->alive_) return;
-      self->queue_bytes_ = self->queue_bytes_ >= bytes_to_write ? self->queue_bytes_ - bytes_to_write : 0;
-      self->report_backpressure(self->queue_bytes_);
-      if (ec) {
-        self->do_close();
-        return;
-      }
-      self->stats_.record_sent(written);
-      if (!self->tx_.empty()) self->do_write();
+  const size_t bytes_to_write = queue_util::take_gather_batch(tx_, current_write_batch_, current_write_views_, payload);
+  for (const auto& item : current_write_batch_) send_accounting_.begin(item.request);
+  auto self = shared_from_this();
+  try {
+    socket_->async_write(current_write_views_, [self, bytes_to_write](const boost::system::error_code& ec, size_t n) {
+      // The interface erases associated executors. Post explicitly, including
+      // for endpoints that complete inline while initiation holds the lock.
+      net::post(self->strand_, [self, bytes_to_write, ec, n] {
+        const bool failed = ec || n != bytes_to_write;
+        {
+          std::lock_guard<std::mutex> completion_lock(self->submission_mtx_);
+          if (self->closing_ || !self->alive_) {
+            self->current_write_batch_.clear();
+            return;
+          }
+          size_t remaining = std::min(n, bytes_to_write);
+          for (const auto& item : self->current_write_batch_) {
+            const auto size = std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
+            const auto confirmed = std::min(remaining, size);
+            self->send_accounting_.complete(item.request, confirmed);
+            remaining -= confirmed;
+          }
+          self->current_write_batch_.clear();
+          if (failed) {
+            self->send_accounting_.end(Ledger::Cause::ConnectionLoss);
+            self->closing_ = true;
+            if (!self->wait_ended_by_) self->wait_ended_by_ = wrapper::SendRejection::NotReady;
+          }
+        }
+        if (failed) {
+          self->do_close();
+          return;
+        }
+        self->queue_bytes_ = self->queue_bytes_ >= bytes_to_write ? self->queue_bytes_ - bytes_to_write : 0;
+        self->stats_.record_sent(n);
+        // Keep writing_ set while callbacks move pending data or enqueue writes.
+        self->report_backpressure(self->queue_bytes_);
+        self->writing_ = false;
+        self->do_write();
+      });
     });
-  });
+  } catch (...) {
+    send_accounting_.end(Ledger::Cause::ConnectionLoss);
+    closing_ = true;
+    if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::NotReady;
+    lock.unlock();
+    do_close();
+  }
 }
 
 void UdsServerSession::do_close() {
@@ -450,6 +514,7 @@ void UdsServerSession::do_close() {
   cleanup_done_ = true;
   {
     std::lock_guard<std::mutex> lock(submission_mtx_);
+    send_accounting_.end(Ledger::Cause::ConnectionLoss);
     if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::NotReady;
     closing_ = true;
     alive_ = false;
@@ -494,13 +559,16 @@ queue_util::BackpressureFields UdsServerSession::bp_fields() {
                                         bp_low_,      bp_limit_,      bp_strategy_};
 }
 
-void UdsServerSession::route_enqueued_buffer(BufferVariant&& buf, size_t added) {
+void UdsServerSession::route_enqueued_buffer(TrackedBuffer&& buf, size_t added) {
   auto f = bp_fields();
   queue_util::DropAccounting dropped;
-  auto decision = queue_util::decide_enqueue(f, added, tx_, dropped);
+  auto decision = queue_util::decide_enqueue(f, added, tx_, dropped, payload, [this](const TrackedBuffer& item) {
+    send_accounting_.discard(item.request, Ledger::Cause::QueuePressure);
+  });
   if (dropped.any()) stats_.record_dropped(dropped.messages, dropped.bytes);
 
   if (decision == queue_util::EnqueueDecision::Rejected) {
+    send_accounting_.discard(buf.request, Ledger::Cause::QueuePressure);
     WIRESTEAD_LOG_ERROR("uds_server_session", "write", "Queue limit exceeded, dropping message");
     // #448: record as dropped so it's reflected in RuntimeStats instead of
     // silently vanishing after being counted as accepted.

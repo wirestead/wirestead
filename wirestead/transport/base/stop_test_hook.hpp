@@ -60,6 +60,8 @@ inline std::atomic<void (*)()> g_serial_io_completion_hook{nullptr};
 // Snapshot taken, before any per-target fanout admission; no native locks held.
 inline std::atomic<void (*)()> g_tcp_fanout_snapshot_hook{nullptr};
 inline std::atomic<void (*)()> g_uds_fanout_snapshot_hook{nullptr};
+// After targets move to retirement, before asynchronous session cleanup.
+inline std::atomic<void (*)()> g_server_sessions_retiring_hook{nullptr};
 using StopTestHook = void (*)(const void*, bool);
 inline std::atomic<StopTestHook> g_stop_test_hook{nullptr};
 inline void stop_test_hook(const void* object, bool completing) {

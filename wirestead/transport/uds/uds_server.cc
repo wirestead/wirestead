@@ -162,6 +162,16 @@ struct UdsServer::Impl {
 
   mutable std::mutex sessions_mutex_;
   std::unordered_map<ClientId, std::shared_ptr<UdsServerSession>> sessions_;
+  // Stop removes targets immediately, but their counters remain visible until
+  // asynchronous cleanup transfers the final snapshot exactly once.
+  std::unordered_map<ClientId, std::shared_ptr<UdsServerSession>> retiring_sessions_;
+  wrapper::SendAccounting closed_send_accounting_;
+
+  void absorb_session(const std::shared_ptr<UdsServerSession>& session) {
+    const auto snapshot = session->stats();
+    stats_.absorb(snapshot);
+    diagnostics::accumulate_send_accounting(closed_send_accounting_, *snapshot.send_accounting);
+  }
 
   ErrorInfoHolder error_info_holder_{"uds_server"};
 
@@ -209,12 +219,13 @@ struct UdsServer::Impl {
     if (cleanup_started_.exchange(true)) return;
     boost::system::error_code ec;
     if (acceptor_) acceptor_->close(ec);
-    std::vector<std::shared_ptr<UdsServerSession>> sessions;
+    std::vector<std::pair<ClientId, std::shared_ptr<UdsServerSession>>> sessions;
     {
       std::lock_guard<std::mutex> lock(sessions_mutex_);
-      for (auto& entry : sessions_) sessions.push_back(entry.second);
-      sessions_.clear();
+      retiring_sessions_.swap(sessions_);
+      for (const auto& entry : retiring_sessions_) sessions.push_back(entry);
     }
+    if (auto hook = detail::g_server_sessions_retiring_hook.load()) hook();
     if (sessions.empty()) {
       finish_cleanup();
       return;
@@ -223,9 +234,17 @@ struct UdsServer::Impl {
     // session owns its outstanding I/O; final state changes are serialized
     // with accept/retry handlers on the server's management strand.
     auto remaining = std::make_shared<size_t>(sessions.size());
-    for (auto& session : sessions) {
-      session->async_stop([this, self, remaining] {
-        net::post(strand_, [this, self, remaining] {
+    for (auto& [client_id, session] : sessions) {
+      session->async_stop([this, self, remaining, client_id] {
+        net::post(strand_, [this, self, remaining, client_id] {
+          {
+            std::lock_guard<std::mutex> lock(sessions_mutex_);
+            const auto it = retiring_sessions_.find(client_id);
+            if (it != retiring_sessions_.end()) {
+              absorb_session(it->second);
+              retiring_sessions_.erase(it);
+            }
+          }
           if (--*remaining == 0) finish_cleanup();
         });
       });
@@ -241,7 +260,7 @@ struct UdsServer::Impl {
       if (first) {
         std::lock_guard<std::mutex> sessions_lock(sessions_mutex_);
         for (auto& entry : sessions_)
-          if (entry.second) entry.second->cancel_write_wait();
+          if (entry.second) entry.second->request_stop();
       }
     }
     if (first) {
@@ -312,7 +331,11 @@ void UdsServer::start() {
   // counters now outlive the sessions that fed them, so clearing them here is
   // what keeps that promise - before absorption they were empty and a restart
   // zeroed the aggregate for free.
-  impl_->stats_.reset(0);
+  {
+    std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
+    impl_->stats_.reset(0);
+    impl_->closed_send_accounting_ = {};
+  }
 
   if (!impl_->cfg_.is_valid()) {
     WIRESTEAD_LOG_ERROR("uds_server", "start", "Invalid UDS server configuration or socket path");
@@ -455,34 +478,41 @@ wrapper::RuntimeStats UdsServer::stats() const {
   // disconnect transfer; otherwise a retiring session can disappear from both.
   std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
   auto aggregate = impl_->stats_.snapshot(0, 0, false);
-  for (const auto& pair : impl_->sessions_) {
-    if (!pair.second) continue;
-    const auto session_stats = pair.second->stats();
-    aggregate.bytes_accepted += session_stats.bytes_accepted;
-    aggregate.messages_accepted += session_stats.messages_accepted;
-    aggregate.bytes_sent += session_stats.bytes_sent;
-    aggregate.messages_sent += session_stats.messages_sent;
-    aggregate.bytes_received += session_stats.bytes_received;
-    aggregate.messages_received += session_stats.messages_received;
-    aggregate.failed_sends += session_stats.failed_sends;
-    aggregate.dropped_messages += session_stats.dropped_messages;
-    aggregate.dropped_bytes += session_stats.dropped_bytes;
-    aggregate.backpressure_events += session_stats.backpressure_events;
-    aggregate.queued_bytes += session_stats.queued_bytes;
-    aggregate.pending_bytes += session_stats.pending_bytes;
-    // Peak, not a total: summing per-session peaks would report a depth no
-    // session ever reached, because the peaks need not have been simultaneous.
-    aggregate.max_queued_bytes = std::max(aggregate.max_queued_bytes, session_stats.max_queued_bytes);
-    aggregate.backpressure_active = aggregate.backpressure_active || session_stats.backpressure_active;
+  aggregate.send_accounting = impl_->closed_send_accounting_;
+  for (const auto* sessions : {&impl_->sessions_, &impl_->retiring_sessions_}) {
+    for (const auto& pair : *sessions) {
+      if (!pair.second) continue;
+      const auto session_stats = pair.second->stats();
+      diagnostics::accumulate_send_accounting(*aggregate.send_accounting, *session_stats.send_accounting);
+      aggregate.bytes_accepted += session_stats.bytes_accepted;
+      aggregate.messages_accepted += session_stats.messages_accepted;
+      aggregate.bytes_sent += session_stats.bytes_sent;
+      aggregate.messages_sent += session_stats.messages_sent;
+      aggregate.bytes_received += session_stats.bytes_received;
+      aggregate.messages_received += session_stats.messages_received;
+      aggregate.failed_sends += session_stats.failed_sends;
+      aggregate.dropped_messages += session_stats.dropped_messages;
+      aggregate.dropped_bytes += session_stats.dropped_bytes;
+      aggregate.backpressure_events += session_stats.backpressure_events;
+      aggregate.queued_bytes += session_stats.queued_bytes;
+      aggregate.pending_bytes += session_stats.pending_bytes;
+      // Peak, not a total: summing per-session peaks would report a depth no
+      // session ever reached, because the peaks need not have been simultaneous.
+      aggregate.max_queued_bytes = std::max(aggregate.max_queued_bytes, session_stats.max_queued_bytes);
+      aggregate.backpressure_active = aggregate.backpressure_active || session_stats.backpressure_active;
+    }
   }
   return aggregate;
 }
 
 void UdsServer::reset_stats() {
-  impl_->stats_.reset(0);
   std::lock_guard<std::mutex> lock(impl_->sessions_mutex_);
-  for (const auto& pair : impl_->sessions_) {
-    if (pair.second) pair.second->reset_stats();
+  impl_->stats_.reset(0);
+  impl_->closed_send_accounting_ = {};
+  for (const auto* sessions : {&impl_->sessions_, &impl_->retiring_sessions_}) {
+    for (const auto& entry : *sessions) {
+      if (entry.second) entry.second->reset_stats();
+    }
   }
 }
 
@@ -821,7 +851,7 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self, uint64_t genera
               // erase below, which makes it exactly once even if on_close re-fires.
               auto it = s->impl_->sessions_.find(client_id);
               if (it != s->impl_->sessions_.end() && it->second) {
-                s->impl_->stats_.absorb(it->second->stats());
+                s->impl_->absorb_session(it->second);
               }
               s->impl_->sessions_.erase(client_id);
               disconnect_handler = s->impl_->on_multi_disconnect_;

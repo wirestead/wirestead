@@ -103,6 +103,7 @@ foreach(
   test_tcp_stop_admission.cc
   test_tcp_send_accounting.cc
   test_udp_send_accounting.cc
+  test_server_send_accounting.cc
   test_udp_stop_admission.cc
   test_udp_stop_completion.cc
   test_udp_stop_lifecycle.cc
