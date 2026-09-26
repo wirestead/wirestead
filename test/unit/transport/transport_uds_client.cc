@@ -250,28 +250,11 @@ TEST_F(TransportUdsClientTest, StartWhileConnectingIsIgnored) {
   ioc.run_for(std::chrono::milliseconds(20));
 }
 
-TEST_F(TransportUdsClientTest, InvalidConfigMovesToErrorAndRecordsLastError) {
+TEST_F(TransportUdsClientTest, InvalidConfigIsRejectedBeforeConstruction) {
   cfg.socket_path.clear();
-  auto local_mock = new MockUdsSocket();
-  EXPECT_CALL(*local_mock, close(_)).Times(AnyNumber());
-  auto local_client = UdsClient::create(cfg, std::unique_ptr<interface::UdsSocketInterface>(local_mock), ioc);
-
-  std::atomic<bool> error_seen{false};
-  local_client->on_state([&](base::LinkState state) {
-    if (state == base::LinkState::Error) {
-      error_seen = true;
-    }
-  });
-
-  local_client->start();
-  ioc.restart();
-  ioc.run_for(std::chrono::milliseconds(50));
-
-  EXPECT_TRUE(error_seen.load());
-  ASSERT_TRUE(local_client->last_error_info().has_value());
-  EXPECT_EQ(local_client->last_error_info()->category, diagnostics::ErrorCategory::CONFIGURATION);
-
-  wirestead::test::stop_with_context(local_client, ioc);
+  auto socket = std::make_unique<MockUdsSocket>();
+  EXPECT_CALL(*socket, close(_)).Times(AnyNumber());
+  EXPECT_THROW(UdsClient::create(cfg, std::move(socket), ioc), std::invalid_argument);
 }
 
 TEST_F(TransportUdsClientTest, ConnectionTimeoutRecordsLastError) {
@@ -525,7 +508,7 @@ TEST_P(UdsConnectionFenceTest, DropsQueuedAndPostedWritesAndKeepsOldBuffersAlive
   boost::asio::io_context io;
   config::UdsClientConfig cfg;
   cfg.socket_path = TestUtils::makeUniqueUdsSocketPath("uds-fence").string();
-  cfg.retry_interval_ms = 1;
+  cfg.retry_interval_ms = 100;
   cfg.enable_memory_pool = (GetParam() / 6) % 2 == 0;
   cfg.backpressure_strategy = GetParam() >= 12 ? base::constants::BackpressureStrategy::BestEffort
                                                : base::constants::BackpressureStrategy::Reliable;

@@ -113,12 +113,12 @@ class StreamSendAccountingTest : public ::testing::TestWithParam<std::tuple<bool
                                                          : base::constants::BackpressureStrategy::Reliable;
     if (serial()) {
       config::SerialConfig cfg;
-      cfg.device = "/fake/serial";
+      cfg.device = "/dev/ttySERIAL";
       cfg.enable_memory_pool = input() != 1;
       cfg.backpressure_threshold = high;
       cfg.backpressure_strategy = strategy;
       cfg.reopen_on_error = retry;
-      cfg.retry_interval_ms = 1;
+      cfg.retry_interval_ms = 100;
       client = transport::Serial::create(cfg, std::move(fake), io);
     } else {
       config::UdsClientConfig cfg;
@@ -127,7 +127,7 @@ class StreamSendAccountingTest : public ::testing::TestWithParam<std::tuple<bool
       cfg.backpressure_threshold = high;
       cfg.backpressure_strategy = strategy;
       cfg.max_retries = retry ? 2 : 0;
-      cfg.retry_interval_ms = 1;
+      cfg.retry_interval_ms = 100;
       client = transport::UdsClient::create(cfg, std::move(fake), io);
     }
     client->start();

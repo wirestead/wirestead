@@ -62,6 +62,7 @@ struct UdpConfig {
   std::optional<std::string> multicast_group;
   std::optional<std::string> multicast_interface;
   bool enable_memory_pool = true;
+  // Receive callback exceptions request quiet stop when true; false logs and continues receiving.
   bool stop_on_callback_exception = false;
   size_t send_buffer_size = 0;
   size_t receive_buffer_size = 0;

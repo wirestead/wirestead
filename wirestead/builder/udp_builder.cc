@@ -20,7 +20,9 @@
 #include <boost/asio/ip/address.hpp>
 
 #include "wirestead/builder/auto_initializer.hpp"
+#include "wirestead/config/validation.hpp"
 #include "wirestead/diagnostics/exceptions.hpp"
+#include "wirestead/util/input_validator.hpp"
 
 namespace wirestead {
 namespace builder {
@@ -49,8 +51,10 @@ std::unique_ptr<wrapper::UdpClient> UdpClientBuilder::build() {
   config::UdpConfig cfg;
   cfg.bind_address = bind_address_;
   cfg.local_port = local_port_;
-  cfg.remote_address = remote_host_;
-  cfg.remote_port = remote_port_;
+  if (!remote_host_.empty()) {
+    cfg.remote_address = remote_host_;
+    cfg.remote_port = remote_port_;
+  }
   cfg.enable_broadcast = enable_broadcast_;
   cfg.reuse_address = reuse_address_;
   cfg.multicast_group = multicast_group_;
@@ -103,6 +107,8 @@ UdpClientBuilder& UdpClientBuilder::local_port(uint16_t port) {
 }
 
 UdpClientBuilder& UdpClientBuilder::bind_address(const std::string& address) {
+  config::detail::require(util::InputValidator::is_valid_ipv4(address) || util::InputValidator::is_valid_ipv6(address),
+                          "invalid bind address");
   bind_address_ = address;
   return *this;
 }
@@ -113,6 +119,7 @@ UdpClientBuilder& UdpClientBuilder::remote_endpoint(const std::string& host, uin
   if (ec) {
     throw diagnostics::BuilderException("Invalid remote address: " + host, "udp");
   }
+  config::detail::require(port != 0, "invalid remote port");
   remote_host_ = host;
   remote_port_ = port;
   return *this;
@@ -124,6 +131,9 @@ UdpClientBuilder& UdpClientBuilder::broadcast(bool enable) {
 }
 
 UdpClientBuilder& UdpClientBuilder::multicast_group(const std::string& group, const std::string& interface_address) {
+  config::detail::require(config::is_multicast_address(group), "invalid multicast group");
+  config::detail::require(interface_address.empty() || util::InputValidator::is_valid_ipv4(interface_address),
+                          "invalid multicast interface");
   multicast_group_ = group;
   if (interface_address.empty()) {
     multicast_interface_.reset();
@@ -144,11 +154,17 @@ UdpClientBuilder& UdpClientBuilder::independent_context(bool use_independent) {
 }
 
 UdpClientBuilder& UdpClientBuilder::send_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid send_buffer_size");
   send_buffer_size_ = bytes;
   return *this;
 }
 
 UdpClientBuilder& UdpClientBuilder::receive_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid receive_buffer_size");
   receive_buffer_size_ = bytes;
   return *this;
 }
@@ -234,11 +250,14 @@ UdpServerBuilder& UdpServerBuilder::local_port(uint16_t port) {
 }
 
 UdpServerBuilder& UdpServerBuilder::bind_address(const std::string& address) {
+  config::detail::require(util::InputValidator::is_valid_ipv4(address) || util::InputValidator::is_valid_ipv6(address),
+                          "invalid bind address");
   bind_address_ = address;
   return *this;
 }
 
 UdpServerBuilder& UdpServerBuilder::max_clients(uint32_t max) {
+  config::detail::range(max, 0, base::constants::MAX_MAX_CONNECTIONS, "invalid client limit");
   max_clients_ = max;
   client_limit_enabled_ = true;
   return *this;
@@ -250,6 +269,9 @@ UdpServerBuilder& UdpServerBuilder::broadcast(bool enable) {
 }
 
 UdpServerBuilder& UdpServerBuilder::multicast_group(const std::string& group, const std::string& interface_address) {
+  config::detail::require(config::is_multicast_address(group), "invalid multicast group");
+  config::detail::require(interface_address.empty() || util::InputValidator::is_valid_ipv4(interface_address),
+                          "invalid multicast interface");
   multicast_group_ = group;
   if (interface_address.empty()) {
     multicast_interface_.reset();
@@ -270,17 +292,25 @@ UdpServerBuilder& UdpServerBuilder::independent_context(bool use_independent) {
 }
 
 UdpServerBuilder& UdpServerBuilder::idle_timeout(std::chrono::milliseconds timeout) {
+  config::detail::duration(timeout, base::constants::MIN_IDLE_TIMEOUT_MS, base::constants::MAX_IDLE_TIMEOUT_MS, true,
+                           "invalid idle_timeout");
   idle_timeout_ = timeout;
   idle_timeout_set_ = true;
   return *this;
 }
 
 UdpServerBuilder& UdpServerBuilder::send_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid send_buffer_size");
   send_buffer_size_ = bytes;
   return *this;
 }
 
 UdpServerBuilder& UdpServerBuilder::receive_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid receive_buffer_size");
   receive_buffer_size_ = bytes;
   return *this;
 }

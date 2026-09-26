@@ -307,24 +307,13 @@ TEST_P(UdsStopAdmissionTest, NeverStartedStopNeedsNoExecutorAndRetainsNoWork) {
 // Validation can fail before any I/O work is dispatched. This must not
 // wait on an owned thread that was never created or an unused external context.
 TEST(UdsFailedStartStopTest, ValidationFailureNeedsNoExecutorForCleanup) {
-  for (bool external : {false, true}) {
-    boost::asio::io_context io;
-    config::UdsServerConfig cfg;
-    cfg.socket_path = test::TestUtils::makeUniqueUdsSocketPath("uds-d1").string();
-    cfg.socket_path = std::string(1000, 'x');  // Invalid before an executor is started.
-    auto server = external ? transport::UdsServer::create(cfg, std::make_unique<transport::BoostUdsAcceptor>(io), io)
-                           : transport::UdsServer::create(cfg);
-    std::weak_ptr<transport::UdsServer> weak = server;
-    for (int cycle = 0; cycle < 2; ++cycle) {
-      server->start();
-      ASSERT_EQ(server->state(), base::LinkState::Error);
-      server->stop();
-      EXPECT_EQ(server->state(), base::LinkState::Idle);
-    }
-    server.reset();
-    EXPECT_TRUE(weak.expired());
-    EXPECT_EQ(io.poll(), 0u);
-  }
+  boost::asio::io_context io;
+  config::UdsServerConfig cfg;
+  cfg.socket_path = std::string(1000, 'x');
+  EXPECT_THROW(transport::UdsServer::create(cfg, std::make_unique<transport::BoostUdsAcceptor>(io), io),
+               std::invalid_argument);
+  EXPECT_THROW(transport::UdsServer::create(cfg), std::invalid_argument);
+  EXPECT_EQ(io.poll(), 0u);
 }
 
 // Closing the socket is not the same event as leaving its cancelled read
@@ -399,7 +388,7 @@ TEST_P(UdsCapacityWaitConnectionTest, PreservesWaitReleaseOutcome) {
   config::UdsClientConfig cfg;
   cfg.socket_path = path;
   cfg.backpressure_threshold = 1024;
-  cfg.retry_interval_ms = 20;
+  cfg.retry_interval_ms = 100;
   auto transport = transport::UdsClient::create(cfg, *context.io);
   wrapper::UdsClient client(transport);
   std::atomic<int> connections{0};

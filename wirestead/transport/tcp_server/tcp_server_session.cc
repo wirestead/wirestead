@@ -19,6 +19,7 @@
 #include <cstring>
 #include <iostream>
 
+#include "wirestead/diagnostics/callback.hpp"
 #include "wirestead/memory/memory_pool.hpp"
 #include "wirestead/transport/base/bp_utils.hpp"
 #include "wirestead/transport/base/stop_test_hook.hpp"
@@ -99,7 +100,7 @@ void TcpServerSession::start_with_notification(std::function<void()> notify) {
         self->start_read();
       });
     });
-    if (notify) notify();
+    diagnostics::invoke_callback("tcp_server_session", "on_connect", notify);
   });
 }
 
@@ -488,33 +489,21 @@ void TcpServerSession::cancel() {
 void TcpServerSession::start_read() {
   if (closing_ || !alive_) return;
   auto self = shared_from_this();
-  socket_->async_read_some(
-      net::buffer(rx_.data(), rx_.size()), [self](const boost::system::error_code& ec, std::size_t n) {
-        net::dispatch(self->strand_, [self, ec, n] {
-          if (self->closing_ || !self->alive_) return;
-          if (ec) {
-            self->do_close();
-            return;
-          }
-          self->reset_idle_timer();
-          if (n > 0) self->stats_.record_received(n);
-          if (self->on_bytes_) {
-            try {
-              self->on_bytes_(memory::ConstByteSpan(self->rx_.data(), n));
-            } catch (const std::exception& e) {
-              WIRESTEAD_LOG_ERROR("tcp_server_session", "on_bytes",
-                                  "Exception in on_bytes callback: " + std::string(e.what()));
-              self->do_close();
-              return;
-            } catch (...) {
-              WIRESTEAD_LOG_ERROR("tcp_server_session", "on_bytes", "Unknown exception in on_bytes callback");
-              self->do_close();
-              return;
-            }
-          }
-          self->start_read();
-        });
-      });
+  socket_->async_read_some(net::buffer(rx_.data(), rx_.size()),
+                           [self](const boost::system::error_code& ec, std::size_t n) {
+                             net::dispatch(self->strand_, [self, ec, n] {
+                               if (self->closing_ || !self->alive_) return;
+                               if (ec) {
+                                 self->do_close();
+                                 return;
+                               }
+                               self->reset_idle_timer();
+                               if (n > 0) self->stats_.record_received(n);
+                               diagnostics::invoke_callback("tcp_server_session", "on_bytes", self->on_bytes_,
+                                                            memory::ConstByteSpan(self->rx_.data(), n));
+                               self->start_read();
+                             });
+                           });
 }
 
 void TcpServerSession::do_write() {

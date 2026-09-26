@@ -69,7 +69,7 @@ TEST_F(StopCallbackIntegrationTest, TcpClientStopFromCallbackDoesNotDeadlock) {
   cfg.host = "127.0.0.1";
   cfg.port = test_port_;
   cfg.connection_timeout_ms = 500;
-  cfg.retry_interval_ms = 50;
+  cfg.retry_interval_ms = 100;
   cfg.max_retries = 0;
 
   auto client = TcpClient::create(cfg);

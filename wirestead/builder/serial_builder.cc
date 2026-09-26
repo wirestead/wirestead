@@ -22,7 +22,9 @@
 
 #include "wirestead/base/constants.hpp"
 #include "wirestead/builder/auto_initializer.hpp"
+#include "wirestead/config/validation.hpp"
 #include "wirestead/diagnostics/exceptions.hpp"
+#include "wirestead/util/input_validator.hpp"
 
 namespace wirestead {
 namespace builder {
@@ -128,18 +130,23 @@ SerialBuilder& SerialBuilder::char_size(unsigned int size) {
 }
 
 SerialBuilder& SerialBuilder::stop_bits(unsigned int bits) {
+  config::detail::range(bits, base::constants::MIN_STOP_BITS, base::constants::MAX_STOP_BITS, "invalid stop_bits");
   stop_bits_ = bits;
   stop_bits_set_ = true;
   return *this;
 }
 
 SerialBuilder& SerialBuilder::parity(config::SerialConfig::Parity p) {
+  config::detail::require(p == config::SerialConfig::Parity::None || p == config::SerialConfig::Parity::Even ||
+                              p == config::SerialConfig::Parity::Odd,
+                          "invalid parity");
   parity_ = p;
   parity_set_ = true;
   return *this;
 }
 
 SerialBuilder& SerialBuilder::parity(const std::string& p) {
+  config::detail::text_option(p, {"none", "even", "odd"}, "invalid parity");
   std::string value = p;
   std::transform(value.begin(), value.end(), value.begin(),
                  [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -156,12 +163,16 @@ SerialBuilder& SerialBuilder::parity(const std::string& p) {
 }
 
 SerialBuilder& SerialBuilder::flow_control(config::SerialConfig::Flow f) {
+  config::detail::require(f == config::SerialConfig::Flow::None || f == config::SerialConfig::Flow::Software ||
+                              f == config::SerialConfig::Flow::Hardware,
+                          "invalid flow_control");
   flow_ = f;
   flow_set_ = true;
   return *this;
 }
 
 SerialBuilder& SerialBuilder::flow_control(const std::string& f) {
+  config::detail::text_option(f, {"none", "software", "hardware"}, "invalid flow control");
   std::string value = f;
   std::transform(value.begin(), value.end(), value.begin(),
                  [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -178,6 +189,8 @@ SerialBuilder& SerialBuilder::flow_control(const std::string& f) {
 }
 
 SerialBuilder& SerialBuilder::read_chunk(size_t bytes) {
+  config::detail::range(bytes, base::constants::MIN_READ_BUFFER_SIZE, base::constants::MAX_READ_BUFFER_SIZE,
+                        "invalid read_chunk");
   read_chunk_ = bytes;
   read_chunk_set_ = true;
   return *this;
@@ -210,6 +223,8 @@ SerialBuilder& SerialBuilder::rts(bool assert_line) {
 }
 
 SerialBuilder& SerialBuilder::rx_idle_timeout(std::chrono::milliseconds timeout) {
+  config::detail::duration(timeout, base::constants::MIN_IDLE_TIMEOUT_MS, base::constants::MAX_IDLE_TIMEOUT_MS, true,
+                           "invalid rx_idle_timeout");
   rx_idle_timeout_ = timeout;
   rx_idle_timeout_set_ = true;
   return *this;
@@ -222,6 +237,8 @@ SerialBuilder& SerialBuilder::reopen_on_error(bool enable) {
 }
 
 SerialBuilder& SerialBuilder::retry_interval(std::chrono::milliseconds interval) {
+  config::detail::duration(interval, base::constants::MIN_RETRY_INTERVAL_MS, base::constants::MAX_RETRY_INTERVAL_MS,
+                           false, "invalid retry_interval");
   retry_interval_ms_ = static_cast<uint32_t>(interval.count());
   retry_interval_set_ = true;
   return *this;

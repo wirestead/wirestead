@@ -34,10 +34,12 @@
 #include "wirestead/base/common.hpp"
 #include "wirestead/base/constants.hpp"
 #include "wirestead/concurrency/io_thread_hook.hpp"
+#include "wirestead/config/validation.hpp"
 #include "wirestead/factory/channel_factory.hpp"
 #include "wirestead/interface/connection_channel.hpp"
 #include "wirestead/transport/serial/detail/write_wait.hpp"
 #include "wirestead/transport/serial/serial.hpp"
+#include "wirestead/util/input_validator.hpp"
 #include "wirestead/wrapper/bounded_receive.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
@@ -116,6 +118,10 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
   std::shared_ptr<framer::IFramer> framer{nullptr};
 
   detail::LifecycleEvents lifecycle_events_;
+  void require_stopped_config() const {
+    if (started_.load() || stop_callers_.load() || (stop_requested_ && alive_marker_) || detail::in_data_callback())
+      throw std::logic_error("configuration requires completed stop");
+  }
   ReceiveLimits receive_limits_;
   std::shared_ptr<detail::ReceiveBudget> receive_budget_{std::make_shared<detail::ReceiveBudget>(receive_limits_)};
   std::shared_ptr<detail::ReceiveState> receive_state_{
@@ -823,9 +829,15 @@ struct Serial::Impl : public std::enable_shared_from_this<Impl> {
   }
 };
 
-Serial::Serial(const std::string& d, uint32_t b) : impl_(std::make_shared<Impl>(d, b)) {}
+Serial::Serial(const std::string& d, uint32_t b) : impl_(std::make_shared<Impl>(d, b)) {
+  config::detail::require(util::InputValidator::is_valid_device_path(d), "invalid serial device");
+  config::detail::range(b, base::constants::MIN_BAUD_RATE, base::constants::MAX_BAUD_RATE, "invalid baud rate");
+}
 Serial::Serial(const std::string& d, uint32_t b, std::shared_ptr<boost::asio::io_context> i)
-    : impl_(std::make_shared<Impl>(d, b, i)) {}
+    : impl_(std::make_shared<Impl>(d, b, i)) {
+  config::detail::require(util::InputValidator::is_valid_device_path(d), "invalid serial device");
+  config::detail::range(b, base::constants::MIN_BAUD_RATE, base::constants::MAX_BAUD_RATE, "invalid baud rate");
+}
 Serial::Serial(std::shared_ptr<interface::Channel> ch) : impl_(std::make_shared<Impl>(ch)) {
   impl_->setup_internal_handlers();
 }
@@ -929,49 +941,66 @@ Serial& Serial::auto_start(bool m) {
 }
 
 Serial& Serial::shared_context(bool use_shared) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->shared_context_.store(use_shared);
   return *this;
 }
 
 Serial& Serial::baud_rate(uint32_t b) {
+  config::detail::range(b, base::constants::MIN_BAUD_RATE, base::constants::MAX_BAUD_RATE, "invalid baud_rate");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->baud_rate = b;
   return *this;
 }
 Serial& Serial::data_bits(int d) {
+  config::detail::range(d, base::constants::MIN_DATA_BITS, base::constants::MAX_DATA_BITS, "invalid data_bits");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->data_bits = d;
   return *this;
 }
 Serial& Serial::stop_bits(int s) {
+  config::detail::range(s, base::constants::MIN_STOP_BITS, base::constants::MAX_STOP_BITS, "invalid stop_bits");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->stop_bits = s;
   return *this;
 }
 Serial& Serial::parity(const std::string& p) {
+  config::detail::text_option(p, {"none", "even", "odd"}, "invalid parity");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->parity = p;
   return *this;
 }
 Serial& Serial::flow_control(const std::string& f) {
+  config::detail::text_option(f, {"none", "software", "hardware"}, "invalid flow control");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->flow_control = f;
   return *this;
 }
 Serial& Serial::read_chunk(size_t bytes) {
+  config::detail::range(bytes, base::constants::MIN_READ_BUFFER_SIZE, base::constants::MAX_READ_BUFFER_SIZE,
+                        "invalid read_chunk");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->read_chunk = bytes;
   return *this;
 }
 
 Serial& Serial::low_latency(bool enable) {
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->low_latency = enable;
   return *this;
 }
 
 Serial& Serial::rs485(bool rts_on_send, bool rx_during_tx, unsigned delay_before_ms, unsigned delay_after_ms) {
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->rs485.enabled = true;
   impl_->rs485.rts_on_send = rts_on_send;
   impl_->rs485.rx_during_tx = rx_during_tx;
@@ -982,28 +1011,36 @@ Serial& Serial::rs485(bool rts_on_send, bool rx_during_tx, unsigned delay_before
 
 Serial& Serial::dtr(bool assert_line) {
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->dtr = assert_line;
   return *this;
 }
 
 Serial& Serial::rts(bool assert_line) {
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->rts = assert_line;
   return *this;
 }
 
 Serial& Serial::rx_idle_timeout(std::chrono::milliseconds timeout) {
+  config::detail::duration(timeout, base::constants::MIN_IDLE_TIMEOUT_MS, base::constants::MAX_IDLE_TIMEOUT_MS, true,
+                           "invalid rx_idle_timeout");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->rx_idle_timeout = timeout;
   return *this;
 }
 
 Serial& Serial::reopen_on_error(bool enable) {
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->reopen_on_error = enable;
   return *this;
 }
 Serial& Serial::retry_interval(std::chrono::milliseconds i) {
+  config::detail::duration(i, base::constants::MIN_RETRY_INTERVAL_MS, base::constants::MAX_RETRY_INTERVAL_MS, false,
+                           "invalid retry_interval");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->retry_interval = i;
   if (impl_->channel) {
@@ -1014,12 +1051,16 @@ Serial& Serial::retry_interval(std::chrono::milliseconds i) {
 }
 
 Serial& Serial::backpressure_threshold(size_t threshold) {
+  config::detail::range(threshold, base::constants::MIN_BACKPRESSURE_THRESHOLD,
+                        base::constants::MAX_BACKPRESSURE_THRESHOLD, "invalid backpressure_threshold");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->backpressure_threshold = threshold;
   return *this;
 }
 
 Serial& Serial::backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+  config::detail::strategy(strategy);
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->backpressure_strategy = strategy;
   if (impl_->channel) {
@@ -1045,17 +1086,21 @@ config::SerialConfig Serial::build_config() const {
 }
 
 Serial& Serial::manage_external_context(bool m) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->manage_external_context.store(m);
   return *this;
 }
 
 Serial& Serial::batch_size(size_t size) {
+  config::detail::require(size > 0, "batch size must be positive");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_batch_size_ = size;
   return *this;
 }
 
 Serial& Serial::batch_latency(std::chrono::milliseconds latency) {
+  config::detail::duration(latency, 0, std::numeric_limits<int>::max(), true, "invalid batch latency");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_batch_latency_ = latency;
   return *this;

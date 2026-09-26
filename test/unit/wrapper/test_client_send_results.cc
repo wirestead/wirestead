@@ -149,7 +149,7 @@ std::unique_ptr<W> unstarted() {
   else if constexpr (std::is_same_v<W, wrapper::UdpClient>)
     return std::make_unique<W>(config::UdpConfig{});
   else
-    return std::make_unique<W>("unused-client-result-device", 9600);
+    return std::make_unique<W>("/dev/ttyRESULT", 9600);
 }
 SendResult send_form(wrapper::ChannelInterface& client, int form, std::vector<uint8_t>& moved,
                      std::shared_ptr<const std::vector<uint8_t>> shared) {

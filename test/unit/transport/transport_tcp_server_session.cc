@@ -262,7 +262,7 @@ TEST(TransportTcpServerSessionTest, BackpressureClearsOnDisconnectWhileActive) {
   EXPECT_FALSE(session->alive());
 }
 
-TEST(TransportTcpServerSessionTest, OnBytesExceptionClosesSession) {
+TEST(TransportTcpServerSessionTest, OnBytesExceptionKeepsSessionReadable) {
   net::io_context ioc;
   auto work = net::make_work_guard(ioc);
   size_t bp_threshold = 1024;
@@ -292,8 +292,11 @@ TEST(TransportTcpServerSessionTest, OnBytesExceptionClosesSession) {
   ioc.restart();
   ioc.run_for(50ms);
 
-  EXPECT_TRUE(closed.load());
-  EXPECT_FALSE(session->alive());
+  EXPECT_FALSE(closed.load());
+  EXPECT_TRUE(session->alive());
+  session->stop();
+  ioc.restart();
+  ioc.run_for(10ms);
 }
 
 namespace {

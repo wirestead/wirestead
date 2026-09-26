@@ -20,7 +20,9 @@
 
 #include "wirestead/base/constants.hpp"
 #include "wirestead/builder/auto_initializer.hpp"
+#include "wirestead/config/validation.hpp"
 #include "wirestead/diagnostics/exceptions.hpp"
+#include "wirestead/util/input_validator.hpp"
 
 namespace wirestead {
 namespace builder {
@@ -101,12 +103,15 @@ TcpClientBuilder& TcpClientBuilder::auto_start(bool auto_start) {
 }
 
 TcpClientBuilder& TcpClientBuilder::retry_interval(std::chrono::milliseconds interval) {
+  config::detail::duration(interval, base::constants::MIN_RETRY_INTERVAL_MS, base::constants::MAX_RETRY_INTERVAL_MS,
+                           false, "invalid retry_interval");
   retry_interval_ = interval;
   retry_interval_set_ = true;
   return *this;
 }
 
 TcpClientBuilder& TcpClientBuilder::max_retries(int max_retries) {
+  config::detail::range(max_retries, -1, base::constants::MAX_RETRIES_LIMIT, "invalid retry limit");
   max_retries_ = max_retries;
   max_retries_set_ = true;
   return *this;
@@ -119,18 +124,24 @@ TcpClientBuilder& TcpClientBuilder::tls(const std::string& ca_file) {
 }
 
 TcpClientBuilder& TcpClientBuilder::connection_timeout(std::chrono::milliseconds timeout) {
+  config::detail::duration(timeout, base::constants::MIN_CONNECTION_TIMEOUT_MS,
+                           base::constants::MAX_CONNECTION_TIMEOUT_MS, false, "invalid connection_timeout");
   connection_timeout_ = timeout;
   connection_timeout_set_ = true;
   return *this;
 }
 
 TcpClientBuilder& TcpClientBuilder::idle_timeout(std::chrono::milliseconds timeout) {
+  config::detail::duration(timeout, base::constants::MIN_IDLE_TIMEOUT_MS, base::constants::MAX_IDLE_TIMEOUT_MS, true,
+                           "invalid idle_timeout");
   idle_timeout_ = timeout;
   idle_timeout_set_ = true;
   return *this;
 }
 
 TcpClientBuilder& TcpClientBuilder::idle_timeout_action(IdleTimeoutAction action) {
+  config::detail::require(action == IdleTimeoutAction::Close || action == IdleTimeoutAction::Reconnect,
+                          "invalid idle timeout action");
   idle_timeout_action_ = action;
   idle_timeout_action_set_ = true;
   return *this;
@@ -154,18 +165,26 @@ TcpClientBuilder& TcpClientBuilder::keep_alive(bool enable) {
 }
 
 TcpClientBuilder& TcpClientBuilder::send_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid send_buffer_size");
   send_buffer_size_ = bytes;
   send_buffer_size_set_ = true;
   return *this;
 }
 
 TcpClientBuilder& TcpClientBuilder::receive_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid receive_buffer_size");
   receive_buffer_size_ = bytes;
   receive_buffer_size_set_ = true;
   return *this;
 }
 
 TcpClientBuilder& TcpClientBuilder::read_buffer_size(size_t bytes) {
+  config::detail::range(bytes, base::constants::MIN_READ_BUFFER_SIZE, base::constants::MAX_READ_BUFFER_SIZE,
+                        "invalid read_buffer_size");
   read_buffer_size_ = bytes;
   read_buffer_size_set_ = true;
   return *this;

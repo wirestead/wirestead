@@ -313,7 +313,7 @@ TEST(UdpClientWrapperLifecycleTest, ConfigurationSettersBeforeStartRemainFluent)
   cfg.local_port = 0;
   wrapper::UdpClient client(cfg);
 
-  EXPECT_EQ(&client, &client.backpressure_threshold(256));
+  EXPECT_EQ(&client, &client.backpressure_threshold(1024));
   EXPECT_EQ(&client, &client.backpressure_strategy(base::constants::BackpressureStrategy::BestEffort));
   EXPECT_EQ(&client, &client.batch_size(3));
   EXPECT_EQ(&client, &client.batch_latency(std::chrono::milliseconds(15)));

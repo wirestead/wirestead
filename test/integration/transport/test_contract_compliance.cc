@@ -64,8 +64,8 @@ class ContractComplianceTest : public ::testing::Test {
 TEST_F(ContractComplianceTest, TcpClient_StopSemantics) {
   config::TcpClientConfig cfg;
   cfg.host = "127.0.0.1";
-  cfg.port = 12345;            // Non-existent port to force retries
-  cfg.retry_interval_ms = 10;  // Fast retry
+  cfg.port = 12345;             // Non-existent port to force retries
+  cfg.retry_interval_ms = 100;  // Fast retry
 
   client_ = TcpClient::create(cfg, *ioc_);
 
@@ -116,7 +116,7 @@ TEST_F(ContractComplianceTest, TcpClient_StopSemantics) {
 TEST_F(ContractComplianceTest, Serial_StopSemantics) {
   config::SerialConfig cfg;
   cfg.device = "/dev/nonexistent_device_for_test";
-  cfg.retry_interval_ms = 10;
+  cfg.retry_interval_ms = 100;
 
   auto serial = Serial::create(cfg, *ioc_);
   CallbackRecorder recorder;

@@ -20,7 +20,9 @@
 
 #include "wirestead/base/constants.hpp"
 #include "wirestead/builder/auto_initializer.hpp"
+#include "wirestead/config/validation.hpp"
 #include "wirestead/diagnostics/exceptions.hpp"
+#include "wirestead/util/input_validator.hpp"
 
 namespace wirestead {
 namespace builder {
@@ -88,24 +90,31 @@ UdsClientBuilder& UdsClientBuilder::auto_start(bool auto_start) {
 }
 
 UdsClientBuilder& UdsClientBuilder::retry_interval(std::chrono::milliseconds interval) {
+  config::detail::duration(interval, base::constants::MIN_RETRY_INTERVAL_MS, base::constants::MAX_RETRY_INTERVAL_MS,
+                           false, "invalid retry_interval");
   retry_interval_ = interval;
   retry_interval_set_ = true;
   return *this;
 }
 
 UdsClientBuilder& UdsClientBuilder::max_retries(int max_retries) {
+  config::detail::range(max_retries, -1, base::constants::MAX_RETRIES_LIMIT, "invalid retry limit");
   max_retries_ = max_retries;
   max_retries_set_ = true;
   return *this;
 }
 
 UdsClientBuilder& UdsClientBuilder::connection_timeout(std::chrono::milliseconds timeout) {
+  config::detail::duration(timeout, base::constants::MIN_CONNECTION_TIMEOUT_MS,
+                           base::constants::MAX_CONNECTION_TIMEOUT_MS, false, "invalid connection_timeout");
   connection_timeout_ = timeout;
   connection_timeout_set_ = true;
   return *this;
 }
 
 UdsClientBuilder& UdsClientBuilder::read_buffer_size(size_t bytes) {
+  config::detail::range(bytes, base::constants::MIN_READ_BUFFER_SIZE, base::constants::MAX_READ_BUFFER_SIZE,
+                        "invalid read_buffer_size");
   read_buffer_size_ = bytes;
   read_buffer_size_set_ = true;
   return *this;
@@ -189,18 +198,23 @@ UdsServerBuilder& UdsServerBuilder::independent_context(bool use_independent) {
 }
 
 UdsServerBuilder& UdsServerBuilder::idle_timeout(std::chrono::milliseconds timeout) {
+  config::detail::duration(timeout, base::constants::MIN_IDLE_TIMEOUT_MS, base::constants::MAX_IDLE_TIMEOUT_MS, true,
+                           "invalid idle_timeout");
   idle_timeout_ = timeout;
   idle_timeout_set_ = true;
   return *this;
 }
 
 UdsServerBuilder& UdsServerBuilder::read_buffer_size(size_t bytes) {
+  config::detail::range(bytes, base::constants::MIN_READ_BUFFER_SIZE, base::constants::MAX_READ_BUFFER_SIZE,
+                        "invalid read_buffer_size");
   read_buffer_size_ = bytes;
   read_buffer_size_set_ = true;
   return *this;
 }
 
 UdsServerBuilder& UdsServerBuilder::max_clients(uint32_t max_clients) {
+  config::detail::range(max_clients, 0, base::constants::MAX_MAX_CONNECTIONS, "invalid client limit");
   max_clients_ = max_clients;
   client_limit_enabled_ = true;
   return *this;

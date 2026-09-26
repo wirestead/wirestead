@@ -327,20 +327,12 @@ TEST(UdpWriteStopTest, OversizedWriteErrorCallbackCanRequestStop) {
   channel->stop();
 }
 TEST(UdpFailedStartStopTest, ValidationFailureNeedsNoExecutorForCleanup) {
-  for (bool external : {false, true}) {
-    boost::asio::io_context io;
-    config::UdpConfig cfg;
-    cfg.bind_address = "not-an-address";
-    auto channel = external ? transport::UdpChannel::create(cfg, io) : transport::UdpChannel::create(cfg);
-    std::weak_ptr<transport::UdpChannel> weak = channel;
-    for (int cycle = 0; cycle < 2; ++cycle) {
-      EXPECT_THROW(channel->start(), std::runtime_error);
-      channel->stop();
-    }
-    channel.reset();
-    EXPECT_TRUE(weak.expired());
-    EXPECT_EQ(io.poll(), 0u);
-  }
+  boost::asio::io_context io;
+  config::UdpConfig cfg;
+  cfg.bind_address = "not-an-address";
+  EXPECT_THROW(transport::UdpChannel::create(cfg, io), std::invalid_argument);
+  EXPECT_THROW(transport::UdpChannel::create(cfg), std::invalid_argument);
+  EXPECT_EQ(io.poll(), 0u);
 }
 
 TEST(UdpCancelledIoCompletionTest, OutsideStopsWaitForTheLastCancelledHandler) {

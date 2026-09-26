@@ -323,7 +323,7 @@ TEST_F(SerialWrapperLifecycleTest, AutoManageStartsInjectedTransport) {
   boost::asio::io_context ioc;
 
   config::SerialConfig cfg;
-  cfg.device = "fake";
+  cfg.device = "/dev/ttyTEST";
   cfg.baud_rate = 9600;
   cfg.reopen_on_error = false;
 
@@ -344,7 +344,7 @@ TEST_F(SerialWrapperLifecycleTest, StartFutureReflectsTransportFailure) {
   boost::asio::io_context ioc;
 
   config::SerialConfig cfg;
-  cfg.device = "fake";
+  cfg.device = "/dev/ttyTEST";
   cfg.baud_rate = 9600;
   cfg.reopen_on_error = false;
 

@@ -127,9 +127,9 @@ TEST_F(BuilderTest, TcpClientBuilderAdvancedOptions) {
   auto client = tcp_client("127.0.0.1", test_port_)
                     .independent_context(true)
                     .auto_start(false)
-                    .retry_interval(25ms)
+                    .retry_interval(100ms)
                     .max_retries(2)
-                    .connection_timeout(50ms)
+                    .connection_timeout(100ms)
                     .idle_timeout(75ms)
                     .idle_timeout_action(IdleTimeoutAction::Close)
                     .tcp_no_delay(true)
@@ -137,7 +137,7 @@ TEST_F(BuilderTest, TcpClientBuilderAdvancedOptions) {
                     .send_buffer_size(4 * 1024)
                     .receive_buffer_size(8 * 1024)
                     .backpressure_strategy(base::constants::BackpressureStrategy::BestEffort)
-                    .backpressure_threshold(512)
+                    .backpressure_threshold(1024)
                     .on_backpressure([](size_t) {})
                     .use_line_framer("\n", false, 64)
                     .on_message([](const wrapper::MessageContext&) {})
@@ -186,9 +186,9 @@ TEST_F(BuilderTest, SerialBuilderAdvancedOptions) {
                     .parity(config::SerialConfig::Parity::Even)
                     .flow_control(config::SerialConfig::Flow::Hardware)
                     .reopen_on_error(false)
-                    .retry_interval(25ms)
+                    .retry_interval(100ms)
                     .backpressure_strategy(base::constants::BackpressureStrategy::BestEffort)
-                    .backpressure_threshold(512)
+                    .backpressure_threshold(1024)
                     .on_backpressure([](size_t) {})
                     .use_packet_framer(std::vector<uint8_t>{0x02}, std::vector<uint8_t>{0x03}, 64)
                     .on_message([](const wrapper::MessageContext&) {})
@@ -216,16 +216,11 @@ TEST_F(BuilderTest, SerialBuilderStringParityAndFlowOptions) {
                           .on_data([](auto&&) {})
                           .on_error([](auto&&) {})
                           .build();
-  auto defaulted = wirestead::serial(nullDevice(), 9600)
-                       .parity("unknown")
-                       .flow_control("unknown")
-                       .on_data([](auto&&) {})
-                       .on_error([](auto&&) {})
-                       .build();
+  EXPECT_THROW(wirestead::serial(nullDevice(), 9600).parity("unknown"), std::invalid_argument);
+  EXPECT_THROW(wirestead::serial(nullDevice(), 9600).flow_control("unknown"), std::invalid_argument);
 
   EXPECT_NE(even_software, nullptr);
   EXPECT_NE(odd_hardware, nullptr);
-  EXPECT_NE(defaulted, nullptr);
 }
 
 TEST_F(BuilderTest, SerialBuilderRejectsInvalidConfiguration) {
@@ -286,7 +281,7 @@ TEST_F(BuilderTest, TcpServerBuilderAdvancedOptions) {
                     .independent_context(true)
                     .enable_port_retry(true)
                     .max_port_retries(3)
-                    .port_retry_interval(25ms)
+                    .port_retry_interval(100ms)
                     .idle_timeout(250ms)
                     .max_clients(3)
                     .backpressure_strategy(base::constants::BackpressureStrategy::BestEffort)

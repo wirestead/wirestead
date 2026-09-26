@@ -174,16 +174,6 @@ TEST_F(TransportTcpServerSecurityTest, InvalidBindAddress) {
   config::TcpServerConfig cfg;
   cfg.port = test::TestUtils::getAvailableTestPort();
   cfg.bind_address = "999.999.999.999";
-
-  // Configuration validation should fail
   EXPECT_FALSE(cfg.is_valid());
-
-  // If we force create server (validation is usually checked by user or factory), start should fail
-  server_ = TcpServer::create(cfg);
-  server_->start();
-
-  // Should transition to Error state
-  ASSERT_TRUE(
-      test::TestUtils::waitForCondition([&] { return server_->state() == wirestead::base::LinkState::Error; }, 1000))
-      << "Server should be in Error state due to invalid address";
+  EXPECT_THROW(TcpServer::create(cfg), std::invalid_argument);
 }

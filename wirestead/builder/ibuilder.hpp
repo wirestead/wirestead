@@ -26,6 +26,7 @@
 
 #include "wirestead/base/constants.hpp"
 #include "wirestead/base/visibility.hpp"
+#include "wirestead/config/validation.hpp"
 #include "wirestead/framer/iframer.hpp"
 #include "wirestead/framer/length_prefix_framer.hpp"
 #include "wirestead/framer/line_framer.hpp"
@@ -251,6 +252,7 @@ class BuilderInterface {
    * @brief Set the backpressure strategy
    */
   Derived& backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+    config::detail::strategy(strategy);
     bp_strategy_ = strategy;
     bp_strategy_set_ = true;
     return static_cast<Derived&>(*this);
@@ -260,6 +262,8 @@ class BuilderInterface {
    * @brief Set the backpressure threshold in bytes
    */
   Derived& backpressure_threshold(size_t threshold) {
+    config::detail::range(threshold, base::constants::MIN_BACKPRESSURE_THRESHOLD,
+                          base::constants::MAX_BACKPRESSURE_THRESHOLD, "invalid backpressure threshold");
     bp_threshold_ = threshold;
     bp_threshold_set_ = true;
     return static_cast<Derived&>(*this);

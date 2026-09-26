@@ -11,11 +11,13 @@
 #include <thread>
 
 #include "wirestead/concurrency/io_thread_hook.hpp"
+#include "wirestead/config/validation.hpp"
 #include "wirestead/diagnostics/error_mapping.hpp"
 #include "wirestead/factory/channel_factory.hpp"
 #include "wirestead/framer/line_framer.hpp"
 #include "wirestead/framer/packet_framer.hpp"
 #include "wirestead/transport/uds/uds_server.hpp"
+#include "wirestead/util/input_validator.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
 #include "wirestead/wrapper/send_retry.hpp"
@@ -100,6 +102,10 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
 
   // Batching logic
   bool terminal_error_reported_ = false;
+  void require_stopped_config() const {
+    if (started_.load() || stop_callers_.load() || (stop_requested_ && alive_marker_) || detail::in_data_callback())
+      throw std::logic_error("configuration requires completed stop");
+  }
   ReceiveLimits receive_limits_;
   std::shared_ptr<detail::ReceiveBudget> receive_budget_{std::make_shared<detail::ReceiveBudget>(receive_limits_)};
   std::unordered_map<ClientId, std::shared_ptr<detail::SessionBatch>> batches_;
@@ -680,10 +686,14 @@ struct UdsServer::Impl : public std::enable_shared_from_this<Impl> {
   }
 };
 
-UdsServer::UdsServer(const std::string& socket_path) : impl_(std::make_shared<Impl>(socket_path)) {}
+UdsServer::UdsServer(const std::string& socket_path) : impl_(std::make_shared<Impl>(socket_path)) {
+  config::detail::require(util::InputValidator::is_valid_uds_path(socket_path), "invalid UDS path");
+}
 
 UdsServer::UdsServer(const std::string& socket_path, std::shared_ptr<boost::asio::io_context> external_ioc)
-    : impl_(std::make_shared<Impl>(socket_path, std::move(external_ioc))) {}
+    : impl_(std::make_shared<Impl>(socket_path, std::move(external_ioc))) {
+  config::detail::require(util::InputValidator::is_valid_uds_path(socket_path), "invalid UDS path");
+}
 
 UdsServer::UdsServer(std::shared_ptr<interface::Channel> channel) : impl_(std::make_shared<Impl>(std::move(channel))) {
   impl_->setup_internal_handlers();
@@ -819,11 +829,16 @@ UdsServer& UdsServer::auto_start(bool manage) {
 }
 
 UdsServer& UdsServer::idle_timeout(std::chrono::milliseconds timeout) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
+  config::detail::duration(timeout, base::constants::MIN_IDLE_TIMEOUT_MS, base::constants::MAX_IDLE_TIMEOUT_MS, true,
+                           "invalid idle_timeout");
   impl_->idle_timeout_ms_.store(static_cast<int>(timeout.count()));
   return *this;
 }
 
 UdsServer& UdsServer::max_clients(size_t max) {
+  config::detail::range(max, 0, base::constants::MAX_MAX_CONNECTIONS, "invalid client limit");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_clients_.store(max);
   if (max == 0) {
@@ -837,21 +852,35 @@ UdsServer& UdsServer::max_clients(size_t max) {
 }
 
 UdsServer& UdsServer::socket_permissions(int mode) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
+  config::detail::require(mode == -1 || (mode >= 0 && mode <= 0777), "invalid socket permissions");
   impl_->socket_permissions_.store(mode);
   return *this;
 }
 
 UdsServer& UdsServer::backpressure_threshold(size_t threshold) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
+  config::detail::range(threshold, base::constants::MIN_BACKPRESSURE_THRESHOLD,
+                        base::constants::MAX_BACKPRESSURE_THRESHOLD, "invalid backpressure_threshold");
   impl_->backpressure_threshold_.store(threshold);
   return *this;
 }
 
 UdsServer& UdsServer::read_buffer_size(size_t bytes) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
+  config::detail::range(bytes, base::constants::MIN_READ_BUFFER_SIZE, base::constants::MAX_READ_BUFFER_SIZE,
+                        "invalid read_buffer_size");
   impl_->read_buffer_size_.store(bytes);
   return *this;
 }
 
 UdsServer& UdsServer::backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
+  config::detail::strategy(strategy);
   impl_->backpressure_strategy_.store(strategy);
   return *this;
 }
@@ -863,17 +892,21 @@ base::constants::BackpressureStrategy UdsServer::backpressure_strategy() const {
 }
 
 UdsServer& UdsServer::manage_external_context(bool manage) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->manage_external_context_.store(manage);
   return *this;
 }
 
 UdsServer& UdsServer::batch_size(size_t size) {
+  config::detail::require(size > 0, "batch size must be positive");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_batch_size_ = size;
   return *this;
 }
 
 UdsServer& UdsServer::batch_latency(std::chrono::milliseconds latency) {
+  config::detail::duration(latency, 0, std::numeric_limits<int>::max(), true, "invalid batch latency");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_batch_latency_ = latency;
   return *this;

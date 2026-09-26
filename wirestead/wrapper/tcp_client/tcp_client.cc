@@ -33,11 +33,13 @@
 #include "wirestead/base/constants.hpp"
 #include "wirestead/concurrency/io_thread_hook.hpp"
 #include "wirestead/config/tcp_client_config.hpp"
+#include "wirestead/config/validation.hpp"
 #include "wirestead/diagnostics/error_mapping.hpp"
 #include "wirestead/factory/channel_factory.hpp"
 #include "wirestead/interface/connection_channel.hpp"
 #include "wirestead/transport/tcp_client/detail/write_wait.hpp"
 #include "wirestead/transport/tcp_client/tcp_client.hpp"
+#include "wirestead/util/input_validator.hpp"
 #include "wirestead/wrapper/bounded_receive.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
@@ -109,6 +111,10 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   std::shared_ptr<framer::IFramer> framer_{nullptr};
 
   detail::LifecycleEvents lifecycle_events_;
+  void require_stopped_config() const {
+    if (started_.load() || stop_callers_.load() || (stop_requested_ && alive_marker_) || detail::in_data_callback())
+      throw std::logic_error("configuration requires completed stop");
+  }
   ReceiveLimits receive_limits_;
   std::shared_ptr<detail::ReceiveBudget> receive_budget_{std::make_shared<detail::ReceiveBudget>(receive_limits_)};
   std::shared_ptr<detail::ReceiveState> receive_state_{
@@ -824,9 +830,13 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   }
 };
 
-TcpClient::TcpClient(const std::string& h, uint16_t p) : impl_(std::make_shared<Impl>(h, p)) {}
+TcpClient::TcpClient(const std::string& h, uint16_t p) : impl_(std::make_shared<Impl>(h, p)) {
+  config::detail::require(util::InputValidator::is_valid_host(h) && p > 0, "invalid TCP destination");
+}
 TcpClient::TcpClient(const std::string& h, uint16_t p, std::shared_ptr<boost::asio::io_context> ioc)
-    : impl_(std::make_shared<Impl>(h, p, ioc)) {}
+    : impl_(std::make_shared<Impl>(h, p, ioc)) {
+  config::detail::require(util::InputValidator::is_valid_host(h) && p > 0, "invalid TCP destination");
+}
 TcpClient::TcpClient(std::shared_ptr<interface::Channel> ch) : impl_(std::make_shared<Impl>(ch)) {
   impl_->setup_internal_handlers();
 }
@@ -927,18 +937,22 @@ TcpClient& TcpClient::auto_start(bool m) {
 }
 
 TcpClient& TcpClient::batch_size(size_t size) {
+  config::detail::require(size > 0, "batch size must be positive");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_batch_size_ = size;
   return *this;
 }
 
 TcpClient& TcpClient::batch_latency(std::chrono::milliseconds latency) {
+  config::detail::duration(latency, 0, std::numeric_limits<int>::max(), true, "invalid batch latency");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_batch_latency_ = latency;
   return *this;
 }
 
 TcpClient& TcpClient::retry_interval(std::chrono::milliseconds i) {
+  config::detail::duration(i, base::constants::MIN_RETRY_INTERVAL_MS, base::constants::MAX_RETRY_INTERVAL_MS, false,
+                           "invalid retry_interval");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->retry_interval_ = i;
   if (impl_->channel_) {
@@ -949,6 +963,7 @@ TcpClient& TcpClient::retry_interval(std::chrono::milliseconds i) {
 }
 
 TcpClient& TcpClient::max_retries(int m) {
+  config::detail::range(m, -1, base::constants::MAX_RETRIES_LIMIT, "invalid retry limit");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->max_retries_ = m;
   if (impl_->channel_) {
@@ -959,12 +974,15 @@ TcpClient& TcpClient::max_retries(int m) {
 }
 TcpClient& TcpClient::tls(const std::string& ca_file) {
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->tls_enabled_ = true;
   impl_->tls_ca_file_ = ca_file;
   return *this;
 }
 
 TcpClient& TcpClient::connection_timeout(std::chrono::milliseconds t) {
+  config::detail::duration(t, base::constants::MIN_CONNECTION_TIMEOUT_MS, base::constants::MAX_CONNECTION_TIMEOUT_MS,
+                           false, "invalid connection_timeout");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->connection_timeout_ = t;
   if (impl_->channel_) {
@@ -975,6 +993,8 @@ TcpClient& TcpClient::connection_timeout(std::chrono::milliseconds t) {
 }
 
 TcpClient& TcpClient::idle_timeout(std::chrono::milliseconds t) {
+  config::detail::duration(t, base::constants::MIN_IDLE_TIMEOUT_MS, base::constants::MAX_IDLE_TIMEOUT_MS, true,
+                           "invalid idle_timeout");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->idle_timeout_ = t;
   if (impl_->channel_) {
@@ -985,6 +1005,8 @@ TcpClient& TcpClient::idle_timeout(std::chrono::milliseconds t) {
 }
 
 TcpClient& TcpClient::idle_timeout_action(IdleTimeoutAction action) {
+  config::detail::require(action == IdleTimeoutAction::Close || action == IdleTimeoutAction::Reconnect,
+                          "invalid idle timeout action");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->idle_timeout_action_ = action;
   if (impl_->channel_) {
@@ -995,15 +1017,21 @@ TcpClient& TcpClient::idle_timeout_action(IdleTimeoutAction action) {
 }
 
 TcpClient& TcpClient::manage_external_context(bool m) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->manage_external_context_.store(m);
   return *this;
 }
 TcpClient& TcpClient::backpressure_threshold(size_t threshold) {
+  config::detail::range(threshold, base::constants::MIN_BACKPRESSURE_THRESHOLD,
+                        base::constants::MAX_BACKPRESSURE_THRESHOLD, "invalid backpressure_threshold");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->backpressure_threshold_ = threshold;
   return *this;
 }
 TcpClient& TcpClient::backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+  config::detail::strategy(strategy);
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
   impl_->backpressure_strategy_ = strategy;
   if (impl_->channel_) {
@@ -1025,30 +1053,43 @@ base::constants::BackpressureStrategy TcpClient::backpressure_strategy() const {
 
 TcpClient& TcpClient::tcp_no_delay(bool enable) {
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->tcp_no_delay_ = enable;
   return *this;
 }
 
 TcpClient& TcpClient::keep_alive(bool enable) {
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->keep_alive_ = enable;
   return *this;
 }
 
 TcpClient& TcpClient::send_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid send_buffer_size");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->send_buffer_size_ = bytes;
   return *this;
 }
 
 TcpClient& TcpClient::receive_buffer_size(size_t bytes) {
+  if (bytes != 0)
+    config::detail::range(bytes, base::constants::MIN_SOCKET_BUFFER_SIZE, base::constants::MAX_SOCKET_BUFFER_SIZE,
+                          "invalid receive_buffer_size");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->receive_buffer_size_ = bytes;
   return *this;
 }
 
 TcpClient& TcpClient::read_buffer_size(size_t bytes) {
+  config::detail::range(bytes, base::constants::MIN_READ_BUFFER_SIZE, base::constants::MAX_READ_BUFFER_SIZE,
+                        "invalid read_buffer_size");
   std::unique_lock<std::shared_mutex> lock(impl_->mutex_);
+  impl_->require_stopped_config();
   impl_->read_buffer_size_ = bytes;
   return *this;
 }

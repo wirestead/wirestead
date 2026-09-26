@@ -38,6 +38,8 @@
 #include "wirestead/base/constants.hpp"
 #include "wirestead/concurrency/io_thread_hook.hpp"
 #include "wirestead/concurrency/thread_safe_state.hpp"
+#include "wirestead/config/validation.hpp"
+#include "wirestead/diagnostics/callback.hpp"
 #include "wirestead/diagnostics/error_handler.hpp"
 #include "wirestead/diagnostics/logger.hpp"
 #include "wirestead/diagnostics/runtime_stats_counter.hpp"
@@ -246,7 +248,7 @@ struct UdpChannel::Impl {
   }
 
   void init() {
-    cfg_.validate_and_clamp();
+    config::detail::validate(cfg_);
     bp_high_ = cfg_.backpressure_threshold;
     bp_low_ = bp_high_ > 1 ? bp_high_ / 2 : bp_high_;
     if (bp_low_ == 0) bp_low_ = 1;
@@ -450,42 +452,17 @@ struct UdpChannel::Impl {
         on_bytes = on_bytes_;
         on_bytes_from = on_bytes_from_;
       }
-      if (on_bytes && from_established_remote) {
-        try {
-          (*on_bytes)(memory::ConstByteSpan(rx_.data(), bytes));
-        } catch (const std::exception& e) {
-          std::string msg = fmt::format("Exception in bytes callback: {}", e.what());
-          WIRESTEAD_LOG_ERROR("udp", "on_bytes", msg);
-          if (cfg_.stop_on_callback_exception) {
-            transition_to(LinkState::Error, {}, "on_bytes", msg);
-            return;
-          }
-        } catch (...) {
-          WIRESTEAD_LOG_ERROR("udp", "on_bytes", "Unknown exception in bytes callback");
-          if (cfg_.stop_on_callback_exception) {
-            transition_to(LinkState::Error, {}, "on_bytes", "Unknown exception in bytes callback");
-            return;
-          }
-        }
+      if (on_bytes && from_established_remote &&
+          !diagnostics::invoke_callback("udp", "on_bytes", on_bytes, memory::ConstByteSpan(rx_.data(), bytes)) &&
+          cfg_.stop_on_callback_exception) {
+        self->stop();
+        return;
       }
-
-      if (on_bytes_from) {
-        try {
-          (*on_bytes_from)(memory::ConstByteSpan(rx_.data(), bytes), recv_endpoint_);
-        } catch (const std::exception& e) {
-          std::string msg = fmt::format("Exception in bytes callback: {}", e.what());
-          WIRESTEAD_LOG_ERROR("udp", "on_bytes_from", msg);
-          if (cfg_.stop_on_callback_exception) {
-            transition_to(LinkState::Error, {}, "on_bytes_from", msg);
-            return;
-          }
-        } catch (...) {
-          WIRESTEAD_LOG_ERROR("udp", "on_bytes_from", "Unknown exception in bytes callback");
-          if (cfg_.stop_on_callback_exception) {
-            transition_to(LinkState::Error, {}, "on_bytes_from", "Unknown exception in bytes callback");
-            return;
-          }
-        }
+      if (!diagnostics::invoke_callback("udp", "on_bytes_from", on_bytes_from, memory::ConstByteSpan(rx_.data(), bytes),
+                                        recv_endpoint_) &&
+          cfg_.stop_on_callback_exception) {
+        self->stop();
+        return;
       }
     }
 
@@ -1453,6 +1430,7 @@ void UdpChannel::on_backpressure(OnBackpressure cb) {
 }
 
 void UdpChannel::set_backpressure_strategy(base::constants::BackpressureStrategy strategy) {
+  config::detail::strategy(strategy);
   impl_->bp_strategy_.store(strategy, std::memory_order_relaxed);
 }
 

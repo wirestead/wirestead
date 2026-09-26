@@ -25,21 +25,8 @@ class UdsErrorTest : public ::testing::Test {
 
 TEST_F(UdsErrorTest, InvalidSocketPath) {
   config::UdsServerConfig cfg;
-  // Extremely long path that exceeds sun_path limit (usually 108 bytes)
   cfg.socket_path = "/tmp/very_long_path_" + std::string(200, 'a') + ".sock";
-
-  auto server = UdsServer::create(cfg);
-  ASSERT_NE(server, nullptr);
-
-  // Start should not crash but may set state to Error
-  server->start();
-
-  // Give some time for async operation if needed
-  TestUtils::waitForCondition([&] { return server->state() == base::LinkState::Error; }, 500);
-
-  // In some implementations, it might stay in Idle if path validation fails immediately
-  EXPECT_TRUE(server->state() == base::LinkState::Error || server->state() == base::LinkState::Idle);
-  server->stop();
+  EXPECT_THROW(UdsServer::create(cfg), std::invalid_argument);
 }
 
 TEST_F(UdsErrorTest, PathPermissionDenied) {
@@ -80,7 +67,7 @@ TEST_F(UdsErrorTest, ClientConnectWithoutServer) {
   config::UdsClientConfig cfg;
   cfg.socket_path = TestUtils::makeUniqueUdsSocketPath("ul_missing").string();
   cfg.max_retries = 1;
-  cfg.retry_interval_ms = 10;
+  cfg.retry_interval_ms = 100;
 
   auto client = UdsClient::create(cfg);
   std::atomic<bool> error_state_seen{false};

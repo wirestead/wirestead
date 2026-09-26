@@ -470,7 +470,7 @@ TEST(WriteQueueLimitTest, ConcreteClientTransportsReportConfiguredHardCap) {
     config::UdpConfig udp;
     udp.backpressure_threshold = threshold;
     config::SerialConfig serial;
-    serial.device = "queue-limit-test";
+    serial.device = "/dev/ttyQUEUELIMIT";
     serial.backpressure_threshold = threshold;
     std::vector<std::shared_ptr<interface::Channel>> channels{
         transport::TcpClient::create(tcp, io), transport::UdsClient::create(uds, io),

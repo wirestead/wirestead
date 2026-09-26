@@ -20,6 +20,7 @@
 #include <cstddef>
 
 #include "wirestead/base/constants.hpp"
+#include "wirestead/diagnostics/callback.hpp"
 #include "wirestead/diagnostics/runtime_stats_counter.hpp"
 #include "wirestead/interface/channel.hpp"
 #include "wirestead/transport/base/bp_utils.hpp"
@@ -89,10 +90,7 @@ inline void report_backpressure(BackpressureFields& f, size_t queued_bytes,
     f.backpressure_active.store(true, std::memory_order_relaxed);
     stats.record_backpressure_event();
     if (on_bp) {
-      try {
-        on_bp(queued_bytes);
-      } catch (...) {
-      }
+      diagnostics::invoke_callback("transport", "on_backpressure", on_bp, queued_bytes);
     }
     return;
   }
@@ -109,10 +107,8 @@ inline void report_backpressure(BackpressureFields& f, size_t queued_bytes,
     f.backpressure_active.store(false, std::memory_order_relaxed);
     stats.record_backpressure_event();
     if (on_bp) {
-      try {
-        on_bp(queued_bytes);
-      } catch (...) {
-      }  // fire OFF with pre-flush queue size, matching every existing copy
+      diagnostics::invoke_callback("transport", "on_backpressure", on_bp,
+                                   queued_bytes);  // fire OFF with pre-flush queue size, matching every existing copy
     }
 
     const size_t post_flush = f.queue_bytes.load(std::memory_order_relaxed);
@@ -120,10 +116,7 @@ inline void report_backpressure(BackpressureFields& f, size_t queued_bytes,
       f.backpressure_active.store(true, std::memory_order_relaxed);
       stats.record_backpressure_event();
       if (on_bp) {
-        try {
-          on_bp(post_flush);
-        } catch (...) {
-        }
+        diagnostics::invoke_callback("transport", "on_backpressure", on_bp, post_flush);
       }
     }
     kick_write();
@@ -147,10 +140,7 @@ inline void drain_and_clear_backpressure(BackpressureFields& f, const interface:
   f.backpressure_active.store(false, std::memory_order_relaxed);
   if (!had_backpressure) return;
   if (on_bp) {
-    try {
-      on_bp(0);
-    } catch (...) {
-    }
+    diagnostics::invoke_callback("transport", "on_backpressure", on_bp, 0);
   }
 }
 

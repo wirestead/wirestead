@@ -109,6 +109,8 @@ foreach(
   test_receive_memory_servers.cc
   test_receive_memory_clients.cc
   test_lifecycle_events.cc
+  test_config_policy.cc
+  test_native_callback_policy.cc
   test_udp_stop_admission.cc
   test_udp_stop_completion.cc
   test_udp_stop_lifecycle.cc
