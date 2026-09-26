@@ -101,7 +101,7 @@ class WIRESTEAD_API ChannelInterface {
   //     Behaviour depends on the configured backpressure strategy:
   //       BestEffort — non-blocking; drops data when the send queue is full.
   //       Reliable   — blocks the calling thread until queue pressure is relieved,
-  //                    then attempts admission, with bounded retries for capacity races.
+  //                    then attempts admission, with retries for capacity races until admission or cancellation.
   //
   // Explicit API (escape hatch):
   //

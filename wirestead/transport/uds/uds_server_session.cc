@@ -329,8 +329,8 @@ wrapper::SendResult UdsServerSession::try_write_move(std::vector<uint8_t>&& data
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  if (!queue_util::try_reserve_write_bytes(queue_bytes_, pending_bytes_, backpressure_active_, added, bp_high_,
-                                           bp_limit_)) {
+  if (!queue_util::try_reserve_write_bytes(write_reserve_mtx_, inflight_bytes_, queue_bytes_, pending_bytes_,
+                                           backpressure_active_, added, bp_high_, bp_limit_)) {
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
@@ -388,8 +388,8 @@ wrapper::SendResult UdsServerSession::try_write_shared(std::shared_ptr<const std
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  if (!queue_util::try_reserve_write_bytes(queue_bytes_, pending_bytes_, backpressure_active_, added, bp_high_,
-                                           bp_limit_)) {
+  if (!queue_util::try_reserve_write_bytes(write_reserve_mtx_, inflight_bytes_, queue_bytes_, pending_bytes_,
+                                           backpressure_active_, added, bp_high_, bp_limit_)) {
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
@@ -556,7 +556,7 @@ void UdsServerSession::do_close() {
 
 queue_util::BackpressureFields UdsServerSession::bp_fields() {
   return queue_util::BackpressureFields{queue_bytes_, pending_bytes_, backpressure_active_, bp_high_,
-                                        bp_low_,      bp_limit_,      bp_strategy_};
+                                        bp_low_,      bp_limit_,      bp_strategy_,         &write_reserve_mtx_};
 }
 
 void UdsServerSession::route_enqueued_buffer(TrackedBuffer&& buf, size_t added) {

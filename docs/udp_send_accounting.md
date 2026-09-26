@@ -31,8 +31,8 @@ completion of that datagram, not peer receipt or application processing.
   started, including posted enqueue handlers and queued/pending datagrams.
   An active datagram retains its actual completion, stop or local-error outcome;
   expiry never cancels the shared socket or an unrelated endpoint.
-- queue_pressure: existing keep-latest trimming and post-admission queue
-  rejection classify only the removed requests. An ordinary try refusal never
+- queue_pressure: retained for defensive post-admission queue rejection. Default
+  fixed-limit routing now preserves accepted datagrams. An ordinary try refusal never
   creates an accepted request or a post-acceptance loss.
 
 The active boundary is immediately before async_send_to initiation, serialized
@@ -92,7 +92,7 @@ The accounting tests exercise ten input configurations: seven default-peer
 forms and pooled/fallback/try explicit-destination sends. They cover local
 success, stop before enqueue and after initiation, initiation failure, a real
 oversized-datagram send failure, an injected terminal receive error, reset
-before enqueue/during I/O, restart, rejected admission, keep-latest disposal and
+before enqueue/during I/O, restart, rejected admission, BestEffort queue preservation and
 Reliable pending queues. Failure assertions include request/byte conservation.
 Virtual-session cases cover try and pooled/fallback blocking admission, per-peer
 receive/send totals, fanout, shared-capacity rejection, reset, stop/restart with

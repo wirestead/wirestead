@@ -326,11 +326,8 @@ struct TcpClient::Impl {
   void report_backpressure(std::shared_ptr<TcpClient> self, size_t queued_bytes);
   void observe_queue();
   // Shared decide_enqueue()/route dispatch used by all 3 async_write_* variants (#434).
-  // `reserved` tells this whether the caller reserved `added` bytes into
-  // inflight_bytes_ via try_reserve_limit_bytes() - only Reliable-strategy
-  // sends do (jwsung91/wirestead#517); BestEffort's plain path has no
-  // precheck and relies entirely on decide_enqueue()'s own keep-latest trim.
-  void route_enqueued_buffer(std::shared_ptr<TcpClient> self, TrackedBuffer&& buf, size_t added, bool reserved);
+  // Every caller reserves added bytes in inflight_bytes_ before posting.
+  void route_enqueued_buffer(std::shared_ptr<TcpClient> self, TrackedBuffer&& buf, size_t added);
   queue_util::BackpressureFields bp_fields();
   void notify_state();
   void reset_io_objects();
@@ -561,9 +558,8 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
       if (pooled_buffer.valid()) {
         base::safe_memory::safe_memcpy(pooled_buffer.data(), data.data(), size);
         const auto added = pooled_buffer.size();
-        const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-        if (reliable &&
-            !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
+
+        if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                                  impl_->inflight_bytes_, added, impl_->bp_limit_)) {
           impl_->stats_.record_failed_send();
           return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
@@ -571,18 +567,16 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
         impl_->stats_.record_accepted(added);
         Impl::Ledger::Admission admission(impl_->send_accounting_, added);
         const auto request = admission.request();
-        net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(pooled_buffer), added, reliable, seq,
-                                   connection, request]() mutable {
+        net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(pooled_buffer), added, seq, connection,
+                                   request]() mutable {
           if (seq != self->impl_->current_seq_.load()) return;
           if (connection != self->impl_->connection_seq_.load()) {
             self->impl_->stats_.record_dropped(1, added);
-            if (reliable)
-              queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_,
-                                                       added);
+            queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_,
+                                                     added);
             return;
           }
-          self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added,
-                                             reliable);
+          self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
         });
         admission.commit();
         return wrapper::SendResult::accept();
@@ -595,9 +589,8 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
 
   std::vector<uint8_t> fallback(data.begin(), data.end());
   const auto added = fallback.size();
-  const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-  if (reliable &&
-      !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
+
+  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                            impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
@@ -606,17 +599,15 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
   Impl::Ledger::Admission admission(impl_->send_accounting_, added);
   const auto request = admission.request();
 
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, reliable, seq, connection,
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, seq, connection,
                              request]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
-      if (reliable)
-        queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
+      queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
       return;
     }
-    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added,
-                                       reliable);
+    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
   });
   admission.commit();
   return wrapper::SendResult::accept();
@@ -654,9 +645,8 @@ wrapper::SendResult TcpClient::write_move(std::vector<uint8_t>&& data, std::opti
   }
 
   const auto added = size;
-  const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-  if (reliable &&
-      !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
+
+  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                            impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
@@ -664,17 +654,15 @@ wrapper::SendResult TcpClient::write_move(std::vector<uint8_t>&& data, std::opti
   impl_->stats_.record_accepted(added);
   Impl::Ledger::Admission admission(impl_->send_accounting_, added);
   const auto request = admission.request();
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq, connection,
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection,
                              request]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
-      if (reliable)
-        queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
+      queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
       return;
     }
-    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added,
-                                       reliable);
+    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
   });
   admission.commit();
   return wrapper::SendResult::accept();
@@ -713,9 +701,8 @@ wrapper::SendResult TcpClient::write_shared(std::shared_ptr<const std::vector<ui
   }
 
   const auto added = size;
-  const bool reliable = impl_->bp_strategy_ == base::constants::BackpressureStrategy::Reliable;
-  if (reliable &&
-      !queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
+
+  if (!queue_util::try_reserve_limit_bytes(impl_->write_reserve_mtx_, impl_->queue_bytes_, impl_->pending_bytes_,
                                            impl_->inflight_bytes_, added, impl_->bp_limit_)) {
     impl_->stats_.record_failed_send();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
@@ -723,17 +710,15 @@ wrapper::SendResult TcpClient::write_shared(std::shared_ptr<const std::vector<ui
   impl_->stats_.record_accepted(added);
   Impl::Ledger::Admission admission(impl_->send_accounting_, added);
   const auto request = admission.request();
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, reliable, seq, connection,
+  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection,
                              request]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
-      if (reliable)
-        queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
+      queue_util::release_reserved_limit_bytes(self->impl_->write_reserve_mtx_, self->impl_->inflight_bytes_, added);
       return;
     }
-    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added,
-                                       reliable);
+    self->impl_->route_enqueued_buffer(self, Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request}, added);
   });
   admission.commit();
   return wrapper::SendResult::accept();
@@ -790,8 +775,9 @@ wrapper::SendResult TcpClient::try_write_move(std::vector<uint8_t>&& data) {
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  if (!queue_util::try_reserve_write_bytes(impl_->queue_bytes_, impl_->pending_bytes_, impl_->backpressure_active_,
-                                           added, impl_->bp_high_, impl_->bp_limit_)) {
+  if (!queue_util::try_reserve_write_bytes(impl_->write_reserve_mtx_, impl_->inflight_bytes_, impl_->queue_bytes_,
+                                           impl_->pending_bytes_, impl_->backpressure_active_, added, impl_->bp_high_,
+                                           impl_->bp_limit_)) {
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
@@ -860,8 +846,9 @@ wrapper::SendResult TcpClient::try_write_shared(std::shared_ptr<const std::vecto
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  if (!queue_util::try_reserve_write_bytes(impl_->queue_bytes_, impl_->pending_bytes_, impl_->backpressure_active_,
-                                           added, impl_->bp_high_, impl_->bp_limit_)) {
+  if (!queue_util::try_reserve_write_bytes(impl_->write_reserve_mtx_, impl_->inflight_bytes_, impl_->queue_bytes_,
+                                           impl_->pending_bytes_, impl_->backpressure_active_, added, impl_->bp_high_,
+                                           impl_->bp_limit_)) {
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
@@ -1388,8 +1375,7 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq) {
     self->impl_->active_write_.reset();
     if (ec == net::error::operation_aborted || seq != self->impl_->current_seq_.load()) {
       batch->buffers.clear();
-      self->impl_->queue_bytes_ =
-          (self->impl_->queue_bytes_ > queued_bytes) ? (self->impl_->queue_bytes_ - queued_bytes) : 0;
+      queue_util::release_reserved_write_bytes(self->impl_->queue_bytes_, queued_bytes);
       self->impl_->report_backpressure(self, self->impl_->queue_bytes_);
       self->impl_->writing_ = false;
       return;
@@ -1411,8 +1397,7 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq) {
     if (bytes_written > 0) {
       self->impl_->reset_idle_timer(self, seq);
     }
-    self->impl_->queue_bytes_ =
-        (self->impl_->queue_bytes_ > queued_bytes) ? (self->impl_->queue_bytes_ - queued_bytes) : 0;
+    queue_util::release_reserved_write_bytes(self->impl_->queue_bytes_, queued_bytes);
     self->impl_->report_backpressure(self, self->impl_->queue_bytes_);
 
     if (self->impl_->stop_requested_.load() || self->impl_->state_.is_state(LinkState::Closed) ||
@@ -1586,13 +1571,13 @@ queue_util::BackpressureFields TcpClient::Impl::bp_fields() {
                                         bp_high_,
                                         bp_low_,
                                         bp_limit_,
-                                        bp_strategy_.load(std::memory_order_relaxed)};
+                                        bp_strategy_.load(std::memory_order_relaxed),
+                                        &write_reserve_mtx_};
 }
 
-void TcpClient::Impl::route_enqueued_buffer(std::shared_ptr<TcpClient> self, TrackedBuffer&& buf, size_t added,
-                                            bool reserved) {
+void TcpClient::Impl::route_enqueued_buffer(std::shared_ptr<TcpClient> self, TrackedBuffer&& buf, size_t added) {
   if (stop_requested_.load() || state_.is_state(LinkState::Closed) || state_.is_state(LinkState::Error)) {
-    if (reserved) queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
+    queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
     stats_.record_failed_send();
     return;
   }
@@ -1614,25 +1599,17 @@ void TcpClient::Impl::route_enqueued_buffer(std::shared_ptr<TcpClient> self, Tra
     // sent/dropped/queued accounting - record it as dropped so it's at
     // least observable.
     stats_.record_dropped(1, added);
-    if (reserved) queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
+    queue_util::release_reserved_limit_bytes(write_reserve_mtx_, inflight_bytes_, added);
     report_backpressure(self, queue_bytes_ + added);
     return;
   }
   if (decision == queue_util::EnqueueDecision::Pending) {
-    if (reserved) {
-      queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, pending_bytes_, inflight_bytes_, added);
-    } else {
-      queue_util::commit_unreserved_limit_bytes(write_reserve_mtx_, pending_bytes_, added);
-    }
+    queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, pending_bytes_, inflight_bytes_, added);
     pending_.emplace_back(std::move(buf));
     observe_queue();
     return;
   }
-  if (reserved) {
-    queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, queue_bytes_, inflight_bytes_, added);
-  } else {
-    queue_util::commit_unreserved_limit_bytes(write_reserve_mtx_, queue_bytes_, added);
-  }
+  queue_util::commit_reserved_limit_bytes(write_reserve_mtx_, queue_bytes_, inflight_bytes_, added);
   tx_.emplace_back(std::move(buf));
   observe_queue();
   report_backpressure(self, queue_bytes_);

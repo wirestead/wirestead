@@ -37,6 +37,7 @@
 #include "wirestead/transport/tcp_server/tcp_server.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
+#include "wirestead/wrapper/send_retry.hpp"
 #include "wirestead/wrapper/send_validation.hpp"
 
 namespace wirestead {
@@ -452,9 +453,8 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
   // bp_high) and the transport's own hard queue-byte cap for that session
   // (bp_limit) are different thresholds observed at different times, so a
   // single write attempt can spuriously fail right after the wait exits.
-  // Bounded retry rather than unbounded, so a payload that can never fit
-  // still fails in bounded time.
-  static constexpr int kMaxBlockingSendAttempts = 5;
+  // Retry capacity races until admission or cancellation. Oversized payloads
+  // are rejected by validation before entering this loop.
 
   SendResult send_to_blocking(ClientId client_id, std::string_view data) {
     std::shared_ptr<transport::TcpServer> ts;
@@ -499,7 +499,8 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         if (auto hook = detail::g_tcp_server_capacity_wait_result_hook.load()) hook(*outcome);
         return *outcome;
       };
-      for (int attempt = 0; attempt < kMaxBlockingSendAttempts; ++attempt) {
+      for (bool retry = false;; retry = true) {
+        if (retry) detail::pause_send_retry(bp_cv_, bp_mutex_);
         const auto released = wait();
         if (!released.accepted()) return released;
         std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -512,7 +513,6 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock) return admitted;
         if (detail::in_data_callback()) return admitted;
       }
-      return SendResult::reject(SendRejection::WouldBlock);
     }();
     if (auto hook = detail::g_tcp_server_send_result_hook.load()) hook(result);
     return result;

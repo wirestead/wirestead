@@ -27,7 +27,7 @@ Native admission checks the pinned connection, native state and reservation
 under its submission mutex. A successful admission is acceptance only, never a
 delivery receipt. Later connection loss remains a statistics concern.
 
-Only native WouldBlock is retried, at most five times, using the original run
+Only native WouldBlock is retried, without an attempt limit, using the original run
 and connection pin. Other rejections return immediately. A callback caller
 returns WouldBlock without a capacity wait or another retry. Exhausted capacity
 retries also return WouldBlock, not the BestEffort-specific QueueFull.
@@ -39,7 +39,7 @@ when the configured strategy is BestEffort.
 ## Custom channels and public API
 
 Custom Channel implementations retain bool-based delegation, validation,
-accounting and bounded retries. Their bool refusal is not assigned a made-up
+accounting and unbounded capacity retries. Their bool refusal is not assigned a made-up
 typed result. Public SendResult API migration, other transports, custom channel
 result support, fanout and bindings remain separate work.
 

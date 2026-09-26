@@ -25,7 +25,7 @@ the submission mutex.
 
 Explicit try forms report WouldBlock for capacity refusal. Ordinary
 BestEffort wrapper sends map it to QueueFull. Reliable and explicit blocking
-forms retry only native WouldBlock, at most five times. Callback scopes never
+forms retry only native WouldBlock, without an attempt limit. Callback scopes never
 wait for capacity or retry a refusal.
 
 Each successful device opening owns a wait record. Stop records
@@ -66,6 +66,6 @@ aggregation remain separate work.
 
 Device-independent fake-port tests cover all six native forms, both queue
 strategies, pool on/off, validation/state/capacity precedence, moved-storage
-preservation, bounded retries, callback refusals, stop/loss ordering, reopened
+preservation, unbounded capacity retries, callback refusals, stop/loss ordering, reopened
 capacity, final admission and delayed gather completions. Delayed ports borrow
 the actual gather views so ASan checks their buffer lifetime.

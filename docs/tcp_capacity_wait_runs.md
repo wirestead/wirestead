@@ -4,7 +4,7 @@
 > compatibility have since changed; see [the current client API](client_send_results.md).
 
 TCP blocking and Reliable sends capture the wrapper run generation once at
-entry. They carry it through capacity waits and all bounded admission retries.
+entry. They carry it through capacity waits and all admission retries.
 The wait predicate exits when that generation changes, even if a restarted
 channel is connected and pressured again. The final generation check and
 transport call run under the wrapper lock also used by stop/start.

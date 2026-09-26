@@ -401,7 +401,8 @@ later.
 
 This table records dependency rationale, not current completion status. Use
 [the current report](communication_contract_v0.10_status.md) for resolved
-validation, connection fencing and wait-release behavior.
+validation, connection fencing, wait-release behavior and the selected
+[queue preservation policy](blocking_queue_policy.md).
 
 | Row | Depends on | Note |
 | --- | --- | --- |
@@ -529,3 +530,15 @@ This choice does not finalize the expiry notification API. The current
 on_disconnect callback is retained until a separate event decision is made.
 See [implementation and verification](udp_send_accounting.md), including
 two-thread pending/active expiry, other-peer preservation and endpoint reuse.
+
+## Blocking queue and retry decision
+
+**Decided:** explicit blocking sends preserve already accepted data under
+BestEffort as well as Reliable. Implicit keep-latest is removed from built-in
+native plain enqueue paths; an opt-in freshness policy is separate future work.
+Ordinary BestEffort wrapper sends continue to reject new input under pressure.
+
+**Decided:** blocking capacity retries have no attempt limit. Only WouldBlock
+is retried on the original connection/session/run, with a brief CPU-releasing
+pause. Stop/loss/expiry terminates the wait. Callback callers never retry or wait.
+See [scope, compatibility and verification](blocking_queue_policy.md).

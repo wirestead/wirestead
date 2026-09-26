@@ -46,6 +46,7 @@ class CustomChannel : public interface::ConnectionChannel {
     bool pressure = false;
     std::optional<SendRejection> refusal;
     int captures = 0, polls = 0, writes = 0, accepted = 0;
+    int refusals_remaining = -1;
   };
   class Pin : public interface::WriteConnection {
    public:
@@ -71,7 +72,10 @@ class CustomChannel : public interface::ConnectionChannel {
       std::lock_guard<std::mutex> lock(state_->mutex);
       ++state_->writes;
       if (record_->ended || state_->current != record_) return SendResult::reject(SendRejection::NotReady);
-      if (state_->refusal) return SendResult::reject(*state_->refusal);
+      if (state_->refusal && state_->refusals_remaining != 0) {
+        if (state_->refusals_remaining > 0) --state_->refusals_remaining;
+        return SendResult::reject(*state_->refusal);
+      }
       ++state_->accepted;
       return SendResult::accept();
     }
@@ -288,11 +292,11 @@ TEST_P(ConnectionChannelTest, ReplacementAfterCapacityReleaseCannotReceiveOldSen
   EXPECT_EQ(channel->state->accepted, 0);
   EXPECT_EQ(channel->state->captures, 1);
 }
-TEST_P(ConnectionChannelTest, RetriesOnlyWouldBlockWithTheSamePin) {
+TEST_P(ConnectionChannelTest, RetriesBeyondFiveWithTheSamePin) {
   channel->state->refusal = SendRejection::WouldBlock;
-  EXPECT_FALSE(send());
-  expect_reason(SendRejection::WouldBlock);
-  EXPECT_EQ(channel->state->writes, 5);
+  channel->state->refusals_remaining = 12;
+  EXPECT_TRUE(send());
+  EXPECT_EQ(channel->state->writes, 13);
   EXPECT_EQ(channel->state->captures, 1);
 }
 TEST_P(ConnectionChannelTest, TerminalAdmissionIsNotRetried) {

@@ -49,48 +49,27 @@ struct BackpressureFields {
   size_t bp_low;
   size_t bp_limit;
   ::wirestead::base::constants::BackpressureStrategy strategy;
+  std::mutex* reservation_mutex = nullptr;
 };
 
 enum class EnqueueDecision {
   Immediate,  // push the buffer onto tx_ and proceed to write it now
-  Pending,    // Reliable + backpressure already active: route to pending_ instead
-  Rejected,   // over bp_limit_ even after BestEffort trimming; caller must drop it
+  Pending,    // Backpressure already active: preserve accepted work in pending_
+  Rejected,   // Defensive hard-limit guard; fixed-limit reserved admission prevents this
 };
 
-// Decides how a new buffer of `added` bytes should be routed, mirroring the
-// branch structure every transport's enqueue function hand-copied. Does NOT
-// push `added` into any queue itself - the caller pushes its own
-// buffer/destination element into tx_ or pending_ based on the returned
-// decision, and is responsible for incrementing the corresponding byte
-// counter (queue_bytes/pending_bytes) to match. For BestEffort, trims `tx`
-// via the existing maybe_flush_for_keep_latest() before returning
-// Immediate, recording anything dropped into `dropped_out`. `project`
-// defaults to identity (tx's elements are the BufferVariant directly);
-// UDP's tx_ holds TxItem{BufferVariant, destination} instead and supplies a
-// projection extracting `.buffer`.
+// Acceptance already reserved hard-limit capacity. Strategy determines caller
+// admission (try/refuse versus wait), never removal of accepted queue entries.
+// Keep the projection/observer parameters for existing queue element adapters.
 template <typename Deque, typename Project = IdentityProjection, typename OnDrop = IgnoreDroppedBuffer>
-inline EnqueueDecision decide_enqueue(BackpressureFields& f, size_t added, Deque& tx, DropAccounting& dropped_out,
-                                      Project project = Project{}, OnDrop on_drop = OnDrop{}) {
-  using Strategy = ::wirestead::base::constants::BackpressureStrategy;
-
-  if (f.strategy == Strategy::Reliable && f.backpressure_active.load(std::memory_order_relaxed)) {
-    if (f.queue_bytes.load(std::memory_order_relaxed) + f.pending_bytes.load(std::memory_order_relaxed) + added >
-        f.bp_limit) {
-      return EnqueueDecision::Rejected;
-    }
-    return EnqueueDecision::Pending;
-  }
-
-  if (f.strategy == Strategy::BestEffort && (f.backpressure_active.load(std::memory_order_relaxed) ||
-                                             f.queue_bytes.load(std::memory_order_relaxed) + added > f.bp_high)) {
-    dropped_out = maybe_flush_for_keep_latest(f.strategy, added, f.bp_high, tx, f.queue_bytes, f.backpressure_active,
-                                              project, on_drop);
-  }
-
-  if (f.queue_bytes.load(std::memory_order_relaxed) + added > f.bp_limit) {
+inline EnqueueDecision decide_enqueue(BackpressureFields& f, size_t added, Deque&, DropAccounting& dropped_out,
+                                      Project = Project{}, OnDrop = OnDrop{}) {
+  dropped_out = {};
+  const size_t queued = f.queue_bytes.load(std::memory_order_relaxed);
+  const size_t pending = f.pending_bytes.load(std::memory_order_relaxed);
+  if (queued > f.bp_limit || pending > f.bp_limit - queued || added > f.bp_limit - queued - pending)
     return EnqueueDecision::Rejected;
-  }
-  return EnqueueDecision::Immediate;
+  return f.backpressure_active.load(std::memory_order_relaxed) ? EnqueueDecision::Pending : EnqueueDecision::Immediate;
 }
 
 // Runs the ON / OFF-with-reflush / re-ARM state machine and fires on_bp
@@ -119,8 +98,14 @@ inline void report_backpressure(BackpressureFields& f, size_t queued_bytes,
   }
 
   if (f.backpressure_active.load(std::memory_order_relaxed) && queued_bytes <= f.bp_low) {
-    const size_t moved = flush_pending_into_tx();
-    f.queue_bytes.fetch_add(moved, std::memory_order_relaxed);
+    {
+      // Admission must not observe the gap between removing pending bytes and
+      // adding them to tx. Callbacks and kick_write run after releasing this lock.
+      std::unique_lock<std::mutex> reservation;
+      if (f.reservation_mutex) reservation = std::unique_lock<std::mutex>(*f.reservation_mutex);
+      const size_t moved = flush_pending_into_tx();
+      f.queue_bytes.fetch_add(moved, std::memory_order_relaxed);
+    }
     f.backpressure_active.store(false, std::memory_order_relaxed);
     stats.record_backpressure_event();
     if (on_bp) {

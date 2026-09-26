@@ -6,7 +6,7 @@
 Blocking/Reliable wrapper sends using the built-in TCP transport now capture
 both the wrapper run and the usable TCP connection at entry. The connection
 snapshot is taken under the transport submission mutex and stays fixed across
-all capacity waits and bounded retries.
+all capacity waits and unbounded capacity retries.
 
 A changed or unavailable connection ends the wait, including when the new
 connection is ready and pressured again. Copy, move and shared admission then

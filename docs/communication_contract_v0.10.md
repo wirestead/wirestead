@@ -71,7 +71,7 @@ differs by transport and must not be read as "the peer is reachable".
 
 **Implemented:** UDP admission uses socket/run and destination readiness;
 see [udp_send_results.md](udp_send_results.md). Virtual-session expiry cleanup
-and event policy remain open.
+is implemented; a distinct expiry event remains open.
 
 ## 3. Transmission
 
@@ -108,7 +108,7 @@ not wait on.
 | `try_send*()` | Accept | Reject `WouldBlock` |
 | `send*()`, BestEffort | Accept | Reject `QueueFull` (**Decided**: the default rejects the new request) |
 | `send*()`, Reliable | Accept | Wait |
-| `send_blocking*()` | Accept | Wait, **regardless of strategy** (**Proposed**) |
+| `send_blocking*()` | Accept | Wait, **regardless of strategy** (**Decided**) |
 
 A wait ends in one of three ways:
 
@@ -120,13 +120,14 @@ A wait ends in one of three ways:
 
 - **Decided:** a wait may be unbounded while the channel stays ready and the
   pressure does not clear. The contract says so. A timeout API would be a
-  separate, additive function and is not required for v0.10.
+  separate, additive function and is not required for v0.10. Capacity races are
+  retried without an attempt limit, with a brief wait between failed admissions.
 - **Decided:** Reliable never removes an accepted request because of queue
   pressure while the channel is ready to send. Connection loss and shutdown are
   governed by [section 6](#6-lifecycle).
 - **Proposed:** `send_blocking()` in the `Connecting` state rejects immediately
   with `NotReady` at stage 1. It does not wait for the connection.
-- **Proposed:** keep-latest (accepting a new request by removing older accepted
+- **Decided:** keep-latest (accepting a new request by removing older accepted
   ones) is out of the v0.10 required scope. If it is added, it is an explicit
   opt-in policy with its own table of which APIs it applies to. With this
   table, `send_blocking()` never removes older requests on a BestEffort
@@ -416,6 +417,7 @@ adapters. Remaining numbers are retained for historical references.
 11. Accumulated receive memory while callbacks are blocked.
 12. Whether post-acceptance statistics can be exact per request.
 
-13. Explicit blocking BestEffort keep-latest removal or opt-in scope, and the
-    five-attempt admission retry bound versus the unqualified wait table.
+13. Resolved: blocking sends preserve accepted work under either strategy and
+    retry capacity races without an attempt limit. No implicit keep-latest;
+    see [the selected queue policy](blocking_queue_policy.md).
 14. Ordinary executor-task wait restriction and mixed-session batch scopes.

@@ -124,6 +124,30 @@ class ServerSendAccountingTest : public ::testing::TestWithParam<bool> {
   }
 };
 
+TEST_P(ServerSendAccountingTest, BlockingCapacityRetriesBeyondFiveAndStopReleasesSender) {
+  const auto id = server->connected_clients().front();
+  const auto limit = GetParam() ? std::static_pointer_cast<transport::TcpServer>(native)->write_queue_limit(id)
+                                : std::static_pointer_cast<transport::UdsServer>(native)->write_queue_limit(id);
+  ASSERT_TRUE(limit);
+  ASSERT_TRUE(server->send_to_blocking(id, std::string(*limit, 'f')));
+  const auto failures = server->client_stats(id)->failed_sends;
+  auto sender = std::async(std::launch::async, [&] { return server->send_to_blocking(id, "abc"); });
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (server->client_stats(id)->failed_sends < failures + 12 && std::chrono::steady_clock::now() < deadline)
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  const bool retried = server->client_stats(id)->failed_sends >= failures + 12;
+  auto stopper = std::async(std::launch::async, [&] { server->stop(); });
+  const bool released = sender.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+  EXPECT_TRUE(wait([&] { return stopper.wait_for(std::chrono::seconds(0)) == std::future_status::ready; }));
+  stopper.get();
+  ASSERT_TRUE(released);
+  EXPECT_TRUE(retried);
+  const auto result = sender.get();
+  EXPECT_FALSE(result.accepted());
+  EXPECT_TRUE(result.reason() == wrapper::SendRejection::CancelledWhileWaiting ||
+              result.reason() == wrapper::SendRejection::Stopping);
+}
+
 TEST_P(ServerSendAccountingTest, FanoutCountsPerTargetAndSurvivesDisconnect) {
   const auto ids = server->connected_clients();
   ASSERT_EQ(ids.size(), 2u);

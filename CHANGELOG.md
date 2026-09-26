@@ -11,6 +11,13 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking behavior:** built-in plain native writes preserve accepted work
+  under BestEffort instead of implicitly dropping older queued data. Ordinary
+  BestEffort wrapper sends still reject new requests under pressure. Blocking
+  wrapper sends retry capacity races without a five-attempt limit, with a brief
+  wait between retries; callbacks still never wait. Plain/try reservations and
+  pending transfers share hard-limit accounting. See docs/blocking_queue_policy.md.
+
 - **Breaking ABI:** SendAccounting gains session_expiry, changing RuntimeStats
   and embedded ledger layouts; rebuild C++ consumers. UDP server client_stats
   now exposes virtual-session totals. Expiry discards accepted waiting work,

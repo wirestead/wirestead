@@ -898,15 +898,43 @@ TEST_P(TcpReliableResultTest, ValidatesBeforeStateAndPreservesPayload) {
 }
 INSTANTIATE_TEST_SUITE_P(ReliableAndExplicitBlocking, TcpReliableResultTest, ::testing::Range(0, 8));
 
-TEST(TcpReliableResultContract, RetriesOnlyCapacityAndPreservesMoveStorage) {
+TEST(TcpReliableResultContract, NativeCapacityRetriesBeyondFiveAndStopReleasesSender) {
+  NonblockingResultPeer peer(false);
+  auto started = peer.client->start();
+  ASSERT_TRUE(peer.until([&] { return peer.native->is_connected(); }));
+  ASSERT_TRUE(started.get());
+  ASSERT_TRUE(peer.native->async_write_move(std::vector<uint8_t>(*peer.native->write_queue_limit(), 'f')));
+  const auto failures = peer.native->stats().failed_sends;
+  std::vector<uint8_t> payload{1, 2, 3};
+  auto sender = std::async(std::launch::async, [&] { return peer.client->send_move(std::move(payload)); });
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (peer.native->stats().failed_sends < failures + 12 && std::chrono::steady_clock::now() < deadline)
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  const bool retried = peer.native->stats().failed_sends >= failures + 12;
+  auto stopper = std::async(std::launch::async, [&] { peer.client->stop(); });
+  // Stop cancels the retained wait before waiting for native executor cleanup.
+  const bool released = sender.wait_for(std::chrono::seconds(5)) == std::future_status::ready;
+  EXPECT_TRUE(peer.until([&] { return stopper.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready; }));
+  stopper.get();
+  ASSERT_TRUE(released);
+  const auto result = sender.get();
+  EXPECT_TRUE(retried);
+  EXPECT_FALSE(result.accepted());
+  EXPECT_TRUE(result.reason() == wirestead::wrapper::SendRejection::CancelledWhileWaiting ||
+              result.reason() == wirestead::wrapper::SendRejection::Stopping);
+  EXPECT_EQ(payload, (std::vector<uint8_t>{1, 2, 3}));
+}
+
+TEST(TcpReliableResultContract, CallbackCapacityRefusalPreservesMoveStorage) {
   NonblockingResultPeer peer(false);
   auto started = peer.client->start();
   ASSERT_TRUE(peer.until([&] { return peer.native->is_connected(); }));
   ASSERT_TRUE(started.get());
   // Keep the executor paused: inflight reservations fill the hard limit but
-  // have not yet published high-water pressure, exercising bounded retries.
+  // have not yet published high-water pressure. Callback callers must not retry.
   ASSERT_TRUE(peer.native->async_write_move(std::vector<uint8_t>(*peer.native->write_queue_limit(), 'f')));
   ASSERT_FALSE(peer.native->is_backpressure_active());
+  wirestead::wrapper::detail::CallbackGuard callback_scope;
   const auto failures = peer.native->stats().failed_sends;
   for (int form = 0; form < 3; ++form) {
     nonblocking_observations = 0;
@@ -923,7 +951,7 @@ TEST(TcpReliableResultContract, RetriesOnlyCapacityAndPreservesMoveStorage) {
     EXPECT_EQ(nonblocking_observations, 1);
     EXPECT_FALSE(nonblocking_result->accepted());
     EXPECT_EQ(nonblocking_result->reason(), wirestead::wrapper::SendRejection::WouldBlock);
-    EXPECT_EQ(peer.native->stats().failed_sends, failures + 5 * (form + 1));
+    EXPECT_EQ(peer.native->stats().failed_sends, failures + (form + 1));
     EXPECT_EQ(peer.native->stats().messages_accepted, 1u);
   }
 }

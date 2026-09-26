@@ -62,7 +62,7 @@ Paths below are relative to the repository. Evidence groups:
 | Callback guard | [invoke_user_callback](../wirestead/wrapper/callback_guard.hpp), all seven wrapper dispatch paths | test_callback_blocking_send.cc, test_server_callback_blocking_send.cc, callback exception/gate tests |
 | Fanout | [TCP](../wirestead/transport/tcp_server/tcp_server.cc), [UDS](../wirestead/transport/uds/uds_server.cc) broadcast_result; [UDP](../wirestead/wrapper/udp/udp_server.cc) try_broadcast | test_server_broadcast_contract.cc, test_server_broadcast_slow_consumer_contract.cc |
 | Ownership | Native four-client admission paths, TCP/UDS sessions; [context copies](../wirestead/wrapper/context.hpp); UDS server move adapters | test_send_buffer_apis.cc, test_connection_channel.cc, test_send_result.cc, test_message_context.cc; UdsMoveOwnershipTest added here |
-| Queue policy | All six native queue-routing implementations call [decide_enqueue](../wirestead/transport/base/bp_state_machine.hpp); [keep-latest helper](../wirestead/transport/base/bp_utils.hpp) | BpStateMachineTest.BestEffortTrimsOldestEntriesToFitNewBuffer / BestEffortDropsEverythingWhenNewBufferAloneExceedsHigh; bounded retry tests |
+| Queue policy | Six native routes preserve accepted work; shared reservation/transfer lock; seven wrapper retry loops | BestEffort queue-preservation tests, mixed reservation hard limits, more-than-five retries and callback/terminal release cases |
 | Statistics | [RuntimeStats](../wirestead/wrapper/runtime_stats.hpp), [counter implementation](../wirestead/diagnostics/runtime_stats_counter.hpp); each native cleanup/write-completion path | Legacy counter tests plus test_send_accounting.cc and test_tcp_send_accounting.cc, transport_stream_send_accounting.cc and test_udp_send_accounting.cc, transport_session_send_accounting.cc and test_server_send_accounting.cc; discard/abort accounting covers TCP/UDS clients and server sessions/aggregates, Serial, UDP sockets and virtual sessions |
 | Events | TCP/UDS/serial retry transitions; each wrapper on_state; UDP server run_reaper | Lifecycle/reconnect tests exercise current behavior, not the proposed unified event contract |
 
@@ -73,11 +73,11 @@ implementation symbols above describe the specific decision being assessed.
 
 | Target | Completed core path | Remaining target-specific limitations |
 | --- | --- | --- |
-| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Keep-latest on explicit blocking BestEffort path, five-attempt admission bound, bare-executor waiting, reconnect event mapping |
-| UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Same queue/retry/executor gaps; retried loss can report on_error |
-| UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Same queue/retry/executor gaps; batch timer uses the raw io_context executor |
-| Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Same queue/retry/executor gaps; recovered loss notification; physical-device validation remains separate |
-| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Explicit blocking queue policy, retries/executor waiting, session connect/batch ordering |
+| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Bare-executor waiting, reconnect event mapping |
+| UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Same executor gaps; retried loss can report on_error |
+| UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Same executor gaps; batch timer uses the raw io_context executor |
+| Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Same executor gaps; recovered loss notification; physical-device validation remains separate |
+| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Executor waiting, session connect/batch ordering |
 | UDS server | Same public guarantees; native move rejection fixed here | Same server gaps; legacy native bool fanout is distinct from public FanoutResult |
 | UDP server | D-1/D-2, endpoint/run-pinned sends, fixed fanout, peer accounting and waiting-work expiry | Shared socket pressure; timer/receive serialization and distinct expiry event remain open |
 
@@ -100,8 +100,8 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | C-3.1-2 | Covered: original connection/run/session pin | Admission: first terminal cause survives later stop/reconnect; replacements cannot receive the waiting request |
 | C-3.2-1 | Covered: explicit try rejects pressure | Native try results retain WouldBlock |
 | C-3.2-2 | Covered: ordinary wrapper BestEffort rejects the new request | Wrappers route through try and map WouldBlock to QueueFull; not the explicit blocking path |
-| C-3.2-3 | Gap against proposal: explicit blocking on BestEffort can remove older data | Queue policy: plain write routes into decide_enqueue and maybe_flush_for_keep_latest; no explicit opt-in policy |
-| C-3.2-4 | Gap against draft's unqualified wait table: all seven blocking loops stop after five admission attempts | Capacity waits themselves can be unbounded; five transient WouldBlock races still end the call. Existing retry tests intentionally verify this current behavior |
+| C-3.2-3 | Covered: explicit blocking preserves older accepted work under BestEffort | Shared default routing no longer invokes keep-latest; no opt-in disposal policy introduced |
+| C-3.2-4 | Covered: blocking capacity races retry without an attempt limit | Retained pin and brief condition-variable backoff; callback callers do not retry, stop/loss ends waiting |
 | C-3.2-5 | Covered: no wait for an unready connection | Admission state validation returns NotReady before capacity polling |
 | C-3.4-1 | Covered: copied send input can be released after return | Native copy-before-accept paths and ownership tests |
 | C-3.4-2 | Fixed here for native UDS server; covered for client/session APIs | UDS bool fanout used to consume on all-rejected. Now restores the original vector when no session accepts; partial acceptance consumes it |
@@ -147,7 +147,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | Contract section | Current assessment |
 | --- | --- |
 | 1: accepted versus delivered | Implemented result naming and docs; no delivery guarantee. Post-acceptance classification now exists for TCP/UDS clients, Serial, UDP sockets and virtual sessions |
-| 3.2: Reliable never pressure-drops accepted data | Reliable queue helper never takes keep-latest branch; stop/loss disposal is separate. Five-attempt return remains a separate gap |
+| 3.2: Reliable never pressure-drops accepted data | Both built-in strategies preserve accepted work under fixed limits; mixed plain/try reservations and pending transfers share hard-limit synchronization |
 | 3.3: empty lines and size bounds | Existing validation/line tests cover delimiter-only requests and whole-queue bounds; not an allocation-failure guarantee |
 | 3.4 / 4: receive lifetime | MessageContext copy constructor clones borrowed data; move remains cheap. Retaining only a data view beyond callback is unsupported |
 | 4: framer limit and resynchronization | Framer-specific implementations/tests exist; no universal recovery guarantee for length-prefix framing |
@@ -172,9 +172,9 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
    epochs. TCP/UDS aggregates retain closed/retiring contributors exactly once.
    UDP peer projections and expiry attribution are implemented; controlled
    two-thread tests cover posted/pending/active boundaries and unrelated peers.
-2. **Queue semantics:** choose removal of implicit keep-latest from explicit
-   blocking sends, or an explicitly scoped opt-in policy; decide the five-attempt
-   bound instead of claiming unconditional Reliable waiting.
+2. **Queue semantics implemented:** [selected preservation/retry policy](blocking_queue_policy.md).
+   No implicit keep-latest; blocking capacity retries have no attempt limit.
+   An explicit freshness policy or timeout API remains optional future work.
 3. **Execution scopes:** settle batch/session ownership and add deterministic
    multi-thread callback overlap/order tests. Extend or explicitly limit the
    nonwaiting rule for ordinary executor tasks.

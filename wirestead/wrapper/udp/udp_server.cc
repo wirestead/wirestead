@@ -38,6 +38,7 @@
 #include "wirestead/transport/udp/udp.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
+#include "wirestead/wrapper/send_retry.hpp"
 #include "wirestead/wrapper/send_validation.hpp"
 
 namespace wirestead {
@@ -675,7 +676,8 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         wait = it->second.wait;
         generation = callback_generation_.load();
       }
-      for (int attempt = 0; attempt < 5; ++attempt) {
+      for (bool retry = false;; retry = true) {
+        if (retry) detail::pause_send_retry(bp_cv_, bp_mutex_);
         std::unique_lock<std::mutex> bp_lock(bp_mutex_);
         auto outcome = native->poll_write_wait(wait);
         if (!outcome) {
@@ -701,7 +703,6 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock) return admitted;
         if (detail::in_data_callback()) return admitted;
       }
-      return SendResult::reject(SendRejection::WouldBlock);
     }();
     return finish_send(result);
   }

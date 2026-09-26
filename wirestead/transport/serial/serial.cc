@@ -228,7 +228,8 @@ struct Serial::Impl {
                                           bp_high_,
                                           bp_low_,
                                           bp_limit_,
-                                          bp_strategy_.load(std::memory_order_relaxed)};
+                                          bp_strategy_.load(std::memory_order_relaxed),
+                                          &write_reserve_mtx_};
   }
 
   // Shared decide_enqueue()/route dispatch used by all 4 async_write_* call
@@ -1173,8 +1174,9 @@ wrapper::SendResult Serial::try_write_move(std::vector<uint8_t>&& data) {
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  if (!queue_util::try_reserve_write_bytes(impl_->queued_bytes_, impl_->pending_bytes_, impl_->backpressure_active_,
-                                           added, impl_->bp_high_, impl_->bp_limit_)) {
+  if (!queue_util::try_reserve_write_bytes(impl_->write_reserve_mtx_, impl_->inflight_bytes_, impl_->queued_bytes_,
+                                           impl_->pending_bytes_, impl_->backpressure_active_, added, impl_->bp_high_,
+                                           impl_->bp_limit_)) {
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
@@ -1242,8 +1244,9 @@ wrapper::SendResult Serial::try_write_shared(std::shared_ptr<const std::vector<u
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
-  if (!queue_util::try_reserve_write_bytes(impl_->queued_bytes_, impl_->pending_bytes_, impl_->backpressure_active_,
-                                           added, impl_->bp_high_, impl_->bp_limit_)) {
+  if (!queue_util::try_reserve_write_bytes(impl_->write_reserve_mtx_, impl_->inflight_bytes_, impl_->queued_bytes_,
+                                           impl_->pending_bytes_, impl_->backpressure_active_, added, impl_->bp_high_,
+                                           impl_->bp_limit_)) {
     reject_for_pressure();
     return wrapper::SendResult::reject(wrapper::SendRejection::WouldBlock);
   }
