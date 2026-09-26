@@ -63,7 +63,9 @@ Use `RuntimeStats` to inspect accepted bytes, sent bytes, failed sends, drops,
 queued bytes, pending bytes, and backpressure state. Built-in TCP/UDS clients and Serial also
 expose optional [logical-request accounting](tcp_send_accounting.md): pre-write
 discards and active-write aborts are separated by stop, connection loss and
-queue pressure. UDP and server transports currently return no accounting capability.
+queue pressure. [UDP socket accounting](udp_send_accounting.md) uses the same
+fields; connection_loss there means a terminal local socket error. TCP/UDS
+servers and per-virtual-session UDP statistics remain unsupported.
 
 ## Liveness and idle timeout
 
