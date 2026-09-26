@@ -1,7 +1,12 @@
 # v0.10 Contract Decisions
 
-Decision proposals for the common differences in
+Decisions and implementation history for the common differences in
 [the audit](communication_contract_v0.10_audit.md) section 9.1.
+The approved completion scope is implemented. Historical follow-up sections
+record the limits of individual changes when they landed; they are not a list
+of remaining work. The [current conformance report](communication_contract_v0.10_status.md)
+defines the completed scope and its exclusions.
+
 **Implementation status:** D-1 landed for TCP in PR #652, UDS in PR #654,
 UDP in PR #655 and serial in PR #656. D-2 landed in PR #657, and payload-size
 validation before waiting landed in PR #658. PR #659 repaired TCP
@@ -53,9 +58,10 @@ and provides bool adapters for custom implementations; see
 [channel_write_results.md](channel_write_results.md).
 Client public interfaces expose SendResult and server fanout APIs expose
 FanoutResult. The C++ public return-type migration is complete. Python PR #72 preserves bool compatibility on old and
-new cores; rich Python results are optional API work. Discard/event policies
-remain incomplete. See the [current conformance report](communication_contract_v0.10_status.md)
-and [accounting/event proposal](post_acceptance_policy_v0.10.md).
+new cores; rich Python results are optional API work. Post-acceptance accounting,
+receive limits, lifecycle events and configuration/callback policies are implemented.
+See the [current conformance report](communication_contract_v0.10_status.md)
+and [accounting/event implementation gates](post_acceptance_policy_v0.10.md).
 
 Custom ConnectionChannel implementations now supply a retained connection
 handle, first-terminal capacity polling, cancellation and pinned final
@@ -231,11 +237,12 @@ Reliable strategy, `send_blocking()`/`send_line_blocking()`, `send_move()` and
 ### Exceptions and caller preconditions
 
 - A blocking send from an executor thread that is **not** inside a callback is
-  a separate rule (C-5.4-5) and is not decided here.
+  a separate rule (C-5.4-5), implemented for supported executor forms in
+  [the execution-scope policy](executor_and_session_batches.md).
 - The rejection is immediate, so a caller inside a callback handles a refusal
   rather than assuming delivery; the documented way to send from a callback
   stays `try_send*()`.
-- What the rejection *says* comes from D-3. Until D-3 lands it is `false`.
+- D-3 reports this refusal as `SendRejection::WouldBlock`.
 
 ### Compatibility impact
 
@@ -275,7 +282,8 @@ Every send API returns a structured result that reports **acceptance only**:
 the request was accepted, or it was rejected for one stated reason. The result
 never describes anything that happens after acceptance.
 
-Public value-type shape (implemented; send APIs are not migrated yet):
+Implemented public value type; client and targeted server sends expose
+SendResult, while fanout sends expose FanoutResult:
 
 ```cpp
 enum class SendRejection {
@@ -352,7 +360,7 @@ the time such a loss happens.
 The 40 public send entry points across `ichannel.hpp`, `iserver.hpp` and the
 seven wrappers, and the four transport-level write entry points behind them.
 Fanout APIs (`broadcast()`, `try_broadcast()`) return the aggregate type
-instead, so their decision has to land with this one or immediately after.
+instead; see [the implemented fanout contract](server_fanout_results.md).
 
 ### Exceptions and caller preconditions
 
@@ -426,10 +434,14 @@ work. References to still-open shutdown rows below are historical.
 3. D-3, then the fanout aggregate (C-3.6-3/4) immediately after, since callers
    should meet both in the same release.
 
-Each lands as its own change with its own tests; none of them waits on the
-still-open C-5.4-3, C-1-1 or event-model decisions.
+The original plan separated these changes and their tests. The shutdown (C-5.4-3 and C-1-1),
+result and event policies have since landed; this sequence is retained as history.
 
 ## Validation-before-wait follow-up
+
+**Historical implementation stages:** this section and the following five describe
+incremental changes. Their then-outstanding work is resolved by the current public result,
+connection-pinning and queue policies linked in the implementation status above.
 
 The empty-payload and per-message maximum portions of C-3.1-1b are implemented
 across all seven wrappers before introducing D-3's result type. Invalid sizes
@@ -490,11 +502,10 @@ default outcome; accepted() and explicit bool conversion report acceptance,
 and reason() has the precondition !accepted(). The implementation is
 constexpr, noexcept and a trivially copyable value type.
 
-This is not a bool-to-SendResult API conversion or an implementation of the
-reason table. No existing send returns the new type in this change. Mapping
-each transport's synchronized admission decision, pinning the connection
-instance, recording stable wait-release causes, updating bindings and adding
-fanout aggregates now expose FanoutResult. See
+The foundation change introduced only the value types. Subsequent changes
+completed synchronized admission reasons, connection pinning, stable wait-release
+causes and the public API conversion. Client and targeted server sends now expose
+SendResult; fanout sends expose FanoutResult. See
 [fanout results](server_fanout_results.md) and [result-type usage](send_result.md).
 
 ## D-3 payload-size reason mapping
@@ -526,8 +537,9 @@ each request and retain it after session removal; per-peer projections therefore
 need no second accumulation step. Reset excludes old measurement epochs.
 SendAccounting and RuntimeStats grow, so C++ consumers must rebuild.
 
-This choice does not finalize the expiry notification API. The current
-on_disconnect callback is retained until a separate event decision is made.
+The implemented notification is UdpServer::on_session_expired, distinct from
+on_disconnect. Idle expiry no longer invokes on_disconnect; explicit stop
+suppresses both notifications. See [the event contract](lifecycle_events.md).
 See [implementation and verification](udp_send_accounting.md), including
 two-thread pending/active expiry, other-peer preservation and endpoint reuse.
 
@@ -560,10 +572,15 @@ requirement; it does not decide mixed-session batch ownership, event taxonomy,
 or cross-session parallelism guarantees. TCP notification remains independent
 of TLS handshake success. See [scope and verification](server_connect_order.md).
 
-## Remaining contract decisions (2026-09-26)
+<a id="remaining-contract-decisions-2026-09-26"></a>
 
-The following choices are approved for implementation. This section records
-policy, not a claim that the implementation or release verification is complete.
+## Approved completion policies (2026-09-26)
+
+The following approved choices are implemented for the built-in scope described
+in the [current conformance report](communication_contract_v0.10_status.md).
+Evidence and limits are recorded in the [execution/session policy](executor_and_session_batches.md),
+[receive-memory policy](receive_memory_limits.md), [event policy](lifecycle_events.md)
+and [configuration/callback policy](configuration_and_callbacks.md).
 
 - Blocking-capable sends must not wait on an executor needed by the target.
   Available capacity still permits admission; pressure or an admission race
@@ -583,7 +600,7 @@ policy, not a claim that the implementation or release verification is complete.
 - User callback exceptions are logged and contained without recursively invoking
   error callbacks. Native callback boundaries must be covered as well.
 
-Implementation is grouped into execution/receive safety, event/configuration
-policy, then contract/migration/satellite release verification. Each group needs
-its own regression and platform CI evidence before merge. Publishing a release
-is a separate action.
+The implementation groups have regression, platform CI and affected-consumer
+verification recorded with their merged PRs. Universal custom-executor/no-inline
+behavior and rich Python results remain outside the approved completion scope.
+Publishing a release and advancing satellite release pins remain separate actions.
