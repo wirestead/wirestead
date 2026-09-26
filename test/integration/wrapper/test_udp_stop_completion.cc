@@ -304,7 +304,7 @@ TEST(UdpServerReaperStopTest, AdmittedExpiryCallbackMustFinishBeforeOutsideStopR
     if (stopper.valid()) stopper.wait();
     target.stop();
   }};
-  target.server->on_disconnect([&](const auto&) {
+  target.server->on_session_expired([&](const auto&) {
     target.stop();
     requested.notify();
     release.hold();
@@ -363,7 +363,7 @@ TEST(UdpServerReaperStopTest, ExternalStopWaitsForParkedReaperBeforeRestart) {
   stopper.get();
   target.server->idle_timeout(0ms);
   std::atomic<int> expired{0};
-  target.server->on_disconnect([&](const auto&) { ++expired; });
+  target.server->on_session_expired([&](const auto&) { ++expired; });
   Signal received;
   target.on_data([&](const auto&) { received.notify(); });
   ASSERT_TRUE(target.start());

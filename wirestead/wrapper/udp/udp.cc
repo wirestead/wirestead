@@ -44,6 +44,7 @@
 #include "wirestead/wrapper/bounded_receive.hpp"
 #include "wirestead/wrapper/callback_guard.hpp"
 #include "wirestead/wrapper/error_context_builder.hpp"
+#include "wirestead/wrapper/lifecycle_events.hpp"
 #include "wirestead/wrapper/send_retry.hpp"
 #include "wirestead/wrapper/send_validation.hpp"
 
@@ -105,6 +106,7 @@ struct UdpClient::Impl : public std::enable_shared_from_this<Impl> {
 
   std::shared_ptr<framer::IFramer> framer{nullptr};
 
+  detail::LifecycleEvents lifecycle_events_;
   ReceiveLimits receive_limits_;
   std::shared_ptr<detail::ReceiveBudget> receive_budget_{std::make_shared<detail::ReceiveBudget>(receive_limits_)};
   std::shared_ptr<detail::ReceiveState> receive_state_{
@@ -163,6 +165,10 @@ struct UdpClient::Impl : public std::enable_shared_from_this<Impl> {
   void flush_batches(uint64_t generation) {
     auto lease = callback_gate_.enter(generation);
     if (!lease.admitted()) return;
+    {
+      std::shared_lock<std::shared_mutex> lock(mutex_);
+      if (data_batch_queue_.empty() && message_batch_queue_.empty()) return;
+    }
     std::unique_lock<std::shared_mutex> lock(mutex_);
     if (!data_batch_queue_.empty()) {
       auto handler = data_batch_handler_;
@@ -174,6 +180,7 @@ struct UdpClient::Impl : public std::enable_shared_from_this<Impl> {
         lock.lock();
       }
     }
+    if (!callback_gate_.enter(generation).admitted()) return;
     if (!message_batch_queue_.empty()) {
       auto handler = message_batch_handler_;
       auto batch = std::move(message_batch_queue_);
@@ -537,6 +544,7 @@ struct UdpClient::Impl : public std::enable_shared_from_this<Impl> {
     std::weak_ptr<bool> weak_alive = alive_marker;
     std::weak_ptr<Impl> weak_impl = weak_from_this();
     receive_budget_->reset_stats();
+    lifecycle_events_.reset();
     const auto generation = callback_gate_.open_new_generation();
     callback_generation_.store(generation);
 
@@ -624,42 +632,50 @@ struct UdpClient::Impl : public std::enable_shared_from_this<Impl> {
       if (!alive) return;
       auto lease = callback_gate_.enter(generation);
       if (!lease.admitted()) return;
-
-      switch (state) {
-        case base::LinkState::Connected:
-        case base::LinkState::Listening: {
-          ConnectionHandler handler;
-          {
-            std::unique_lock<std::shared_mutex> lock(mutex_);
-            fulfill_all_locked(true);
-            handler = connect_handler;
-          }
-          detail::invoke_user_callback("udp_client", "on_connect", handler, ConnectionContext(0));
-          break;
+      const bool ready = state == base::LinkState::Connected || state == base::LinkState::Listening;
+      const auto events = lifecycle_events_.observe(state, ready);
+      ConnectionHandler connected_handler, lost_handler;
+      ErrorHandler terminal_handler;
+      std::shared_ptr<interface::Channel> channel_snapshot;
+      if (ready) {
+        std::unique_lock<std::shared_mutex> lock(mutex_);
+        fulfill_all_locked(true);
+        connected_handler = connect_handler;
+      } else {
+        if (state == base::LinkState::Closed || state == base::LinkState::Idle || state == base::LinkState::Error) {
+          std::unique_lock<std::shared_mutex> lock(mutex_);
+          fulfill_all_locked(false);
         }
-        case base::LinkState::Closed:
-        case base::LinkState::Error:
-        case base::LinkState::Idle: {
-          ConnectionHandler disconnect_handler_snapshot;
-          ErrorHandler error_handler_snapshot;
-          {
-            std::unique_lock<std::shared_mutex> lock(mutex_);
-            fulfill_all_locked(false);
-            if (state == base::LinkState::Error) {
-              error_handler_snapshot = error_handler;
-            } else {
-              disconnect_handler_snapshot = disconnect_handler;
-            }
-          }
-          detail::invoke_user_callback("udp_client", "on_disconnect", disconnect_handler_snapshot,
-                                       ConnectionContext(0));
-          detail::invoke_user_callback("udp_client", "on_error", error_handler_snapshot,
-                                       detail::build_error_context(*channel, "Connection error"));
-          break;
+        // A Connecting notification must not require the exclusive wrapper
+        // lock held off by a connection-pinned final admission on another thread.
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        if (events.disconnect) lost_handler = disconnect_handler;
+        if (events.error) {
+          terminal_handler = error_handler;
+          channel_snapshot = channel;
         }
-        default:
-          break;
       }
+      if (events.disconnect) {
+        flush_batches(generation);
+        std::shared_lock<std::shared_mutex> read_lock(mutex_);
+        if (framer) {
+          read_lock.unlock();
+          std::unique_lock<std::shared_mutex> lock(mutex_);
+          receive_state_->reset(framer.get());
+        }
+      }
+      auto notification_lease = callback_gate_.enter(generation);
+      if (!notification_lease.admitted()) return;
+      detail::invoke_user_callback("udp_client", "on_connect", connected_handler, ConnectionContext(0));
+      detail::invoke_user_callback("udp_client", "on_disconnect", lost_handler, ConnectionContext(0));
+      // A loss callback may request stop; do not admit the following terminal
+      // error into the closed generation.
+      auto error_lease = callback_gate_.enter(generation);
+      if (error_lease.admitted() && terminal_handler)
+        detail::invoke_user_callback("udp_client", "on_error", terminal_handler,
+                                     channel_snapshot
+                                         ? detail::build_error_context(*channel_snapshot, "Connection error")
+                                         : ErrorContext(ErrorCode::IoError, "Connection error"));
     });
   }
 

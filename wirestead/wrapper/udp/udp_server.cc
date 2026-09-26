@@ -134,6 +134,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
 
   ConnectionHandler on_connect{nullptr};
   ConnectionHandler on_disconnect{nullptr};
+  ConnectionHandler on_session_expired{nullptr};
   // Shared snapshots: the strand copies one out per received datagram, and a
   // std::function copy allocates whenever the user handler outgrows its
   // small-object buffer. See interface::SharedCallback.
@@ -149,6 +150,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
   std::shared_ptr<bool> is_alive{std::make_shared<bool>(true)};
 
   // Batching logic
+  bool terminal_error_reported_ = false;
   ReceiveLimits receive_limits_;
   std::shared_ptr<detail::ReceiveBudget> receive_budget_{std::make_shared<detail::ReceiveBudget>(receive_limits_)};
   std::unordered_map<ClientId, std::shared_ptr<detail::SessionBatch>> batches_;
@@ -278,11 +280,11 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
         endpoint_to_id.erase(it->second.endpoint);
         batches_.erase(id);
         sessions.erase(it);
-        handler = on_disconnect;
+        handler = on_session_expired;
       }
       auto lease = callback_gate_.enter(generation);
       if (lease.admitted())
-        detail::invoke_user_callback("udp_server", "on_disconnect", handler, ConnectionContext(id, info));
+        detail::invoke_user_callback("udp_server", "on_session_expired", handler, ConnectionContext(id, info));
     }
   }
 
@@ -291,6 +293,7 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
 
     std::weak_ptr<Impl> weak_impl = weak_from_this();
     receive_budget_->reset_stats();
+    terminal_error_reported_ = false;
     const auto generation = callback_gate_.open_new_generation();
     callback_generation_.store(generation);
 
@@ -465,13 +468,15 @@ struct UdpServer::Impl : public std::enable_shared_from_this<Impl> {
       if (state == base::LinkState::Listening || state == base::LinkState::Connected) {
         is_listening.store(true);
         std::unique_lock<std::shared_mutex> lock(mutex);
+        terminal_error_reported_ = false;
         fulfill_all_locked(true);
       } else if (state == base::LinkState::Error || state == base::LinkState::Closed ||
                  state == base::LinkState::Idle) {
         is_listening.store(false);
         std::unique_lock<std::shared_mutex> lock(mutex);
         fulfill_all_locked(false);
-        if (state == base::LinkState::Error) {
+        if (state == base::LinkState::Error && !terminal_error_reported_) {
+          terminal_error_reported_ = true;
           error_handler_copy = on_error;
         }
       }
@@ -808,6 +813,11 @@ UdpServer& UdpServer::on_connect(ConnectionHandler h) {
 UdpServer& UdpServer::on_disconnect(ConnectionHandler h) {
   std::unique_lock<std::shared_mutex> lock(impl_->mutex);
   impl_->on_disconnect = std::move(h);
+  return *this;
+}
+UdpServer& UdpServer::on_session_expired(ConnectionHandler h) {
+  std::unique_lock<std::shared_mutex> lock(impl_->mutex);
+  impl_->on_session_expired = std::move(h);
   return *this;
 }
 

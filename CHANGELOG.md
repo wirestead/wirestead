@@ -11,6 +11,11 @@ and ABI policy.
 
 ### Changed
 
+- **Breaking behavior:** established client loss emits one disconnect even when
+  retry succeeds; start failure or retry exhaustion emits one terminal error.
+  UDP virtual-session idle expiry now uses the concrete on_session_expired
+  callback instead of on_disconnect. See docs/lifecycle_events.md.
+
 - **Breaking behavior:** built-in wrappers enforce configurable aggregate receive
   storage, framing-buffer and server session limits. TCP/UDS end only the affected
   connection; Serial follows its reopen policy; UDP drops the new input while

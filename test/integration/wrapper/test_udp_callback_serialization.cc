@@ -159,9 +159,11 @@ TEST_F(UdpExpirySerializationTest, ExpiryCannotOverlapReceiveOnAnotherRunner) {
   clock_ms = 0;
   transport::detail::g_udp_session_clock_hook =
       +[] { return std::chrono::steady_clock::time_point(std::chrono::milliseconds(clock_ms.load())); };
+  int remote_disconnects = 0;
+  server->on_disconnect([&](const auto&) { ++remote_disconnects; });
   server->idle_timeout(100ms);
   server->on_data([&](const auto&) { hold(); });
-  server->on_disconnect([&](const auto&) {
+  server->on_session_expired([&](const auto&) {
     if (active) overlap = true;
     ++disconnects;
   });
@@ -177,6 +179,7 @@ TEST_F(UdpExpirySerializationTest, ExpiryCannotOverlapReceiveOnAnotherRunner) {
   ASSERT_TRUE(pump([&] { return disconnects == 1; }));
   EXPECT_FALSE(overlap);
   EXPECT_EQ(server->client_count(), 0u);
+  EXPECT_EQ(remote_disconnects, 0);
 }
 INSTANTIATE_TEST_SUITE_P(ClientAndServerBatches, UdpCallbackSerializationTest, ::testing::Range(0, 4));
 }  // namespace

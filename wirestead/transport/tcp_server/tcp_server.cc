@@ -382,8 +382,7 @@ struct TcpServer::Impl {
             accept_impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR,
                                                          diagnostics::ErrorCategory::CONNECTION, "accept", ec,
                                                          fmt::format("Accept failed: {}", ec.message()), true, 0);
-            accept_impl->state_.set(base::LinkState::Error);
-            accept_impl->notify_state();
+            // Keep Listening while the accept operation is retried.
           }
           if (!accept_impl->state_.is_state(base::LinkState::Closed) && !accept_impl->stopping_.load()) {
             auto timer = std::make_shared<net::steady_timer>(accept_impl->strand_);

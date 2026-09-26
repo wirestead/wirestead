@@ -64,7 +64,7 @@ Paths below are relative to the repository. Evidence groups:
 | Ownership | Native four-client admission paths, TCP/UDS sessions; [context copies](../wirestead/wrapper/context.hpp); UDS server move adapters | test_send_buffer_apis.cc, test_connection_channel.cc, test_send_result.cc, test_message_context.cc; UdsMoveOwnershipTest added here |
 | Queue policy | Six native routes preserve accepted work; shared reservation/transfer lock; seven wrapper retry loops | BestEffort queue-preservation tests, mixed reservation hard limits, more-than-five retries and callback/terminal release cases |
 | Statistics | [RuntimeStats](../wirestead/wrapper/runtime_stats.hpp), [counter implementation](../wirestead/diagnostics/runtime_stats_counter.hpp); each native cleanup/write-completion path | Legacy counter tests plus test_send_accounting.cc and test_tcp_send_accounting.cc, transport_stream_send_accounting.cc and test_udp_send_accounting.cc, transport_session_send_accounting.cc and test_server_send_accounting.cc; discard/abort accounting covers TCP/UDS clients and server sessions/aggregates, Serial, UDP sockets and virtual sessions |
-| Events | TCP/UDS/serial retry transitions; each wrapper on_state; UDP server run_reaper | Lifecycle/reconnect tests exercise current behavior, not the proposed unified event contract |
+| Events | TCP/UDS/serial retry transitions; each wrapper on_state; UDP server run_reaper | Typed notification counts, native retry/failure paths, UDP expiry/stop and session ordering tests; see lifecycle_events.md |
 
 Full file names are searchable under test/unit and test/integration; the
 implementation symbols above describe the specific decision being assessed.
@@ -73,13 +73,13 @@ implementation symbols above describe the specific decision being assessed.
 
 | Target | Completed core path | Remaining target-specific limitations |
 | --- | --- | --- |
-| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Reconnect event mapping; receive bounds now cover built-in framing and queues |
-| UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Retried loss can report on_error; custom framer internals remain outside receive bounds |
+| TCP client | D-1/D-2, typed admission, sticky connection-pinned waits, no reconnect replay, logical-request accounting | Built-in receive bounds and recovered-loss events implemented; settings policy remains |
+| UDS client | Same guarantees traced in its own implementation, including logical-request accounting | Retry attempts remain Connecting; custom framer internals remain outside receive bounds |
 | UDP client | D-1/D-2, typed admission; open socket plus default destination; native-run pin and socket-wide logical accounting | Receive bounds implemented for built-in framing/queues; batch timers share the socket strand |
-| Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Recovered loss notification; receive bounds implemented, physical-device validation remains separate |
-| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Remaining event/configuration policy; receive bounds implemented |
+| Serial | D-1/D-2, typed admission; device-instance pin, no reopen replay and logical-request accounting | Recovered loss and receive bounds implemented; physical-device validation remains separate |
+| TCP server | D-1/D-2, typed targeted sends and pinned session waits, fixed fanout aggregate | Remaining configuration policy; receive bounds implemented |
 | UDS server | Same public guarantees; native move rejection fixed here | Same server gaps; legacy native bool fanout is distinct from public FanoutResult |
-| UDP server | D-1/D-2, endpoint/run-pinned sends, fixed fanout, peer accounting and waiting-work expiry | Shared socket pressure and serialized callbacks; per-peer batches implemented, distinct expiry event still pending |
+| UDP server | D-1/D-2, endpoint/run-pinned sends, fixed fanout, peer accounting and waiting-work expiry | Shared socket pressure and serialized callbacks; per-peer batches implemented, distinct expiry event implemented |
 
 UDP client loss means socket failure/run end, not a remotely detected disconnect.
 UDP server virtual expiry must not be treated as proof that the remote endpoint
@@ -134,13 +134,13 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | C-6.1-2 | Covered: first loss reason released to public callers | NotReady is the implemented name; UDP uses run/virtual-session lifetime |
 | C-6.1-2a | Covered: session end releases targeted waiter | Retained session wait record; native/targeted lifecycle tests |
 | C-6.1-2b | Covered: released targeted caller gets the reason | Public server SendResult and pinned final admission |
-| C-6.1-3 | Partial: server session close event; client event policy differs | TCP/Serial retries can skip on_disconnect; UDS retry passes through Error; plain UDP has no peer loss |
-| C-6.1-4 | Partial: terminal error paths exist, unified event semantics open | Retry-exhaustion tests cover current transitions, not exactly-once terminal-event contract across all failures |
+| C-6.1-3 | Covered for built-in established loss | Client ready-to-loss transition emits disconnect once, including successful retry; UDP client means local socket loss |
+| C-6.1-4 | Covered for start/retry terminal failure | Wrapper notification latch and native retry tests separate one terminal error from intermediate attempts |
 | C-6.1-5 | Covered for restart state tested under D-1 | Handlers/config retained, new run resets stats; does not establish arbitrary live-setter safety |
 | C-6.1-6 | Covered for built-in server accounting | TCP/UDS transfer once; UDP shared ledger retains expired/stopped contributors with reset fencing and peer projections |
-| C-6.1-7 | Partial: expiry cleanup implemented; distinct event open | Waiting work expires, active results remain; on_disconnect is unchanged and does not prove remote disconnect |
+| C-6.1-7 | Covered for local virtual-session expiry | Waiting work expires, active results remain; on_session_expired replaces idle-expiry on_disconnect |
 | C-6.2-1 | Covered for public wrapper stop callback suppression | Callback gate closes before teardown; direct transport callbacks are a separate boundary |
-| C-6.3-1 | Gap against proposed unified events | UDS retry can invoke on_error; TCP/Serial retry can be silent. A result type does not repair event semantics |
+| C-6.3-1 | Covered for lifecycle notification distinction | Recovered loss emits disconnect; terminal failure emits error; UDP expiry uses a distinct concrete callback |
 
 ## Additional draft clauses, including those without original audit IDs
 
@@ -160,7 +160,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | 5.8: callback exceptions | Wrapper invoke_user_callback catches/logs standard and unknown exceptions; no recursive on_error forwarding. Direct native callbacks have transport-specific policies; no single finalized exception policy |
 | 6.1: retry exhaustion/restart | Current lifecycle tests cover restart after stop. Whether any other restart transition is supported must be stated in the final contract |
 | 6.1: cause-separated cleanup statistics | TCP/UDS clients and server sessions/aggregates, Serial and UDP sockets distinguish explicit stop, loss and queue pressure. UDP loss means local socket error; UDP virtual-session expiry is a separate waiting-work discard cause |
-| 6.2 / 6.3 / 7: event versus error versus send refusal | Wrapper structured send refusals are implemented; global event taxonomy and configuration error policy are still open |
+| 6.2 / 6.3 / 7: event versus error versus send refusal | Wrapper structured send refusals are implemented; lifecycle/expiry taxonomy is implemented; configuration error policy remains |
 | 7: configuration validation | Different paths throw, clamp or fail start; exception/result and build/start timing need a documented choice |
 | Python | Bool compatibility with old/new core is verified by PR #72; rich result exposure is optional new API work, not an unfinished bool adapter |
 | Release | Core pin remains v0.9.6 in Python. No v0.10 release readiness claim while the gaps above remain |
@@ -180,14 +180,15 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
    [Session-specific batches and ordinary executor waits](executor_and_session_batches.md)
    are implemented for built-in transports. Universal no-inline behavior and
    unknown custom executor dependencies remain to be established.
-4. **Events:** implement the approved recovered-loss/terminal-error distinction
-   and separate UDP expiry notification. Waiting UDP work expires; active work keeps its outcome.
+4. **Events:** recovered-loss/terminal-error distinction and separate UDP expiry
+   notification are implemented; see [event contract](lifecycle_events.md).
+   Waiting UDP work expires; active work keeps its outcome.
 5. **Finish the public contract:** live-setter allowlist,
    exception/configuration policy, migration docs and satellite release pins.
 
 See [the accounting/event implementation proposal](post_acceptance_policy_v0.10.md)
 for a concrete design and acceptance scenarios. Built-in client/session accounting
-is implemented; remaining memory/event/configuration choices are recorded in the decisions document;
+is implemented; approved choices and remaining configuration work are recorded in the decisions document;
 implementation and release verification are still required.
 
 ## Validation for this review

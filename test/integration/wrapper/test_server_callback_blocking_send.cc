@@ -104,12 +104,16 @@ TYPED_TEST(ServerCallbackBlockingSendTest, ConnectionDataMessageAndBatchDispatch
       target.check_rejected();
       for (int api = 0; api < 3; ++api) EXPECT_TRUE(send(*s, ctx.client_id(), api));
     });
-    s->on_disconnect([&](const auto& ctx) {
+    auto end_handler = [&](const auto& ctx) {
       EXPECT_TRUE(wrapper::detail::in_data_callback());
       target.check_rejected();
       for (int api = 0; api < 3; ++api) EXPECT_FALSE(send(*s, ctx.client_id(), api));
       if (!closed_once.exchange(true)) disconnected.set_value();
-    });
+    };
+    if constexpr (requires { s->on_session_expired(end_handler); })
+      s->on_session_expired(end_handler);
+    else
+      s->on_disconnect(end_handler);
     auto check = [&](ClientId id) {
       if (once.exchange(true)) return;
       EXPECT_TRUE(wrapper::detail::in_data_callback());

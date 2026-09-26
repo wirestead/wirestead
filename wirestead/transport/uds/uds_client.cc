@@ -940,7 +940,7 @@ void UdsClient::Impl::do_connect(std::shared_ptr<UdsClient> self, uint64_t seq) 
 }
 
 void UdsClient::Impl::schedule_retry(std::shared_ptr<UdsClient> self, uint64_t seq) {
-  transition_to(LinkState::Error);
+  if (stop_requested_.load() || stopping_.load()) return;
 
   // Snapshot once rather than locking repeatedly - cfg_/reconnect_policy_
   // can change concurrently via set_retry_interval() etc. from any user
@@ -958,11 +958,13 @@ void UdsClient::Impl::schedule_retry(std::shared_ptr<UdsClient> self, uint64_t s
   auto decision =
       detail::decide_reconnect_uds(cfg_snapshot, dummy_err, reconnect_attempt_count_, reconnect_policy_snapshot);
 
-  if (!decision.should_retry || stop_requested_.load() || stopping_.load()) {
-    transition_to(LinkState::Idle);
+  if (!decision.should_retry) {
+    transition_to(LinkState::Error);
     return;
   }
 
+  transition_to(LinkState::Connecting);
+  if (stop_requested_.load() || stopping_.load()) return;
   reconnect_attempt_count_++;
   retry_timer_.expires_after(decision.delay.value_or(std::chrono::milliseconds(cfg_snapshot.retry_interval_ms)));
   retry_timer_.async_wait(track_io(self, [self, seq](const boost::system::error_code& ec) {
@@ -1080,7 +1082,11 @@ void UdsClient::Impl::discard_connection_writes() {
   if (messages) stats_.record_dropped(messages, bytes);
 }
 
-void UdsClient::Impl::handle_close(std::shared_ptr<UdsClient> self, uint64_t seq, const boost::system::error_code&) {
+void UdsClient::Impl::handle_close(std::shared_ptr<UdsClient> self, uint64_t seq, const boost::system::error_code& ec) {
+  if (ec == net::error::operation_aborted || seq != current_seq_.load()) return;
+  if (ec && ec != net::error::timed_out)
+    record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, "connection", ec,
+                 "Connection closed: " + ec.message(), true, reconnect_attempt_count_);
   mark_disconnected();
   discard_connection_writes();
   close_socket();

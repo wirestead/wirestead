@@ -68,8 +68,8 @@ TEST(UdpServerWrapperLifecycleTest, SessionReaping) {
   wrapper::UdpServer server(cfg);
   server.idle_timeout(100ms);
 
-  std::atomic<int> disconnects{0};
-  server.on_disconnect([&](const wrapper::ConnectionContext&) { disconnects++; });
+  std::atomic<int> expiries{0};
+  server.on_session_expired([&](const wrapper::ConnectionContext&) { expiries++; });
 
   auto started = server.start();
   ASSERT_TRUE(started.get());
@@ -80,7 +80,7 @@ TEST(UdpServerWrapperLifecycleTest, SessionReaping) {
                boost::asio::ip::udp::endpoint(boost::asio::ip::make_address("127.0.0.1"), port));
 
   ASSERT_TRUE(TestUtils::waitForCondition([&]() { return server.client_count() == 1; }, 1000));
-  EXPECT_TRUE(TestUtils::waitForCondition([&]() { return disconnects.load() == 1; }, 2000));
+  EXPECT_TRUE(TestUtils::waitForCondition([&]() { return expiries.load() == 1; }, 2000));
   EXPECT_EQ(server.client_count(), 0u);
 
   server.stop();

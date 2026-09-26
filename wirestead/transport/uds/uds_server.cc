@@ -902,8 +902,7 @@ void UdsServer::Impl::do_accept(std::shared_ptr<UdsServer> self, uint64_t genera
           WIRESTEAD_LOG_ERROR("uds_server", "accept", msg);
           impl->error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION,
                                                 "accept", ec, msg, true, 0);
-          impl->state_.set(base::LinkState::Error);
-          impl->notify_state();
+          // Keep Listening while the accept operation is retried.
         }
 
         if (!impl->stopping_.load()) {
