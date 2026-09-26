@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <boost/asio.hpp>
 #include <chrono>
@@ -206,6 +207,24 @@ TEST(ServerBroadcastSlowConsumerContractTest, TcpAggregateMaxQueuedBytesIsPeakNo
     server->broadcast(payload);
   }
   ASSERT_TRUE(peaks_recorded()) << "neither session ever queued anything";
+
+  // Finish every accepted write before comparing separately sampled peaks.
+  // Admission returns before its strand handler records the queue observation.
+  slow_a.non_blocking(true);
+  slow_b.non_blocking(true);
+  std::array<char, 8192> drain{};
+  ASSERT_TRUE(TestUtils::waitForCondition(
+      [&] {
+        for (auto* socket : {&slow_a, &slow_b}) {
+          boost::system::error_code ec;
+          socket->read_some(net::buffer(drain), ec);
+          if (ec && ec != net::error::would_block && ec != net::error::try_again) return false;
+        }
+        const auto a = server->client_stats(ids[0]);
+        const auto b = server->client_stats(ids[1]);
+        return a && b && a->bytes_sent == a->bytes_accepted && b->bytes_sent == b->bytes_accepted;
+      },
+      5000));
 
   const auto a = server->client_stats(ids[0]);
   const auto b = server->client_stats(ids[1]);
