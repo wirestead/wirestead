@@ -264,7 +264,7 @@ checked.
 | API | External thread | Inside a callback, same scope | Inside a callback, other scope | Executor thread, outside any Wirestead callback |
 | --- | --- | --- | --- | --- |
 | `try_send*()` | Allowed | Allowed | Allowed | Allowed |
-| Blocking send | Allowed; may wait | Reject `WouldBlock` if it would wait | Same | **Proposed:** reject `WouldBlock` if it would wait on an executor it is running on |
+| Blocking send | Allowed; may wait | Reject `WouldBlock` if it would wait | Same | **Decided:** reject `WouldBlock` if it would wait on an executor it is running on |
 | `stats()` | Allowed | Allowed | Allowed | Allowed |
 | `stop()` | Waits for shutdown complete; **every** concurrent caller does (**Decided**) | Requests shutdown and returns without waiting (**Decided**) | **Decided (D-1):** request only, if the target's shutdown needs the executor this thread is running; otherwise as an external thread | Same as the previous column |
 | `start()` | Allowed; the caller serializes it against `stop()` | Precondition: not called | Precondition: not called | Precondition: not called |
@@ -420,4 +420,7 @@ adapters. Remaining numbers are retained for historical references.
 13. Resolved: blocking sends preserve accepted work under either strategy and
     retry capacity races without an attempt limit. No implicit keep-latest;
     see [the selected queue policy](blocking_queue_policy.md).
-14. Ordinary executor-task wait restriction and mixed-session batch scopes.
+14. Implemented for built-in transports: ordinary executor tasks refuse waiting,
+    and server batches belong to one session. See
+    [execution scope and compatibility](executor_and_session_batches.md).
+    Unknown custom executor types and universal no-inline callbacks remain separate.

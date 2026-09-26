@@ -462,16 +462,17 @@ struct TcpServer::Impl {
         new_session->on_close([weak_self, client_id, new_session, generation] {
           auto shared_self = weak_self.lock();
           if (!shared_self) return;
+          auto* notify_impl = shared_self->get_impl();
+          if (notify_impl->stopping_ || notify_impl->generation_ != generation) return;
+          MultiClientDisconnectHandler disconnect_cb;
+          {
+            std::lock_guard<std::mutex> lock(notify_impl->sessions_mutex_);
+            disconnect_cb = notify_impl->on_multi_disconnect_;
+          }
+          if (disconnect_cb) disconnect_cb(client_id);
           net::dispatch(shared_self->get_impl()->strand_, [shared_self, client_id, new_session, generation] {
             auto* close_impl = shared_self->get_impl();
             if (close_impl->stopping_.load() || close_impl->generation_.load() != generation) return;
-
-            MultiClientDisconnectHandler disconnect_cb;
-            {
-              std::lock_guard<std::mutex> lock(close_impl->sessions_mutex_);
-              disconnect_cb = close_impl->on_multi_disconnect_;
-            }
-            if (disconnect_cb) disconnect_cb(client_id);
 
             bool was_current = false;
             {
@@ -1066,6 +1067,12 @@ wrapper::SendResult TcpServer::target_state() const {
   }
   if (impl_->generation_.load() == 0) return wrapper::SendResult::reject(wrapper::SendRejection::NotStarted);
   return wrapper::SendResult::accept();
+}
+
+std::optional<boost::asio::any_io_executor> TcpServer::client_executor(ClientId client_id) const {
+  auto session = capture_target(client_id);
+  if (!session) return std::nullopt;
+  return session->strand_;
 }
 
 std::shared_ptr<TcpServerSession> TcpServer::capture_target(ClientId client_id) const {

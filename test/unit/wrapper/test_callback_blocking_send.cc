@@ -34,6 +34,9 @@ namespace {
 class CallbackChannel : public wirestead::test::TestConnectionChannel {
  public:
   boost::asio::io_context io;
+  int executor_form = 0;
+  std::atomic<bool> reject_admission{false};
+  std::atomic<int> admissions{0};
   std::atomic<bool> pressure{false}, ready{false};
   mutable std::atomic<int> probes{0};
   OnBytes bytes;
@@ -52,16 +55,19 @@ class CallbackChannel : public wirestead::test::TestConnectionChannel {
     probes++;
     return pressure;
   }
-  boost::asio::any_io_executor get_executor() override { return io.get_executor(); }
-  SendResult async_write_copy_result(memory::ConstByteSpan) override {
+  boost::asio::any_io_executor get_executor() override {
+    if (executor_form == 1) return boost::asio::make_strand(io);
+    if (executor_form == 2) return boost::asio::make_strand(boost::asio::any_io_executor(io.get_executor()));
+    return io.get_executor();
+  }
+  SendResult admission() {
+    ++admissions;
+    if (reject_admission) return SendResult::reject(SendRejection::WouldBlock);
     return ready ? SendResult::accept() : SendResult::reject(SendRejection::NotReady);
   }
-  SendResult async_write_move_result(std::vector<uint8_t>&&) override {
-    return ready ? SendResult::accept() : SendResult::reject(SendRejection::NotReady);
-  }
-  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override {
-    return ready ? SendResult::accept() : SendResult::reject(SendRejection::NotReady);
-  }
+  SendResult async_write_copy_result(memory::ConstByteSpan) override { return admission(); }
+  SendResult async_write_move_result(std::vector<uint8_t>&&) override { return admission(); }
+  SendResult async_write_shared_result(std::shared_ptr<const std::vector<uint8_t>>) override { return admission(); }
   SendResult async_try_write_copy_result(memory::ConstByteSpan b) override { return async_write_copy_result(b); }
   SendResult async_try_write_move_result(std::vector<uint8_t>&& b) override {
     return async_write_move_result(std::move(b));
@@ -200,6 +206,64 @@ TYPED_TEST(CallbackBlockingSendTest, AllCallbacksPreserveAcceptanceAndNeverWaitF
     source.stop();
     target.stop();
   }
+}
+
+TYPED_TEST(CallbackBlockingSendTest, OrdinaryExecutorTaskNeverWaitsOrRetries) {
+  for (int executor_form = 0; executor_form < 3; ++executor_form) {
+    auto channel = std::make_shared<CallbackChannel>();
+    channel->executor_form = executor_form;
+    TypeParam target(channel);
+    start(target, *channel);
+    for (int api = 0; api < 6; ++api) {
+      for (bool admission_race : {false, true}) {
+        SCOPED_TRACE(::testing::Message() << executor_form << "/" << api << "/" << admission_race);
+        channel->pressure = !admission_race;
+        channel->reject_admission = admission_race;
+        channel->admissions = 0;
+        channel->io.restart();
+        auto result = std::make_shared<std::promise<SendResult>>();
+        auto done = result->get_future();
+        // Deliberately post to the raw context, outside any wrapper callback or
+        // target strand. A sole runner must remain available for socket work.
+        boost::asio::post(channel->io, [&, result] {
+          EXPECT_FALSE(wrapper::detail::in_data_callback());
+          result->set_value(send(target, api));
+        });
+        auto runner = std::async(std::launch::async, [&] { channel->io.run(); });
+        EXPECT_EQ(done.wait_for(1s), std::future_status::ready);
+        // Release either old wait path so regressions fail without hanging.
+        channel->pressure = false;
+        channel->reject_admission = false;
+        runner.get();
+        const auto outcome = done.get();
+        EXPECT_FALSE(outcome.accepted());
+        if (!outcome.accepted()) EXPECT_EQ(outcome.reason(), SendRejection::WouldBlock);
+        EXPECT_EQ(channel->admissions, admission_race ? 1 : 0);
+        EXPECT_TRUE(send(target, api));
+      }
+    }
+    target.stop();
+  }
+}
+
+TYPED_TEST(CallbackBlockingSendTest, UnrelatedExecutorStillWaitsForTargetCapacity) {
+  auto channel = std::make_shared<CallbackChannel>();
+  TypeParam target(channel);
+  start(target, *channel);
+  boost::asio::io_context unrelated;
+  channel->pressure = true;
+  auto promise = std::make_shared<std::promise<SendResult>>();
+  auto result = promise->get_future();
+  boost::asio::post(unrelated, [&] { promise->set_value(target.send_blocking("waiting")); });
+  auto runner = std::async(std::launch::async, [&] { unrelated.run(); });
+  const auto deadline = std::chrono::steady_clock::now() + 1s;
+  while (channel->probes == 0 && std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
+  EXPECT_GT(channel->probes, 0);
+  EXPECT_EQ(result.wait_for(50ms), std::future_status::timeout);
+  channel->pressure = false;
+  runner.get();
+  EXPECT_TRUE(result.get());
+  target.stop();
 }
 
 TYPED_TEST(CallbackBlockingSendTest, OutsideCallerStillWaitsAfterCallbackReturnsOrThrows) {

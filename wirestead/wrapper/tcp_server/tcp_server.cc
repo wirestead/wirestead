@@ -39,6 +39,7 @@
 #include "wirestead/wrapper/error_context_builder.hpp"
 #include "wirestead/wrapper/send_retry.hpp"
 #include "wirestead/wrapper/send_validation.hpp"
+#include "wirestead/wrapper/session_batch.hpp"
 
 namespace wirestead {
 namespace wrapper {
@@ -121,9 +122,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
   interface::SharedCallback<BatchMessageHandler> message_batch_handler_;
 
   // Batching logic
-  std::vector<MessageContext> data_batch_queue_;
-  std::vector<MessageContext> message_batch_queue_;
-  std::unique_ptr<boost::asio::steady_timer> batch_timer_;
+  std::unordered_map<ClientId, std::shared_ptr<detail::SessionBatch>> batches_;
   size_t max_batch_size_ = 100;
   std::chrono::milliseconds max_batch_latency_{1};
 
@@ -202,47 +201,43 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     pending_promises_.clear();
   }
 
-  void flush_batches(uint64_t generation) {
+  void flush_batches(uint64_t generation, ClientId id, const std::shared_ptr<detail::SessionBatch>& state) {
     auto lease = callback_gate_.enter(generation);
     if (!lease.admitted()) return;
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    if (!data_batch_queue_.empty()) {
-      auto handler = data_batch_handler_;
-      auto batch = std::move(data_batch_queue_);
-      data_batch_queue_.clear();
-      if (handler) {
-        lock.unlock();
-        detail::invoke_user_callback("tcp_server", "on_data_batch", handler, batch);
-        lock.lock();
-      }
-    }
-    if (!message_batch_queue_.empty()) {
-      auto handler = message_batch_handler_;
-      auto batch = std::move(message_batch_queue_);
-      message_batch_queue_.clear();
-      if (handler) {
-        lock.unlock();
-        detail::invoke_user_callback("tcp_server", "on_message_batch", handler, batch);
-        lock.lock();
-      }
-    }
-    if (batch_timer_) {
-      batch_timer_->cancel();
-    }
+    auto found = batches_.find(id);
+    if (found == batches_.end() || found->second != state) return;
+    state->scheduled = false;
+    auto data = std::move(state->data);
+    auto messages = std::move(state->messages);
+    state->data.clear();
+    state->messages.clear();
+    auto data_handler = data_batch_handler_;
+    auto message_handler = message_batch_handler_;
+    lock.unlock();
+    if (!data.empty()) detail::invoke_user_callback("tcp_server", "on_data_batch", data_handler, data);
+    // A callback may stop the server. Recheck admission before another callback.
+    auto next = callback_gate_.enter(generation);
+    if (next.admitted() && !messages.empty())
+      detail::invoke_user_callback("tcp_server", "on_message_batch", message_handler, messages);
   }
 
-  void schedule_batch_timer(uint64_t generation) {
-    if (!batch_timer_) return;
-    batch_timer_->expires_after(max_batch_latency_);
-    batch_timer_->async_wait([this, generation, weak_impl = weak_from_this(),
-                              weak_alive = std::weak_ptr<bool>(alive_marker_)](const boost::system::error_code& ec) {
-      if (ec) return;
-      auto impl_keepalive = weak_impl.lock();
-      if (!impl_keepalive) return;
-      auto alive = weak_alive.lock();
-      if (!alive) return;
-      flush_batches(generation);
-    });
+  // Caller holds mutex_; do not postpone an existing deadline when the
+  // other queue receives its first item.
+  void schedule_batch_timer(uint64_t generation, ClientId id) {
+    auto found = batches_.find(id);
+    if (found == batches_.end() || found->second->scheduled) return;
+    auto state = found->second;
+    state->scheduled = true;
+    state->timer.expires_after(max_batch_latency_);
+    state->timer.async_wait(
+        [weak_impl = weak_from_this(), generation, id,
+         weak_state = std::weak_ptr<detail::SessionBatch>(state)](const boost::system::error_code& ec) {
+          if (ec) return;
+          auto self = weak_impl.lock();
+          auto batch = weak_state.lock();
+          if (self && batch) self->flush_batches(generation, id, batch);
+        });
   }
 
   std::future<bool> start() {
@@ -356,18 +351,13 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     {
       std::unique_lock<std::shared_mutex> lock(mutex_);
       alive_marker_.reset();
-      if (batch_timer_) {
-        batch_timer_->cancel();
-        batch_timer_.reset();
-      }
+      batches_.clear();
       if (channel_) {
         channel_->on_bytes(nullptr);
         channel_->on_state(nullptr);
         channel_->on_backpressure(nullptr);
       }
       if (!injected_channel_) channel_.reset();
-      data_batch_queue_.clear();
-      message_batch_queue_.clear();
       transport_cache_.reset();
       framers_.clear();
     }
@@ -460,6 +450,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     std::shared_ptr<transport::TcpServer> ts;
     std::shared_ptr<transport::TcpServerSession> session;
     uint64_t generation = 0;
+    bool cannot_wait = false;
     const auto result = [&]() -> SendResult {
       {
         std::shared_lock<std::shared_mutex> lock(mutex_);
@@ -472,6 +463,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         state = ts->target_state();
         if (!state.accepted()) return state;
         generation = callback_generation_.load();
+        cannot_wait = detail::in_data_callback() || detail::executor_running_here(ts->get_executor());
         session = ts->capture_target(client_id);
         if (!session) return SendResult::reject(SendRejection::NotReady);
       }
@@ -485,7 +477,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
               ts->poll_target_wait(session).has_value())
             return SendResult::accept();
         }
-        if (detail::in_data_callback()) return SendResult::reject(SendRejection::WouldBlock);
+        if (cannot_wait) return SendResult::reject(SendRejection::WouldBlock);
         if (auto hook = detail::g_tcp_server_capacity_wait_hook.load()) hook();
         std::optional<SendResult> outcome;
         auto released = [&] {
@@ -511,7 +503,7 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
             client_id, memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(data.data()), data.size()), false,
             session);
         if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock) return admitted;
-        if (detail::in_data_callback()) return admitted;
+        if (cannot_wait) return admitted;
       }
     }();
     if (auto hook = detail::g_tcp_server_send_result_hook.load()) hook(result);
@@ -521,8 +513,6 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
   void setup_internal_handlers() {
     if (!channel_) return;
 
-    batch_timer_ = std::make_unique<boost::asio::steady_timer>(channel_->get_executor());
-
     std::weak_ptr<bool> weak_alive = alive_marker_;
     std::weak_ptr<Impl> weak_impl = weak_from_this();
     // Opening this run's generation and admitting again are one step under
@@ -531,8 +521,9 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
     callback_generation_.store(generation);
     auto transport_server = std::dynamic_pointer_cast<transport::TcpServer>(channel_);
     if (transport_server) {
-      transport_server->on_multi_connect([this, generation, weak_impl, weak_alive](ClientId id,
-                                                                                   const std::string& info) {
+      transport_server->on_multi_connect([this, generation, weak_impl, weak_alive,
+                                          weak_native = std::weak_ptr<transport::TcpServer>(transport_server)](
+                                             ClientId id, const std::string& info) {
         auto impl_keepalive = weak_impl.lock();
         if (!impl_keepalive) return;
         auto alive = weak_alive.lock();
@@ -540,14 +531,20 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         auto lease = callback_gate_.enter(generation);
         if (!lease.admitted()) return;
 
+        auto native = weak_native.lock();
+        auto executor = native ? native->client_executor(id) : std::nullopt;
+        if (!executor) return;
         ConnectionHandler handler;
         {
           std::unique_lock<std::shared_mutex> lock(mutex_);
+          batches_[id] = std::make_shared<detail::SessionBatch>(*executor);
           if (framer_factory_) {
             auto framer = framer_factory_();
             if (framer) {
               auto shared_framer = std::shared_ptr<framer::IFramer>(std::move(framer));
               shared_framer->on_message([this, id, generation](memory::ConstByteSpan msg) {
+                auto message_lease = callback_gate_.enter(generation);
+                if (!message_lease.admitted()) return;
                 // #441: snapshot under a shared_lock (pure read), build the
                 // copy before taking the exclusive lock for queue mutation.
                 bool batch_mode;
@@ -564,13 +561,15 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
                   std::vector<MessageContext> batch;
                   {
                     std::unique_lock<std::shared_mutex> lock(mutex_);
-                    message_batch_queue_.emplace_back(std::move(ctx));
-                    if (message_batch_queue_.size() >= max_batch_size_) {
+                    auto state = batches_.find(id);
+                    if (state == batches_.end() || callback_generation_ != generation) return;
+                    state->second->messages.emplace_back(std::move(ctx));
+                    if (batches_.at(id)->messages.size() >= max_batch_size_) {
                       flush_handler = message_batch_handler_;
-                      batch = std::move(message_batch_queue_);
-                      message_batch_queue_.clear();
-                    } else if (message_batch_queue_.size() == 1) {
-                      schedule_batch_timer(generation);
+                      batch = std::move(batches_.at(id)->messages);
+                      batches_.at(id)->messages.clear();
+                    } else if (batches_.at(id)->messages.size() == 1) {
+                      schedule_batch_timer(generation, id);
                     }
                   }
                   detail::invoke_user_callback("tcp_server", "on_message_batch", flush_handler, batch);
@@ -626,13 +625,15 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
               std::vector<MessageContext> batch;
               {
                 std::unique_lock<std::shared_mutex> lock(mutex_);
-                data_batch_queue_.emplace_back(std::move(ctx));
-                if (data_batch_queue_.size() >= max_batch_size_) {
+                auto state = batches_.find(id);
+                if (state == batches_.end() || callback_generation_ != generation) return;
+                state->second->data.emplace_back(std::move(ctx));
+                if (batches_.at(id)->data.size() >= max_batch_size_) {
                   flush_handler = data_batch_handler_;
-                  batch = std::move(data_batch_queue_);
-                  data_batch_queue_.clear();
-                } else if (data_batch_queue_.size() == 1) {
-                  schedule_batch_timer(generation);
+                  batch = std::move(batches_.at(id)->data);
+                  batches_.at(id)->data.clear();
+                } else if (batches_.at(id)->data.size() == 1) {
+                  schedule_batch_timer(generation, id);
                 }
               }
               detail::invoke_user_callback("tcp_server", "on_data_batch", flush_handler, batch);
@@ -650,9 +651,19 @@ struct TcpServer::Impl : public std::enable_shared_from_this<Impl> {
         auto lease = callback_gate_.enter(generation);
         if (!lease.admitted()) return;
 
+        std::shared_ptr<detail::SessionBatch> pending;
+        {
+          std::shared_lock<std::shared_mutex> lock(mutex_);
+          auto it = batches_.find(id);
+          if (it != batches_.end()) pending = it->second;
+        }
+        if (pending) flush_batches(generation, id, pending);
+        auto after_flush = callback_gate_.enter(generation);
+        if (!after_flush.admitted()) return;
         ConnectionHandler handler;
         {
           std::unique_lock<std::shared_mutex> lock(mutex_);
+          batches_.erase(id);
           framers_.erase(id);
           handler = on_disconnect_;
         }

@@ -559,3 +559,31 @@ after that startup is queued. This implements the existing connect-before-receiv
 requirement; it does not decide mixed-session batch ownership, event taxonomy,
 or cross-session parallelism guarantees. TCP notification remains independent
 of TLS handshake success. See [scope and verification](server_connect_order.md).
+
+## Remaining contract decisions (2026-09-26)
+
+The following choices are approved for implementation. This section records
+policy, not a claim that the implementation or release verification is complete.
+
+- Blocking-capable sends must not wait on an executor needed by the target.
+  Available capacity still permits admission; pressure or an admission race
+  returns WouldBlock. Outside callers retain the existing pinned wait behavior.
+- Server batches are session-specific. Callbacks attributed to the same session
+  serialize; independent sessions have no cross-session ordering guarantee.
+- Receive-memory overflow closes the offending TCP/UDS connection. Serial ends
+  the current connection and follows its configured reconnect policy. UDP
+  discards the newly arriving datagram and records the cause. Other sessions
+  remain unaffected. Limits must be documented and configurable.
+- Established connection loss emits one disconnect even if reconnect succeeds.
+  Start failure or retry exhaustion emits one terminal error. Explicit stop
+  suppresses disconnect. UDP virtual-session expiry has a distinct event.
+- Invalid configuration is rejected with an exception before application.
+  Live changes are limited to an explicit allowlist; runtime connect/bind
+  failures remain execution results and error events.
+- User callback exceptions are logged and contained without recursively invoking
+  error callbacks. Native callback boundaries must be covered as well.
+
+Implementation is grouped into execution/receive safety, event/configuration
+policy, then contract/migration/satellite release verification. Each group needs
+its own regression and platform CI evidence before merge. Publishing a release
+is a separate action.

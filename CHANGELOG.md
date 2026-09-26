@@ -242,6 +242,14 @@ and ABI policy.
 
 ### Fixed
 
+- Blocking-capable sends from ordinary tasks on the target I/O context return
+  WouldBlock instead of waiting or retrying; independent executor callers retain
+  their capacity waits.
+- Server batch queues and timers are per session. TCP/UDS timer and disconnect
+  callbacks now share the session strand; partial batches flush before session
+  end, and callback-initiated stop suppresses subsequent message callbacks.
+  Batch count thresholds no longer combine traffic from different clients.
+
 - Run TCP/UDS server connection callbacks on the session strand before receive
   and backpressure callbacks. Immediate peer data waits for wrapper framer
   initialization; stop from connection notification suppresses further receive.

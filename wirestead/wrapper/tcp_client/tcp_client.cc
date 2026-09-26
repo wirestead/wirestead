@@ -403,6 +403,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   struct ConnectionPin {
+    bool cannot_wait = false;
     std::shared_ptr<interface::ConnectionChannel> custom;
     interface::ConnectionChannel::Connection custom_wait;
     std::shared_ptr<transport::TcpClient> tcp;
@@ -428,7 +429,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     if (connection.custom_wait) {
       auto outcome = connection.custom_wait->poll_capacity();
       if (outcome) return *outcome;
-      if (detail::in_data_callback()) return SendResult::reject(SendRejection::WouldBlock);
+      if (connection.cannot_wait) return SendResult::reject(SendRejection::WouldBlock);
       if (auto hook = detail::g_tcp_capacity_wait_hook.load()) hook();
       while (!bp_cv_.wait_for(bp_lock, std::chrono::milliseconds(50), [&] {
         outcome = connection.custom_wait->poll_capacity();
@@ -448,7 +449,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
     };
     // A bypass is not a completed capacity wait; final admission checks still apply.
     if (immediate()) return SendResult::accept();
-    if (detail::in_data_callback()) return SendResult::reject(SendRejection::WouldBlock);
+    if (connection.cannot_wait) return SendResult::reject(SendRejection::WouldBlock);
     if (auto hook = detail::g_tcp_capacity_wait_hook.load()) hook();
     std::optional<SendResult> outcome;
     auto released = [&] {
@@ -480,6 +481,8 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
         // Select the run and native connection together at entry. Validation
         // precedes state and waiting, including the line delimiter and hard cap.
         generation = callback_generation_.load();
+        connection.cannot_wait =
+            detail::in_data_callback() || (channel_ && detail::executor_running_here(channel_->get_executor()));
         connection.tcp = std::dynamic_pointer_cast<transport::TcpClient>(channel_);
         connection.custom =
             connection.tcp ? nullptr : std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_);
@@ -514,7 +517,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
         if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock) return admitted;
         // Only transient capacity refusal can be retried, never a terminal
         // result. Callback callers must return without entering another wait.
-        if (detail::in_data_callback()) return admitted;
+        if (connection.cannot_wait) return admitted;
       }
     }();
     return finish_send(result);
