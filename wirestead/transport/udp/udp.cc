@@ -648,13 +648,21 @@ struct UdpChannel::Impl {
             socket_.async_send_to(net::buffer(data_ptr, size), *dest_endpoint,
                                   [self, buf_captured = std::move(buf), on_write = std::move(on_write)](
                                       const boost::system::error_code& ec, std::size_t bytes) mutable {
-                                    IoCompletion completed{self->get_impl()};
-                                    // Return pooled storage while its owning transport is alive,
-                                    // before signalling the run's I/O completion.
-                                    auto buffer = std::move(buf_captured);
-                                    (void)buffer;
-                                    if (auto hook = detail::g_udp_write_completion_hook.load()) hook();
-                                    on_write(ec, bytes);
+                                    auto finish = [self, buffer = std::move(buf_captured),
+                                                   on_write = std::move(on_write), ec, bytes]() mutable {
+                                      IoCompletion completed{self->get_impl()};
+                                      // Release pooled storage before signalling I/O completion.
+                                      auto owned_buffer = std::move(buffer);
+                                      (void)owned_buffer;
+                                      if (auto hook = detail::g_udp_write_completion_hook.load()) hook();
+                                      on_write(ec, bytes);
+                                    };
+                                    if (auto hook = detail::g_udp_defer_write_completion_hook.load()) {
+                                      auto pending = std::make_shared<decltype(finish)>(std::move(finish));
+                                      hook([pending] { (*pending)(); });
+                                    } else {
+                                      finish();
+                                    }
                                   });
           },
           std::move(current.buffer));
@@ -1637,7 +1645,7 @@ void UdpChannel::on_bytes_from(OnBytesFrom cb) {
 
 boost::asio::ip::udp::endpoint UdpChannel::local_endpoint() const { return get_impl()->local_endpoint_; }
 
-boost::asio::any_io_executor UdpChannel::get_executor() { return get_impl()->ioc_->get_executor(); }
+boost::asio::any_io_executor UdpChannel::get_executor() { return get_impl()->strand_; }
 
 }  // namespace transport
 }  // namespace wirestead

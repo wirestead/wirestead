@@ -101,7 +101,7 @@ class WIRESTEAD_API UdpChannel : public interface::ResultChannel, public std::en
   boost::asio::ip::udp::endpoint local_endpoint() const;
 
   /**
-   * @brief Get the ASIO executor for this channel.
+   * @brief Get the strand shared by channel I/O and wrapper timers.
    */
   boost::asio::any_io_executor get_executor() override;
 

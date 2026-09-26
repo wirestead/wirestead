@@ -96,8 +96,11 @@ before enqueue/during I/O, restart, rejected admission, BestEffort queue preserv
 Reliable pending queues. Failure assertions include request/byte conservation.
 Virtual-session cases cover try and pooled/fallback blocking admission, per-peer
 receive/send totals, fanout, shared-capacity rejection, reset, stop/restart with
-both channel ownership modes, local error, endpoint reuse and two-thread expiry
+both channel ownership modes, local error, endpoint reuse and controlled active-completion expiry
 while a write is held active. A controlled clock selects one expired peer while
 a second remains live; posted and Reliable pending work are checked separately.
 See [current policy coverage](communication_contract_v0.10_status.md) for the
 remaining execution-scope and event-policy gaps.
+
+UDP timer/receive serialization and its execution-dependent expiry timing are
+specified in [UDP callback serialization](udp_callback_serialization.md).

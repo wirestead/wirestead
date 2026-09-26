@@ -238,7 +238,9 @@ TEST_P(UdpStopCompletionTest, SameExecutorRequestsStopWithoutWaitingForOtherCall
   if (std::get<1>(GetParam())) {
     send(target, peer);
     ASSERT_TRUE(entered.wait());
-    boost::asio::post(target.channel->get_executor(), [&] {
+    // Exercise a bare task on the shared io_context, outside the channel's
+    // occupied strand. get_executor() now correctly serializes channel work.
+    boost::asio::post(context.io, [&] {
       target.stop();
       returned.notify();
     });
@@ -332,14 +334,16 @@ void admission_hook() {
     p->exited.notify();
   }
 }
-TEST(UdpServerReaperStopTest, OldTimerCannotEnterRestartedGeneration) {
+TEST(UdpServerReaperStopTest, ExternalStopWaitsForParkedReaperBeforeRestart) {
   Context context;
   Target target(true, true, context.io);
   target.server->idle_timeout(100ms);
   Park park;
+  std::future<void> stopper;
   OnExit cleanup{[&] {
     park.release.notify();
     if (!park.armed.load()) park.exited.wait();
+    if (stopper.valid()) stopper.wait();
     wrapper::detail::g_pre_admission_hook = nullptr;
     parked = nullptr;
     target.stop();
@@ -349,8 +353,14 @@ TEST(UdpServerReaperStopTest, OldTimerCannotEnterRestartedGeneration) {
   parked = &park;
   wrapper::detail::g_pre_admission_hook = &admission_hook;
   ASSERT_TRUE(park.entered.wait());
-  // Another context runner can complete transport shutdown while the old timer holds Impl.
-  target.stop();
+  // Timer and native cleanup share the strand. Even before callback admission,
+  // an external stop cannot finish until the old timer releases the strand.
+  stopper = std::async(std::launch::async, [&] { target.stop(); });
+  EXPECT_EQ(stopper.wait_for(100ms), std::future_status::timeout);
+  park.release.notify();
+  ASSERT_TRUE(park.exited.wait());
+  ASSERT_EQ(stopper.wait_for(5s), std::future_status::ready);
+  stopper.get();
   target.server->idle_timeout(0ms);
   std::atomic<int> expired{0};
   target.server->on_disconnect([&](const auto&) { ++expired; });
@@ -360,8 +370,6 @@ TEST(UdpServerReaperStopTest, OldTimerCannotEnterRestartedGeneration) {
   boost::asio::ip::udp::socket peer(context.io, {boost::asio::ip::udp::v4(), 0});
   send(target, peer);
   ASSERT_TRUE(received.wait());
-  park.release.notify();
-  ASSERT_TRUE(park.exited.wait());
   std::this_thread::sleep_for(250ms);
   EXPECT_EQ(expired.load(), 0);
   EXPECT_EQ(target.server->client_count(), 1u);

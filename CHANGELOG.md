@@ -242,6 +242,11 @@ and ABI policy.
 
 ### Fixed
 
+- Serialize UDP batch and session-expiry timers with native socket callbacks.
+  UdpChannel::get_executor now returns the socket strand; posted work and timers
+  wait for an active callback instead of overlapping it on another I/O runner.
+
+
 - Preserve the caller's vector when native UDS server move fanout rejects
   every target, including no-target and oversized requests. Partial acceptance
   still consumes it. Plain and try move adapters share the ownership rule.
