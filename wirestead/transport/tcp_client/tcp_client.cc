@@ -1385,7 +1385,7 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq, un
     return;
   }
   active_write_ = batch;
-  for (const auto& item : batch->buffers) send_accounting_.begin(item.request);
+  send_accounting_.begin_batch(batch->buffers, [](const auto& item) { return item.request; });
   const auto connection = connection_seq_.load();
 
   ++pending_io_;
@@ -1395,13 +1395,11 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq, un
     {
       std::lock_guard<std::mutex> admission_lock(self->impl_->submission_mtx_);
       current_connection = connection == self->impl_->connection_seq_.load();
-      size_t remaining = bytes_written;
-      for (const auto& item : batch->buffers) {
-        const auto size = std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
-        const auto confirmed = std::min(remaining, size);
-        self->impl_->send_accounting_.complete(item.request, confirmed);
-        remaining -= confirmed;
-      }
+      self->impl_->send_accounting_.complete_batch(
+          batch->buffers, bytes_written, [](const auto& item) { return item.request; },
+          [](const auto& item) {
+            return std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
+          });
       // Preserve the completed prefix and close admission before a competing
       // stop can reclassify the rest of this connection as an explicit stop.
       if (current_connection && ec && ec != net::error::operation_aborted && seq == self->impl_->current_seq_.load()) {
