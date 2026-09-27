@@ -16,9 +16,11 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <boost/asio.hpp>
 #include <chrono>
 #include <functional>
+#include <future>
 #include <memory>
 #include <stdexcept>
 #include <vector>
@@ -32,6 +34,10 @@ using namespace wirestead;
 using namespace std::chrono_literals;
 namespace net = boost::asio;
 using tcp = net::ip::tcp;
+std::function<void()> during_admission;
+void write_admission() {
+  if (during_admission) during_admission();
+}
 std::function<void()> after_write_start;
 void write_started() {
   auto action = after_write_start;
@@ -49,6 +55,8 @@ class TcpSendAccountingTest : public ::testing::TestWithParam<int> {
     transport::detail::g_tcp_write_started_hook = nullptr;
     transport::detail::g_tcp_write_initiation_hook = nullptr;
     after_write_start = {};
+    transport::detail::g_tcp_write_admission_hook = nullptr;
+    during_admission = {};
     if (client) test::stop_with_context(client, io);
   }
   bool connect(bool best_effort = false) {
@@ -98,6 +106,101 @@ class TcpSendAccountingTest : public ::testing::TestWithParam<int> {
     }
   }
 };
+
+// The first enqueue must yield to the strand while another producer owns
+// admission. Both queued requests still belong to the same accounting ledger.
+TEST_P(TcpSendAccountingTest, ContendedHandoffYieldsWithoutLosingRequestsOrStopClassification) {
+  for (bool stop_before_handoff : {false, true}) {
+    ASSERT_TRUE(connect());
+    ASSERT_TRUE(send(11));
+    std::promise<void> entered, release_producer, marker, release_marker;
+    auto entered_future = entered.get_future();
+    auto release_future = release_producer.get_future().share();
+    auto marker_future = marker.get_future();
+    auto release_marker_future = release_marker.get_future().share();
+    during_admission = [&] {
+      entered.set_value();
+      release_future.wait();
+    };
+    transport::detail::g_tcp_write_admission_hook = &write_admission;
+    auto writer = std::async(std::launch::async, [&] { return send(13); });
+    const auto producer_status = entered_future.wait_for(2s);
+    net::post(client->get_executor(), [&] {
+      marker.set_value();
+      release_marker_future.wait();
+      if (stop_before_handoff) client->stop();
+    });
+    if (io.stopped()) io.restart();
+    auto executor = std::async(std::launch::async, [&] { io.poll(); });
+    const auto marker_status = marker_future.wait_for(2s);
+
+    // Always release both threads before asserting, including a failed probe.
+    release_producer.set_value();
+    const bool accepted = writer.get();
+    transport::detail::g_tcp_write_admission_hook = nullptr;
+    during_admission = {};
+    release_marker.set_value();
+    executor.get();
+    EXPECT_EQ(producer_status, std::future_status::ready);
+    EXPECT_EQ(marker_status, std::future_status::ready);
+    EXPECT_TRUE(accepted);
+    if (!stop_before_handoff) EXPECT_TRUE(pump([&] { return stats().written.requests == 2; }));
+    test::stop_with_context(client, io);
+    const auto s = stats();
+    EXPECT_EQ(s.accepted.requests, 2u);
+    EXPECT_EQ(s.outstanding.requests, 0u);
+    EXPECT_EQ(s.written.requests, stop_before_handoff ? 0u : 2u);
+    EXPECT_EQ(s.explicit_stop.discarded_before_write.requests, stop_before_handoff ? 2u : 0u);
+    EXPECT_EQ(s.explicit_stop.aborted_during_write.requests, 0u);
+    client.reset();
+    boost::system::error_code ignored;
+    peer.close(ignored);
+    if (io.stopped()) io.restart();
+  }
+}
+
+TEST_P(TcpSendAccountingTest, ProlongedContentionDoesNotRepostIndefinitely) {
+  ASSERT_TRUE(connect());
+  ASSERT_TRUE(send(11));
+  std::promise<void> entered, release_producer, first_probe, probes_done;
+  auto entered_future = entered.get_future();
+  auto release_future = release_producer.get_future().share();
+  auto first_future = first_probe.get_future();
+  auto done_future = probes_done.get_future();
+  during_admission = [&] {
+    entered.set_value();
+    release_future.wait();
+  };
+  transport::detail::g_tcp_write_admission_hook = &write_admission;
+  auto writer = std::async(std::launch::async, [&] { return send(13); });
+  const auto producer_status = entered_future.wait_for(2s);
+  std::atomic<unsigned> probes{0};
+  std::function<void()> probe;
+  probe = [&] {
+    const auto count = ++probes;
+    if (count == 1) first_probe.set_value();
+    if (count == 32)
+      probes_done.set_value();
+    else
+      net::post(client->get_executor(), probe);
+  };
+  net::post(client->get_executor(), probe);
+  if (io.stopped()) io.restart();
+  auto executor = std::async(std::launch::async, [&] { io.poll(); });
+  const auto first_status = first_future.wait_for(2s);
+  const auto while_contended = done_future.wait_for(20ms);
+  release_producer.set_value();
+  const bool accepted = writer.get();
+  transport::detail::g_tcp_write_admission_hook = nullptr;
+  during_admission = {};
+  executor.get();
+  EXPECT_EQ(producer_status, std::future_status::ready);
+  EXPECT_EQ(first_status, std::future_status::ready);
+  EXPECT_EQ(while_contended, std::future_status::timeout);
+  EXPECT_EQ(done_future.wait_for(0ms), std::future_status::ready);
+  EXPECT_TRUE(accepted);
+  EXPECT_TRUE(pump([&] { return stats().written.requests == 2; }));
+}
 
 TEST_P(TcpSendAccountingTest, StopBeforeEnqueueCountsOneDiscardAndNoAbort) {
   ASSERT_TRUE(connect());

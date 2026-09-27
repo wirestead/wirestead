@@ -316,7 +316,7 @@ struct TcpClient::Impl {
   void do_resolve_connect(std::shared_ptr<TcpClient> self, uint64_t seq);
   void schedule_retry(std::shared_ptr<TcpClient> self, uint64_t seq);
   void start_read(std::shared_ptr<TcpClient> self, uint64_t seq);
-  void do_write(std::shared_ptr<TcpClient> self, uint64_t seq);
+  void do_write(std::shared_ptr<TcpClient> self, uint64_t seq, unsigned deferrals_left = 8);
   void handle_close(std::shared_ptr<TcpClient> self, uint64_t seq, const boost::system::error_code& ec = {});
   void handle_idle_timeout(std::shared_ptr<TcpClient> self, uint64_t seq);
   void transition_to(LinkState next, const boost::system::error_code& ec = {});
@@ -1320,7 +1320,7 @@ void TcpClient::Impl::start_read(std::shared_ptr<TcpClient> self, uint64_t seq) 
   socket_.async_read_some(net::buffer(buffer->data(), buffer->size()), std::move(on_read));
 }
 
-void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq) {
+void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq, unsigned deferrals_left) {
   if (stop_requested_.load()) {
     tx_.clear();
     queue_bytes_ = 0;
@@ -1342,15 +1342,38 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq) {
   }
   writing_ = true;
 
+  // Queue ownership is strand-local. Prepare storage before taking the
+  // admission lock; requests remain waiting in the ledger until handoff.
+  auto batch = std::make_shared<WriteBatch>();
+  const auto queued_bytes = queue_util::take_gather_batch(tx_, batch->buffers, batch->views, BufferProjection{});
+  batch->bytes = queued_bytes;
+
   // Serialize the handoff boundary with stop/loss admission fencing.
-  std::unique_lock<std::mutex> admission_lock(submission_mtx_);
+  std::unique_lock<std::mutex> admission_lock(submission_mtx_, std::defer_lock);
+  if (deferrals_left == 0) admission_lock.lock();
+  if (!admission_lock.owns_lock() && !admission_lock.try_lock()) {
+    // Briefly yield to accumulate enqueues; a prolonged producer hold must
+    // not create an unbounded repost loop. Keep each retry in the stop barrier.
+    queue_util::return_gather_batch(tx_, batch->buffers);
+    ++pending_io_;
+    const auto deferred_connection = connection_seq_.load();
+    try {
+      net::post(strand_, [self, seq, deferred_connection, deferrals_left] {
+        IoCompletion completion{self->impl_.get()};
+        if (seq == self->impl_->current_seq_.load() && deferred_connection == self->impl_->connection_seq_.load())
+          self->impl_->do_write(self, seq, deferrals_left - 1);
+      });
+    } catch (...) {
+      --pending_io_;
+      writing_ = false;
+      throw;
+    }
+    return;
+  }
   if (stop_requested_.load()) {
     writing_ = false;
     return;
   }
-  auto batch = std::make_shared<WriteBatch>();
-  const auto queued_bytes = queue_util::take_gather_batch(tx_, batch->buffers, batch->views, BufferProjection{});
-  batch->bytes = queued_bytes;
   active_write_ = batch;
   for (const auto& item : batch->buffers) send_accounting_.begin(item.request);
   const auto connection = connection_seq_.load();

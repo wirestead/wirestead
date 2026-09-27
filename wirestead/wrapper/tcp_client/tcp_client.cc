@@ -518,6 +518,15 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
           if (!state.accepted()) return state;
           connection.wait = connection.tcp->capture_write_wait();
           if (!connection.wait) return SendResult::reject(SendRejection::NotReady);
+          // Keep the selected run and connection while admitting the common
+          // no-pressure case. Native admission still validates capacity/state.
+          if (!connection.tcp->is_backpressure_active()) {
+            state = send_state(connection.tcp);
+            if (!state.accepted()) return state;
+            const auto admitted = native_write(*connection.tcp, connection.wait->sequence);
+            if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock || connection.cannot_wait)
+              return admitted;
+          }
         }
       }
       for (bool retry = false;; retry = true) {
