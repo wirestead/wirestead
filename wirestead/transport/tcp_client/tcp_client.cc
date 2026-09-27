@@ -1342,15 +1342,25 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq, un
   }
   writing_ = true;
 
-  // Queue ownership is strand-local. Prepare storage before taking the
-  // admission lock; requests remain waiting in the ledger until handoff.
+  bool can_defer = false;
+  if (deferrals_left != 0 &&
+      bp_strategy_.load(std::memory_order_relaxed) == base::constants::BackpressureStrategy::Reliable) {
+    const auto front_bytes =
+        std::visit([](const auto& item) { return queue_util::variant_buffer_size(item); }, tx_.front().buffer);
+    can_defer = tx_.size() > 1 || queue_bytes_.load(std::memory_order_relaxed) > front_bytes ||
+                pending_bytes_.load(std::memory_order_relaxed) != 0 ||
+                inflight_bytes_.load(std::memory_order_relaxed) != 0;
+  }
+
+  // Preserve the original handoff for isolated requests and BestEffort.
+  // Only a Reliable backlog benefits from preparing storage before locking.
+  std::unique_lock<std::mutex> admission_lock(submission_mtx_, std::defer_lock);
+  if (!can_defer) admission_lock.lock();
   auto batch = std::make_shared<WriteBatch>();
   const auto queued_bytes = queue_util::take_gather_batch(tx_, batch->buffers, batch->views, BufferProjection{});
   batch->bytes = queued_bytes;
 
-  // Serialize the handoff boundary with stop/loss admission fencing.
-  std::unique_lock<std::mutex> admission_lock(submission_mtx_, std::defer_lock);
-  if (deferrals_left == 0) admission_lock.lock();
+  // Serialize actual I/O handoff with stop/loss admission fencing.
   if (!admission_lock.owns_lock() && !admission_lock.try_lock()) {
     // Briefly yield to accumulate enqueues; a prolonged producer hold must
     // not create an unbounded repost loop. Keep each retry in the stop barrier.
