@@ -11,6 +11,12 @@ and ABI policy.
 
 ### Changed
 
+- Reduce TCP send-admission contention without changing send or accounting
+  policies. Backlogged Reliable handoffs can prepare batches outside the admission
+  lock and yield a bounded number of times, retaining the original run/connection
+  and stop-completion barrier. BestEffort and isolated requests keep direct
+  handoff. Unpressured wrapper sends avoid redundant capacity-wait preparation.
+
 - **Breaking behavior:** invalid configuration is rejected before application;
   native construction no longer silently clamps it. Settings outside the explicit
   runtime allowlist require completed stop. Native callback exceptions are logged

@@ -289,7 +289,13 @@ TEST(TransportSerialTest, RxIdleTimeoutReopensASilentPort) {
   });
 
   serial->start();
-  ioc.run_for(150ms);
+  // Timer resolution and scheduling can exceed the nominal 30 + 100 ms.
+  // Wait for the reopen itself, with a bounded failure deadline.
+  const auto deadline = std::chrono::steady_clock::now() + 1s;
+  while (connects.load() < 2 && std::chrono::steady_clock::now() < deadline) {
+    if (ioc.stopped()) ioc.restart();
+    ioc.run_for(10ms);
+  }
 
   EXPECT_GE(connects.load(), 2) << "the silent port was closed but never reopened";
   wirestead::test::stop_with_context(serial, ioc);
