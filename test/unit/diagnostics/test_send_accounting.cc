@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <thread>
+#include <vector>
 
 #include "wirestead/diagnostics/runtime_stats_counter.hpp"
 #include "wirestead/diagnostics/send_accounting.hpp"
@@ -288,4 +289,88 @@ TEST(SendAccountingTest, ExpiryAfterResetRemovesOldWaitingWorkWithoutCountingIt)
   expect_conservation(ledger.snapshot(group));
   expect_conservation(ledger.snapshot());
 }
+
+struct BatchRequest {
+  Ledger::Request request;
+  size_t bytes;
+};
+constexpr auto request_of = [](const BatchRequest& item) { return item.request; };
+constexpr auto size_of = [](const BatchRequest& item) { return item.bytes; };
+
+TEST(SendAccountingTest, BatchCompletionPreservesEveryPartialPrefix) {
+  for (size_t prefix = 0; prefix <= 21; ++prefix) {
+    Ledger ledger;
+    const std::vector<BatchRequest> batch{{ledger.admit(4), 4}, {ledger.admit(7), 7}, {ledger.admit(9), 9}};
+    ledger.begin_batch(batch, request_of);
+    ledger.complete_batch(batch, prefix, request_of, size_of);
+    const auto s = ledger.snapshot();
+    const size_t full = (prefix >= 4 ? 1u : 0u) + (prefix >= 11 ? 1u : 0u) + (prefix >= 20 ? 1u : 0u);
+    EXPECT_EQ(s.written.requests, full);
+    EXPECT_EQ(s.connection_loss.aborted_during_write.requests, 3u - full);
+    EXPECT_EQ(s.confirmed_written_bytes, std::min(prefix, size_t{20}));
+    EXPECT_EQ(s.outstanding.requests, 0u);
+    ledger.complete_batch(batch, 20, request_of, size_of);
+    EXPECT_EQ(ledger.snapshot().confirmed_written_bytes, s.confirmed_written_bytes);
+    expect_conservation(ledger.snapshot());
+  }
+}
+
+TEST(SendAccountingTest, BatchPrefixConsumesRetiredAndOldEpochEntries) {
+  Ledger ledger;
+  auto group = std::make_shared<Ledger::Group>();
+  const auto retired = ledger.admit(4, group);
+  ledger.discard(retired, Cause::QueuePressure);
+  const auto old = ledger.admit(7, group);
+  ledger.reset();
+  const auto fresh = ledger.admit(9, group);
+  const std::vector<BatchRequest> batch{{retired, 4}, {old, 7}, {fresh, 9}};
+  ledger.begin_batch(batch, request_of);
+  ledger.complete_batch(batch, 13, request_of, size_of);
+  const auto s = ledger.snapshot();
+  EXPECT_EQ(s.accepted.requests, 1u);
+  EXPECT_EQ(s.confirmed_written_bytes, 2u);
+  EXPECT_EQ(s.connection_loss.aborted_during_write.bytes, 9u);
+  EXPECT_EQ(ledger.snapshot(group).confirmed_written_bytes, 2u);
+  expect_conservation(s);
+  expect_conservation(ledger.snapshot(group));
+}
+
+TEST(SendAccountingTest, BatchStopCompletionRaceKeepsOneOutcomeAndReplacement) {
+  for (int round = 0; round < 100; ++round) {
+    Ledger ledger;
+    const std::vector<BatchRequest> batch{{ledger.admit(4), 4}, {ledger.admit(7), 7}, {ledger.admit(9), 9}};
+    ledger.begin_batch(batch, request_of);
+    std::thread complete([&] { ledger.complete_batch(batch, 20, request_of, size_of); });
+    std::thread stop([&] { ledger.end(Cause::ExplicitStop); });
+    complete.join();
+    stop.join();
+    const auto s = ledger.snapshot();
+    EXPECT_TRUE(s.written.requests == 3u || s.explicit_stop.aborted_during_write.requests == 3u);
+    EXPECT_EQ(s.outstanding.requests, 0u);
+    expect_conservation(s);
+    const auto replacement = ledger.admit(11);
+    ledger.begin_batch(batch, request_of);
+    ledger.complete_batch(batch, 20, request_of, size_of);
+    EXPECT_EQ(ledger.snapshot().outstanding.bytes, 11u);
+    ledger.complete(replacement, 11);
+    expect_conservation(ledger.snapshot());
+  }
+}
+
+TEST(SendAccountingTest, EmptyBatchAndBatchBeginKeepQueuedStopDistinct) {
+  Ledger ledger;
+  const std::vector<BatchRequest> empty;
+  ledger.begin_batch(empty, request_of);
+  ledger.complete_batch(empty, 0, request_of, size_of);
+  const std::vector<BatchRequest> active{{ledger.admit(4), 4}, {ledger.admit(7), 7}};
+  ledger.admit(9);
+  ledger.begin_batch(active, request_of);
+  ledger.end(Cause::ExplicitStop);
+  ledger.complete_batch(active, 11, request_of, size_of);
+  const auto s = ledger.snapshot();
+  EXPECT_EQ(s.explicit_stop.aborted_during_write.bytes, 11u);
+  EXPECT_EQ(s.explicit_stop.discarded_before_write.bytes, 9u);
+  expect_conservation(s);
+}
+
 }  // namespace

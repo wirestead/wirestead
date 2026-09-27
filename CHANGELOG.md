@@ -11,6 +11,10 @@ and ABI policy.
 
 ### Changed
 
+- Reduce TCP/UDS client send-accounting lock acquisitions to once per gather
+  batch at handoff and completion, preserving partial-prefix, reset-epoch and
+  stop/loss accounting.
+
 - Reduce TCP send-admission contention without changing send or accounting
   policies. Backlogged Reliable handoffs can prepare batches outside the admission
   lock and yield a bounded number of times, retaining the original run/connection

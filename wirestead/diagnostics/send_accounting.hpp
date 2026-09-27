@@ -101,30 +101,34 @@ class SendAccountingLedger {
   // Called immediately before handing a request to local I/O.
   bool begin(Request id) {
     std::lock_guard<std::mutex> lock(mutex_);
-    const auto it = entries_.find(id);
-    if (it == entries_.end()) return false;
-    it->second.active = true;
-    return true;
+    return begin_locked(id);
+  }
+
+  // Projections only read the caller-owned batch. They must not re-enter this
+  // ledger. The caller serializes handoff with admission/stop as for begin().
+  template <typename Range, typename RequestOf>
+  void begin_batch(const Range& batch, RequestOf request_of) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (const auto& item : batch) begin_locked(request_of(item));
   }
 
   // One composed-operation completion supplies the prefix length for each
   // request. A fully covered request is written even if a later request fails.
   void complete(Request id, size_t confirmed_bytes) {
     std::lock_guard<std::mutex> lock(mutex_);
-    const auto it = entries_.find(id);
-    if (it == entries_.end()) return;
-    const auto entry = it->second;
-    update(entry, [&](auto& totals) {
-      const auto confirmed = std::min(confirmed_bytes, entry.bytes);
-      totals.confirmed_written_bytes += confirmed;
-      remove(totals.outstanding, entry.bytes);
-      if (confirmed == entry.bytes) {
-        add(totals.written, entry.bytes);
-      } else {
-        add(totals.connection_loss.aborted_during_write, entry.bytes);
-      }
-    });
-    entries_.erase(it);
+    complete_locked(id, confirmed_bytes);
+  }
+
+  // Consume the wire prefix even for retired IDs or older measurement epochs.
+  // Release the ledger mutex before the caller handles connection loss/stop.
+  template <typename Range, typename RequestOf, typename SizeOf>
+  void complete_batch(const Range& batch, size_t confirmed_bytes, RequestOf request_of, SizeOf size_of) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (const auto& item : batch) {
+      const auto confirmed = std::min(confirmed_bytes, size_of(item));
+      complete_locked(request_of(item), confirmed);
+      confirmed_bytes -= confirmed;
+    }
   }
 
   void discard(Request id, Cause cause) {
@@ -182,6 +186,30 @@ class SendAccountingLedger {
   }
 
  private:
+  bool begin_locked(Request id) {
+    const auto it = entries_.find(id);
+    if (it == entries_.end()) return false;
+    it->second.active = true;
+    return true;
+  }
+
+  void complete_locked(Request id, size_t confirmed_bytes) {
+    const auto it = entries_.find(id);
+    if (it == entries_.end()) return;
+    const auto entry = it->second;
+    update(entry, [&](auto& totals) {
+      const auto confirmed = std::min(confirmed_bytes, entry.bytes);
+      totals.confirmed_written_bytes += confirmed;
+      remove(totals.outstanding, entry.bytes);
+      if (confirmed == entry.bytes) {
+        add(totals.written, entry.bytes);
+      } else {
+        add(totals.connection_loss.aborted_during_write, entry.bytes);
+      }
+    });
+    entries_.erase(it);
+  }
+
   void rollback(Request id) {
     std::lock_guard<std::mutex> lock(mutex_);
     const auto it = entries_.find(id);
