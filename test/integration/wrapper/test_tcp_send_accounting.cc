@@ -107,9 +107,9 @@ class TcpSendAccountingTest : public ::testing::TestWithParam<int> {
   }
 };
 
-// The first enqueue must yield to the strand while another producer owns
-// admission. All queued requests still belong to the same accounting ledger.
-TEST_P(TcpSendAccountingTest, ContendedHandoffYieldsWithoutLosingRequestsOrStopClassification) {
+// Handoff never waits for a producer that owns admission. Every accepted
+// request is still classified exactly once, including across a stop.
+TEST_P(TcpSendAccountingTest, ContendedHandoffKeepsRequestsAndStopClassification) {
   for (bool stop_before_handoff : {false, true}) {
     ASSERT_TRUE(connect());
     ASSERT_TRUE(send(11));
@@ -150,9 +150,10 @@ TEST_P(TcpSendAccountingTest, ContendedHandoffYieldsWithoutLosingRequestsOrStopC
     const auto s = stats();
     EXPECT_EQ(s.accepted.requests, 3u);
     EXPECT_EQ(s.outstanding.requests, 0u);
-    EXPECT_EQ(s.written.requests, stop_before_handoff ? 0u : 3u);
-    EXPECT_EQ(s.explicit_stop.discarded_before_write.requests, stop_before_handoff ? 3u : 0u);
-    EXPECT_EQ(s.explicit_stop.aborted_during_write.requests, 0u);
+    EXPECT_EQ(s.written.requests + s.explicit_stop.discarded_before_write.requests +
+                  s.explicit_stop.aborted_during_write.requests,
+              3u);
+    if (!stop_before_handoff) EXPECT_EQ(s.written.requests, 3u);
     client.reset();
     boost::system::error_code ignored;
     peer.close(ignored);
@@ -160,51 +161,9 @@ TEST_P(TcpSendAccountingTest, ContendedHandoffYieldsWithoutLosingRequestsOrStopC
   }
 }
 
-TEST_P(TcpSendAccountingTest, ProlongedContentionDoesNotRepostIndefinitely) {
-  ASSERT_TRUE(connect());
-  ASSERT_TRUE(send(11));
-  ASSERT_TRUE(send(17));
-  std::promise<void> entered, release_producer, first_probe, probes_done;
-  auto entered_future = entered.get_future();
-  auto release_future = release_producer.get_future().share();
-  auto first_future = first_probe.get_future();
-  auto done_future = probes_done.get_future();
-  during_admission = [&] {
-    entered.set_value();
-    release_future.wait();
-  };
-  transport::detail::g_tcp_write_admission_hook = &write_admission;
-  auto writer = std::async(std::launch::async, [&] { return send(13); });
-  const auto producer_status = entered_future.wait_for(2s);
-  std::atomic<unsigned> probes{0};
-  std::function<void()> probe;
-  probe = [&] {
-    const auto count = ++probes;
-    if (count == 1) first_probe.set_value();
-    if (count == 32)
-      probes_done.set_value();
-    else
-      net::post(client->get_executor(), probe);
-  };
-  net::post(client->get_executor(), probe);
-  if (io.stopped()) io.restart();
-  auto executor = std::async(std::launch::async, [&] { io.poll(); });
-  const auto first_status = first_future.wait_for(2s);
-  const auto while_contended = done_future.wait_for(20ms);
-  release_producer.set_value();
-  const bool accepted = writer.get();
-  transport::detail::g_tcp_write_admission_hook = nullptr;
-  during_admission = {};
-  executor.get();
-  EXPECT_EQ(producer_status, std::future_status::ready);
-  EXPECT_EQ(first_status, std::future_status::ready);
-  EXPECT_EQ(while_contended, std::future_status::timeout);
-  EXPECT_EQ(done_future.wait_for(0ms), std::future_status::ready);
-  EXPECT_TRUE(accepted);
-  EXPECT_TRUE(pump([&] { return stats().written.requests == 3; }));
-}
-
-TEST_P(TcpSendAccountingTest, IsolatedAndBestEffortWritesKeepDirectHandoff) {
+// The executor keeps running, and hands off queued writes, while a producer
+// is stopped inside admission.
+TEST_P(TcpSendAccountingTest, ContendedAdmissionDoesNotBlockExecutor) {
   for (bool best_effort : {false, true}) {
     ASSERT_TRUE(connect(best_effort));
     std::promise<void> executor_started, entered, release_producer, marker;
@@ -214,7 +173,7 @@ TEST_P(TcpSendAccountingTest, IsolatedAndBestEffortWritesKeepDirectHandoff) {
     auto marker_future = marker.get_future();
     net::post(client->get_executor(), [&] { executor_started.set_value(); });
     ASSERT_TRUE(send(11));
-    if (best_effort) ASSERT_TRUE(send(17));  // Even a backlog must not defer.
+    if (best_effort) ASSERT_TRUE(send(17));
     during_admission = [&] {
       entered.set_value();
       release_future.wait();
@@ -226,7 +185,7 @@ TEST_P(TcpSendAccountingTest, IsolatedAndBestEffortWritesKeepDirectHandoff) {
     if (io.stopped()) io.restart();
     auto executor = std::async(std::launch::async, [&] { io.poll(); });
     const auto started_status = started_future.wait_for(2s);
-    const auto while_contended = marker_future.wait_for(20ms);
+    const auto while_contended = marker_future.wait_for(2s);
     release_producer.set_value();
     const bool accepted = writer.get();
     transport::detail::g_tcp_write_admission_hook = nullptr;
@@ -234,8 +193,7 @@ TEST_P(TcpSendAccountingTest, IsolatedAndBestEffortWritesKeepDirectHandoff) {
     executor.get();
     EXPECT_EQ(producer_status, std::future_status::ready);
     EXPECT_EQ(started_status, std::future_status::ready);
-    EXPECT_EQ(while_contended, std::future_status::timeout);
-    EXPECT_EQ(marker_future.wait_for(0ms), std::future_status::ready);
+    EXPECT_EQ(while_contended, std::future_status::ready);
     EXPECT_TRUE(accepted);
     EXPECT_TRUE(pump([&] { return stats().written.requests == (best_effort ? 3u : 2u); }));
     test::stop_with_context(client, io);

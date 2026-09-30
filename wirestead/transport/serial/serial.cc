@@ -573,11 +573,12 @@ struct Serial::Impl {
           impl->do_write(self);
         },
         true);
+    // Initiation may write inline; never hold admission across the syscall.
+    submission_lock.unlock();
     try {
       port_->async_write(batch->views, std::move(completion));
     } catch (...) {
-      mark_disconnected_locked();
-      submission_lock.unlock();
+      mark_disconnected();
       const auto ec = make_error_code(boost::system::errc::no_buffer_space);
       handle_error(self, "write", ec);
     }

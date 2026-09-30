@@ -316,7 +316,7 @@ struct TcpClient::Impl {
   void do_resolve_connect(std::shared_ptr<TcpClient> self, uint64_t seq);
   void schedule_retry(std::shared_ptr<TcpClient> self, uint64_t seq);
   void start_read(std::shared_ptr<TcpClient> self, uint64_t seq);
-  void do_write(std::shared_ptr<TcpClient> self, uint64_t seq, unsigned deferrals_left = 8);
+  void do_write(std::shared_ptr<TcpClient> self, uint64_t seq);
   void handle_close(std::shared_ptr<TcpClient> self, uint64_t seq, const boost::system::error_code& ec = {});
   void handle_idle_timeout(std::shared_ptr<TcpClient> self, uint64_t seq);
   void transition_to(LinkState next, const boost::system::error_code& ec = {});
@@ -1320,7 +1320,7 @@ void TcpClient::Impl::start_read(std::shared_ptr<TcpClient> self, uint64_t seq) 
   socket_.async_read_some(net::buffer(buffer->data(), buffer->size()), std::move(on_read));
 }
 
-void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq, unsigned deferrals_left) {
+void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq) {
   if (stop_requested_.load()) {
     tx_.clear();
     queue_bytes_ = 0;
@@ -1342,50 +1342,19 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq, un
   }
   writing_ = true;
 
-  bool can_defer = false;
-  if (deferrals_left != 0 &&
-      bp_strategy_.load(std::memory_order_relaxed) == base::constants::BackpressureStrategy::Reliable) {
-    const auto front_bytes =
-        std::visit([](const auto& item) { return queue_util::variant_buffer_size(item); }, tx_.front().buffer);
-    can_defer = tx_.size() > 1 || queue_bytes_.load(std::memory_order_relaxed) > front_bytes ||
-                pending_bytes_.load(std::memory_order_relaxed) != 0 ||
-                inflight_bytes_.load(std::memory_order_relaxed) != 0;
-  }
-
-  // Preserve the original handoff for isolated requests and BestEffort.
-  // Only a Reliable backlog benefits from preparing storage before locking.
-  std::unique_lock<std::mutex> admission_lock(submission_mtx_, std::defer_lock);
-  if (!can_defer) admission_lock.lock();
+  // The ledger, not the admission mutex, fences this handoff against stop and
+  // loss: taking the admission mutex here per batch contends with every producer.
   auto batch = std::make_shared<WriteBatch>();
   const auto queued_bytes = queue_util::take_gather_batch(tx_, batch->buffers, batch->views, BufferProjection{});
   batch->bytes = queued_bytes;
-
-  // Serialize actual I/O handoff with stop/loss admission fencing.
-  if (!admission_lock.owns_lock() && !admission_lock.try_lock()) {
-    // Briefly yield to accumulate enqueues; a prolonged producer hold must
-    // not create an unbounded repost loop. Keep each retry in the stop barrier.
+  if (stop_requested_.load() ||
+      !send_accounting_.begin_batch(batch->buffers, [](const auto& item) { return item.request; })) {
+    // Stop/loss already terminated these; leave them to its queue cleanup.
     queue_util::return_gather_batch(tx_, batch->buffers);
-    ++pending_io_;
-    const auto deferred_connection = connection_seq_.load();
-    try {
-      net::post(strand_, [self, seq, deferred_connection, deferrals_left] {
-        IoCompletion completion{self->impl_.get()};
-        if (seq == self->impl_->current_seq_.load() && deferred_connection == self->impl_->connection_seq_.load())
-          self->impl_->do_write(self, seq, deferrals_left - 1);
-      });
-    } catch (...) {
-      --pending_io_;
-      writing_ = false;
-      throw;
-    }
-    return;
-  }
-  if (stop_requested_.load()) {
     writing_ = false;
     return;
   }
   active_write_ = batch;
-  send_accounting_.begin_batch(batch->buffers, [](const auto& item) { return item.request; });
   const auto connection = connection_seq_.load();
 
   ++pending_io_;
@@ -1393,7 +1362,9 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq, un
     IoCompletion completion{self->impl_.get()};
     bool current_connection;
     {
-      std::lock_guard<std::mutex> admission_lock(self->impl_->submission_mtx_);
+      // Only a failure must close admission; success needs just the ledger.
+      std::unique_lock<std::mutex> admission_lock(self->impl_->submission_mtx_, std::defer_lock);
+      if (ec) admission_lock.lock();
       current_connection = connection == self->impl_->connection_seq_.load();
       self->impl_->send_accounting_.complete_batch(
           batch->buffers, bytes_written, [](const auto& item) { return item.request; },
@@ -1463,12 +1434,10 @@ void TcpClient::Impl::do_write(std::shared_ptr<TcpClient> self, uint64_t seq, un
     // The accepted request crossed the local-write boundary; connection cleanup
     // terminates it as an abort and discards requests still awaiting handoff.
     --pending_io_;
-    mark_disconnected_locked();
-    admission_lock.unlock();
+    mark_disconnected();
     handle_close(self, seq, make_error_code(net::error::no_buffer_space));
     return;
   }
-  admission_lock.unlock();
   if (auto hook = detail::g_tcp_write_started_hook.load()) hook();
 }
 

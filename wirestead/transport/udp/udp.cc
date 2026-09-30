@@ -600,6 +600,8 @@ struct UdpChannel::Impl {
     };
 
     ++pending_io_;
+    // The datagram is sent inline; never hold admission across the syscall.
+    submission_lock.unlock();
     try {
       if (auto hook = detail::g_udp_write_initiation_hook.load()) hook();
       std::visit(
@@ -647,6 +649,7 @@ struct UdpChannel::Impl {
       if (current.session && current.session->stats)
         queue_util::release_reserved_write_bytes(current.session->stats->queued, bytes_queued);
       --pending_io_;
+      submission_lock.lock();
       fail_writes_locked();
       submission_lock.unlock();
       writing_ = false;
@@ -654,7 +657,6 @@ struct UdpChannel::Impl {
                     "Failed to initiate datagram write");
       return;
     }
-    submission_lock.unlock();
     if (auto hook = detail::g_udp_write_started_hook.load()) hook();
   }
 

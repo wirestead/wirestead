@@ -15,11 +15,13 @@ and ABI policy.
   batch at handoff and completion, preserving partial-prefix, reset-epoch and
   stop/loss accounting.
 
-- Reduce TCP send-admission contention without changing send or accounting
-  policies. Backlogged Reliable handoffs can prepare batches outside the admission
-  lock and yield a bounded number of times, retaining the original run/connection
-  and stop-completion barrier. BestEffort and isolated requests keep direct
-  handoff. Unpressured wrapper sends avoid redundant capacity-wait preparation.
+- Restore send throughput lost since v0.9.6 without changing send or accounting
+  policies. No transport holds its admission lock across a write system call, and
+  TCP/UDS client write handoff and successful completion no longer take it at
+  all: the send-accounting ledger fences handoff against stop and connection
+  loss. The ledger's per-request bookkeeping is O(1) and briefly spins instead of
+  sleeping under contention. Unpressured wrapper sends avoid redundant
+  capacity-wait preparation and channel reference-count updates.
 
 - **Breaking behavior:** invalid configuration is rejected before application;
   native construction no longer silently clamps it. Settings outside the explicit

@@ -354,7 +354,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   // Caller holds mutex_. Native readiness remains part of transport admission.
-  SendResult send_state(const std::shared_ptr<transport::TcpClient>& tcp, bool custom = false) {
+  SendResult send_state(transport::TcpClient* tcp, bool custom = false) {
     if (stop_callers_.load() != 0) return SendResult::reject(SendRejection::Stopping);
     if (!started_.load()) {
       if (stop_requested_) {
@@ -378,8 +378,10 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
   template <typename NativeWrite, typename CustomWrite>
   SendResult nonblocking_send(size_t size, bool best_effort_send, NativeWrite native_write, CustomWrite custom_write) {
     std::shared_lock<std::shared_mutex> lock(mutex_);
-    auto tcp = std::dynamic_pointer_cast<transport::TcpClient>(channel_);
-    auto custom = tcp ? nullptr : std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_);
+    // The lock keeps channel_ alive; copying it would bounce the refcount the
+    // executor updates for every queued write.
+    auto* tcp = dynamic_cast<transport::TcpClient*>(channel_.get());
+    auto* custom = tcp ? nullptr : dynamic_cast<interface::ConnectionChannel*>(channel_.get());
     const auto result = [&]() -> SendResult {
       auto validation = detail::validate_payload_size(size, channel_ ? channel_->write_queue_limit() : std::nullopt);
       if (!validation.accepted()) return validation;
@@ -506,7 +508,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
             connection.tcp ? nullptr : std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_);
         auto validation = detail::validate_payload_size(size, channel_ ? channel_->write_queue_limit() : std::nullopt);
         if (!validation.accepted()) return validation;
-        auto state = send_state(connection.tcp, connection.custom != nullptr);
+        auto state = send_state(connection.tcp.get(), connection.custom != nullptr);
         if (!state.accepted()) return state;
         if (connection.custom) {
           auto captured = connection.custom->capture_write_connection();
@@ -521,7 +523,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
           // Keep the selected run and connection while admitting the common
           // no-pressure case. Native admission still validates capacity/state.
           if (!connection.tcp->is_backpressure_active()) {
-            state = send_state(connection.tcp);
+            state = send_state(connection.tcp.get());
             if (!state.accepted()) return state;
             const auto admitted = native_write(*connection.tcp, connection.wait->sequence);
             if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock || connection.cannot_wait)
@@ -536,7 +538,7 @@ struct TcpClient::Impl : public std::enable_shared_from_this<Impl> {
         if (!released.accepted()) return released;  // Never overwrite the cause of release.
         bp_lock.unlock();
         std::shared_lock<std::shared_mutex> lock(mutex_);
-        const auto state = send_state(connection.tcp, connection.custom != nullptr);
+        const auto state = send_state(connection.tcp.get(), connection.custom != nullptr);
         if (!state.accepted()) return state;
         if (callback_generation_.load() != generation) return SendResult::reject(SendRejection::NotReady);
         const auto admitted = connection.custom_wait ? custom_write(*connection.custom_wait)

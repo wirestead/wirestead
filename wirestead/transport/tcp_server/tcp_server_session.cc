@@ -514,10 +514,13 @@ void TcpServerSession::do_write() {
   const size_t bytes_to_write = queue_util::take_gather_batch(tx_, current_write_batch_, current_write_views_, payload);
   for (const auto& item : current_write_batch_) send_accounting_.begin(item.request);
   auto self = shared_from_this();
+  // Initiation may write inline; never hold admission across the syscall.
+  // The batch members are strand-owned and the completion posts back to it.
+  lock.unlock();
   try {
     socket_->async_write(current_write_views_, [self, bytes_to_write](const boost::system::error_code& ec, size_t n) {
       // The interface erases associated executors. Post explicitly, including
-      // for endpoints that complete inline while initiation holds the lock.
+      // for endpoints that complete inline during initiation.
       net::post(self->strand_, [self, bytes_to_write, ec, n] {
         const bool failed = ec || n != bytes_to_write;
         {
@@ -555,6 +558,7 @@ void TcpServerSession::do_write() {
       });
     });
   } catch (...) {
+    lock.lock();
     send_accounting_.end(Ledger::Cause::ConnectionLoss);
     closing_ = true;
     if (!wait_ended_by_) wait_ended_by_ = wrapper::SendRejection::NotReady;

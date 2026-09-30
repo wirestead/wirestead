@@ -1006,12 +1006,16 @@ void UdsClient::Impl::start_read(std::shared_ptr<UdsClient> self, uint64_t seq) 
 
 void UdsClient::Impl::do_write(std::shared_ptr<UdsClient> self, uint64_t seq) {
   if (stop_requested_.load() || seq != current_seq_.load() || !connected_.load() || tx_.empty() || writing_) return;
-  std::unique_lock<std::mutex> submission_lock(submission_mtx_);
-  if (stop_requested_.load() || seq != current_seq_.load() || !connected_.load()) return;
-  writing_ = true;
+  // The ledger, not the admission mutex, fences this handoff against stop and
+  // loss: taking the admission mutex here per batch contends with every producer.
   auto batch = std::make_shared<WriteBatch>();
   batch->bytes = queue_util::take_gather_batch(tx_, batch->buffers, batch->views, BufferProjection{});
-  send_accounting_.begin_batch(batch->buffers, [](const auto& item) { return item.request; });
+  if (!send_accounting_.begin_batch(batch->buffers, [](const auto& item) { return item.request; })) {
+    // Stop/loss already terminated these; leave them to its queue cleanup.
+    queue_util::return_gather_batch(tx_, batch->buffers);
+    return;
+  }
+  writing_ = true;
   active_write_ = batch;
   const auto connection = connection_seq_.load();
   auto completion = track_io(
@@ -1020,15 +1024,17 @@ void UdsClient::Impl::do_write(std::shared_ptr<UdsClient> self, uint64_t seq) {
         auto* impl = self->impl_.get();
         bool current_connection;
         {
-          std::lock_guard<std::mutex> lock(impl->submission_mtx_);
+          // A short composed write without an error is still a terminal failure.
+          if (!ec && written < batch->bytes) ec = net::error::connection_reset;
+          // Only a failure must close admission; success needs just the ledger.
+          std::unique_lock<std::mutex> lock(impl->submission_mtx_, std::defer_lock);
+          if (ec) lock.lock();
           current_connection = connection == impl->connection_seq_.load();
           impl->send_accounting_.complete_batch(
               batch->buffers, written, [](const auto& item) { return item.request; },
               [](const auto& item) {
                 return std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
               });
-          // A short composed write without an error is still a terminal failure.
-          if (!ec && written < batch->bytes) ec = net::error::connection_reset;
           if (current_connection && ec) impl->mark_disconnected_locked();
         }
         if (!current_connection) {
@@ -1056,8 +1062,7 @@ void UdsClient::Impl::do_write(std::shared_ptr<UdsClient> self, uint64_t seq) {
   try {
     socket_->async_write(batch->views, std::move(completion));
   } catch (...) {
-    mark_disconnected_locked();
-    submission_lock.unlock();
+    mark_disconnected();
     const auto ec = make_error_code(boost::system::errc::no_buffer_space);
     handle_close(self, seq, ec);
   }
