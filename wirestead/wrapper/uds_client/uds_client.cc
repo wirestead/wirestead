@@ -499,6 +499,13 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
           if (!state.accepted()) return state;
           connection.wait = connection.uds->capture_write_wait();
           if (!connection.wait) return SendResult::reject(SendRejection::NotReady);
+          // Keep the selected run and connection while admitting the common
+          // no-pressure case. Native admission still validates capacity/state.
+          if (!connection.uds->is_backpressure_active()) {
+            const auto admitted = native_write(*connection.uds, connection.wait->sequence);
+            if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock || connection.cannot_wait)
+              return admitted;
+          }
         }
       }
       for (bool retry = false;; retry = true) {
