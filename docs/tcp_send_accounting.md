@@ -77,12 +77,14 @@ cannot mutate new requests. Wrapper stop/start continues to reset statistics
 under the existing wrapper lifecycle contract. Native reset remains explicit.
 
 The tracker adds one metadata entry per outstanding request and uses a mutex
-for admission/transition/snapshot. Gather handoff and completion take that lock
-once per batch on TCP/UDS clients, TCP/UDS server sessions and Serial, retaining
-each request's identity and full-payload accounting. No timer or extra wait is
-introduced to form a batch. It retains no additional payload copy. Stop traverses
-outstanding metadata. End-to-end performance remains separate from correctness
-evidence.
+for admission/transition/snapshot. Entries are indexed by request identity in a
+reusable ring: a retired slot is reclaimed once every older request has retired,
+and steady traffic allocates nothing per request. Gather handoff and completion
+take that lock once per batch on TCP/UDS clients, TCP/UDS server sessions and
+Serial, retaining each request's identity and full-payload accounting. No timer
+or extra wait is introduced to form a batch. It retains no additional payload
+copy. Stop traverses outstanding metadata. End-to-end performance remains
+separate from correctness evidence.
 
 ## Compatibility and verification
 

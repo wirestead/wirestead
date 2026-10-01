@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <deque>
 #include <thread>
 #include <vector>
 
@@ -400,6 +401,59 @@ TEST(SendAccountingTest, BatchBeginRefusesTerminatedRequestsAndSurvivesOutOfOrde
   EXPECT_EQ(s.written.bytes, 20u);
   EXPECT_EQ(s.queue_pressure.discarded_before_write.bytes, 11u);
   EXPECT_EQ(s.connection_loss.discarded_before_write.bytes, 8u);
+  EXPECT_EQ(s.outstanding.requests, 0u);
+  expect_conservation(s);
+}
+
+TEST(SendAccountingTest, OldestOutstandingRequestSurvivesLaterRetirementAndEnd) {
+  Ledger ledger;
+  const auto oldest = ledger.admit(2);
+  std::vector<Ledger::Request> later;
+  for (int i = 0; i < 1000; ++i) later.push_back(ledger.admit(1));
+  for (const auto id : later) ledger.complete(id, 1);
+  EXPECT_TRUE(ledger.contains(oldest));
+  EXPECT_FALSE(ledger.contains(later.back()));
+  ledger.complete(later.front(), 1);  // A late completion of a retired ID changes nothing.
+
+  ledger.end(Cause::ExplicitStop);
+  EXPECT_FALSE(ledger.contains(oldest));
+  const auto replacement = ledger.admit(3);
+  EXPECT_GT(replacement, later.back());
+  EXPECT_TRUE(ledger.contains(replacement));
+  EXPECT_FALSE(ledger.contains(replacement + 1));
+  ledger.complete(oldest, 2);
+  ledger.complete(replacement, 3);
+
+  const auto s = ledger.snapshot();
+  EXPECT_EQ(s.written.requests, 1001u);
+  EXPECT_EQ(s.written.bytes, 1003u);
+  EXPECT_EQ(s.explicit_stop.discarded_before_write.bytes, 2u);
+  EXPECT_EQ(s.outstanding.requests, 0u);
+  expect_conservation(s);
+}
+
+TEST(SendAccountingTest, SlidingWindowKeepsIdentityAcrossWrapAndGrowth) {
+  Ledger ledger;
+  std::deque<Ledger::Request> window;
+  size_t written = 0;
+  // Retire the oldest request each step, then widen the window while slots wrap.
+  for (size_t step = 0; step < 300; ++step) {
+    window.push_back(ledger.admit(step % 7 + 1));
+    if (window.size() > (step < 150 ? 12u : 40u)) {
+      const auto id = window.front();
+      window.pop_front();
+      ledger.complete(id, 7);
+      EXPECT_FALSE(ledger.contains(id));
+      ++written;
+    }
+    for (const auto id : window) ASSERT_TRUE(ledger.contains(id));
+  }
+  ledger.discard(window[window.size() / 2], Cause::QueuePressure);
+  ledger.end(Cause::ConnectionLoss);
+  const auto s = ledger.snapshot();
+  EXPECT_EQ(s.written.requests, written);
+  EXPECT_EQ(s.queue_pressure.discarded_before_write.requests, 1u);
+  EXPECT_EQ(s.connection_loss.discarded_before_write.requests, window.size() - 1);
   EXPECT_EQ(s.outstanding.requests, 0u);
   expect_conservation(s);
 }

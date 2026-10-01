@@ -20,9 +20,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <memory_resource>
 #include <mutex>
-#include <unordered_map>
+#include <vector>
 
 #include "wirestead/wrapper/send_accounting.hpp"
 
@@ -89,8 +88,10 @@ class SendAccountingLedger {
       group->totals = {};
       group->epoch = epoch_;
     }
-    const Entry entry{bytes, epoch_, false, std::move(group)};
-    entries_.emplace(id, entry);
+    if (count_ == slots_.size()) grow();
+    auto& entry = slot(count_);
+    entry = Entry{bytes, epoch_, false, true, std::move(group)};
+    ++count_;
     next_id_ = id;
     update(entry, [&](auto& totals) {
       add(totals.accepted, bytes);
@@ -132,7 +133,7 @@ class SendAccountingLedger {
   bool begin_batch(const Range& batch, RequestOf request_of) {
     std::lock_guard<BriefMutex> lock(mutex_);
     for (const auto& item : batch)
-      if (!entries_.contains(request_of(item))) return false;
+      if (!find(request_of(item))) return false;
     for (const auto& item : batch) begin_locked(request_of(item));
     return true;
   }
@@ -158,15 +159,15 @@ class SendAccountingLedger {
 
   void discard(Request id, Cause cause) {
     std::lock_guard<BriefMutex> lock(mutex_);
-    const auto it = entries_.find(id);
-    if (it == entries_.end()) return;
-    terminate(it->second, cause);
-    entries_.erase(it);
+    auto* entry = find(id);
+    if (!entry) return;
+    terminate(*entry, cause);
+    erase(*entry);
   }
 
   bool contains(Request id) const {
     std::lock_guard<BriefMutex> lock(mutex_);
-    return entries_.contains(id);
+    return id >= base_ && id - base_ < count_ && slot(id - base_).live;
   }
 
   // Expiry races with handoff under the caller's admission mutex. Active
@@ -174,22 +175,28 @@ class SendAccountingLedger {
   void discard_waiting(const GroupHandle& group, Cause cause) {
     if (!group) return;
     std::lock_guard<BriefMutex> lock(mutex_);
-    for (auto it = entries_.begin(); it != entries_.end();) {
-      if (it->second.group == group && !it->second.active) {
-        terminate(it->second, cause);
-        it = entries_.erase(it);
-      } else {
-        ++it;
+    for (size_t i = 0; i < count_; ++i) {
+      auto& entry = slot(i);
+      if (entry.live && entry.group == group && !entry.active) {
+        terminate(entry, cause);
+        entry.live = false;
+        entry.group.reset();
       }
     }
+    compact();
   }
 
   // The caller serializes this boundary with admission. Clearing every entry
   // includes requests accepted before their enqueue handler has executed.
   void end(Cause cause) {
     std::lock_guard<BriefMutex> lock(mutex_);
-    for (const auto& [id, entry] : entries_) terminate(entry, cause);
-    entries_.clear();
+    for (size_t i = 0; i < count_; ++i) {
+      if (slot(i).live) terminate(slot(i), cause);
+      slot(i) = Entry{};
+    }
+    head_ = 0;
+    count_ = 0;
+    base_ = next_id_ + 1;
   }
 
   wrapper::SendAccounting snapshot() const {
@@ -211,17 +218,57 @@ class SendAccountingLedger {
   }
 
  private:
+  struct Entry {
+    size_t bytes = 0;
+    uint64_t epoch = 0;
+    bool active = false;
+    bool live = false;
+    GroupHandle group;
+  };
+
+  Entry& slot(size_t index) { return slots_[(head_ + index) & (slots_.size() - 1)]; }
+  const Entry& slot(size_t index) const { return slots_[(head_ + index) & (slots_.size() - 1)]; }
+
+  // Allocates only when the outstanding span outgrows the ring; a failure
+  // leaves the ledger unchanged.
+  void grow() {
+    std::vector<Entry> larger(slots_.empty() ? 16 : slots_.size() * 2);
+    for (size_t i = 0; i < count_; ++i) larger[i] = std::move(slot(i));
+    slots_ = std::move(larger);
+    head_ = 0;
+  }
+
+  Entry* find(Request id) {
+    if (id < base_ || id - base_ >= count_) return nullptr;
+    auto& entry = slot(id - base_);
+    return entry.live ? &entry : nullptr;
+  }
+
+  void erase(Entry& entry) {
+    entry.live = false;
+    entry.group.reset();
+    compact();
+  }
+
+  void compact() {
+    while (count_ && !slot(0).live) {
+      head_ = (head_ + 1) & (slots_.size() - 1);
+      --count_;
+      ++base_;
+    }
+  }
+
   bool begin_locked(Request id) {
-    const auto it = entries_.find(id);
-    if (it == entries_.end()) return false;
-    it->second.active = true;
+    auto* entry = find(id);
+    if (!entry) return false;
+    entry->active = true;
     return true;
   }
 
   void complete_locked(Request id, size_t confirmed_bytes) {
-    const auto it = entries_.find(id);
-    if (it == entries_.end()) return;
-    const auto entry = it->second;
+    auto* found = find(id);
+    if (!found) return;
+    const auto& entry = *found;
     update(entry, [&](auto& totals) {
       const auto confirmed = std::min(confirmed_bytes, entry.bytes);
       totals.confirmed_written_bytes += confirmed;
@@ -232,26 +279,19 @@ class SendAccountingLedger {
         add(totals.connection_loss.aborted_during_write, entry.bytes);
       }
     });
-    entries_.erase(it);
+    erase(*found);
   }
 
   void rollback(Request id) {
     std::lock_guard<BriefMutex> lock(mutex_);
-    const auto it = entries_.find(id);
-    if (it == entries_.end()) return;
-    update(it->second, [&](auto& totals) {
-      remove(totals.accepted, it->second.bytes);
-      remove(totals.outstanding, it->second.bytes);
+    auto* entry = find(id);
+    if (!entry) return;
+    update(*entry, [&](auto& totals) {
+      remove(totals.accepted, entry->bytes);
+      remove(totals.outstanding, entry->bytes);
     });
-    entries_.erase(it);
+    erase(*entry);
   }
-
-  struct Entry {
-    size_t bytes;
-    uint64_t epoch;
-    bool active;
-    GroupHandle group;
-  };
   template <typename F>
   void update(const Entry& entry, F&& apply) {
     if (entry.epoch != epoch_) return;
@@ -278,10 +318,14 @@ class SendAccountingLedger {
   }
 
   mutable BriefMutex mutex_;
-  // Every request inserts and erases one node under mutex_; recycling nodes
-  // keeps the global allocator out of that critical section.
-  std::pmr::unsynchronized_pool_resource node_pool_;
-  std::pmr::unordered_map<Request, Entry> entries_{&node_pool_};
+  // slot(i) is request base_ + i in a power-of-two ring. IDs are assigned in
+  // order and transports retire them nearly in order, so lookup needs no
+  // hashing and steady traffic reuses slots without allocating. A retired slot
+  // stays until every older request retires; capacity keeps its high-water mark.
+  std::vector<Entry> slots_;
+  size_t head_ = 0;
+  size_t count_ = 0;
+  Request base_ = 1;
   Request next_id_ = 0;
   uint64_t epoch_ = 0;
   wrapper::SendAccounting totals_;
