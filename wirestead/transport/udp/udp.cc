@@ -513,7 +513,6 @@ struct UdpChannel::Impl {
       return;
     }
 
-    std::unique_lock<std::mutex> submission_lock(submission_mtx_);
     if (stop_requested_.load() || !opened_.load()) return;
     while (!tx_.empty() && !send_accounting_.contains(tx_.front().request)) {
       queue_util::release_reserved_write_bytes(queue_bytes_, item_size(tx_.front()));
@@ -521,7 +520,6 @@ struct UdpChannel::Impl {
       tx_.pop_front();
     }
     if (tx_.empty()) {
-      submission_lock.unlock();
       report_backpressure(self, queue_bytes_);
       return;
     }
@@ -537,11 +535,19 @@ struct UdpChannel::Impl {
       queue_util::release_reserved_write_bytes(queue_bytes_, bytes);
       release_session_bytes(current, false);
       writing_ = false;
-      submission_lock.unlock();
       do_write(self);  // Process next in queue
       return;
     }
 
+    // The ledger, not the admission mutex, fences handoff against stop, loss
+    // and session expiry: begin() fails for a request they already terminated.
+    // Taking the admission mutex per datagram contends with every producer.
+    if (!send_accounting_.begin(current.request)) {
+      queue_util::release_reserved_write_bytes(queue_bytes_, item_size(current));
+      release_session_bytes(current, false);
+      do_write(self);
+      return;
+    }
     writing_ = true;
 
     auto bytes_queued = std::visit(
@@ -557,15 +563,16 @@ struct UdpChannel::Impl {
 
     const auto request = current.request;
     const auto generation = generation_.load();
-    send_accounting_.begin(request);
     auto on_write = [self, bytes_queued, request, generation, session = current.session](boost::system::error_code ec,
                                                                                          std::size_t bytes_written) {
       auto impl = self->get_impl();
       {
-        std::lock_guard<std::mutex> lock(impl->submission_mtx_);
+        if (!ec && bytes_written != bytes_queued) ec = net::error::message_size;
+        // Only a failure must close admission; success needs just the ledger.
+        std::unique_lock<std::mutex> lock(impl->submission_mtx_, std::defer_lock);
+        if (ec) lock.lock();
         if (generation != impl->generation_) return;
         impl->send_accounting_.complete(request, bytes_written);
-        if (!ec && bytes_written != bytes_queued) ec = net::error::message_size;
         if (ec && !impl->stop_requested_) {
           impl->fail_writes_locked();
           if (ec == net::error::operation_aborted) ec = net::error::connection_aborted;
@@ -647,14 +654,15 @@ struct UdpChannel::Impl {
       if (current.session && current.session->stats)
         queue_util::release_reserved_write_bytes(current.session->stats->queued, bytes_queued);
       --pending_io_;
-      fail_writes_locked();
-      submission_lock.unlock();
+      {
+        std::lock_guard<std::mutex> lock(submission_mtx_);
+        fail_writes_locked();
+      }
       writing_ = false;
       transition_to(LinkState::Error, make_error_code(boost::system::errc::no_buffer_space), "write",
                     "Failed to initiate datagram write");
       return;
     }
-    submission_lock.unlock();
     if (auto hook = detail::g_udp_write_started_hook.load()) hook();
   }
 

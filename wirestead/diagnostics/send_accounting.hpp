@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <memory_resource>
 #include <mutex>
 #include <unordered_map>
 
@@ -48,6 +49,23 @@ inline void accumulate_send_accounting(wrapper::SendAccounting& total, const wra
   total.confirmed_written_bytes += source.confirmed_written_bytes;
 }
 
+// The admitting thread and the executor each take the ledger lock per message
+// or batch, for a few dozen nanoseconds. Sleeping on contention costs a futex
+// round trip on both sides, far longer than the wait itself.
+class BriefMutex {
+ public:
+  void lock() {
+    for (int i = 0; i < 100; ++i)
+      if (mutex_.try_lock()) return;
+    mutex_.lock();
+  }
+  void unlock() { mutex_.unlock(); }
+  bool try_lock() { return mutex_.try_lock(); }
+
+ private:
+  std::mutex mutex_;
+};
+
 // Shared by admission threads and the transport executor. IDs never repeat
 // across reset; old completions cannot change a replacement measurement epoch.
 class SendAccountingLedger {
@@ -64,14 +82,16 @@ class SendAccountingLedger {
   using GroupHandle = std::shared_ptr<Group>;
 
   Request admit(size_t bytes, GroupHandle group = {}) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    const auto id = ++next_id_;
+    std::lock_guard<BriefMutex> lock(mutex_);
+    // Commit the ID only once the entry is stored: a failed insert changes nothing.
+    const auto id = next_id_ + 1;
     if (group && group->epoch != epoch_) {
       group->totals = {};
       group->epoch = epoch_;
     }
     const Entry entry{bytes, epoch_, false, std::move(group)};
     entries_.emplace(id, entry);
+    next_id_ = id;
     update(entry, [&](auto& totals) {
       add(totals.accepted, bytes);
       add(totals.outstanding, bytes);
@@ -100,22 +120,27 @@ class SendAccountingLedger {
 
   // Called immediately before handing a request to local I/O.
   bool begin(Request id) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<BriefMutex> lock(mutex_);
     return begin_locked(id);
   }
 
   // Projections only read the caller-owned batch. They must not re-enter this
-  // ledger. The caller serializes handoff with admission/stop as for begin().
+  // ledger. Returns false, activating nothing, if end() already terminated any
+  // request: the caller must not write the batch. This makes the handoff
+  // atomic with stop/loss without the caller's admission lock.
   template <typename Range, typename RequestOf>
-  void begin_batch(const Range& batch, RequestOf request_of) {
-    std::lock_guard<std::mutex> lock(mutex_);
+  bool begin_batch(const Range& batch, RequestOf request_of) {
+    std::lock_guard<BriefMutex> lock(mutex_);
+    for (const auto& item : batch)
+      if (!entries_.contains(request_of(item))) return false;
     for (const auto& item : batch) begin_locked(request_of(item));
+    return true;
   }
 
   // One composed-operation completion supplies the prefix length for each
   // request. A fully covered request is written even if a later request fails.
   void complete(Request id, size_t confirmed_bytes) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<BriefMutex> lock(mutex_);
     complete_locked(id, confirmed_bytes);
   }
 
@@ -123,7 +148,7 @@ class SendAccountingLedger {
   // Release the ledger mutex before the caller handles connection loss/stop.
   template <typename Range, typename RequestOf, typename SizeOf>
   void complete_batch(const Range& batch, size_t confirmed_bytes, RequestOf request_of, SizeOf size_of) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<BriefMutex> lock(mutex_);
     for (const auto& item : batch) {
       const auto confirmed = std::min(confirmed_bytes, size_of(item));
       complete_locked(request_of(item), confirmed);
@@ -132,7 +157,7 @@ class SendAccountingLedger {
   }
 
   void discard(Request id, Cause cause) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<BriefMutex> lock(mutex_);
     const auto it = entries_.find(id);
     if (it == entries_.end()) return;
     terminate(it->second, cause);
@@ -140,7 +165,7 @@ class SendAccountingLedger {
   }
 
   bool contains(Request id) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<BriefMutex> lock(mutex_);
     return entries_.contains(id);
   }
 
@@ -148,7 +173,7 @@ class SendAccountingLedger {
   // operations keep their actual outcome; unrelated contributors are untouched.
   void discard_waiting(const GroupHandle& group, Cause cause) {
     if (!group) return;
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<BriefMutex> lock(mutex_);
     for (auto it = entries_.begin(); it != entries_.end();) {
       if (it->second.group == group && !it->second.active) {
         terminate(it->second, cause);
@@ -162,25 +187,25 @@ class SendAccountingLedger {
   // The caller serializes this boundary with admission. Clearing every entry
   // includes requests accepted before their enqueue handler has executed.
   void end(Cause cause) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<BriefMutex> lock(mutex_);
     for (const auto& [id, entry] : entries_) terminate(entry, cause);
     entries_.clear();
   }
 
   wrapper::SendAccounting snapshot() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<BriefMutex> lock(mutex_);
     return totals_;
   }
 
   wrapper::SendAccounting snapshot(const GroupHandle& group) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<BriefMutex> lock(mutex_);
     return group && group->epoch == epoch_ ? group->totals : wrapper::SendAccounting{};
   }
 
   // A measurement epoch includes only requests accepted since reset. Retained
   // old requests still transmit but their later completions/cleanup are ignored.
   void reset() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<BriefMutex> lock(mutex_);
     ++epoch_;
     totals_ = {};
   }
@@ -211,7 +236,7 @@ class SendAccountingLedger {
   }
 
   void rollback(Request id) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<BriefMutex> lock(mutex_);
     const auto it = entries_.find(id);
     if (it == entries_.end()) return;
     update(it->second, [&](auto& totals) {
@@ -252,8 +277,11 @@ class SendAccountingLedger {
     });
   }
 
-  mutable std::mutex mutex_;
-  std::unordered_map<Request, Entry> entries_;
+  mutable BriefMutex mutex_;
+  // Every request inserts and erases one node under mutex_; recycling nodes
+  // keeps the global allocator out of that critical section.
+  std::pmr::unsynchronized_pool_resource node_pool_;
+  std::pmr::unordered_map<Request, Entry> entries_{&node_pool_};
   Request next_id_ = 0;
   uint64_t epoch_ = 0;
   wrapper::SendAccounting totals_;

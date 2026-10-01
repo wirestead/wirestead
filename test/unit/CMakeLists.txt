@@ -137,6 +137,16 @@ wirestead_add_unit_gtest(
   "unit_diagnostics_fast" 30
 )
 
+# Replaces global operator new, which TSan's runtime also defines.
+if(NOT WIRESTEAD_ENABLE_TSAN)
+  wirestead_add_unit_gtest(
+    run_unit_test_send_accounting_alloc_failure
+    ${CMAKE_CURRENT_SOURCE_DIR}/diagnostics/test_send_accounting_alloc_failure.cc
+    "unit_diagnostics_fast"
+    30
+  )
+endif()
+
 # Wrapper tests (separate executables across TCP/UDP/UDS/Serial)
 foreach(
   test_file

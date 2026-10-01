@@ -333,7 +333,7 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
   }
 
   // Caller holds mutex_. Native readiness remains part of transport admission.
-  SendResult send_state(const std::shared_ptr<transport::UdsClient>& uds, bool custom = false) {
+  SendResult send_state(transport::UdsClient* uds, bool custom = false) {
     if (stop_callers_.load() != 0) return SendResult::reject(SendRejection::Stopping);
     if (!started_.load()) {
       if (stop_requested_) {
@@ -357,8 +357,10 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
   template <typename NativeWrite, typename CustomWrite>
   SendResult nonblocking_send(size_t size, bool best_effort_send, NativeWrite native_write, CustomWrite custom_write) {
     std::shared_lock<std::shared_mutex> lock(mutex_);
-    auto uds = std::dynamic_pointer_cast<transport::UdsClient>(channel_);
-    auto custom = uds ? nullptr : std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_);
+    // The lock keeps channel_ alive; copying it would bounce the refcount the
+    // executor updates for every queued write.
+    auto* uds = dynamic_cast<transport::UdsClient*>(channel_.get());
+    auto* custom = uds ? nullptr : dynamic_cast<interface::ConnectionChannel*>(channel_.get());
     const auto result = [&]() -> SendResult {
       auto validation = detail::validate_payload_size(size, channel_ ? channel_->write_queue_limit() : std::nullopt);
       if (!validation.accepted()) return validation;
@@ -485,7 +487,7 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
             connection.uds ? nullptr : std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_);
         auto validation = detail::validate_payload_size(size, channel_ ? channel_->write_queue_limit() : std::nullopt);
         if (!validation.accepted()) return validation;
-        auto state = send_state(connection.uds, connection.custom != nullptr);
+        auto state = send_state(connection.uds.get(), connection.custom != nullptr);
         if (!state.accepted()) return state;
         if (connection.custom) {
           auto captured = connection.custom->capture_write_connection();
@@ -497,6 +499,13 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
           if (!state.accepted()) return state;
           connection.wait = connection.uds->capture_write_wait();
           if (!connection.wait) return SendResult::reject(SendRejection::NotReady);
+          // Keep the selected run and connection while admitting the common
+          // no-pressure case. Native admission still validates capacity/state.
+          if (!connection.uds->is_backpressure_active()) {
+            const auto admitted = native_write(*connection.uds, connection.wait->sequence);
+            if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock || connection.cannot_wait)
+              return admitted;
+          }
         }
       }
       for (bool retry = false;; retry = true) {
@@ -506,7 +515,7 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
         if (!released.accepted()) return released;  // Never overwrite the cause of release.
         bp_lock.unlock();
         std::shared_lock<std::shared_mutex> lock(mutex_);
-        const auto state = send_state(connection.uds, connection.custom != nullptr);
+        const auto state = send_state(connection.uds.get(), connection.custom != nullptr);
         if (!state.accepted()) return state;
         if (callback_generation_.load() != generation) return SendResult::reject(SendRejection::NotReady);
         const auto admitted = connection.custom_wait ? custom_write(*connection.custom_wait)

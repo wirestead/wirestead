@@ -528,7 +528,8 @@ struct Serial::Impl {
     writing_ = true;
     auto batch = std::make_shared<WriteBatch>();
     batch->bytes = queue_util::take_gather_batch(tx_, batch->buffers, batch->views, BufferProjection{});
-    for (const auto& item : batch->buffers) send_accounting_.begin(item.request);
+    // Admission still fences stop/loss; amortize the ledger lock over the batch.
+    send_accounting_.begin_batch(batch->buffers, [](const auto& item) { return item.request; });
     active_write_ = batch;
     const auto connection = connection_seq_.load();
     auto completion = track_io(
@@ -539,14 +540,11 @@ struct Serial::Impl {
           {
             std::lock_guard<std::mutex> lock(impl->submission_mtx_);
             current_connection = connection == impl->connection_seq_.load();
-            size_t remaining = written;
-            for (const auto& item : batch->buffers) {
-              const auto bytes =
-                  std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
-              const auto confirmed = std::min(remaining, bytes);
-              impl->send_accounting_.complete(item.request, confirmed);
-              remaining -= confirmed;
-            }
+            impl->send_accounting_.complete_batch(
+                batch->buffers, written, [](const auto& item) { return item.request; },
+                [](const auto& item) {
+                  return std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
+                });
             // A short composed write without an error is still a terminal failure.
             if (!ec && written < batch->bytes) ec = net::error::connection_reset;
             if (current_connection && ec) impl->mark_disconnected_locked();
@@ -573,11 +571,12 @@ struct Serial::Impl {
           impl->do_write(self);
         },
         true);
+    // Initiation may write inline; never hold admission across the syscall.
+    submission_lock.unlock();
     try {
       port_->async_write(batch->views, std::move(completion));
     } catch (...) {
-      mark_disconnected_locked();
-      submission_lock.unlock();
+      mark_disconnected();
       const auto ec = make_error_code(boost::system::errc::no_buffer_space);
       handle_error(self, "write", ec);
     }

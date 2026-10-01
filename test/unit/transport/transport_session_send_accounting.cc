@@ -239,6 +239,38 @@ TEST_P(SessionSendAccountingTest, PartialGatherCountsLogicalRequestsAndPrefix) {
   EXPECT_FALSE(alive());
   expect_conserved();
 }
+TEST_P(SessionSendAccountingTest, PartialGatherAcrossResetConsumesOldPrefix) {
+  ASSERT_TRUE(connect());
+  ASSERT_TRUE(send(8));
+  drain();
+  ASSERT_TRUE(send(3));
+  drain();
+  reset_stats();
+  ASSERT_TRUE(send(5));
+  ASSERT_TRUE(send(7));
+  drain();
+  endpoint->complete({}, 8);
+  drain();
+  ASSERT_EQ(endpoint->bytes, 15u);
+  ASSERT_TRUE(send(11));
+  drain();
+
+  // The old epoch's three bytes still consume the I/O prefix. Only four
+  // confirmed bytes belong to the new epoch, with neither new request complete.
+  endpoint->complete(net::error::connection_reset, 7);
+  drain();
+  const auto s = stats();
+  EXPECT_EQ(s.accepted.requests, 3u);
+  EXPECT_EQ(s.accepted.bytes, 23u);
+  EXPECT_EQ(s.written.requests, 0u);
+  EXPECT_EQ(s.confirmed_written_bytes, 4u);
+  EXPECT_EQ(s.connection_loss.aborted_during_write.requests, 2u);
+  EXPECT_EQ(s.connection_loss.aborted_during_write.bytes, 12u);
+  EXPECT_EQ(s.connection_loss.discarded_before_write.requests, 1u);
+  EXPECT_EQ(s.connection_loss.discarded_before_write.bytes, 11u);
+  EXPECT_EQ(s.outstanding.requests, 0u);
+  expect_conserved();
+}
 TEST_P(SessionSendAccountingTest, InlineCompletionDoesNotDeadlock) {
   ASSERT_TRUE(connect());
   endpoint->inline_write = true;

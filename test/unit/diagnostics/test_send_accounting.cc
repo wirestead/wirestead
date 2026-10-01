@@ -373,4 +373,35 @@ TEST(SendAccountingTest, EmptyBatchAndBatchBeginKeepQueuedStopDistinct) {
   expect_conservation(s);
 }
 
+// Handoff is fenced by the ledger itself: a batch terminated by stop/loss is
+// refused whole, and out-of-order removal leaves later requests reachable.
+TEST(SendAccountingTest, BatchBeginRefusesTerminatedRequestsAndSurvivesOutOfOrderRemoval) {
+  Ledger ledger;
+  const std::vector<BatchRequest> stopped{{ledger.admit(3), 3}, {ledger.admit(5), 5}};
+  ledger.end(Cause::ConnectionLoss);
+  EXPECT_FALSE(ledger.begin_batch(stopped, request_of));
+
+  const auto first = ledger.admit(7);
+  const auto middle = ledger.admit(11);
+  const auto last = ledger.admit(13);
+  ledger.discard(middle, Cause::QueuePressure);
+  EXPECT_TRUE(ledger.contains(first));
+  EXPECT_FALSE(ledger.contains(middle));
+  EXPECT_TRUE(ledger.contains(last));
+  const std::vector<BatchRequest> mixed{{first, 7}, {middle, 11}};
+  EXPECT_FALSE(ledger.begin_batch(mixed, request_of));
+  EXPECT_FALSE(ledger.contains(0));
+  EXPECT_FALSE(ledger.contains(last + 1));
+
+  const std::vector<BatchRequest> live{{first, 7}, {last, 13}};
+  EXPECT_TRUE(ledger.begin_batch(live, request_of));
+  ledger.complete_batch(live, 20, request_of, size_of);
+  const auto s = ledger.snapshot();
+  EXPECT_EQ(s.written.bytes, 20u);
+  EXPECT_EQ(s.queue_pressure.discarded_before_write.bytes, 11u);
+  EXPECT_EQ(s.connection_loss.discarded_before_write.bytes, 8u);
+  EXPECT_EQ(s.outstanding.requests, 0u);
+  expect_conservation(s);
+}
+
 }  // namespace

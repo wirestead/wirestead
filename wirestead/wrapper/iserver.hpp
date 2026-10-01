@@ -64,12 +64,22 @@ class WIRESTEAD_API ServerInterface {
   [[nodiscard]] virtual bool start_sync() { return start().get(); }
 
   /**
-   * @brief Stop the server and block until all active sessions are closed.
+   * @brief Request server shutdown and wait when the calling thread permits it.
    *
-   * Safe to call from any thread. After stop() returns, no further callbacks will fire
-   * and it is safe to destroy the object. Calling stop() more than once is a no-op.
+   * Outside callers wait for shutdown completion, including concurrent callers
+   * that find a stop already in progress. No user callback remains running or can
+   * start from that run when a waiting stop returns. Repeated completed stops are no-ops.
    *
-   * Restart contract (#444): stop() fully tears down the underlying transport
+   * On an executor needed by shutdown (including this object's own callback),
+   * stop() only requests shutdown and returns without waiting. Such a return does
+   * not permit destruction, restart, or stopped-only configuration. An outside
+   * caller must observe shutdown completion first. Destroying the object from its
+   * own callback and concurrent destruction/use or start/stop are unsupported.
+   * Externally managed executors must keep making progress while callers wait;
+   * user callbacks must return. Internal handlers may remain if they own their
+   * lifetime and cannot affect a later run.
+   *
+   * Restart contract (#444): completed shutdown fully tears down the underlying transport
    * (acceptor, sessions, timers) rather than leaving it in a reusable
    * half-alive state. Every on_*() callback and every config setter ever
    * called on this wrapper remains in force across any number of stop()/

@@ -77,9 +77,12 @@ cannot mutate new requests. Wrapper stop/start continues to reset statistics
 under the existing wrapper lifecycle contract. Native reset remains explicit.
 
 The tracker adds one metadata entry per outstanding request and uses a mutex
-for admission/transition/snapshot. It retains no additional
-payload copy. Stop traverses outstanding metadata. No throughput improvement
-is claimed; performance tuning remains separate from correctness evidence.
+for admission/transition/snapshot. Gather handoff and completion take that lock
+once per batch on TCP/UDS clients, TCP/UDS server sessions and Serial, retaining
+each request's identity and full-payload accounting. No timer or extra wait is
+introduced to form a batch. It retains no additional payload copy. Stop traverses
+outstanding metadata. End-to-end performance remains separate from correctness
+evidence.
 
 ## Compatibility and verification
 
@@ -97,13 +100,16 @@ UDS/Serial controlled-interface tests cover seven input families on each
 transport: pooled/fallback copy, move, shared and all three try variants.
 They verify pre-enqueue stop, active versus queued loss, partial gather prefix,
 inline interface completion, initiation exceptions, reset before enqueue and
-during I/O, stale completions after reconnect, write EOF/short completion,
+during I/O, mixed-size partial gathers spanning a reset, stale completions after
+reconnect, write EOF/short completion,
 rejected admission and BestEffort queue preservation. These tests do not require a
 physical serial device. Existing real-I/O tests remain regression coverage.
 
-UDS/Serial write completions are posted to the transport strand even if an
-injected interface invokes them inline. This permits admission/stop and write
-initiation to share one mutex without reentrant completion deadlocks.
+UDS write completions dispatch to the transport strand; Serial write completions
+post there, including injected inline completions. Neither transport holds its
+admission mutex across write initiation. Serial still serializes handoff and
+completion with admission/stop; UDS uses the ledger to fence successful handoff
+and completion and takes the admission mutex on failure.
 A short composed write without an error is treated as connection loss.
 Serial read EOF keeps its existing transient retry behavior; write EOF instead
 terminates the device instance, following the configured reopen policy.
