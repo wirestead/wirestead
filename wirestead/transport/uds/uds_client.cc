@@ -133,7 +133,7 @@ struct UdsClient::Impl {
   // Explicit dispatch preserves serialization. The lifetime also accounts for
   // test sockets that discard an operation instead of invoking its handler.
   template <typename Handler>
-  auto track_io(std::shared_ptr<UdsClient> self, Handler handler, bool defer = false) {
+  auto track_io(std::shared_ptr<UdsClient> self, Handler handler) {
     ++pending_io_;
     std::shared_ptr<void> lifetime(nullptr, [self](void*) {
       net::dispatch(self->impl_->strand_, [self] {
@@ -144,14 +144,8 @@ struct UdsClient::Impl {
         if (--impl->pending_io_ == 0 && impl->cleanup_finished_) impl->mark_cleanup_done();
       });
     });
-    return [self, lifetime, handler = std::move(handler), defer](auto... args) {
-      auto completion = [lifetime, handler, args...]() mutable { handler(args...); };
-      // Write initiation holds submission_mtx_; injected interfaces may invoke
-      // the callback inline. Queue it before acquiring that mutex again.
-      if (defer)
-        net::post(self->impl_->strand_, std::move(completion));
-      else
-        net::dispatch(self->impl_->strand_, std::move(completion));
+    return [self, lifetime, handler = std::move(handler)](auto... args) {
+      net::dispatch(self->impl_->strand_, [lifetime, handler, args...]() mutable { handler(args...); });
     };
   }
 
@@ -1018,47 +1012,44 @@ void UdsClient::Impl::do_write(std::shared_ptr<UdsClient> self, uint64_t seq) {
   writing_ = true;
   active_write_ = batch;
   const auto connection = connection_seq_.load();
-  auto completion = track_io(
-      self,
-      [self, seq, connection, batch](boost::system::error_code ec, size_t written) {
-        auto* impl = self->impl_.get();
-        bool current_connection;
-        {
-          // A short composed write without an error is still a terminal failure.
-          if (!ec && written < batch->bytes) ec = net::error::connection_reset;
-          // Only a failure must close admission; success needs just the ledger.
-          std::unique_lock<std::mutex> lock(impl->submission_mtx_, std::defer_lock);
-          if (ec) lock.lock();
-          current_connection = connection == impl->connection_seq_.load();
-          impl->send_accounting_.complete_batch(
-              batch->buffers, written, [](const auto& item) { return item.request; },
-              [](const auto& item) {
-                return std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
-              });
-          if (current_connection && ec) impl->mark_disconnected_locked();
-        }
-        if (!current_connection) {
-          batch->buffers.clear();
-          return;
-        }
-        impl->active_write_.reset();
-        impl->writing_ = false;
-        if (impl->stop_requested_.load() || seq != impl->current_seq_.load()) {
-          batch->buffers.clear();
-          return;
-        }
-        if (ec) {
-          queue_util::return_gather_batch(impl->tx_, batch->buffers);
-          impl->handle_close(self, seq, ec);
-          return;
-        }
-        batch->buffers.clear();
-        queue_util::release_reserved_write_bytes(impl->queue_bytes_, batch->bytes);
-        impl->stats_.record_sent(written);
-        impl->report_backpressure(self, impl->queue_bytes_);
-        impl->do_write(self, seq);
-      },
-      true);
+  auto completion = track_io(self, [self, seq, connection, batch](boost::system::error_code ec, size_t written) {
+    auto* impl = self->impl_.get();
+    bool current_connection;
+    {
+      // A short composed write without an error is still a terminal failure.
+      if (!ec && written < batch->bytes) ec = net::error::connection_reset;
+      // Only a failure must close admission; success needs just the ledger.
+      std::unique_lock<std::mutex> lock(impl->submission_mtx_, std::defer_lock);
+      if (ec) lock.lock();
+      current_connection = connection == impl->connection_seq_.load();
+      impl->send_accounting_.complete_batch(
+          batch->buffers, written, [](const auto& item) { return item.request; },
+          [](const auto& item) {
+            return std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
+          });
+      if (current_connection && ec) impl->mark_disconnected_locked();
+    }
+    if (!current_connection) {
+      batch->buffers.clear();
+      return;
+    }
+    impl->active_write_.reset();
+    impl->writing_ = false;
+    if (impl->stop_requested_.load() || seq != impl->current_seq_.load()) {
+      batch->buffers.clear();
+      return;
+    }
+    if (ec) {
+      queue_util::return_gather_batch(impl->tx_, batch->buffers);
+      impl->handle_close(self, seq, ec);
+      return;
+    }
+    batch->buffers.clear();
+    queue_util::release_reserved_write_bytes(impl->queue_bytes_, batch->bytes);
+    impl->stats_.record_sent(written);
+    impl->report_backpressure(self, impl->queue_bytes_);
+    impl->do_write(self, seq);
+  });
   try {
     socket_->async_write(batch->views, std::move(completion));
   } catch (...) {
