@@ -11,6 +11,11 @@ and ABI policy.
 
 ### Changed
 
+- Amortize Serial and TCP/UDS server-session send-accounting locks over each
+  gather batch, preserving request boundaries, reset epochs and stop/loss causes.
+- Clarify that callback/executor stop is request-only; outside concurrent stop
+  callers wait for completion before destruction, restart or stopped-only settings.
+
 - Reduce TCP/UDS client send-accounting lock acquisitions to once per gather
   batch at handoff and completion, preserving partial-prefix, reset-epoch and
   stop/loss accounting.

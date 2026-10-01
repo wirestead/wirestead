@@ -467,7 +467,8 @@ void UdsServerSession::do_write() {
   if (closing_ || !alive_ || tx_.empty() || writing_) return;
   writing_ = true;
   const size_t bytes_to_write = queue_util::take_gather_batch(tx_, current_write_batch_, current_write_views_, payload);
-  for (const auto& item : current_write_batch_) send_accounting_.begin(item.request);
+  // Admission still fences stop/loss; amortize the ledger lock over the batch.
+  send_accounting_.begin_batch(current_write_batch_, [](const auto& item) { return item.request; });
   auto self = shared_from_this();
   // Initiation may write inline; never hold admission across the syscall.
   // The batch members are strand-owned and the completion posts back to it.
@@ -484,13 +485,11 @@ void UdsServerSession::do_write() {
             self->current_write_batch_.clear();
             return;
           }
-          size_t remaining = std::min(n, bytes_to_write);
-          for (const auto& item : self->current_write_batch_) {
-            const auto size = std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
-            const auto confirmed = std::min(remaining, size);
-            self->send_accounting_.complete(item.request, confirmed);
-            remaining -= confirmed;
-          }
+          self->send_accounting_.complete_batch(
+              self->current_write_batch_, std::min(n, bytes_to_write), [](const auto& item) { return item.request; },
+              [](const auto& item) {
+                return std::visit([](const auto& b) { return queue_util::variant_buffer_size(b); }, item.buffer);
+              });
           self->current_write_batch_.clear();
           if (failed) {
             self->send_accounting_.end(Ledger::Cause::ConnectionLoss);
