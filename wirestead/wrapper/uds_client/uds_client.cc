@@ -480,33 +480,43 @@ struct UdsClient::Impl : public std::enable_shared_from_this<Impl> {
         // Select the run and native connection together at entry. Validation
         // precedes state and waiting, including the line delimiter and hard cap.
         generation = callback_generation_.load();
-        connection.cannot_wait =
-            detail::in_data_callback() || (channel_ && detail::executor_running_here(channel_->get_executor()));
-        connection.uds = std::dynamic_pointer_cast<transport::UdsClient>(channel_);
-        connection.custom =
-            connection.uds ? nullptr : std::dynamic_pointer_cast<interface::ConnectionChannel>(channel_);
+        // Only a capacity wait needs the executor check and owning references;
+        // the uncontended admission below uses the lock-protected channel.
+        const auto cannot_wait = [this] {
+          return detail::in_data_callback() || (channel_ && detail::executor_running_here(channel_->get_executor()));
+        };
+        auto* uds = dynamic_cast<transport::UdsClient*>(channel_.get());
+        auto* custom = uds ? nullptr : dynamic_cast<interface::ConnectionChannel*>(channel_.get());
         auto validation = detail::validate_payload_size(size, channel_ ? channel_->write_queue_limit() : std::nullopt);
         if (!validation.accepted()) return validation;
-        auto state = send_state(connection.uds.get(), connection.custom != nullptr);
+        auto state = send_state(uds, custom != nullptr);
         if (!state.accepted()) return state;
-        if (connection.custom) {
-          auto captured = connection.custom->capture_write_connection();
+        if (custom) {
+          connection.custom = std::shared_ptr<interface::ConnectionChannel>(channel_, custom);
+          auto captured = custom->capture_write_connection();
           if (auto reason = std::get_if<SendRejection>(&captured)) return SendResult::reject(*reason);
           connection.custom_wait = std::get<interface::ConnectionChannel::Connection>(std::move(captured));
           if (!connection.custom_wait) throw std::logic_error("ConnectionChannel returned a null connection");
         } else {
-          state = connection.uds->write_state();
+          state = uds->write_state();
           if (!state.accepted()) return state;
-          connection.wait = connection.uds->capture_write_wait();
-          if (!connection.wait) return SendResult::reject(SendRejection::NotReady);
+          const auto sequence = uds->write_connection();
+          if (!sequence) return SendResult::reject(SendRejection::NotReady);
           // Keep the selected run and connection while admitting the common
           // no-pressure case. Native admission still validates capacity/state.
-          if (!connection.uds->is_backpressure_active()) {
-            const auto admitted = native_write(*connection.uds, connection.wait->sequence);
-            if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock || connection.cannot_wait)
-              return admitted;
+          if (!uds->is_backpressure_active()) {
+            const auto admitted = native_write(*uds, *sequence);
+            if (admitted.accepted() || admitted.reason() != SendRejection::WouldBlock) return admitted;
+            if ((connection.cannot_wait = cannot_wait())) return admitted;
           }
+          connection.uds = std::shared_ptr<transport::UdsClient>(channel_, uds);
+          connection.wait = uds->capture_write_wait();
+          if (!connection.wait) return SendResult::reject(SendRejection::NotReady);
+          // The entry connection ended before it was retained: final admission
+          // rejects the stale pin exactly as a retry against it would.
+          if (connection.wait->sequence != *sequence) return native_write(*uds, *sequence);
         }
+        connection.cannot_wait = cannot_wait();
       }
       for (bool retry = false;; retry = true) {
         if (retry) detail::pause_send_retry(bp_cv_, bp_mutex_);

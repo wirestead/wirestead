@@ -32,6 +32,10 @@ and ABI policy.
   of a hashed node map. Steady traffic no longer allocates or hashes per request;
   accounting semantics are unchanged.
 
+- Defer TCP/UDS client blocking-send executor checks and owning connection
+  references to the capacity-wait path. Rejection reasons and the connection
+  pinned at entry are unchanged.
+
 - **Breaking behavior:** invalid configuration is rejected before application;
   native construction no longer silently clamps it. Settings outside the explicit
   runtime allowlist require completed stop. Native callback exceptions are logged
