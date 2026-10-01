@@ -18,6 +18,9 @@
 
 #include <cstdlib>
 #include <new>
+#ifdef _MSC_VER
+#include <malloc.h>
+#endif
 #include <vector>
 
 #include "wirestead/diagnostics/send_accounting.hpp"
@@ -26,7 +29,23 @@
 // executable and is excluded under TSan (see test/unit/CMakeLists.txt).
 namespace {
 thread_local bool t_fail_allocation = false;
+
+// MSVC has no std::aligned_alloc; its aligned blocks need the matching free.
+void* aligned_allocate(std::size_t n, std::size_t align) {
+#ifdef _MSC_VER
+  return _aligned_malloc(n ? n : 1, align);
+#else
+  return std::aligned_alloc(align, (n + align - 1) / align * align);
+#endif
 }
+void aligned_release(void* p) noexcept {
+#ifdef _MSC_VER
+  _aligned_free(p);
+#else
+  std::free(p);
+#endif
+}
+}  // namespace
 
 void* operator new(std::size_t n) {
   if (t_fail_allocation) throw std::bad_alloc();
@@ -36,13 +55,13 @@ void* operator new(std::size_t n) {
 void* operator new(std::size_t n, std::align_val_t al) {
   if (t_fail_allocation) throw std::bad_alloc();
   const auto align = static_cast<std::size_t>(al);
-  if (void* p = std::aligned_alloc(align, (n + align - 1) / align * align)) return p;
+  if (void* p = aligned_allocate(n, align)) return p;
   throw std::bad_alloc();
 }
 void operator delete(void* p) noexcept { std::free(p); }
 void operator delete(void* p, std::size_t) noexcept { std::free(p); }
-void operator delete(void* p, std::align_val_t) noexcept { std::free(p); }
-void operator delete(void* p, std::size_t, std::align_val_t) noexcept { std::free(p); }
+void operator delete(void* p, std::align_val_t) noexcept { aligned_release(p); }
+void operator delete(void* p, std::size_t, std::align_val_t) noexcept { aligned_release(p); }
 
 namespace {
 using Ledger = wirestead::diagnostics::SendAccountingLedger;
