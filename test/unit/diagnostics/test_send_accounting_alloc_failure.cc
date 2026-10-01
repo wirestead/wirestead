@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdlib>
+#include <memory_resource>
 #include <new>
 #ifdef _MSC_VER
 #include <malloc.h>
@@ -68,7 +69,23 @@ using Ledger = wirestead::diagnostics::SendAccountingLedger;
 
 // A failed admission must leave no trace: later requests are tracked and
 // completed normally, and only the requests that were accepted are counted.
+// Whether a failure injected here reaches std::pmr's upstream allocator. With
+// MSVC's DLL runtime it does not: the pool calls the runtime's operator new.
+bool pmr_allocation_is_hooked() {
+  std::pmr::unsynchronized_pool_resource pool;
+  t_fail_allocation = true;
+  bool threw = false;
+  try {
+    pool.deallocate(pool.allocate(64), 64);
+  } catch (const std::bad_alloc&) {
+    threw = true;
+  }
+  t_fail_allocation = false;
+  return threw;
+}
+
 TEST(SendAccountingAllocationTest, FailedAdmissionLeavesLedgerUsable) {
+  if (!pmr_allocation_is_hooked()) GTEST_SKIP() << "allocation failure cannot be injected into std::pmr here";
   Ledger ledger;
   std::vector<Ledger::Request> accepted{ledger.admit(3)};
   // Node storage is pooled, so keep admitting until an insert must allocate.
