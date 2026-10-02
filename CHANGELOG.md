@@ -574,8 +574,8 @@ and ABI policy.
 
 ### Known limitations
 
-- Send throughput is back to 80% or more of v0.9.6 in every Orin sweep cell
-  (#702, #703), but UDS Reliable p99 latency is not: 4 KiB is 121% of v0.9.6
+- Send throughput is back to 80% or more of v0.9.6 in every target of #703's
+  final Orin matrix (#702, #703), but UDS Reliable p99 latency is not: 4 KiB is 121% of v0.9.6
   and 1 KiB 120.5%, against a 120% target. TCP and UDP meet it.
 
 
