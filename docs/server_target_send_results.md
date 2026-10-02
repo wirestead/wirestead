@@ -132,7 +132,6 @@ bool-valued futures with SendResult, or explicitly select accepted() when only
 acceptance is needed. The result does not promise peer receipt or survival of
 a later disconnect. No new overloads or parallel *_ex methods are introduced.
 
-The Python repository currently pins v0.9.6 and retains its bool API. Before
-updating its core reference to this API, its three server send_to bindings
-must explicitly convert acceptance or expose a documented Python result type.
+The Python bindings keep their bool API by converting acceptance explicitly in
+the three server send_to bindings (wirestead-python#72).
 Client wrappers and custom Channel result contracts remain separate work.

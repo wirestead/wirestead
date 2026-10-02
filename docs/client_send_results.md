@@ -85,7 +85,7 @@ Custom/native regression tests also assert the public returned reasons.
 
 Language bindings that promise bool can use static_cast<bool>(result) to
 support both the old bool return and the new explicitly convertible result.
-The Python repository still pins core v0.9.6; its bindings must be adapted
-before upgrading that pin to this API. Exposing rich Python results is a
+The Python bindings convert every send to bool this way (wirestead-python#72),
+so Python keeps returning True/False. Exposing rich Python results is a
 separate API decision. Server broadcasts now return FanoutResult; see
 [server_fanout_results.md](server_fanout_results.md).

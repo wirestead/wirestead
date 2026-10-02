@@ -8,6 +8,19 @@ the ROS release tooling, which reads reStructuredText. ``CHANGELOG.md`` remains
 the full changelog and covers every release, including the ones before this
 file existed.
 
+0.10.0 (2026-10-02)
+-------------------
+* Breaking: send and broadcast methods return structured ``SendResult`` /
+  ``FanoutResult`` instead of ``bool``, and ABI changed. Rebuild all dependents.
+* Breaking: invalid settings are rejected instead of clamped; ``stop()`` from a
+  callback only requests shutdown, while outside callers wait for completion.
+* Breaking: the Unilink compatibility layer (``unilink`` CMake package,
+  ``unilink.pc``, ``include/unilink/``) is removed.
+* Add per-request send accounting for every transport and bounded built-in
+  receive storage.
+* Lower the minimum spdlog version to 1.8.
+* Contributors: Jinwoo Sung
+
 0.9.6 (2026-08-30)
 ------------------
 * Install ``package.xml`` to ``share/wirestead/``, so the Debian carries its

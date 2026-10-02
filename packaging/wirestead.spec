@@ -1,5 +1,5 @@
 Name:           wirestead
-Version:        0.9.6
+Version:        0.10.0
 Release:        0
 Summary:        Async serial, TCP, UDP and Unix socket communication library
 License:        Apache-2.0
