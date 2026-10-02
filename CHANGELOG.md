@@ -30,7 +30,8 @@ and ABI policy.
 
 - Index send-accounting entries by request identity in a reusable ring instead
   of a hashed node map. Steady traffic no longer allocates or hashes per request;
-  accounting semantics are unchanged.
+  accounting semantics are unchanged. Sparse retention bounds metadata when
+  rollback or UDP expiry retires later requests behind an older pending write.
 
 - Defer TCP/UDS client blocking-send executor checks and owning connection
   references to the capacity-wait path. Rejection reasons and the connection

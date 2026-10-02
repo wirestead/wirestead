@@ -458,4 +458,66 @@ TEST(SendAccountingTest, SlidingWindowKeepsIdentityAcrossWrapAndGrowth) {
   expect_conservation(s);
 }
 
+TEST(SendAccountingTest, DetachedRequestsPreserveGroupsEpochsAndGatherPrefixes) {
+  Ledger ledger;
+  const auto old_group = std::make_shared<Ledger::Group>();
+  const auto oldest = ledger.admit(4, old_group);
+  ASSERT_TRUE(ledger.begin(oldest));
+  ledger.reset();
+  const auto group = std::make_shared<Ledger::Group>();
+  const auto waiting = ledger.admit(5, group);
+  const auto active = ledger.admit(6, group);
+  ASSERT_TRUE(ledger.begin(active));
+  // Keep the older requests alive while more recent IDs retire.
+  for (int i = 0; i < 64; ++i) ledger.complete(ledger.admit(1), 1);
+  ledger.discard_waiting(group, Cause::SessionExpiry);
+  EXPECT_FALSE(ledger.contains(waiting));
+  EXPECT_TRUE(ledger.contains(oldest));
+  EXPECT_TRUE(ledger.contains(active));
+  const auto newest = ledger.admit(7, group);
+  const std::vector<Ledger::Request> refused{oldest, waiting, newest};
+  EXPECT_FALSE(ledger.begin_batch(refused, [](auto id) { return id; }));
+  struct Item {
+    Ledger::Request id;
+    size_t size;
+  };
+  const std::vector<Item> batch{{oldest, 4}, {active, 6}, {newest, 7}};
+  ASSERT_TRUE(ledger.begin_batch(batch, [](const auto& x) { return x.id; }));
+  ledger.complete_batch(batch, 6, [](const auto& x) { return x.id; }, [](const auto& x) { return x.size; });
+  const auto s = ledger.snapshot();
+  EXPECT_EQ(s.written.requests, 64u);
+  EXPECT_EQ(s.outstanding.requests, 0u);
+  EXPECT_EQ(s.confirmed_written_bytes, 66u);
+  const auto peer = ledger.snapshot(group);
+  EXPECT_EQ(peer.session_expiry.discarded_before_write.bytes, 5u);
+  EXPECT_EQ(peer.connection_loss.aborted_during_write.bytes, 13u);
+  EXPECT_EQ(peer.confirmed_written_bytes, 2u);
+  EXPECT_EQ(ledger.snapshot(old_group).accepted.requests, 0u);
+  ledger.complete(oldest, 4);
+  ledger.end(Cause::ExplicitStop);
+  expect_conservation(ledger.snapshot());
+  expect_conservation(peer);
+}
+
+TEST(SendAccountingTest, DetachedRequestsKeepFirstTerminationAndNewIdentity) {
+  Ledger ledger;
+  const auto active = ledger.admit(2);
+  const auto waiting = ledger.admit(3);
+  ASSERT_TRUE(ledger.begin(active));
+  for (int i = 0; i < 64; ++i) ledger.complete(ledger.admit(1), 1);
+  ledger.discard(waiting, Cause::QueuePressure);
+  ledger.end(Cause::ExplicitStop);
+  const auto replacement = ledger.admit(5);
+  ledger.complete(active, 2);
+  ledger.complete(waiting, 3);
+  EXPECT_TRUE(ledger.contains(replacement));
+  ledger.complete(replacement, 5);
+  const auto s = ledger.snapshot();
+  EXPECT_EQ(s.written.requests, 65u);
+  EXPECT_EQ(s.queue_pressure.discarded_before_write.bytes, 3u);
+  EXPECT_EQ(s.explicit_stop.aborted_during_write.bytes, 2u);
+  EXPECT_EQ(s.outstanding.requests, 0u);
+  expect_conservation(s);
+}
+
 }  // namespace

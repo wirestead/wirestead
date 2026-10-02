@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 #include <vector>
 
 #include "wirestead/wrapper/send_accounting.hpp"
@@ -88,7 +89,7 @@ class SendAccountingLedger {
       group->totals = {};
       group->epoch = epoch_;
     }
-    if (count_ == slots_.size()) grow();
+    if (count_ == slots_.size()) make_room();
     auto& entry = slot(count_);
     entry = Entry{bytes, epoch_, false, true, std::move(group)};
     ++count_;
@@ -162,12 +163,13 @@ class SendAccountingLedger {
     auto* entry = find(id);
     if (!entry) return;
     terminate(*entry, cause);
-    erase(*entry);
+    erase(id, *entry);
   }
 
   bool contains(Request id) const {
     std::lock_guard<BriefMutex> lock(mutex_);
-    return id >= base_ && id - base_ < count_ && slot(id - base_).live;
+    if (id < base_) return sparse_.contains(id);
+    return id - base_ < count_ && slot(id - base_).live;
   }
 
   // Expiry races with handoff under the caller's admission mutex. Active
@@ -175,6 +177,14 @@ class SendAccountingLedger {
   void discard_waiting(const GroupHandle& group, Cause cause) {
     if (!group) return;
     std::lock_guard<BriefMutex> lock(mutex_);
+    for (auto it = sparse_.begin(); it != sparse_.end();) {
+      if (it->second.group == group && !it->second.active) {
+        terminate(it->second, cause);
+        it = sparse_.erase(it);
+      } else {
+        ++it;
+      }
+    }
     for (size_t i = 0; i < count_; ++i) {
       auto& entry = slot(i);
       if (entry.live && entry.group == group && !entry.active) {
@@ -190,6 +200,8 @@ class SendAccountingLedger {
   // includes requests accepted before their enqueue handler has executed.
   void end(Cause cause) {
     std::lock_guard<BriefMutex> lock(mutex_);
+    for (const auto& [id, entry] : sparse_) terminate(entry, cause);
+    sparse_.clear();
     for (size_t i = 0; i < count_; ++i) {
       if (slot(i).live) terminate(slot(i), cause);
       slot(i) = Entry{};
@@ -229,9 +241,27 @@ class SendAccountingLedger {
   Entry& slot(size_t index) { return slots_[(head_ + index) & (slots_.size() - 1)]; }
   const Entry& slot(size_t index) const { return slots_[(head_ + index) & (slots_.size() - 1)]; }
 
-  // Allocates only when the outstanding span outgrows the ring; a failure
-  // leaves the ledger unchanged.
-  void grow() {
+  // Grow only when more than half the slots are live. Otherwise detach the
+  // surviving older IDs before reusing the ring, so repeated rollback/expiry
+  // cannot grow storage behind a stalled request. Stage all allocations first:
+  // a failed promotion leaves both stores and every request unchanged.
+  void make_room() {
+    if (!slots_.empty()) {
+      size_t live = 0;
+      for (size_t i = 0; i < count_; ++i) live += slot(i).live;
+      if (live <= count_ / 2) {
+        auto staged = sparse_;
+        staged.reserve(staged.size() + live);
+        for (size_t i = 0; i < count_; ++i)
+          if (slot(i).live) staged.emplace(base_ + i, slot(i));
+        sparse_.swap(staged);
+        for (size_t i = 0; i < count_; ++i) slot(i) = Entry{};
+        head_ = 0;
+        count_ = 0;
+        base_ = next_id_ + 1;
+        return;
+      }
+    }
     std::vector<Entry> larger(slots_.empty() ? 16 : slots_.size() * 2);
     for (size_t i = 0; i < count_; ++i) larger[i] = std::move(slot(i));
     slots_ = std::move(larger);
@@ -239,12 +269,20 @@ class SendAccountingLedger {
   }
 
   Entry* find(Request id) {
-    if (id < base_ || id - base_ >= count_) return nullptr;
+    if (id < base_) {
+      const auto it = sparse_.find(id);
+      return it == sparse_.end() ? nullptr : &it->second;
+    }
+    if (id - base_ >= count_) return nullptr;
     auto& entry = slot(id - base_);
     return entry.live ? &entry : nullptr;
   }
 
-  void erase(Entry& entry) {
+  void erase(Request id, Entry& entry) {
+    if (id < base_) {
+      sparse_.erase(id);
+      return;
+    }
     entry.live = false;
     entry.group.reset();
     compact();
@@ -279,7 +317,7 @@ class SendAccountingLedger {
         add(totals.connection_loss.aborted_during_write, entry.bytes);
       }
     });
-    erase(*found);
+    erase(id, *found);
   }
 
   void rollback(Request id) {
@@ -290,7 +328,7 @@ class SendAccountingLedger {
       remove(totals.accepted, entry->bytes);
       remove(totals.outstanding, entry->bytes);
     });
-    erase(*entry);
+    erase(id, *entry);
   }
   template <typename F>
   void update(const Entry& entry, F&& apply) {
@@ -320,9 +358,12 @@ class SendAccountingLedger {
   mutable BriefMutex mutex_;
   // slot(i) is request base_ + i in a power-of-two ring. IDs are assigned in
   // order and transports retire them nearly in order, so lookup needs no
-  // hashing and steady traffic reuses slots without allocating. A retired slot
-  // stays until every older request retires; capacity keeps its high-water mark.
+  // hashing and steady traffic reuses slots without allocating. Retired holes
+  // trigger sparse promotion before growing a mostly empty ring. Ring capacity
+  // is bounded by max(16, 4 * peak live requests), independent of retired IDs.
   std::vector<Entry> slots_;
+  // Only detached live IDs precede base_; FIFO traffic never inserts here.
+  std::unordered_map<Request, Entry> sparse_;
   size_t head_ = 0;
   size_t count_ = 0;
   Request base_ = 1;

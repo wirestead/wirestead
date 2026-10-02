@@ -78,8 +78,13 @@ under the existing wrapper lifecycle contract. Native reset remains explicit.
 
 The tracker adds one metadata entry per outstanding request and uses a mutex
 for admission/transition/snapshot. Entries are indexed by request identity in a
-reusable ring: a retired slot is reclaimed once every older request has retired,
-and steady traffic allocates nothing per request. Gather handoff and completion
+reusable ring, and steady FIFO traffic allocates nothing per request. If older
+requests prevent reuse of a mostly retired ring, the live entries move into a
+sparse ID map before that ring can grow. Retired IDs therefore cannot accumulate
+metadata behind a stalled request. Ring capacity is bounded by the live-request
+high-water mark (at most four times that count, with a minimum of 16 slots),
+while the sparse map contains only still-live requests. Allocation failure during
+this transition leaves requests and totals unchanged. Gather handoff and completion
 take that lock once per batch on TCP/UDS clients, TCP/UDS server sessions and
 Serial, retaining each request's identity and full-payload accounting. No timer
 or extra wait is introduced to form a batch. It retains no additional payload
