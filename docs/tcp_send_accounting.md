@@ -37,6 +37,11 @@ writes. Copy, pooled copy, move, shared, try and connection-pinned paths all use
 the same accounting. Reusing a shared payload is still a separate request for
 each admission.
 
+TCP client submissions cache the strand's never-inline, fork and default-allocator
+properties used by `post`. Internal enqueue handlers still own the transport.
+A send from that strand cannot run its enqueue handler until the current handler
+returns, preserving the stop-before-enqueue classification even on that path.
+
 The local-write boundary is immediately before asynchronous initiation. Failure
 to initiate after that boundary aborts the active request and closes the
 connection, discarding the remaining queued/pending requests. Stop and connection
@@ -77,12 +82,19 @@ cannot mutate new requests. Wrapper stop/start continues to reset statistics
 under the existing wrapper lifecycle contract. Native reset remains explicit.
 
 The tracker adds one metadata entry per outstanding request and uses a mutex
-for admission/transition/snapshot. Gather handoff and completion take that lock
-once per batch on TCP/UDS clients, TCP/UDS server sessions and Serial, retaining
-each request's identity and full-payload accounting. No timer or extra wait is
-introduced to form a batch. It retains no additional payload copy. Stop traverses
-outstanding metadata. End-to-end performance remains separate from correctness
-evidence.
+for admission/transition/snapshot. Entries are indexed by request identity in a
+reusable ring, and steady FIFO traffic allocates nothing per request. If older
+requests prevent reuse of a mostly retired ring, the live entries move into a
+sparse ID map before that ring can grow. Retired IDs therefore cannot accumulate
+metadata behind a stalled request. Ring capacity is bounded by the live-request
+high-water mark (at most four times that count, with a minimum of 16 slots),
+while the sparse map contains only still-live requests. Allocation failure during
+this transition leaves requests and totals unchanged. Gather handoff and completion
+take that lock once per batch on TCP/UDS clients, TCP/UDS server sessions and
+Serial, retaining each request's identity and full-payload accounting. No timer
+or extra wait is introduced to form a batch. It retains no additional payload
+copy. Stop traverses outstanding metadata. End-to-end performance remains
+separate from correctness evidence.
 
 ## Compatibility and verification
 

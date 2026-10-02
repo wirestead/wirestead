@@ -28,6 +28,19 @@ and ABI policy.
   sleeping under contention. Unpressured wrapper sends avoid redundant
   capacity-wait preparation and channel reference-count updates.
 
+- Index send-accounting entries by request identity in a reusable ring instead
+  of a hashed node map. Steady traffic no longer allocates or hashes per request;
+  accounting semantics are unchanged. Sparse retention bounds metadata when
+  rollback or UDP expiry retires later requests behind an older pending write.
+
+- Cache TCP client write-submission executor properties instead of adapting
+  the strand on every send. Enqueue handlers remain asynchronous, serialized
+  on the same strand and owning the transport.
+
+- Defer TCP/UDS client blocking-send executor checks and owning connection
+  references to the capacity-wait path. Rejection reasons and the connection
+  pinned at entry are unchanged.
+
 - **Breaking behavior:** invalid configuration is rejected before application;
   native construction no longer silently clamps it. Settings outside the explicit
   runtime allowlist require completed stop. Native callback exceptions are logged

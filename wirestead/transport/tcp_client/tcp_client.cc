@@ -97,6 +97,9 @@ struct TcpClient::Impl {
   std::shared_ptr<net::io_context> owned_ioc_;
   net::io_context* ioc_ = nullptr;
   net::strand<net::io_context::executor_type> strand_;
+  // Internal write lambdas have the default allocator and no associated executor.
+  // Cache post's properties once; never execute inline under submission_mtx_.
+  const net::strand<net::io_context::executor_type> write_executor_;
   std::unique_ptr<net::executor_work_guard<net::io_context::executor_type>> work_guard_;
   std::jthread ioc_thread_;
   std::atomic<uint64_t> lifecycle_seq_{0};
@@ -274,6 +277,9 @@ struct TcpClient::Impl {
       : owned_ioc_(ioc_ptr ? nullptr : std::make_shared<net::io_context>()),
         ioc_(ioc_ptr ? ioc_ptr : owned_ioc_.get()),
         strand_(net::make_strand(*ioc_)),
+        write_executor_(net::prefer(net::require(strand_, net::execution::blocking.never),
+                                    net::execution::relationship.fork,
+                                    net::execution::allocator(std::allocator<void>{}))),
         resolver_(strand_),
         socket_(strand_),
         cfg_(cfg),
@@ -579,8 +585,8 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
         impl_->stats_.record_accepted(added);
         Impl::Ledger::Admission admission(impl_->send_accounting_, added);
         const auto request = admission.request();
-        net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(pooled_buffer), added, seq, connection,
-                                   request]() mutable {
+        impl_->write_executor_.execute([self = shared_from_this(), buf = std::move(pooled_buffer), added, seq,
+                                        connection, request]() mutable {
           if (seq != self->impl_->current_seq_.load()) return;
           if (connection != self->impl_->connection_seq_.load()) {
             self->impl_->stats_.record_dropped(1, added);
@@ -611,8 +617,8 @@ wrapper::SendResult TcpClient::write_copy(memory::ConstByteSpan data, std::optio
   Impl::Ledger::Admission admission(impl_->send_accounting_, added);
   const auto request = admission.request();
 
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(fallback), added, seq, connection,
-                             request]() mutable {
+  impl_->write_executor_.execute([self = shared_from_this(), buf = std::move(fallback), added, seq, connection,
+                                  request]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
@@ -666,8 +672,8 @@ wrapper::SendResult TcpClient::write_move(std::vector<uint8_t>&& data, std::opti
   impl_->stats_.record_accepted(added);
   Impl::Ledger::Admission admission(impl_->send_accounting_, added);
   const auto request = admission.request();
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection,
-                             request]() mutable {
+  impl_->write_executor_.execute([self = shared_from_this(), buf = std::move(data), added, seq, connection,
+                                  request]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
@@ -722,8 +728,8 @@ wrapper::SendResult TcpClient::write_shared(std::shared_ptr<const std::vector<ui
   impl_->stats_.record_accepted(added);
   Impl::Ledger::Admission admission(impl_->send_accounting_, added);
   const auto request = admission.request();
-  net::post(impl_->strand_, [self = shared_from_this(), buf = std::move(data), added, seq, connection,
-                             request]() mutable {
+  impl_->write_executor_.execute([self = shared_from_this(), buf = std::move(data), added, seq, connection,
+                                  request]() mutable {
     if (seq != self->impl_->current_seq_.load()) return;
     if (connection != self->impl_->connection_seq_.load()) {
       self->impl_->stats_.record_dropped(1, added);
@@ -797,27 +803,27 @@ wrapper::SendResult TcpClient::try_write_move(std::vector<uint8_t>&& data) {
   Impl::Ledger::Admission admission(impl_->send_accounting_, added);
   const auto request = admission.request();
 
-  net::post(impl_->strand_,
-            [self = shared_from_this(), buf = std::move(data), added, seq, connection, request]() mutable {
-              if (seq != self->impl_->current_seq_.load()) return;
-              if (connection != self->impl_->connection_seq_.load()) {
-                self->impl_->stats_.record_dropped(1, added);
-                // The old connection drain already removed this queue reservation.
-                return;
-              }
-              auto impl = self->impl_.get();
-              if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||
-                  impl->state_.is_state(LinkState::Error)) {
-                queue_util::release_reserved_write_bytes(impl->queue_bytes_, added);
-                impl->stats_.record_failed_send();
-                return;
-              }
+  impl_->write_executor_.execute(
+      [self = shared_from_this(), buf = std::move(data), added, seq, connection, request]() mutable {
+        if (seq != self->impl_->current_seq_.load()) return;
+        if (connection != self->impl_->connection_seq_.load()) {
+          self->impl_->stats_.record_dropped(1, added);
+          // The old connection drain already removed this queue reservation.
+          return;
+        }
+        auto impl = self->impl_.get();
+        if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||
+            impl->state_.is_state(LinkState::Error)) {
+          queue_util::release_reserved_write_bytes(impl->queue_bytes_, added);
+          impl->stats_.record_failed_send();
+          return;
+        }
 
-              impl->tx_.push_back(Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request});
-              impl->observe_queue();
-              impl->report_backpressure(self, impl->queue_bytes_);
-              if (!impl->writing_) impl->do_write(self, impl->current_seq_.load());
-            });
+        impl->tx_.push_back(Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request});
+        impl->observe_queue();
+        impl->report_backpressure(self, impl->queue_bytes_);
+        if (!impl->writing_) impl->do_write(self, impl->current_seq_.load());
+      });
   admission.commit();
   return wrapper::SendResult::accept();
 }
@@ -868,27 +874,27 @@ wrapper::SendResult TcpClient::try_write_shared(std::shared_ptr<const std::vecto
   Impl::Ledger::Admission admission(impl_->send_accounting_, added);
   const auto request = admission.request();
 
-  net::post(impl_->strand_,
-            [self = shared_from_this(), buf = std::move(data), added, seq, connection, request]() mutable {
-              if (seq != self->impl_->current_seq_.load()) return;
-              if (connection != self->impl_->connection_seq_.load()) {
-                self->impl_->stats_.record_dropped(1, added);
-                // The old connection drain already removed this queue reservation.
-                return;
-              }
-              auto impl = self->impl_.get();
-              if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||
-                  impl->state_.is_state(LinkState::Error)) {
-                queue_util::release_reserved_write_bytes(impl->queue_bytes_, added);
-                impl->stats_.record_failed_send();
-                return;
-              }
+  impl_->write_executor_.execute(
+      [self = shared_from_this(), buf = std::move(data), added, seq, connection, request]() mutable {
+        if (seq != self->impl_->current_seq_.load()) return;
+        if (connection != self->impl_->connection_seq_.load()) {
+          self->impl_->stats_.record_dropped(1, added);
+          // The old connection drain already removed this queue reservation.
+          return;
+        }
+        auto impl = self->impl_.get();
+        if (impl->stop_requested_.load() || impl->state_.is_state(LinkState::Closed) ||
+            impl->state_.is_state(LinkState::Error)) {
+          queue_util::release_reserved_write_bytes(impl->queue_bytes_, added);
+          impl->stats_.record_failed_send();
+          return;
+        }
 
-              impl->tx_.push_back(Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request});
-              impl->observe_queue();
-              impl->report_backpressure(self, impl->queue_bytes_);
-              if (!impl->writing_) impl->do_write(self, impl->current_seq_.load());
-            });
+        impl->tx_.push_back(Impl::TrackedBuffer{BufferVariant{std::move(buf)}, request});
+        impl->observe_queue();
+        impl->report_backpressure(self, impl->queue_bytes_);
+        if (!impl->writing_) impl->do_write(self, impl->current_seq_.load());
+      });
   admission.commit();
   return wrapper::SendResult::accept();
 }
