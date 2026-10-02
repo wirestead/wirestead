@@ -6,8 +6,7 @@ This project follows the Keep a Changelog section names where practical. The
 core C++ API is still pre-1.0; see `docs/api_stability.md` for compatibility
 and ABI policy.
 
-## Unreleased
-
+## v0.10.0 - 2026-10-02
 
 ### Changed
 
@@ -117,82 +116,6 @@ and ABI policy.
   reasons are never guessed. Wrappers require start() even for connected
   injected channels. See docs/client_send_results.md.
 
-### Added
-
-- Custom ConnectionChannel implementations can provide connection-pinned
-  Reliable sends to all four client wrappers. Waits preserve the first
-  stop/loss cause across reconnect, final admission cannot retarget a new
-  connection, and only WouldBlock is retried. Legacy injected Channels and
-  public bool client methods retain their existing compatibility boundary.
-
-- ResultChannel exposes six structured single-target write admission methods,
-  implemented by TCP/UDS clients, UDP and serial. Final legacy bool adapters
-  delegate exactly once. Custom bool-only channels and server fanout remain
-  unchanged; client wrapper result migration remains pending. Native class ABI
-  changes require rebuilding consumers.
-
-- TCP/UDS server Reliable and explicit blocking sends retain one internal
-  SendResult across validation, per-session capacity waiting and pinned final
-  admission. Waits preserve the first stop/loss cause across later changes;
-  only transient native WouldBlock is retried. Public methods remain bool.
-
-- TCP/UDS server sessions and targeted sends retain internal SendResult
-  decisions. Nonblocking wrapper sends combine validation, lifecycle and
-  native admission; explicit try keeps WouldBlock and BestEffort maps it to
-  QueueFull. Public return types remain bool.
-
-- Serial native and wrapper sends retain internal SendResult decisions across
-  validation, readiness, capacity waiting and pinned device admission. Waits
-  preserve the first stop/loss cause. Public methods still return bool.
-
-- UDP client and server targeted sends combine internal SendResult decisions
-  across validation, readiness, capacity waiting and final admission. Native
-  run/session pins and first terminal causes survive stop, error and restart.
-  Public methods still return bool.
-
-
-- Built-in UDS client admission and wrapper sends retain internal SendResult
-  decisions across validation, lifecycle, capacity waits and final submission.
-  Waits preserve the first stop/loss reason and pin the original connection.
-  Public send methods still return bool.
-
-
-- Built-in TCP Reliable and explicit blocking sends now retain one internal
-  SendResult across validation, capacity waiting and pinned native admission.
-  Wait cancellation/loss reasons survive later state changes, and only native
-  capacity refusals are retried. Public sends still return bool.
-
-- Built-in TCP wrapper nonblocking sends combine payload validation, wrapper
-  lifecycle and native admission into an internal SendResult. Explicit try sends
-  report WouldBlock for capacity refusal; ordinary BestEffort sends report
-  QueueFull. Public methods still return bool during D-3 migration.
-
-- Internal TCP admission results distinguish a never-started or fully stopped
-  transport (NotStarted), requested but incomplete cleanup (Stopping), and an
-  active run without a usable connection (NotReady). Public sends remain bool.
-
-- TCP client native admission now retains an internal SendResult for copy,
-  move and shared writes, including try variants. Readiness, payload and capacity
-  rejections are preserved at their original decision point; public APIs still
-  return bool while D-3 wrapper result mapping continues.
-
-- Built-in TCP capacity waits retain their first stop/loss reason in an
-  internal SendResult: CancelledWhileWaiting for stop, NotReady for connection
-  loss. A selected capacity-release result also remains fixed. Public send
-  methods still return bool while the D-3 migration continues.
-
-- Shared wrapper payload-size validation now produces SendResult internally:
-  InvalidArgument for empty input and TooLarge for message/queue size limits.
-  Public sends still return bool; transport rejection and accounting remain
-  unchanged while D-3 migration continues.
-
-- SendResult and SendRejection provide the D-3 acceptance-result value type:
-  explicit accept/reject factories, accepted(), an explicit bool conversion,
-  and a reason() accessor for rejected values. Existing send APIs still return
-  bool; this is the result-type foundation, not the transport migration.
-
-### Changed
-
 - **Breaking:** ServerInterface and TCP/UDS/UDP wrappers return SendResult from
   their five targeted send methods. Contextual bool checks still work; implicit
   bool assignments require accepted() or an explicit conversion. Rebuild all
@@ -288,6 +211,97 @@ and ABI policy.
   completion, retains active gather-write buffers until release, and refuses
   previous-run wrapper callbacks and batches after restart. Injected channels
   retain their identity and regain handlers on restart.
+
+- The minimum supported spdlog version is now **1.8**, down from 1.9.
+
+  1.9 was never an API floor. It is where `spdlog::sinks::callback_sink`
+  arrived, which is the likely origin of the number, but this library derives
+  its own callback sink from `spdlog::sinks::base_sink` and has done since that
+  code was written. Every other spdlog name it uses predates 1.1.
+
+  Nothing under `wirestead/` compiles conditionally on `SPDLOG_VERSION`, so an
+  older spdlog cannot quietly remove a feature and leave a passing build behind.
+  `.github/workflows/spdlog-floor.yml` builds and runs the unit suite against
+  1.8.2 on Ubuntu 22.04 amd64 and arm64 and on CentOS Stream 9, and is the thing
+  that keeps the floor true from here.
+
+  Lowering a floor cannot break an existing consumer - anyone who satisfied 1.9
+  satisfies 1.8. What it opens is platforms whose vendored spdlog sits below
+  1.9, which includes RPM-based embedded targets.
+
+### Added
+
+- Custom ConnectionChannel implementations can provide connection-pinned
+  Reliable sends to all four client wrappers. Waits preserve the first
+  stop/loss cause across reconnect, final admission cannot retarget a new
+  connection, and only WouldBlock is retried. Legacy injected Channels and
+  public bool client methods retain their existing compatibility boundary.
+
+- ResultChannel exposes six structured single-target write admission methods,
+  implemented by TCP/UDS clients, UDP and serial. Final legacy bool adapters
+  delegate exactly once. Custom bool-only channels and server fanout remain
+  unchanged; client wrapper result migration remains pending. Native class ABI
+  changes require rebuilding consumers.
+
+- TCP/UDS server Reliable and explicit blocking sends retain one internal
+  SendResult across validation, per-session capacity waiting and pinned final
+  admission. Waits preserve the first stop/loss cause across later changes;
+  only transient native WouldBlock is retried. Public methods remain bool.
+
+- TCP/UDS server sessions and targeted sends retain internal SendResult
+  decisions. Nonblocking wrapper sends combine validation, lifecycle and
+  native admission; explicit try keeps WouldBlock and BestEffort maps it to
+  QueueFull. Public return types remain bool.
+
+- Serial native and wrapper sends retain internal SendResult decisions across
+  validation, readiness, capacity waiting and pinned device admission. Waits
+  preserve the first stop/loss cause. Public methods still return bool.
+
+- UDP client and server targeted sends combine internal SendResult decisions
+  across validation, readiness, capacity waiting and final admission. Native
+  run/session pins and first terminal causes survive stop, error and restart.
+  Public methods still return bool.
+
+
+- Built-in UDS client admission and wrapper sends retain internal SendResult
+  decisions across validation, lifecycle, capacity waits and final submission.
+  Waits preserve the first stop/loss reason and pin the original connection.
+  Public send methods still return bool.
+
+
+- Built-in TCP Reliable and explicit blocking sends now retain one internal
+  SendResult across validation, capacity waiting and pinned native admission.
+  Wait cancellation/loss reasons survive later state changes, and only native
+  capacity refusals are retried. Public sends still return bool.
+
+- Built-in TCP wrapper nonblocking sends combine payload validation, wrapper
+  lifecycle and native admission into an internal SendResult. Explicit try sends
+  report WouldBlock for capacity refusal; ordinary BestEffort sends report
+  QueueFull. Public methods still return bool during D-3 migration.
+
+- Internal TCP admission results distinguish a never-started or fully stopped
+  transport (NotStarted), requested but incomplete cleanup (Stopping), and an
+  active run without a usable connection (NotReady). Public sends remain bool.
+
+- TCP client native admission now retains an internal SendResult for copy,
+  move and shared writes, including try variants. Readiness, payload and capacity
+  rejections are preserved at their original decision point; public APIs still
+  return bool while D-3 wrapper result mapping continues.
+
+- Built-in TCP capacity waits retain their first stop/loss reason in an
+  internal SendResult: CancelledWhileWaiting for stop, NotReady for connection
+  loss. A selected capacity-release result also remains fixed. Public send
+  methods still return bool while the D-3 migration continues.
+
+- Shared wrapper payload-size validation now produces SendResult internally:
+  InvalidArgument for empty input and TooLarge for message/queue size limits.
+  Public sends still return bool; transport rejection and accounting remain
+  unchanged while D-3 migration continues.
+
+- SendResult and SendRejection provide the D-3 acceptance-result value type:
+  explicit accept/reject factories, accepted(), an explicit bool conversion,
+  and a reason() accessor for rejected values. Existing send APIs still return
+  bool; this is the result-type foundation, not the transport migration.
 
 ### Fixed
 
@@ -540,24 +554,30 @@ and ABI policy.
   - a package with no headers - without anyone noticing. Two RPM paths that
   disagree is the condition that let that survive.
 
-### Changed
+### Compatibility
 
-- The minimum supported spdlog version is now **1.8**, down from 1.9.
+- **This is a breaking release; rebuild everything that links Wirestead.**
+  The ABI changed (`RuntimeStats`, `Channel`, server session layouts), and
+  send/broadcast methods return `SendResult`/`FanoutResult` instead of `bool`.
+  Each entry above marked **Breaking** says what moved; the migration notes
+  are in `docs/client_send_results.md`, `docs/channel_write_results.md`,
+  `docs/lifecycle_events.md` and `docs/migration-from-unilink.md`.
+- Invalid settings now throw instead of being clamped, and Serial device names
+  are validated at construction. Code that relied on clamping fails at the
+  setter, not at `start()`.
+- The Unilink compatibility layer is gone. Migrate on v0.9.x first, where both
+  names build.
+- The v0.10 communication contract (`docs/communication_contract_v0.10.md`)
+  ships as **Draft**. The behavior listed above is implemented and tested; the
+  draft's Proposed and Open rules are not guarantees of this release. See
+  `docs/communication_contract_v0.10_status.md` for what is verified.
 
-  1.9 was never an API floor. It is where `spdlog::sinks::callback_sink`
-  arrived, which is the likely origin of the number, but this library derives
-  its own callback sink from `spdlog::sinks::base_sink` and has done since that
-  code was written. Every other spdlog name it uses predates 1.1.
+### Known limitations
 
-  Nothing under `wirestead/` compiles conditionally on `SPDLOG_VERSION`, so an
-  older spdlog cannot quietly remove a feature and leave a passing build behind.
-  `.github/workflows/spdlog-floor.yml` builds and runs the unit suite against
-  1.8.2 on Ubuntu 22.04 amd64 and arm64 and on CentOS Stream 9, and is the thing
-  that keeps the floor true from here.
+- Send throughput is back to 80% or more of v0.9.6 in every Orin sweep cell
+  (#702, #703), but UDS Reliable p99 latency is not: 4 KiB is 121% of v0.9.6
+  and 1 KiB 120.5%, against a 120% target. TCP and UDP meet it.
 
-  Lowering a floor cannot break an existing consumer - anyone who satisfied 1.9
-  satisfies 1.8. What it opens is platforms whose vendored spdlog sits below
-  1.9, which includes RPM-based embedded targets.
 
 ## v0.9.6 - 2026-08-30
 

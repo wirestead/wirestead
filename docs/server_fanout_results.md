@@ -71,6 +71,6 @@ work. Change bool assignments or bool-returning adapters to
 static_cast<bool>(server.broadcast(data)), or compare accepted_count() with zero.
 Check rejected_count() explicitly when partial failure matters.
 
-The native transport bool broadcast APIs remain unchanged. Python bindings
-must adopt this aggregate before upgrading their core dependency; their current
-v0.9.6 pin and package are not changed here.
+The native transport bool broadcast APIs remain unchanged. The Python
+bindings reduce it to bool, True when any target accepted
+(wirestead-python#72).

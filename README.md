@@ -87,7 +87,7 @@ vcpkg install wirestead
 include(FetchContent)
 FetchContent_Declare(wirestead
     GIT_REPOSITORY https://github.com/wirestead/wirestead.git
-    GIT_TAG v0.9.6)
+    GIT_TAG v0.10.0)
 FetchContent_MakeAvailable(wirestead)
 target_link_libraries(your_target PRIVATE wirestead::wirestead)
 ```
