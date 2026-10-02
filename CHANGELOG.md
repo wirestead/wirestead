@@ -33,6 +33,10 @@ and ABI policy.
   accounting semantics are unchanged. Sparse retention bounds metadata when
   rollback or UDP expiry retires later requests behind an older pending write.
 
+- Cache TCP client write-submission executor properties instead of adapting
+  the strand on every send. Enqueue handlers remain asynchronous, serialized
+  on the same strand and owning the transport.
+
 - Defer TCP/UDS client blocking-send executor checks and owning connection
   references to the capacity-wait path. Rejection reasons and the connection
   pinned at entry are unchanged.

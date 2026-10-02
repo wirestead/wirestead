@@ -37,6 +37,11 @@ writes. Copy, pooled copy, move, shared, try and connection-pinned paths all use
 the same accounting. Reusing a shared payload is still a separate request for
 each admission.
 
+TCP client submissions cache the strand's never-inline, fork and default-allocator
+properties used by `post`. Internal enqueue handlers still own the transport.
+A send from that strand cannot run its enqueue handler until the current handler
+returns, preserving the stop-before-enqueue classification even on that path.
+
 The local-write boundary is immediately before asynchronous initiation. Failure
 to initiate after that boundary aborts the active request and closes the
 connection, discarding the remaining queued/pending requests. Stop and connection

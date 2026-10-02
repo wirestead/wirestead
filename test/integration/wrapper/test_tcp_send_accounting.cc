@@ -204,6 +204,28 @@ TEST_P(TcpSendAccountingTest, ContendedAdmissionDoesNotBlockExecutor) {
   }
 }
 
+TEST_P(TcpSendAccountingTest, ExecutorSendDefersHandoffUntilHandlerReturns) {
+  ASSERT_TRUE(connect());
+  struct State {
+    bool returned = false;
+    bool handed_off = false;
+  };
+  auto state = std::make_shared<State>();
+  after_write_start = [state] {
+    EXPECT_TRUE(state->returned);
+    state->handed_off = true;
+  };
+  transport::detail::g_tcp_write_started_hook = &write_started;
+  net::post(client->get_executor(), [this, state] {
+    EXPECT_TRUE(send());
+    EXPECT_FALSE(state->handed_off);
+    state->returned = true;
+  });
+  ASSERT_TRUE(pump([&] { return stats().written.requests == 1; }));
+  EXPECT_TRUE(state->handed_off);
+  EXPECT_EQ(stats().outstanding.requests, 0u);
+}
+
 TEST_P(TcpSendAccountingTest, StopBeforeEnqueueCountsOneDiscardAndNoAbort) {
   ASSERT_TRUE(connect());
   bool done = false;
