@@ -90,7 +90,7 @@ jobs:
           - os: windows-11-arm
             label: Windows ARM64
             os_label: windows
-            cmake_generator: "Visual Studio 17 2022"
+            cmake_generator: "Visual Studio 18 2026"
             cmake_arch: "ARM64"
             triplet: arm64-windows
             cpack_generator: "ZIP"
