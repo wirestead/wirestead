@@ -373,6 +373,36 @@ TEST(UdpServerWrapperLifecycleTest, IPv6EndpointHashCoverage) {
   }
 }
 
+// A callback holds the server alive while it runs. Destroying the server then
+// must still finish the shutdown on the destroying thread; if the callback's
+// reference were the last one, the transport would be torn down on its own io
+// thread, which cannot join itself (#613).
+TEST(UdpServerWrapperLifecycleTest, DestroyWhileCallbackRunsCompletesOnTheCallerThread) {
+  auto port = TestUtils::getAvailableTestPort();
+  config::UdpConfig cfg;
+  cfg.bind_address = "127.0.0.1";
+  cfg.local_port = port;
+
+  auto server = std::make_unique<wrapper::UdpServer>(cfg);
+  std::promise<void> entered;
+  std::atomic<bool> finished{false};
+  server->on_data([&](const wrapper::MessageContext&) {
+    entered.set_value();
+    std::this_thread::sleep_for(100ms);
+    finished = true;
+  });
+  ASSERT_TRUE(server->start().get());
+
+  boost::asio::io_context ioc;
+  boost::asio::ip::udp::socket sock(ioc, boost::asio::ip::udp::endpoint(boost::asio::ip::udp::v4(), 0));
+  sock.send_to(boost::asio::buffer("hello", 5),
+               boost::asio::ip::udp::endpoint(boost::asio::ip::make_address("127.0.0.1"), port));
+  ASSERT_EQ(entered.get_future().wait_for(2s), std::future_status::ready);
+
+  server.reset();
+  EXPECT_TRUE(finished.load());
+}
+
 TEST(UdpServerWrapperLifecycleTest, SendToInvalidClient) {
   wrapper::UdpServer server(0);
   EXPECT_FALSE(server.send_to(999, "data"));

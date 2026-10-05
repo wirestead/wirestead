@@ -756,7 +756,16 @@ UdpClient::UdpClient(const config::UdpConfig& cfg, std::shared_ptr<boost::asio::
 UdpClient::UdpClient(std::shared_ptr<interface::Channel> ch) : impl_(std::make_shared<Impl>(ch)) {
   impl_->setup_internal_handlers();
 }
-UdpClient::~UdpClient() = default;
+// Stop on the destroying thread first. A callback in flight holds the Impl
+// alive, and if its reference were the last one, ~Impl would run on the io
+// thread, where the shutdown cannot join that thread (#613).
+UdpClient::~UdpClient() {
+  if (!impl_) return;
+  try {
+    impl_->stop();
+  } catch (...) {
+  }
+}
 
 UdpClient::UdpClient(UdpClient&&) noexcept = default;
 UdpClient& UdpClient::operator=(UdpClient&&) noexcept = default;
