@@ -603,4 +603,7 @@ and [configuration/callback policy](configuration_and_callbacks.md).
 The implementation groups have regression, platform CI and affected-consumer
 verification recorded with their merged PRs. Universal custom-executor/no-inline
 behavior and rich Python results remain outside the approved completion scope.
-Publishing a release and advancing satellite release pins remain separate actions.
+Core v0.10.0 and Python 0.10.0 were published on 2026-10-02, and satellite
+core pins were advanced. See the dated [release status](release_status_v0.10.0.md)
+for evidence and the remaining ROS/Conan distribution checks. Publication does
+not promote Proposed/Open rules to Decided or expand the completion scope.
