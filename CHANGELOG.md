@@ -17,6 +17,10 @@ and ABI policy.
   (#613).
 - Move-assigning over a running wrapper completes the previous object's shutdown
   on the assigning thread, as destruction does.
+- Correct the serial DTR documentation: `dtr(false)` does not stop an Arduino
+  from rebooting when the port opens, since Linux asserts DTR before the
+  setting applies, and every reopen reboots it again. `docs/tuning.md` now also
+  says to set `rx_idle_timeout` above such a board's reboot time (#710).
 
 ## v0.10.0 - 2026-10-02
 

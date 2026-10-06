@@ -124,9 +124,9 @@ class WIRESTEAD_API Serial : public ChannelInterface {
   // SerialConfig::Rs485.
   Serial& rs485(bool rts_on_send = true, bool rx_during_tx = false, unsigned delay_before_ms = 0,
                 unsigned delay_after_ms = 0);
-  // Assert or clear DTR / RTS at open. Unset means the driver's default is
-  // left alone, which is not the same as driving the line low - an Arduino
-  // reboots on an asserted DTR.
+  // Assert or clear DTR / RTS once the port is open. Unset means the driver's
+  // default is left alone, which is not the same as driving the line low.
+  // Neither stops an Arduino rebooting at open: opening asserts DTR (#710).
   Serial& dtr(bool assert_line);
   Serial& rts(bool assert_line);
   Serial& reopen_on_error(bool enable);

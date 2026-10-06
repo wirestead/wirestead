@@ -63,8 +63,9 @@ class WIRESTEAD_API SerialBuilder : public BuilderInterface<wrapper::Serial, Ser
   // Half-duplex RS-485. Delays are milliseconds; see SerialConfig::Rs485.
   SerialBuilder& rs485(bool rts_on_send = true, bool rx_during_tx = false, unsigned delay_before_ms = 0,
                        unsigned delay_after_ms = 0);
-  // Assert or clear DTR / RTS at open. Not calling these leaves the driver's
-  // default alone, which differs from passing false.
+  // Assert or clear DTR / RTS once the port is open. Not calling these leaves
+  // the driver's default alone, which differs from passing false. Neither can
+  // prevent a DTR-triggered board reset at open (#710).
   SerialBuilder& dtr(bool assert_line);
   SerialBuilder& rts(bool assert_line);
   SerialBuilder& reopen_on_error(bool enable = true);

@@ -75,11 +75,11 @@ struct SerialConfig {
     unsigned delay_rts_after_send_ms = 0;
   } rs485;
 
-  // Modem control lines, engaged only when set. std::nullopt means "leave the
-  // driver's default alone", which is a different request from "drive it low":
-  // an Arduino resets when DTR is asserted at open, so a driver that must not
-  // reboot the board sets dtr=false explicitly, while one that has no opinion
-  // leaves it unset.
+  // Modem control lines, applied once the port is open and only when set.
+  // std::nullopt means "leave the driver's default alone", which is a different
+  // request from "drive it low". Neither prevents a board that resets on DTR,
+  // such as an Arduino, from rebooting at open: Linux asserts DTR while opening
+  // the tty, before these apply (#710).
   std::optional<bool> dtr;
   std::optional<bool> rts;
 
