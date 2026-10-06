@@ -873,7 +873,14 @@ TcpClient::~TcpClient() {
 }
 
 TcpClient::TcpClient(TcpClient&&) noexcept = default;
-TcpClient& TcpClient::operator=(TcpClient&&) noexcept = default;
+// The previous Impl is handed to a temporary, whose destructor stops it here.
+TcpClient& TcpClient::operator=(TcpClient&& other) noexcept {
+  if (this != &other) {
+    TcpClient previous(std::move(*this));
+    impl_ = std::move(other.impl_);
+  }
+  return *this;
+}
 
 TcpClient& TcpClient::receive_limits(ReceiveLimits limits) {
   limits.validate();

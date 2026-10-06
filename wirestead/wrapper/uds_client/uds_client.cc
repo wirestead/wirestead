@@ -837,7 +837,14 @@ UdsClient::~UdsClient() {
 }
 
 UdsClient::UdsClient(UdsClient&&) noexcept = default;
-UdsClient& UdsClient::operator=(UdsClient&&) noexcept = default;
+// The previous Impl is handed to a temporary, whose destructor stops it here.
+UdsClient& UdsClient::operator=(UdsClient&& other) noexcept {
+  if (this != &other) {
+    UdsClient previous(std::move(*this));
+    impl_ = std::move(other.impl_);
+  }
+  return *this;
+}
 
 UdsClient& UdsClient::receive_limits(ReceiveLimits limits) {
   limits.validate();

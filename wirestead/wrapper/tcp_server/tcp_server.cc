@@ -802,7 +802,14 @@ TcpServer::~TcpServer() {
 }
 
 TcpServer::TcpServer(TcpServer&&) noexcept = default;
-TcpServer& TcpServer::operator=(TcpServer&&) noexcept = default;
+// The previous Impl is handed to a temporary, whose destructor stops it here.
+TcpServer& TcpServer::operator=(TcpServer&& other) noexcept {
+  if (this != &other) {
+    TcpServer previous(std::move(*this));
+    impl_ = std::move(other.impl_);
+  }
+  return *this;
+}
 
 TcpServer& TcpServer::receive_limits(ReceiveLimits limits) {
   limits.validate();
