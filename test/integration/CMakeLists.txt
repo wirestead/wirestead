@@ -249,6 +249,13 @@ foreach(
   )
 endforeach()
 
+# Hardware-in-the-loop serial tests. They skip unless WIRESTEAD_HIL_SERIAL names
+# a port with test/hil/wirestead_hil flashed, and share one device.
+wirestead_add_integration_gtest(
+  run_integration_test_serial_hil
+  ${CMAKE_CURRENT_SOURCE_DIR}/serial/test_serial_hil.cc "hil" 120 "hil_serial"
+)
+
 # Builder integration tests
 foreach(test_file test_builder_integration.cc)
   get_filename_component(test_name ${test_file} NAME_WE)
