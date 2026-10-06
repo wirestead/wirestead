@@ -6,6 +6,16 @@ This project follows the Keep a Changelog section names where practical. The
 core C++ API is still pre-1.0; see `docs/api_stability.md` for compatibility
 and ABI policy.
 
+## Unreleased
+
+### Fixed
+
+- Destroying a running wrapper now completes its shutdown on the destroying
+  thread. A callback in flight could otherwise hold the last reference, so the
+  transport was torn down on its own io thread, detached it and destroyed the
+  io_context it was still running - an intermittent segfault at process exit
+  (#613).
+
 ## v0.10.0 - 2026-10-02
 
 ### Changed

@@ -825,7 +825,16 @@ UdsClient::UdsClient(std::shared_ptr<interface::Channel> channel) : impl_(std::m
   impl_->setup_internal_handlers();
 }
 
-UdsClient::~UdsClient() = default;
+// Stop on the destroying thread first. A callback in flight holds the Impl
+// alive, and if its reference were the last one, ~Impl would run on the io
+// thread, where the shutdown cannot join that thread (#613).
+UdsClient::~UdsClient() {
+  if (!impl_) return;
+  try {
+    impl_->stop();
+  } catch (...) {
+  }
+}
 
 UdsClient::UdsClient(UdsClient&&) noexcept = default;
 UdsClient& UdsClient::operator=(UdsClient&&) noexcept = default;
