@@ -853,7 +853,14 @@ Serial::~Serial() {
 }
 
 Serial::Serial(Serial&&) noexcept = default;
-Serial& Serial::operator=(Serial&&) noexcept = default;
+// The previous Impl is handed to a temporary, whose destructor stops it here.
+Serial& Serial::operator=(Serial&& other) noexcept {
+  if (this != &other) {
+    Serial previous(std::move(*this));
+    impl_ = std::move(other.impl_);
+  }
+  return *this;
+}
 
 Serial& Serial::receive_limits(ReceiveLimits limits) {
   limits.validate();

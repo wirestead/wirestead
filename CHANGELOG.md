@@ -15,6 +15,8 @@ and ABI policy.
   transport was torn down on its own io thread, detached it and destroyed the
   io_context it was still running - an intermittent segfault at process exit
   (#613).
+- Move-assigning over a running wrapper completes the previous object's shutdown
+  on the assigning thread, as destruction does.
 
 ## v0.10.0 - 2026-10-02
 

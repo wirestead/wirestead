@@ -778,7 +778,14 @@ UdpServer::~UdpServer() {
 }
 
 UdpServer::UdpServer(UdpServer&&) noexcept = default;
-UdpServer& UdpServer::operator=(UdpServer&&) noexcept = default;
+// The previous Impl is handed to a temporary, whose destructor stops it here.
+UdpServer& UdpServer::operator=(UdpServer&& other) noexcept {
+  if (this != &other) {
+    UdpServer previous(std::move(*this));
+    impl_ = std::move(other.impl_);
+  }
+  return *this;
+}
 
 UdpServer& UdpServer::receive_limits(ReceiveLimits limits) {
   limits.validate();

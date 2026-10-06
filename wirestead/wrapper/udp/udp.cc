@@ -768,7 +768,14 @@ UdpClient::~UdpClient() {
 }
 
 UdpClient::UdpClient(UdpClient&&) noexcept = default;
-UdpClient& UdpClient::operator=(UdpClient&&) noexcept = default;
+// The previous Impl is handed to a temporary, whose destructor stops it here.
+UdpClient& UdpClient::operator=(UdpClient&& other) noexcept {
+  if (this != &other) {
+    UdpClient previous(std::move(*this));
+    impl_ = std::move(other.impl_);
+  }
+  return *this;
+}
 
 UdpClient& UdpClient::receive_limits(ReceiveLimits limits) {
   limits.validate();

@@ -711,7 +711,14 @@ UdsServer::~UdsServer() {
 }
 
 UdsServer::UdsServer(UdsServer&&) noexcept = default;
-UdsServer& UdsServer::operator=(UdsServer&&) noexcept = default;
+// The previous Impl is handed to a temporary, whose destructor stops it here.
+UdsServer& UdsServer::operator=(UdsServer&& other) noexcept {
+  if (this != &other) {
+    UdsServer previous(std::move(*this));
+    impl_ = std::move(other.impl_);
+  }
+  return *this;
+}
 
 UdsServer& UdsServer::receive_limits(ReceiveLimits limits) {
   limits.validate();
