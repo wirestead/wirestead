@@ -24,6 +24,9 @@ and ABI policy.
 
 ## v0.10.0 - 2026-10-02
 
+For publication, downstream package availability and remaining distribution
+checks, see the dated [release status](docs/release_status_v0.10.0.md).
+
 ### Changed
 
 - Amortize Serial and TCP/UDS server-session send-accounting locks over each
@@ -207,9 +210,8 @@ and ABI policy.
   accepts and retries from the previous run cannot enter the restarted run.
   The stopping thread does not poll a shared executor or use a timeout as
   evidence that cleanup is safe.
-- D-1 also applies to UDS, UDP client/server and serial in the follow-ups
-  below. D-2 follows in this release; structured send results (D-3) remain
-  separate work.
+- D-1 also applies to UDS, UDP client/server and serial as described below.
+  D-2 and the public structured send results (D-3) are included in this release.
 - **Breaking behavior:** UDP client/server outside `stop()` callers now wait for
   every admitted callback and transport cleanup, including cancelled I/O.
   Calls on the target executor request shutdown and return; external contexts
@@ -293,26 +295,27 @@ and ABI policy.
 - Built-in TCP wrapper nonblocking sends combine payload validation, wrapper
   lifecycle and native admission into an internal SendResult. Explicit try sends
   report WouldBlock for capacity refusal; ordinary BestEffort sends report
-  QueueFull. Public methods still return bool during D-3 migration.
+  QueueFull. Public C++ sends expose these classifications through SendResult.
 
 - Internal TCP admission results distinguish a never-started or fully stopped
   transport (NotStarted), requested but incomplete cleanup (Stopping), and an
-  active run without a usable connection (NotReady). Public sends remain bool.
+  active run without a usable connection (NotReady). Public C++ sends expose
+  these distinctions through SendResult.
 
 - TCP client native admission now retains an internal SendResult for copy,
   move and shared writes, including try variants. Readiness, payload and capacity
-  rejections are preserved at their original decision point; public APIs still
-  return bool while D-3 wrapper result mapping continues.
+  rejections are preserved at their original decision point and carried through
+  the completed public C++ SendResult APIs.
 
 - Built-in TCP capacity waits retain their first stop/loss reason in an
   internal SendResult: CancelledWhileWaiting for stop, NotReady for connection
-  loss. A selected capacity-release result also remains fixed. Public send
-  methods still return bool while the D-3 migration continues.
+  loss. A selected capacity-release result also remains fixed and is carried
+  through the public C++ SendResult APIs.
 
 - Shared wrapper payload-size validation now produces SendResult internally:
   InvalidArgument for empty input and TooLarge for message/queue size limits.
-  Public sends still return bool; transport rejection and accounting remain
-  unchanged while D-3 migration continues.
+  The completed public C++ SendResult APIs carry these validation reasons;
+  server fanout aggregates them in FanoutResult. Python retains bool sends.
 
 - SendResult and SendRejection provide the D-3 acceptance-result value type:
   explicit accept/reject factories, accepted(), an explicit bool conversion,
@@ -435,7 +438,7 @@ and ABI policy.
 ### Removed
 
 - **Breaking:** the Unilink compatibility layer, promised for the v0.9.x line
-  only. This is why the next release is v0.10.0 rather than a v0.9 patch.
+  only. This change is included in v0.10.0 rather than a v0.9 patch.
 
   Gone: `namespace unilink`, the `<unilink/...>` forwarding headers,
   `find_package(unilink)` with its `unilink::unilink`, `unilink_shared` and

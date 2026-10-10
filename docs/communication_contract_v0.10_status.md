@@ -2,12 +2,16 @@
 
 **Approved completion scope implemented; final verification is recorded with
 the implementation PRs.** This covers built-in transports and the explicitly
-selected policies. Universal custom-executor/no-inline behavior and release
-publication are outside this completion scope; the entire draft is not claimed
-as universally conformant.
+selected policies. Universal custom-executor/no-inline behavior remains outside
+this completion scope; the entire draft is not claimed as universally conformant.
+Core v0.10.0 and Python 0.10.0 have been published. Publication and downstream
+availability are tracked separately in the dated [release status](release_status_v0.10.0.md).
 
-Reviewed on 2026-09-25 against core 638d6a427 (PR #684), Python 948e1c4
-(PR #72), and the UDS move-ownership correction accompanying this report.
+Initial implementation review on 2026-09-25 used core 638d6a427 (PR #684),
+Python 948e1c4 (PR #72), and the UDS move-ownership correction accompanying
+this report. Subsequent implementation evidence is recorded below and in the
+linked PRs. Release metadata was reconciled on 2026-10-03; that documentation
+update does not extend the tested contract scope.
 The [original audit](communication_contract_v0.10_audit.md) is a historical
 comparison at d914b8d7c. Its 109 rows and totals are not current bug counts.
 
@@ -166,7 +170,7 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
 | 6.2 / 6.3 / 7: event versus error versus send refusal | Wrapper structured send refusals are implemented; lifecycle/expiry taxonomy is implemented; invalid configuration is rejected before application; operational failures remain execution results/events |
 | 7: configuration validation | Invalid settings throw before application; no implicit native clamping. Explicit validate_and_clamp remains available; operational open/bind/connect failures use execution results/events |
 | Python | Bool compatibility with old/new core is verified by PR #72; rich result exposure is optional new API work, not an unfinished bool adapter |
-| Release | Core pin remains v0.9.6 in Python. Publishing v0.10 and advancing satellite release pins require a separate release decision |
+| Release | Core v0.10.0 and Python 0.10.0 are published; Python pins v0.10.0 via [PR #74](https://github.com/wirestead/wirestead-python/pull/74). Satellite pins and registry stages are recorded in the [release status](release_status_v0.10.0.md); publication does not close Proposed/Open rules |
 
 ## Completion gates and next work
 
@@ -187,13 +191,16 @@ framework cannot prove an arbitrary injected implementation obeys that protocol.
    notification are implemented; see [event contract](lifecycle_events.md).
    Waiting UDP work expires; active work keeps its outcome.
 5. **Configuration and exceptions:** [allowlist, rejection timing and callback policy](configuration_and_callbacks.md) are implemented.
-6. **Final verification:** affected consumer compatibility and migration documentation;
-   release pins remain tied to a separately published core release.
+6. **Release follow-through:** core/Python publication and satellite pin updates
+   are complete. ROS build-farm/installation evidence and Conan approval remain
+   separate downstream checks; see the dated [release status](release_status_v0.10.0.md).
+   Release publication does not certify every draft clause.
 
 See [the accounting/event implementation proposal](post_acceptance_policy_v0.10.md)
 for a concrete design and acceptance scenarios. Built-in client/session accounting
 is implemented; approved choices are recorded in the decisions document;
-final implementation validation is recorded with the PRs; release publication is separate.
+final implementation validation is recorded with the PRs. The published release
+retains the Draft designation and the scope exclusions above.
 
 ## Validation for this review
 

@@ -3,6 +3,9 @@
 This checklist is maintained in the core repository because release packaging,
 CI, CPack, and consumer smoke workflows live here.
 
+This is a reusable procedure, not the completion record for a particular tag.
+For v0.10.0, see the dated [release status and evidence](release_status_v0.10.0.md).
+
 ## Order
 
 A release is one tag followed by a chain of downstream updates, each of which
