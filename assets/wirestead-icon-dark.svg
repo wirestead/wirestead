@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 720 720" role="img" aria-labelledby="title desc">
+<title id="title">wirestead icon dark</title><desc id="desc">Square dark icon.</desc>
+<rect width="720" height="720" rx="144" fill="#0F172A"/><g transform="translate(15 15) scale(1.15)"><g transform="translate(-20 -20) scale(1.12)">
+<g class="wirestead-mark">
+<path fill="#FFFFFF" d="M150 82H123C88 82 75 102 75 137V463C75 498 88 518 123 518H150V486H123C112 486 109 480 109 467V133C109 120 112 114 123 114H150Z"/>
+<path fill="#FFFFFF" d="M150 82H123C88 82 75 102 75 137V463C75 498 88 518 123 518H150V486H123C112 486 109 480 109 467V133C109 120 112 114 123 114H150Z" transform="translate(600 0) scale(-1 1)"/>
+<path d="M190 218H267C313 218 325 300 391 300" stroke="#60A5FA" stroke-width="23" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M190 382H267C313 382 325 300 391 300" stroke="#2DD4BF" stroke-width="23" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M190 300H432" stroke="#22D3EE" stroke-width="23" stroke-linecap="round" fill="none"/>
+<circle cx="190" cy="218" r="23" fill="#60A5FA"/><circle cx="190" cy="300" r="23" fill="#22D3EE"/><circle cx="190" cy="382" r="23" fill="#2DD4BF"/>
+</g>
+</g></g></svg>
