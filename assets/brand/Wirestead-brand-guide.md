@@ -1,61 +1,75 @@
-# Wirestead visual identity — revised direction
+# wirestead visual identity — square wrapper mark
 
-## Core idea
+## Core concept
 
-The symbol uses two bold, offset arrows: the blue path sends while the green path receives. Their different vertical positions express asynchronous progress without a shared clock or blocking loop. The two forms interlock into one compact mark, reflecting Wirestead's unified interface across Serial, TCP, UDP, and UDS.
+The mark represents the **software abstraction**, not a physical cable, network
+switch, or protocol bridge. Three differently colored transport paths converge
+into a single consistent interface **inside stable brackets**. The brackets
+express a wrapper: diverse Serial, TCP, UDP, and UDS transports share a reliable
+C++20 API and predictable runtime behavior.
 
-Brand attributes: **simple, reliable, asynchronous, unified**.
+The logo deliberately uses a balanced **1:1 square mark** rather than a wide
+wiring diagram. Brackets, smooth convergence, circular inputs, and the
+blue/cyan/teal progression are integral to this identity; avoid replacing them
+with arrowheads, PCB traces, or sharp merge corners.
 
-## Name system
+Brand attributes: **unified, asynchronous, reliable, cross-platform**.
+
+## Naming and visual wordmark
 
 | Context | Use |
 | --- | --- |
-| Brand, documentation, release titles | `Wirestead` |
-| Visual wordmark | `wirestead` |
-| GitHub organization/repository | `wirestead/wirestead` |
-| vcpkg, Conan, pkg-config | `wirestead` |
+| Brand in prose, docs, release titles | `Wirestead` |
+| Visual wordmark (logo artwork) | **`wirestead`** (lowercase) |
+| C++ namespace, packages, GitHub | `wirestead` |
 | CMake target | `wirestead::wirestead` |
-| C++ namespace and headers | `wirestead`, `<wirestead/...>` |
-| Macros and environment variables | `WIRESTEAD_*` |
 
-Use `Wirestead` in running text and the supplied lowercase artwork for the visual wordmark. Do not use `WireStead`, `wireStead`, or spaced `Wire Stead`.
+The visual wordmark is font-independent vector artwork (outlines).
+Keep the brand name capitalized in ordinary prose and source code identifiers
+unchanged; this change is visual only.
 
-## Palette
+## Color palette
 
-| Role | Name | Hex |
+| Role | Color | Hex |
 | --- | --- | --- |
-| Primary text and dark surfaces | Core Ink | `#071426` |
-| Outbound flow | Send Blue | `#147AE6` |
-| Inbound flow | Receive Green | `#00C98B` |
-| Light surface | Open White | `#FFFFFF` |
-| Secondary text | Slate | `#66758B` |
+| Stable brackets / wordmark | Ink navy | `#0F172A` |
+| Upper path | Blue | `#2563EB` |
+| Middle path | Cyan | `#06B6D4` |
+| Lower path | Teal | `#10B981` |
+| Light background | White | `#FFFFFF` |
 
-Dark-background accents use `#46A6FF` and `#20D9A2` for stronger contrast.
+Dark background logo uses white brackets and a white wordmark with brighter path
+colors for contrast.
 
-## Typography
+## Production assets
 
-- Recommended product typeface: **Inter**, 600–700 for headings and 400–500 for body copy.
-- Recommended technical typeface: **JetBrains Mono** or **IBM Plex Mono**.
-- The supplied production SVG logos convert the wordmark to paths and are font-independent. Editable sources use Nimbus Sans as a portable fallback.
+- `assets/wirestead-mark.svg` — 1:1 transparent mark (square underlying symbol).
+- `assets/wirestead-mark-monochrome.svg` — 1:1 single-color mark.
+- `assets/wirestead-favicon.svg` — square dark badge for app/favicon use.
+- `assets/wirestead-icon-dark.svg` / `assets/wirestead-icon-light.svg` — square avatars.
+- `assets/wirestead-logo-square.svg` — square stacked mark + lowercase wordmark.
+- `assets/wirestead-logo-horizontal.svg` — README / document lockup.
+- `assets/wirestead-logo-dark.svg` — dark-background lockup.
+- `assets/wirestead-logo-monochrome.svg` — monochrome lockup.
 
-## Clear space and minimum size
+All SVGs use vector outlines for the symbol and wordmark, with no external
+font or linked resource dependency. Matching PNGs are provided for apps that
+cannot consume SVG. Re-export PNGs from their SVG counterparts after a vector
+change; do not hand-edit raster assets.
 
-- Clear space: keep at least one quarter of the symbol width around the mark.
-- Symbol minimum: 16 px digital, 6 mm print.
-- Horizontal lockup minimum: 120 px digital, 32 mm print.
-- Below the minimum, use the symbol without the wordmark.
+## Usage constraints
 
-## Usage
+- Retain square aspect ratio for standalone badges and icons. Do not stretch
+  the symbol or add compensating horizontal padding to disguise distortion.
+- Prefer 64 px or greater for full-color avatar display; at small sizes, test
+  the three paths independently. Use the monochrome mark when contrast is low.
+- Keep at least 1/8 of the mark's side as surrounding clear space.
+- Do not invert the path order, add arrowheads or shadows, or recolor
+  individual strands arbitrarily.
 
-- Use the primary logo on white or very light neutral backgrounds.
-- Use the dark variant on Core Ink or similarly dark backgrounds.
-- Use the monochrome variant for engraving, terminal-like contexts, single-color print, and sponsor grids.
-- Do not reverse the arrow directions, change the relative offset, add outlines or shadows, or place the mark on visually noisy backgrounds.
+## Positioning
 
-## Message line
+Primary message: **Simple, reliable async communication.**
 
-Primary English line: **Simple, reliable async communication.**
-
-Expanded positioning: **A simple C++20 interface for reliable asynchronous communication across Serial, TCP, UDP, and UDS.**
-
-The message line is not part of the registered wordmark and should remain removable from layouts.
+Expanded: **One consistent C++20 interface for asynchronous communication
+across Serial, TCP, UDP, and UDS.**

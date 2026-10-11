@@ -1,13 +1,12 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 160" role="img" aria-labelledby="title desc">
-  <title id="title">Wirestead horizontal logo for dark backgrounds</title>
-  <desc id="desc">Wirestead symbol and white wordmark on a dark background.</desc>
-  <rect width="620" height="160" rx="18" fill="#071426"/>
-  <g transform="translate(24 32)">
-    <path d="M12 8h46.5c2.2 0 4.3.9 5.8 2.4l26.9 26.9a6.6 6.6 0 0 1 0 9.4L64.3 73.6a8.1 8.1 0 0 1-11.5 0l-6.1-6.1a8.1 8.1 0 0 1 0-11.5l9.9-9.9H12a8 8 0 0 1-8-8V16a8 8 0 0 1 8-8Z" fill="#46A6FF"/>
-    <path d="M84 88H37.5c-2.2 0-4.3-.9-5.8-2.4L4.8 58.7a6.6 6.6 0 0 1 0-9.4l26.9-26.9a8.1 8.1 0 0 1 11.5 0l6.1 6.1a8.1 8.1 0 0 1 0 11.5l-9.9 9.9H84a8 8 0 0 1 8 8V80a8 8 0 0 1-8 8Z" fill="#20D9A2"/>
-  </g>
-  <text x="140" y="106" fill="#F7FAFF"
-        font-family="Nimbus Sans, Arial, sans-serif"
-        font-size="68" font-weight="700" letter-spacing="-2.1">wirestead</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="160" viewBox="0 0 620 160" role="img" aria-labelledby="title desc">
+<title id="title">wirestead dark horizontal logo</title><desc id="desc">Light bracket and lowercase white wordmark on navy background.</desc>
+<rect width="620" height="160" rx="18" fill="#0F172A"/><g transform="translate(0 0) scale(0.25)"><g transform="translate(-20 -20) scale(1.12)">
+<g class="wirestead-mark">
+<path fill="#FFFFFF" d="M150 82H123C88 82 75 102 75 137V463C75 498 88 518 123 518H150V486H123C112 486 109 480 109 467V133C109 120 112 114 123 114H150Z"/>
+<path fill="#FFFFFF" d="M150 82H123C88 82 75 102 75 137V463C75 498 88 518 123 518H150V486H123C112 486 109 480 109 467V133C109 120 112 114 123 114H150Z" transform="translate(600 0) scale(-1 1)"/>
+<path d="M190 218H267C313 218 325 300 391 300" stroke="#60A5FA" stroke-width="23" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M190 382H267C313 382 325 300 391 300" stroke="#2DD4BF" stroke-width="23" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M190 300H432" stroke="#22D3EE" stroke-width="23" stroke-linecap="round" fill="none"/>
+<circle cx="190" cy="218" r="23" fill="#60A5FA"/><circle cx="190" cy="300" r="23" fill="#22D3EE"/><circle cx="190" cy="382" r="23" fill="#2DD4BF"/>
+</g>
+</g></g><g fill="#FFFFFF" transform="translate(191 115) scale(0.039 -0.039)"><path d="M320 0H732L841 368C860 434 878 504 896 575C914 504 932 434 951 368L1060 0H1472L1796 1056H1368L1306 768C1280 647 1257 516 1233 386C1203 516 1173 647 1143 768L1070 1056H722L649 768C619 648 589 517 559 388C534 517 509 648 482 768L416 1056H-4Z" transform="translate(0.000 0)"/><path d="M86 0H486V1056H86ZM285 1126C410 1126 498 1206 498 1319C498 1431 410 1510 285 1510C160 1510 72 1431 72 1319C72 1206 160 1126 285 1126Z" transform="translate(1755.277 0)"/><path d="M86 0H486V506C486 647 565 736 690 736H836V1056H736C591 1056 514 1006 476 864H474V1056H86Z" transform="translate(2290.554 0)"/><path d="M607 -24C885 -24 1109 129 1148 345H794C772 288 708 254 623 254C507 254 437 320 434 432H1152V539C1152 856 923 1080 599 1080C275 1080 46 851 46 528C46 205 278 -24 607 -24ZM437 656C451 743 513 794 610 794C707 794 769 743 783 656Z" transform="translate(3105.832 0)"/><path d="M584 -27C900 -27 1108 129 1108 353C1108 511 1004 602 782 639L556 677C493 688 458 712 458 745C458 784 501 813 578 813C655 813 714 766 716 705H1080C1074 934 881 1077 562 1077C246 1077 60 941 60 723C60 552 174 443 386 409L584 377C664 364 702 341 702 307C702 266 657 239 578 239C492 239 439 282 430 345H36C57 122 270 -27 584 -27Z" transform="translate(4263.109 0)"/><path d="M816 1056H598V1344H198V1056H20V752H198V316C198 96 319 0 596 0H816V304H690C617 304 598 323 598 386V752H816Z" transform="translate(5370.386 0)"/><path d="M607 -24C885 -24 1109 129 1148 345H794C772 288 708 254 623 254C507 254 437 320 434 432H1152V539C1152 856 923 1080 599 1080C275 1080 46 851 46 528C46 205 278 -24 607 -24ZM437 656C451 743 513 794 610 794C707 794 769 743 783 656Z" transform="translate(6189.663 0)"/><path d="M410 -19C545 -19 644 22 714 148H718V0H1108V706C1108 946 934 1080 608 1080C284 1080 111 946 94 706H460C467 768 513 802 592 802C665 802 712 772 712 726V722C712 664 642 642 456 630C228 615 50 528 50 292C50 82 198 -19 410 -19ZM540 230C472 230 424 262 424 316C424 370 474 406 556 420C630 433 676 444 716 458V374C716 280 626 230 540 230Z" transform="translate(7346.941 0)"/><path d="M502 -24C642 -24 749 40 797 164H798V0H1194V1490H794V918H793C726 1029 635 1080 498 1080C233 1080 46 853 46 530C46 194 225 -24 502 -24ZM621 290C512 290 450 384 450 530C450 675 512 768 621 768C730 768 808 675 808 530C808 384 730 290 621 290Z" transform="translate(8504.218 0)"/></g></svg>
