@@ -38,6 +38,7 @@ reading fine after an API is removed or renamed, so nothing else notices.
 - [Security and Threat Model](security.md)
 - [API Stability Summary](api_stability.md)
 - [Tuning](tuning.md)
+- [Serial DTR Retention Decision and HIL Validation](serial_dtr_retention_validation.md)
 - [Performance Validation](performance_validation.md)
 - [ROS 2 Support Analysis](ros2_support_analysis.md)
 - [Migrating from Unilink](migration-from-unilink.md)

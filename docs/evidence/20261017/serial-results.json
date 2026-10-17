@@ -1,0 +1,74 @@
+{
+  "hil-baseline-ttyACM0-5.log": {
+    "passes": 15,
+    "per_test": {
+      "SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen": 5,
+      "SerialHilTest.EchoRoundTripsAreIntact": 5,
+      "SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet": 5
+    },
+    "boot_counters": []
+  },
+  "hil-retention-5.log": {
+    "passes": 20,
+    "per_test": {
+      "SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen": 5,
+      "SerialHilTest.EchoRoundTripsAreIntact": 5,
+      "SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen": 5,
+      "SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet": 5
+    },
+    "boot_counters": [
+      [
+        "184",
+        "184",
+        "3"
+      ],
+      [
+        "185",
+        "185",
+        "3"
+      ],
+      [
+        "186",
+        "186",
+        "3"
+      ],
+      [
+        "187",
+        "187",
+        "3"
+      ],
+      [
+        "188",
+        "188",
+        "3"
+      ]
+    ]
+  },
+  "run_integration_test_serial_builder_validation.xml": {
+    "tests": "6",
+    "failures": "0",
+    "disabled": "0",
+    "errors": "0",
+    "time": "0.",
+    "timestamp": "2026-10-17T09:34:44.366",
+    "name": "AllTests"
+  },
+  "run_unit_wrapper_serial_config_mapping.xml": {
+    "tests": "5",
+    "failures": "0",
+    "disabled": "0",
+    "errors": "0",
+    "time": "0.",
+    "timestamp": "2026-10-17T09:34:44.361",
+    "name": "AllTests"
+  },
+  "run_unit_transport_serial.xml": {
+    "tests": "135",
+    "failures": "0",
+    "disabled": "0",
+    "errors": "0",
+    "time": "9.597",
+    "timestamp": "2026-10-17T09:34:34.750",
+    "name": "AllTests"
+  }
+}
