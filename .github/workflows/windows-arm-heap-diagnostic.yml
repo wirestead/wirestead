@@ -31,7 +31,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Artifact download failed' }
       - name: Record environment and repeat with crash capture
         shell: pwsh
-        run: ./scripts/diagnose_windows_arm_heap.ps1
+        run: ./scripts/diagnose_windows_arm_heap.ps1 -CaptureOnly -Repetitions 2000
       - name: Preserve diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v7

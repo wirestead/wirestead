@@ -1,4 +1,4 @@
-param([int]$Repetitions = 500)
+param([int]$Repetitions = 500, [switch]$CaptureOnly)
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
@@ -38,7 +38,8 @@ function Invoke-RepeatedTest([string]$mode) {
 
 # Preserve the original fresh-process execution pattern before attaching a
 # debugger: instrumentation can suppress timing-sensitive teardown faults.
-$plainPassed = Invoke-RepeatedTest 'plain'
+$plainPassed = $true
+if (-not $CaptureOnly) { $plainPassed = Invoke-RepeatedTest 'plain' }
 
 # The native ARM64 postmortem debugger captures unhandled exceptions without
 # having to attach after the process has already terminated.
