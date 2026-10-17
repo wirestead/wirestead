@@ -1,8 +1,6 @@
 name: Windows ARM heap diagnostic
 
 on:
-  push:
-    branches: [ci/windows-arm-heap-evidence]
   workflow_dispatch:
 
 permissions:
