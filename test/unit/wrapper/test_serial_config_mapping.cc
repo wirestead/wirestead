@@ -114,3 +114,15 @@ TEST_F(SerialConfigMappingTest, UntouchedRs485AndModemLinesKeepConfigDefaults) {
   EXPECT_FALSE(cfg.rts.has_value());
   EXPECT_EQ(cfg.rx_idle_timeout_ms, 0u);
 }
+
+TEST_F(SerialConfigMappingTest, DtrRetentionDefaultsOffAndRejectsConflictingLineSettings) {
+  TestableSerial port("/dev/ttyUSB0", 115200);
+  EXPECT_FALSE(port.build_config().keep_dtr_on_close);
+  port.keep_dtr_on_close();
+  EXPECT_TRUE(port.build_config().keep_dtr_on_close);
+  EXPECT_THROW(port.dtr(false), std::invalid_argument);
+  EXPECT_FALSE(port.build_config().dtr.has_value());
+  port.keep_dtr_on_close(false).dtr(false);
+  EXPECT_THROW(port.keep_dtr_on_close(), std::invalid_argument);
+  EXPECT_FALSE(port.build_config().keep_dtr_on_close);
+}

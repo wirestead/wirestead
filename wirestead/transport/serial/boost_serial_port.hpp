@@ -22,6 +22,7 @@
 #ifdef __linux__
 #include <linux/serial.h>
 #include <sys/ioctl.h>
+#include <termios.h>
 #endif
 #if defined(__APPLE__)
 #include <sys/ioctl.h>
@@ -124,6 +125,22 @@ class WIRESTEAD_API BoostSerialPort : public interface::SerialPortInterface {
 #else
     (void)dtr;
     (void)rts;
+    return false;
+#endif
+  }
+
+  bool keep_dtr_on_close() override {
+#ifdef __linux__
+    const int fd = port_.native_handle();
+    struct termios settings {};
+    if (::tcgetattr(fd, &settings) != 0) return false;
+    int line = TIOCM_DTR;
+    if (::ioctl(fd, TIOCMBIS, &line) != 0) return false;
+    settings.c_cflag &= ~static_cast<tcflag_t>(HUPCL);
+    if (::tcsetattr(fd, TCSANOW, &settings) != 0) return false;
+    // Some drivers accept settings without applying them.
+    return ::tcgetattr(fd, &settings) == 0 && !(settings.c_cflag & HUPCL);
+#else
     return false;
 #endif
   }

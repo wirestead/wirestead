@@ -8,6 +8,13 @@ and ABI policy.
 
 ## Unreleased
 
+### Added
+
+- Opt-in Linux serial `keep_dtr_on_close()` retains DTR across close and reopen
+  by clearing HUPCL. The default close policy stays unchanged. The option
+  cannot prevent resets on first open or physical disconnect; it conflicts
+  with `dtr(false)` and fails the connection if retention is unavailable (#710).
+
 ### Fixed
 
 - Destroying a running wrapper now completes its shutdown on the destroying

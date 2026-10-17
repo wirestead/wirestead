@@ -27,6 +27,12 @@
 
 #include <gtest/gtest.h>
 
+#ifdef __linux__
+#include <fcntl.h>
+#include <termios.h>
+#include <unistd.h>
+#endif
+
 #ifndef _WIN32
 
 #include <algorithm>
@@ -221,6 +227,76 @@ TEST_F(SerialHilTest, DtrFalseDoesNotPreventTheResetAtOpen) {
   EXPECT_GT(after, before) << "the board did not reset at open; #710 may be fixed";
   port->stop();
 }
+
+#ifdef __linux__
+// Retention intentionally persists in the tty after stop. Restore the original
+// HUPCL bit after the test so later users of this shared HIL device inherit
+// the same close policy they had before the test.
+struct RestoreHangup {
+  const char* device;
+  bool hangup;
+  ~RestoreHangup() {
+    const int fd = ::open(device, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (fd < 0) return;
+    struct termios settings {};
+    if (::tcgetattr(fd, &settings) == 0) {
+      if (hangup)
+        settings.c_cflag |= HUPCL;
+      else
+        settings.c_cflag &= ~static_cast<tcflag_t>(HUPCL);
+      ::tcsetattr(fd, TCSANOW, &settings);
+    }
+    ::close(fd);
+  }
+};
+
+TEST_F(SerialHilTest, KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen) {
+  const int fd = ::open(hil_device(), O_RDWR | O_NOCTTY | O_NONBLOCK);
+  ASSERT_GE(fd, 0);
+  struct termios initial {};
+  const int rc = ::tcgetattr(fd, &initial);
+  if (rc != 0) {
+    ::close(fd);
+    FAIL() << "cannot read tty close policy";
+  }
+  RestoreHangup restore{hil_device(), (initial.c_cflag & HUPCL) != 0};
+  auto controlled = initial;
+  controlled.c_cflag |= HUPCL;
+  const int set_rc = ::tcsetattr(fd, TCSANOW, &controlled);
+  ::close(fd);
+  ASSERT_EQ(set_rc, 0) << "cannot establish hangup-on-close precondition";
+  Inbox inbox;
+  std::atomic<int> connects{0};
+  auto port = wirestead::serial(hil_device(), kBaud)
+                  .keep_dtr_on_close()
+                  .reopen_on_error(true)
+                  .retry_interval(100ms)
+                  .rx_idle_timeout(2500ms)
+                  .on_error([](auto&&) {})
+                  .build();
+  port->on_data([&](const wirestead::wrapper::MessageContext& ctx) { inbox.append(ctx); });
+  port->on_connect([&](const wirestead::wrapper::ConnectionContext&) { ++connects; });
+  ASSERT_TRUE(start_within(*port));
+  ASSERT_TRUE(sync(*port, inbox));
+  const long before = query_boots(*port, inbox);
+  ASSERT_GE(before, 0);
+  port->stop();
+  ASSERT_TRUE(start_within(*port));
+  ASSERT_TRUE(sync(*port, inbox));
+  EXPECT_EQ(query_boots(*port, inbox), before) << "stop/start reset the board";
+  const int connected = connects.load();
+  ASSERT_TRUE(port->send("!mute 3500\n"));
+  ASSERT_TRUE(inbox.wait_for([&](const std::string&) { return connects.load() > connected; }, 5s));
+  ASSERT_TRUE(sync(*port, inbox));
+  const long after = query_boots(*port, inbox);
+  EXPECT_EQ(after, before) << "idle-timeout reopen reset the board";
+  RecordProperty("boots_before", before);
+  RecordProperty("boots_after", after);
+  RecordProperty("connects", connects.load());
+  std::cout << "DTR retention: boots " << before << " -> " << after << ", connects " << connects.load() << '\n';
+  port->stop();
+}
+#endif  // __linux__
 
 }  // namespace
 

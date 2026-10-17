@@ -468,6 +468,11 @@ struct Serial::Impl {
       WIRESTEAD_LOG_WARNING("serial", "configure", fmt::format("Could not set DTR/RTS on {}", cfg_.device));
     }
 
+    if (cfg_.keep_dtr_on_close && !port_->keep_dtr_on_close()) {
+      handle_error(self, "keep_dtr_on_close", make_error_code(boost::system::errc::operation_not_supported));
+      return;
+    }
+
     // Best effort, after the line settings and before the first read: a driver
     // without a latency timer just says no, and the port is fine either way.
     if (cfg_.low_latency && !port_->set_low_latency()) {
@@ -627,14 +632,14 @@ struct Serial::Impl {
       return;
     }
 
-    bool retryable = cfg_.reopen_on_error;
+    const bool retryable = cfg_.reopen_on_error && std::string_view(where) != "keep_dtr_on_close";
     diagnostics::error_reporting::report_connection_error("serial", where, ec, retryable);
 
     WIRESTEAD_LOG_ERROR("serial", where, fmt::format("Error: {}", ec.message()));
     error_info_holder_.record_error(diagnostics::ErrorLevel::ERROR, diagnostics::ErrorCategory::CONNECTION, where, ec,
                                     ec.message(), retryable, 0);
 
-    if (cfg_.reopen_on_error) {
+    if (retryable) {
       mark_disconnected();
       discard_connection_writes();
       close_port();
