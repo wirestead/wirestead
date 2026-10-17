@@ -23,7 +23,7 @@ test 150
 150: 32-byte echo round trip at 115200 baud: p50 3188.59 us, p99 4248.46 us
 150: [       OK ] SerialHilTest.EchoRoundTripsAreIntact (1952 ms)
 150: [----------] 1 test from SerialHilTest (1952 ms total)
-150: 
+150:
 150: [----------] Global test environment tear-down
 150: [==========] 1 test from 1 test suite ran. (1952 ms total)
 150: [  PASSED  ] 1 test.
@@ -43,7 +43,7 @@ test 150
 150: 32-byte echo round trip at 115200 baud: p50 3193.81 us, p99 4293.74 us
 150: [       OK ] SerialHilTest.EchoRoundTripsAreIntact (1954 ms)
 150: [----------] 1 test from SerialHilTest (1954 ms total)
-150: 
+150:
 150: [----------] Global test environment tear-down
 150: [==========] 1 test from 1 test suite ran. (1954 ms total)
 150: [  PASSED  ] 1 test.
@@ -63,7 +63,7 @@ test 150
 150: 32-byte echo round trip at 115200 baud: p50 3195.5 us, p99 4255.34 us
 150: [       OK ] SerialHilTest.EchoRoundTripsAreIntact (1954 ms)
 150: [----------] 1 test from SerialHilTest (1955 ms total)
-150: 
+150:
 150: [----------] Global test environment tear-down
 150: [==========] 1 test from 1 test suite ran. (1955 ms total)
 150: [  PASSED  ] 1 test.
@@ -83,7 +83,7 @@ test 150
 150: 32-byte echo round trip at 115200 baud: p50 3198.45 us, p99 4257.29 us
 150: [       OK ] SerialHilTest.EchoRoundTripsAreIntact (1953 ms)
 150: [----------] 1 test from SerialHilTest (1953 ms total)
-150: 
+150:
 150: [----------] Global test environment tear-down
 150: [==========] 1 test from 1 test suite ran. (1953 ms total)
 150: [  PASSED  ] 1 test.
@@ -103,7 +103,7 @@ test 150
 150: 32-byte echo round trip at 115200 baud: p50 3189.36 us, p99 3244.18 us
 150: [       OK ] SerialHilTest.EchoRoundTripsAreIntact (1948 ms)
 150: [----------] 1 test from SerialHilTest (1949 ms total)
-150: 
+150:
 150: [----------] Global test environment tear-down
 150: [==========] 1 test from 1 test suite ran. (1949 ms total)
 150: [  PASSED  ] 1 test.
@@ -127,7 +127,7 @@ test 151
 151: 2026-10-17 09:29:25.109 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:478:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
 151: [       OK ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet (5417 ms)
 151: [----------] 1 test from SerialHilTest (5417 ms total)
-151: 
+151:
 151: [----------] Global test environment tear-down
 151: [==========] 1 test from 1 test suite ran. (5417 ms total)
 151: [  PASSED  ] 1 test.
@@ -150,7 +150,7 @@ test 151
 151: 2026-10-17 09:29:30.532 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:478:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
 151: [       OK ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet (5416 ms)
 151: [----------] 1 test from SerialHilTest (5416 ms total)
-151: 
+151:
 151: [----------] Global test environment tear-down
 151: [==========] 1 test from 1 test suite ran. (5416 ms total)
 151: [  PASSED  ] 1 test.
@@ -173,7 +173,7 @@ test 151
 151: 2026-10-17 09:29:35.954 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:478:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
 151: [       OK ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet (5417 ms)
 151: [----------] 1 test from SerialHilTest (5417 ms total)
-151: 
+151:
 151: [----------] Global test environment tear-down
 151: [==========] 1 test from 1 test suite ran. (5417 ms total)
 151: [  PASSED  ] 1 test.
@@ -196,7 +196,7 @@ test 151
 151: 2026-10-17 09:29:41.380 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:478:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
 151: [       OK ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet (5417 ms)
 151: [----------] 1 test from SerialHilTest (5417 ms total)
-151: 
+151:
 151: [----------] Global test environment tear-down
 151: [==========] 1 test from 1 test suite ran. (5417 ms total)
 151: [  PASSED  ] 1 test.
@@ -219,7 +219,7 @@ test 151
 151: 2026-10-17 09:29:46.804 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:478:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
 151: [       OK ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet (5425 ms)
 151: [----------] 1 test from SerialHilTest (5425 ms total)
-151: 
+151:
 151: [----------] Global test environment tear-down
 151: [==========] 1 test from 1 test suite ran. (5425 ms total)
 151: [  PASSED  ] 1 test.
@@ -240,7 +240,7 @@ test 152
 152: 2026-10-17 09:29:48.138 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:478:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
 152: [       OK ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen (2626 ms)
 152: [----------] 1 test from SerialHilTest (2626 ms total)
-152: 
+152:
 152: [----------] Global test environment tear-down
 152: [==========] 1 test from 1 test suite ran. (2627 ms total)
 152: [  PASSED  ] 1 test.
@@ -260,7 +260,7 @@ test 152
 152: 2026-10-17 09:29:50.773 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:478:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
 152: [       OK ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen (2627 ms)
 152: [----------] 1 test from SerialHilTest (2627 ms total)
-152: 
+152:
 152: [----------] Global test environment tear-down
 152: [==========] 1 test from 1 test suite ran. (2627 ms total)
 152: [  PASSED  ] 1 test.
@@ -280,7 +280,7 @@ test 152
 152: 2026-10-17 09:29:53.405 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:478:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
 152: [       OK ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen (2624 ms)
 152: [----------] 1 test from SerialHilTest (2624 ms total)
-152: 
+152:
 152: [----------] Global test environment tear-down
 152: [==========] 1 test from 1 test suite ran. (2624 ms total)
 152: [  PASSED  ] 1 test.
@@ -300,7 +300,7 @@ test 152
 152: 2026-10-17 09:29:56.037 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:478:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
 152: [       OK ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen (2624 ms)
 152: [----------] 1 test from SerialHilTest (2624 ms total)
-152: 
+152:
 152: [----------] Global test environment tear-down
 152: [==========] 1 test from 1 test suite ran. (2624 ms total)
 152: [  PASSED  ] 1 test.
@@ -320,7 +320,7 @@ test 152
 152: 2026-10-17 09:29:58.668 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:478:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
 152: [       OK ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen (2624 ms)
 152: [----------] 1 test from SerialHilTest (2625 ms total)
-152: 
+152:
 152: [----------] Global test environment tear-down
 152: [==========] 1 test from 1 test suite ran. (2625 ms total)
 152: [  PASSED  ] 1 test.

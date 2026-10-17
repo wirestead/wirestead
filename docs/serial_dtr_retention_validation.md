@@ -90,6 +90,9 @@ Each of the three focused test executables was also run directly with
 `--gtest_output=xml:<evidence-path>`. `git diff --check` and clang-format's
 check mode passed for the twelve changed C++ files.
 
+Log copies below have trailing whitespace trimmed; original logs remain in
+the workspace evidence directory.
+
 - [Baseline HIL log](evidence/20261017/serial-hil-baseline.log)
 - [Candidate HIL log](evidence/20261017/serial-hil-retention.log)
 - [Counts, boot counters and focused test results](evidence/20261017/serial-results.json)
