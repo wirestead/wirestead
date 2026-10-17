@@ -1,0 +1,46 @@
+name: Windows ARM heap diagnostic
+
+on:
+  push:
+    branches: [ci/windows-arm-heap-evidence]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  reproduce:
+    runs-on: windows-11-arm
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download the original source revision's preserved Windows ARM build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force evidence | Out-Null
+          gh api repos/wirestead/wirestead/actions/runs/38118047733 > evidence/source-run.json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve source run' }
+          $sourceRun = Get-Content evidence/source-run.json -Raw | ConvertFrom-Json
+          if ($sourceRun.head_sha -ne 'c96135070a61d07752f6d703366a3189d6972bf6') { throw 'Unexpected source SHA' }
+          gh api repos/wirestead/wirestead/actions/runs/38118047733/artifacts > evidence/source-artifacts.json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve artifacts' }
+          gh run download 38118047733 --repo wirestead/wirestead --name windows-build-windows-11-arm --dir build
+          if ($LASTEXITCODE -ne 0) { throw 'Artifact download failed' }
+      - name: Record environment and repeat with crash capture
+        shell: pwsh
+        run: ./scripts/diagnose_windows_arm_heap.ps1
+      - name: Preserve diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-arm-heap-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            evidence/
+            build/**/*.exe
+            build/**/*.dll
+            build/**/*.pdb
+          retention-days: 30
+          if-no-files-found: error
