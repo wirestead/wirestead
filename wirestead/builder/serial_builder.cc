@@ -94,6 +94,7 @@ std::unique_ptr<wrapper::Serial> SerialBuilder::build() {
                   rs485_.delay_rts_after_send_ms);
   }
   if (dtr_) serial->dtr(*dtr_);
+  if (keep_dtr_on_close_) serial->keep_dtr_on_close();
   if (rts_) serial->rts(*rts_);
   if (rx_idle_timeout_set_) serial->rx_idle_timeout(rx_idle_timeout_);
   if (retry_interval_set_) serial->retry_interval(std::chrono::milliseconds(retry_interval_ms_));
@@ -214,6 +215,11 @@ SerialBuilder& SerialBuilder::rs485(bool rts_on_send, bool rx_during_tx, unsigne
 
 SerialBuilder& SerialBuilder::dtr(bool assert_line) {
   dtr_ = assert_line;
+  return *this;
+}
+
+SerialBuilder& SerialBuilder::keep_dtr_on_close(bool enable) {
+  keep_dtr_on_close_ = enable;
   return *this;
 }
 

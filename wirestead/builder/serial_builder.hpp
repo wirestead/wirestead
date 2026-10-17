@@ -67,6 +67,8 @@ class WIRESTEAD_API SerialBuilder : public BuilderInterface<wrapper::Serial, Ser
   // the driver's default alone, which differs from passing false. Neither can
   // prevent a DTR-triggered board reset at open (#710).
   SerialBuilder& dtr(bool assert_line);
+  // Linux only; see SerialConfig::keep_dtr_on_close. Off by default.
+  SerialBuilder& keep_dtr_on_close(bool enable = true);
   SerialBuilder& rts(bool assert_line);
   SerialBuilder& reopen_on_error(bool enable = true);
   // Reopen the port when no data has been received for this long. Off by
@@ -105,6 +107,7 @@ class WIRESTEAD_API SerialBuilder : public BuilderInterface<wrapper::Serial, Ser
   bool low_latency_set_{false};
   config::SerialConfig::Rs485 rs485_{};
   std::optional<bool> dtr_;
+  bool keep_dtr_on_close_{false};
   std::optional<bool> rts_;
   std::chrono::milliseconds rx_idle_timeout_{0};
   bool rx_idle_timeout_set_{false};
