@@ -55,6 +55,6 @@ Native Orin/UNO Mini HIL: baseline 15/15, candidate 20/20; focused related tests
 146/146. All five explicit-retention executions preserved EEPROM boot counts
 through stop/start and watchdog reopen. The PR contains the exact board,
 kernel, toolchain, repetition counts, raw logs and hashes in
-[`docs/serial_dtr_retention_validation.md`](https://github.com/wirestead/wirestead/blob/fix/serial-keep-dtr-on-close/docs/serial_dtr_retention_validation.md).
+[`docs/serial_dtr_retention_validation.md`](serial_dtr_retention_validation.md).
 
 These are evidence and policy records, not a release or merge authorization.
