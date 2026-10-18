@@ -1,0 +1,159 @@
+{
+  "head": "c896a9c30c422dee97d62006741a8f8126eb4803",
+  "attempt": 2,
+  "workflows": {
+    "Code Coverage": {
+      "run": 38261756295,
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "Code Coverage Analysis",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756295/job/117256892179"
+        },
+        {
+          "name": "Notify wirestead-docs of release",
+          "conclusion": "skipped",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756295/job/117258844316"
+        }
+      ]
+    },
+    "CMake": {
+      "run": 38261756110,
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "C++ (Linux, GCC)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756110/job/117256897079"
+        },
+        {
+          "name": "C++ (Linux ARM64, GCC, Ubuntu 24.04)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756110/job/117256897287"
+        },
+        {
+          "name": "C++ (macOS, Clang)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756110/job/117256897368"
+        },
+        {
+          "name": "C++ (Linux, GCC, Ubuntu 22.04)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756110/job/117256897437"
+        },
+        {
+          "name": "C++ (Windows, MSVC)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756110/job/117256897493"
+        }
+      ]
+    },
+    "CI": {
+      "run": 38261756296,
+      "conclusion": "success",
+      "jobs": [
+        {
+          "name": "Windows (windows-11-arm)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117256901822"
+        },
+        {
+          "name": "Compile (ubuntu-24.04, gcc (minimal))",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117256902067"
+        },
+        {
+          "name": "Compile (ubuntu-22.04, gcc)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117256902089"
+        },
+        {
+          "name": "Compile (ubuntu-22.04-arm, gcc)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117256902092"
+        },
+        {
+          "name": "Windows (windows-2022)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117256902099"
+        },
+        {
+          "name": "Compile (macos-15, clang)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117256902101"
+        },
+        {
+          "name": "Compile (ubuntu-24.04, gcc)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117256902136"
+        },
+        {
+          "name": "Compile (ubuntu-24.04-arm, gcc)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117256902180"
+        },
+        {
+          "name": "Compile (ubuntu-24.04, clang)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117256902225"
+        },
+        {
+          "name": "TLS (ubuntu-24.04, gcc)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117257813310"
+        },
+        {
+          "name": "E2E Tests",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117257813322"
+        },
+        {
+          "name": "Integration Tests (ubuntu-24.04, gcc)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117257813323"
+        },
+        {
+          "name": "Unit Tests (ubuntu-24.04, clang)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117257813398"
+        },
+        {
+          "name": "Integration Tests (ubuntu-24.04-arm, gcc)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117257813400"
+        },
+        {
+          "name": "Memory Safety Tests",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117257813439"
+        },
+        {
+          "name": "Unit Tests (macos-15, clang)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117257813441"
+        },
+        {
+          "name": "Unit Tests (ubuntu-24.04, gcc)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117257813447"
+        },
+        {
+          "name": "Unit Tests (ubuntu-24.04-arm, gcc)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117257813506"
+        },
+        {
+          "name": "Unit Tests (ubuntu-22.04, gcc)",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117257813622"
+        },
+        {
+          "name": "CI Summary",
+          "conclusion": "success",
+          "url": "https://github.com/wirestead/wirestead/actions/runs/38261756296/job/117264860254"
+        }
+      ]
+    }
+  }
+}

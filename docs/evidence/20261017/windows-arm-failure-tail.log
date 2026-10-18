@@ -1,0 +1,28 @@
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ClientAndServer/TcpStopAdmissionTest
+[ RUN      ] ClientAndServer/TcpStopAdmissionTest.BothOutsideStopsWaitUntilCleanupActuallyCompletes/0
+[       OK ] ClientAndServer/TcpStopAdmissionTest.BothOutsideStopsWaitUntilCleanupActuallyCompletes/0 (228 ms)
+[----------] 1 test from ClientAndServer/TcpStopAdmissionTest (229 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (229 ms total)
+[  PASSED  ] 1 test.
+Running main() from C:\a\wirestead\wirestead\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = ClientAndServer/TcpStopAdmissionTest.BothOutsideStopsWaitUntilCleanupActuallyCompletes/0
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ClientAndServer/TcpStopAdmissionTest
+[ RUN      ] ClientAndServer/TcpStopAdmissionTest.BothOutsideStopsWaitUntilCleanupActuallyCompletes/0
+[       OK ] ClientAndServer/TcpStopAdmissionTest.BothOutsideStopsWaitUntilCleanupActuallyCompletes/0 (227 ms)
+[----------] 1 test from ClientAndServer/TcpStopAdmissionTest (227 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (227 ms total)
+[  PASSED  ] 1 test.
+Running main() from C:\a\wirestead\wirestead\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = ClientAndServer/TcpStopAdmissionTest.BothOutsideStopsWaitUntilCleanupActuallyCompletes/0
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from ClientAndServer/TcpStopAdmissionTest
+[ RUN      ] ClientAndServer/TcpStopAdmissionTest.BothOutsideStopsWaitUntilCleanupActuallyCompletes/0

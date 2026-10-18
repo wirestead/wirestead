@@ -1,0 +1,29 @@
+{
+  "source_commit": "c96135070a61d07752f6d703366a3189d6972bf6",
+  "run": 38986794870,
+  "artifact": 12082858358,
+  "plain": {
+    "attempted": 360,
+    "passed": 359,
+    "failure_iteration": 360,
+    "exit_code": "0xc0000374"
+  },
+  "postmortem": {
+    "attempted": 500,
+    "passed": 500,
+    "dumps": 0
+  },
+  "root_cause": "unknown",
+  "release_decision": "heap corruption remains reproducible; do not claim it fixed or approve a heap-fix patch without a diagnosed change and matching native regression evidence",
+  "runner_image": "20261013.183.4",
+  "os_build": "10.0.26200",
+  "second_capture": {
+    "run": 38987309420,
+    "artifact": 12083109893,
+    "attempted": 88,
+    "passed": 87,
+    "failure_iteration": 88,
+    "exit_code": "0xc0000374",
+    "dumps": 0
+  }
+}
