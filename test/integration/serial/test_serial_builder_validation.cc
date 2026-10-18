@@ -76,3 +76,9 @@ TEST_F(SerialBuilderValidationTest, OutOfRangeReadChunkIsRejected) {
   EXPECT_THROW(serial(device_, 9600).read_chunk(1), std::invalid_argument);
   EXPECT_THROW(serial(device_, 9600).read_chunk(64 * 1024 * 1024), std::invalid_argument);
 }
+
+TEST_F(SerialBuilderValidationTest, DtrRetentionRejectsConflictingBuilderSettingsInEitherOrder) {
+  EXPECT_THROW(serial(device_, 115200).dtr(false).keep_dtr_on_close().build(), std::invalid_argument);
+  EXPECT_THROW(serial(device_, 115200).keep_dtr_on_close().dtr(false).build(), std::invalid_argument);
+  EXPECT_NO_THROW(serial(device_, 115200).keep_dtr_on_close().build());
+}

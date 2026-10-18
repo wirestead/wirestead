@@ -1,0 +1,460 @@
+UpdateCTestConfiguration  from :/home/jorin/followup-20261017/build/DartConfiguration.tcl
+Parse Config file:/home/jorin/followup-20261017/build/DartConfiguration.tcl
+Test project /home/jorin/followup-20261017/build
+Constructing a list of tests
+Done constructing a list of tests
+Updating test list for fixtures
+Added 0 tests to meet fixture requirements
+Checking test dependency graph...
+Checking test dependency graph end
+test 150
+    Start 150: SerialHilTest.EchoRoundTripsAreIntact
+
+150: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.EchoRoundTripsAreIntact" "--gtest_also_run_disabled_tests"
+150: Working Directory: /home/jorin/followup-20261017/build/test/integration
+150: Test timeout computed to be: 120
+150: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+150: Note: Google Test filter = SerialHilTest.EchoRoundTripsAreIntact
+150: [==========] Running 1 test from 1 test suite.
+150: [----------] Global test environment set-up.
+150: [----------] 1 test from SerialHilTest
+150: [ RUN      ] SerialHilTest.EchoRoundTripsAreIntact
+150: 2026-10-17 09:33:41.613 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+150: 32-byte echo round trip at 115200 baud: p50 3174.86 us, p99 4221.8 us
+150: [       OK ] SerialHilTest.EchoRoundTripsAreIntact (1947 ms)
+150: [----------] 1 test from SerialHilTest (1947 ms total)
+150:
+150: [----------] Global test environment tear-down
+150: [==========] 1 test from 1 test suite ran. (1947 ms total)
+150: [  PASSED  ] 1 test.
+    Test #150: SerialHilTest.EchoRoundTripsAreIntact .....................................   Passed    1.95 sec
+    Start 150: SerialHilTest.EchoRoundTripsAreIntact
+
+150: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.EchoRoundTripsAreIntact" "--gtest_also_run_disabled_tests"
+150: Working Directory: /home/jorin/followup-20261017/build/test/integration
+150: Test timeout computed to be: 120
+150: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+150: Note: Google Test filter = SerialHilTest.EchoRoundTripsAreIntact
+150: [==========] Running 1 test from 1 test suite.
+150: [----------] Global test environment set-up.
+150: [----------] 1 test from SerialHilTest
+150: [ RUN      ] SerialHilTest.EchoRoundTripsAreIntact
+150: 2026-10-17 09:33:43.581 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+150: 32-byte echo round trip at 115200 baud: p50 3183.6 us, p99 4249.61 us
+150: [       OK ] SerialHilTest.EchoRoundTripsAreIntact (1949 ms)
+150: [----------] 1 test from SerialHilTest (1949 ms total)
+150:
+150: [----------] Global test environment tear-down
+150: [==========] 1 test from 1 test suite ran. (1949 ms total)
+150: [  PASSED  ] 1 test.
+    Test #150: SerialHilTest.EchoRoundTripsAreIntact .....................................   Passed    1.95 sec
+    Start 150: SerialHilTest.EchoRoundTripsAreIntact
+
+150: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.EchoRoundTripsAreIntact" "--gtest_also_run_disabled_tests"
+150: Working Directory: /home/jorin/followup-20261017/build/test/integration
+150: Test timeout computed to be: 120
+150: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+150: Note: Google Test filter = SerialHilTest.EchoRoundTripsAreIntact
+150: [==========] Running 1 test from 1 test suite.
+150: [----------] Global test environment set-up.
+150: [----------] 1 test from SerialHilTest
+150: [ RUN      ] SerialHilTest.EchoRoundTripsAreIntact
+150: 2026-10-17 09:33:45.536 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+150: 32-byte echo round trip at 115200 baud: p50 3175.95 us, p99 4229.35 us
+150: [       OK ] SerialHilTest.EchoRoundTripsAreIntact (1950 ms)
+150: [----------] 1 test from SerialHilTest (1950 ms total)
+150:
+150: [----------] Global test environment tear-down
+150: [==========] 1 test from 1 test suite ran. (1950 ms total)
+150: [  PASSED  ] 1 test.
+    Test #150: SerialHilTest.EchoRoundTripsAreIntact .....................................   Passed    1.96 sec
+    Start 150: SerialHilTest.EchoRoundTripsAreIntact
+
+150: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.EchoRoundTripsAreIntact" "--gtest_also_run_disabled_tests"
+150: Working Directory: /home/jorin/followup-20261017/build/test/integration
+150: Test timeout computed to be: 120
+150: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+150: Note: Google Test filter = SerialHilTest.EchoRoundTripsAreIntact
+150: [==========] Running 1 test from 1 test suite.
+150: [----------] Global test environment set-up.
+150: [----------] 1 test from SerialHilTest
+150: [ RUN      ] SerialHilTest.EchoRoundTripsAreIntact
+150: 2026-10-17 09:33:47.492 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+150: 32-byte echo round trip at 115200 baud: p50 3182.35 us, p99 4236.2 us
+150: [       OK ] SerialHilTest.EchoRoundTripsAreIntact (1949 ms)
+150: [----------] 1 test from SerialHilTest (1949 ms total)
+150:
+150: [----------] Global test environment tear-down
+150: [==========] 1 test from 1 test suite ran. (1949 ms total)
+150: [  PASSED  ] 1 test.
+    Test #150: SerialHilTest.EchoRoundTripsAreIntact .....................................   Passed    1.95 sec
+    Start 150: SerialHilTest.EchoRoundTripsAreIntact
+
+150: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.EchoRoundTripsAreIntact" "--gtest_also_run_disabled_tests"
+150: Working Directory: /home/jorin/followup-20261017/build/test/integration
+150: Test timeout computed to be: 120
+150: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+150: Note: Google Test filter = SerialHilTest.EchoRoundTripsAreIntact
+150: [==========] Running 1 test from 1 test suite.
+150: [----------] Global test environment set-up.
+150: [----------] 1 test from SerialHilTest
+150: [ RUN      ] SerialHilTest.EchoRoundTripsAreIntact
+150: 2026-10-17 09:33:49.447 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+150: 32-byte echo round trip at 115200 baud: p50 3173.9 us, p99 4229.61 us
+150: [       OK ] SerialHilTest.EchoRoundTripsAreIntact (1947 ms)
+150: [----------] 1 test from SerialHilTest (1947 ms total)
+150:
+150: [----------] Global test environment tear-down
+150: [==========] 1 test from 1 test suite ran. (1947 ms total)
+150: [  PASSED  ] 1 test.
+1/4 Test #150: SerialHilTest.EchoRoundTripsAreIntact .....................................   Passed    1.95 sec
+test 151
+    Start 151: SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+
+151: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet" "--gtest_also_run_disabled_tests"
+151: Working Directory: /home/jorin/followup-20261017/build/test/integration
+151: Test timeout computed to be: 120
+151: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+151: Note: Google Test filter = SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+151: [==========] Running 1 test from 1 test suite.
+151: [----------] Global test environment set-up.
+151: [----------] 1 test from SerialHilTest
+151: [ RUN      ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+151: 2026-10-17 09:33:51.400 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+151: 2026-10-17 09:33:56.706 [warning] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:682:wirestead::transport::Serial::Impl::reset_rx_idle_timer(std::shared_ptr<wirestead::transport::Serial>)::<lambda(const boost::system::error_code&)>] No data received for 2500ms on /dev/ttyACM0
+151: 2026-10-17 09:33:56.707 [error] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:638:void wirestead::transport::Serial::Impl::handle_error(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Error: Connection timed out
+151: 2026-10-17 09:33:56.709 [info] [serial] [retry] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:660:void wirestead::transport::Serial::Impl::schedule_retry(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Scheduling retry at rx_idle_timeout
+151: 2026-10-17 09:33:56.810 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+151: [       OK ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet (5415 ms)
+151: [----------] 1 test from SerialHilTest (5415 ms total)
+151:
+151: [----------] Global test environment tear-down
+151: [==========] 1 test from 1 test suite ran. (5415 ms total)
+151: [  PASSED  ] 1 test.
+    Test #151: SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet ..................   Passed    5.42 sec
+    Start 151: SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+
+151: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet" "--gtest_also_run_disabled_tests"
+151: Working Directory: /home/jorin/followup-20261017/build/test/integration
+151: Test timeout computed to be: 120
+151: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+151: Note: Google Test filter = SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+151: [==========] Running 1 test from 1 test suite.
+151: [----------] Global test environment set-up.
+151: [----------] 1 test from SerialHilTest
+151: [ RUN      ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+151: 2026-10-17 09:33:56.821 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+151: 2026-10-17 09:34:02.127 [warning] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:682:wirestead::transport::Serial::Impl::reset_rx_idle_timer(std::shared_ptr<wirestead::transport::Serial>)::<lambda(const boost::system::error_code&)>] No data received for 2500ms on /dev/ttyACM0
+151: 2026-10-17 09:34:02.128 [error] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:638:void wirestead::transport::Serial::Impl::handle_error(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Error: Connection timed out
+151: 2026-10-17 09:34:02.130 [info] [serial] [retry] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:660:void wirestead::transport::Serial::Impl::schedule_retry(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Scheduling retry at rx_idle_timeout
+151: 2026-10-17 09:34:02.232 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+151: [       OK ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet (5416 ms)
+151: [----------] 1 test from SerialHilTest (5416 ms total)
+151:
+151: [----------] Global test environment tear-down
+151: [==========] 1 test from 1 test suite ran. (5416 ms total)
+151: [  PASSED  ] 1 test.
+    Test #151: SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet ..................   Passed    5.42 sec
+    Start 151: SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+
+151: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet" "--gtest_also_run_disabled_tests"
+151: Working Directory: /home/jorin/followup-20261017/build/test/integration
+151: Test timeout computed to be: 120
+151: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+151: Note: Google Test filter = SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+151: [==========] Running 1 test from 1 test suite.
+151: [----------] Global test environment set-up.
+151: [----------] 1 test from SerialHilTest
+151: [ RUN      ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+151: 2026-10-17 09:34:02.242 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+151: 2026-10-17 09:34:07.550 [warning] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:682:wirestead::transport::Serial::Impl::reset_rx_idle_timer(std::shared_ptr<wirestead::transport::Serial>)::<lambda(const boost::system::error_code&)>] No data received for 2500ms on /dev/ttyACM0
+151: 2026-10-17 09:34:07.550 [error] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:638:void wirestead::transport::Serial::Impl::handle_error(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Error: Connection timed out
+151: 2026-10-17 09:34:07.553 [info] [serial] [retry] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:660:void wirestead::transport::Serial::Impl::schedule_retry(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Scheduling retry at rx_idle_timeout
+151: 2026-10-17 09:34:07.654 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+151: [       OK ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet (5426 ms)
+151: [----------] 1 test from SerialHilTest (5426 ms total)
+151:
+151: [----------] Global test environment tear-down
+151: [==========] 1 test from 1 test suite ran. (5426 ms total)
+151: [  PASSED  ] 1 test.
+    Test #151: SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet ..................   Passed    5.43 sec
+    Start 151: SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+
+151: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet" "--gtest_also_run_disabled_tests"
+151: Working Directory: /home/jorin/followup-20261017/build/test/integration
+151: Test timeout computed to be: 120
+151: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+151: Note: Google Test filter = SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+151: [==========] Running 1 test from 1 test suite.
+151: [----------] Global test environment set-up.
+151: [----------] 1 test from SerialHilTest
+151: [ RUN      ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+151: 2026-10-17 09:34:07.674 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+151: 2026-10-17 09:34:12.981 [warning] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:682:wirestead::transport::Serial::Impl::reset_rx_idle_timer(std::shared_ptr<wirestead::transport::Serial>)::<lambda(const boost::system::error_code&)>] No data received for 2500ms on /dev/ttyACM0
+151: 2026-10-17 09:34:12.981 [error] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:638:void wirestead::transport::Serial::Impl::handle_error(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Error: Connection timed out
+151: 2026-10-17 09:34:12.983 [info] [serial] [retry] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:660:void wirestead::transport::Serial::Impl::schedule_retry(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Scheduling retry at rx_idle_timeout
+151: 2026-10-17 09:34:13.085 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+151: [       OK ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet (5416 ms)
+151: [----------] 1 test from SerialHilTest (5416 ms total)
+151:
+151: [----------] Global test environment tear-down
+151: [==========] 1 test from 1 test suite ran. (5416 ms total)
+151: [  PASSED  ] 1 test.
+    Test #151: SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet ..................   Passed    5.42 sec
+    Start 151: SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+
+151: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet" "--gtest_also_run_disabled_tests"
+151: Working Directory: /home/jorin/followup-20261017/build/test/integration
+151: Test timeout computed to be: 120
+151: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+151: Note: Google Test filter = SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+151: [==========] Running 1 test from 1 test suite.
+151: [----------] Global test environment set-up.
+151: [----------] 1 test from SerialHilTest
+151: [ RUN      ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet
+151: 2026-10-17 09:34:13.095 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+151: 2026-10-17 09:34:18.402 [warning] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:682:wirestead::transport::Serial::Impl::reset_rx_idle_timer(std::shared_ptr<wirestead::transport::Serial>)::<lambda(const boost::system::error_code&)>] No data received for 2500ms on /dev/ttyACM0
+151: 2026-10-17 09:34:18.402 [error] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:638:void wirestead::transport::Serial::Impl::handle_error(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Error: Connection timed out
+151: 2026-10-17 09:34:18.404 [info] [serial] [retry] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:660:void wirestead::transport::Serial::Impl::schedule_retry(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Scheduling retry at rx_idle_timeout
+151: 2026-10-17 09:34:18.506 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+151: [       OK ] SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet (5415 ms)
+151: [----------] 1 test from SerialHilTest (5415 ms total)
+151:
+151: [----------] Global test environment tear-down
+151: [==========] 1 test from 1 test suite ran. (5415 ms total)
+151: [  PASSED  ] 1 test.
+2/4 Test #151: SerialHilTest.RxIdleTimeoutReopensWhenTheDeviceGoesQuiet ..................   Passed    5.42 sec
+test 152
+    Start 152: SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+
+152: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen" "--gtest_also_run_disabled_tests"
+152: Working Directory: /home/jorin/followup-20261017/build/test/integration
+152: Test timeout computed to be: 120
+152: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+152: Note: Google Test filter = SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+152: [==========] Running 1 test from 1 test suite.
+152: [----------] Global test environment set-up.
+152: [----------] 1 test from SerialHilTest
+152: [ RUN      ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+152: 2026-10-17 09:34:18.517 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+152: 2026-10-17 09:34:19.831 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+152: [       OK ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen (2625 ms)
+152: [----------] 1 test from SerialHilTest (2625 ms total)
+152:
+152: [----------] Global test environment tear-down
+152: [==========] 1 test from 1 test suite ran. (2625 ms total)
+152: [  PASSED  ] 1 test.
+    Test #152: SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen ........................   Passed    2.63 sec
+    Start 152: SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+
+152: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen" "--gtest_also_run_disabled_tests"
+152: Working Directory: /home/jorin/followup-20261017/build/test/integration
+152: Test timeout computed to be: 120
+152: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+152: Note: Google Test filter = SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+152: [==========] Running 1 test from 1 test suite.
+152: [----------] Global test environment set-up.
+152: [----------] 1 test from SerialHilTest
+152: [ RUN      ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+152: 2026-10-17 09:34:21.148 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+152: 2026-10-17 09:34:22.462 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+152: [       OK ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen (2626 ms)
+152: [----------] 1 test from SerialHilTest (2626 ms total)
+152:
+152: [----------] Global test environment tear-down
+152: [==========] 1 test from 1 test suite ran. (2626 ms total)
+152: [  PASSED  ] 1 test.
+    Test #152: SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen ........................   Passed    2.63 sec
+    Start 152: SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+
+152: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen" "--gtest_also_run_disabled_tests"
+152: Working Directory: /home/jorin/followup-20261017/build/test/integration
+152: Test timeout computed to be: 120
+152: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+152: Note: Google Test filter = SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+152: [==========] Running 1 test from 1 test suite.
+152: [----------] Global test environment set-up.
+152: [----------] 1 test from SerialHilTest
+152: [ RUN      ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+152: 2026-10-17 09:34:23.780 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+152: 2026-10-17 09:34:25.093 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+152: [       OK ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen (2625 ms)
+152: [----------] 1 test from SerialHilTest (2625 ms total)
+152:
+152: [----------] Global test environment tear-down
+152: [==========] 1 test from 1 test suite ran. (2625 ms total)
+152: [  PASSED  ] 1 test.
+    Test #152: SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen ........................   Passed    2.63 sec
+    Start 152: SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+
+152: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen" "--gtest_also_run_disabled_tests"
+152: Working Directory: /home/jorin/followup-20261017/build/test/integration
+152: Test timeout computed to be: 120
+152: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+152: Note: Google Test filter = SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+152: [==========] Running 1 test from 1 test suite.
+152: [----------] Global test environment set-up.
+152: [----------] 1 test from SerialHilTest
+152: [ RUN      ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+152: 2026-10-17 09:34:26.411 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+152: 2026-10-17 09:34:27.724 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+152: [       OK ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen (2625 ms)
+152: [----------] 1 test from SerialHilTest (2625 ms total)
+152:
+152: [----------] Global test environment tear-down
+152: [==========] 1 test from 1 test suite ran. (2625 ms total)
+152: [  PASSED  ] 1 test.
+    Test #152: SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen ........................   Passed    2.63 sec
+    Start 152: SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+
+152: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen" "--gtest_also_run_disabled_tests"
+152: Working Directory: /home/jorin/followup-20261017/build/test/integration
+152: Test timeout computed to be: 120
+152: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+152: Note: Google Test filter = SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+152: [==========] Running 1 test from 1 test suite.
+152: [----------] Global test environment set-up.
+152: [----------] 1 test from SerialHilTest
+152: [ RUN      ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen
+152: 2026-10-17 09:34:29.041 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+152: 2026-10-17 09:34:30.355 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+152: [       OK ] SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen (2626 ms)
+152: [----------] 1 test from SerialHilTest (2626 ms total)
+152:
+152: [----------] Global test environment tear-down
+152: [==========] 1 test from 1 test suite ran. (2626 ms total)
+152: [  PASSED  ] 1 test.
+3/4 Test #152: SerialHilTest.DtrFalseDoesNotPreventTheResetAtOpen ........................   Passed    2.63 sec
+test 153
+    Start 153: SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+
+153: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen" "--gtest_also_run_disabled_tests"
+153: Working Directory: /home/jorin/followup-20261017/build/test/integration
+153: Test timeout computed to be: 120
+153: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+153: Note: Google Test filter = SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+153: [==========] Running 1 test from 1 test suite.
+153: [----------] Global test environment set-up.
+153: [----------] 1 test from SerialHilTest
+153: [ RUN      ] SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+153: 2026-10-17 09:34:31.678 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: 2026-10-17 09:34:32.990 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: 2026-10-17 09:34:35.796 [warning] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:682:wirestead::transport::Serial::Impl::reset_rx_idle_timer(std::shared_ptr<wirestead::transport::Serial>)::<lambda(const boost::system::error_code&)>] No data received for 2500ms on /dev/ttyACM0
+153: 2026-10-17 09:34:35.796 [error] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:638:void wirestead::transport::Serial::Impl::handle_error(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Error: Connection timed out
+153: 2026-10-17 09:34:35.798 [info] [serial] [retry] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:660:void wirestead::transport::Serial::Impl::schedule_retry(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Scheduling retry at rx_idle_timeout
+153: 2026-10-17 09:34:35.899 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: DTR retention: boots 184 -> 184, connects 3
+153: [       OK ] SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen (5540 ms)
+153: [----------] 1 test from SerialHilTest (5540 ms total)
+153:
+153: [----------] Global test environment tear-down
+153: [==========] 1 test from 1 test suite ran. (5540 ms total)
+153: [  PASSED  ] 1 test.
+    Test #153: SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen ...   Passed    5.55 sec
+    Start 153: SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+
+153: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen" "--gtest_also_run_disabled_tests"
+153: Working Directory: /home/jorin/followup-20261017/build/test/integration
+153: Test timeout computed to be: 120
+153: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+153: Note: Google Test filter = SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+153: [==========] Running 1 test from 1 test suite.
+153: [----------] Global test environment set-up.
+153: [----------] 1 test from SerialHilTest
+153: [ RUN      ] SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+153: 2026-10-17 09:34:37.226 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: 2026-10-17 09:34:38.537 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: 2026-10-17 09:34:41.343 [warning] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:682:wirestead::transport::Serial::Impl::reset_rx_idle_timer(std::shared_ptr<wirestead::transport::Serial>)::<lambda(const boost::system::error_code&)>] No data received for 2500ms on /dev/ttyACM0
+153: 2026-10-17 09:34:41.343 [error] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:638:void wirestead::transport::Serial::Impl::handle_error(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Error: Connection timed out
+153: 2026-10-17 09:34:41.345 [info] [serial] [retry] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:660:void wirestead::transport::Serial::Impl::schedule_retry(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Scheduling retry at rx_idle_timeout
+153: 2026-10-17 09:34:41.447 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: DTR retention: boots 185 -> 185, connects 3
+153: [       OK ] SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen (5540 ms)
+153: [----------] 1 test from SerialHilTest (5540 ms total)
+153:
+153: [----------] Global test environment tear-down
+153: [==========] 1 test from 1 test suite ran. (5540 ms total)
+153: [  PASSED  ] 1 test.
+    Test #153: SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen ...   Passed    5.55 sec
+    Start 153: SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+
+153: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen" "--gtest_also_run_disabled_tests"
+153: Working Directory: /home/jorin/followup-20261017/build/test/integration
+153: Test timeout computed to be: 120
+153: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+153: Note: Google Test filter = SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+153: [==========] Running 1 test from 1 test suite.
+153: [----------] Global test environment set-up.
+153: [----------] 1 test from SerialHilTest
+153: [ RUN      ] SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+153: 2026-10-17 09:34:42.773 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: 2026-10-17 09:34:44.084 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: 2026-10-17 09:34:46.893 [warning] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:682:wirestead::transport::Serial::Impl::reset_rx_idle_timer(std::shared_ptr<wirestead::transport::Serial>)::<lambda(const boost::system::error_code&)>] No data received for 2500ms on /dev/ttyACM0
+153: 2026-10-17 09:34:46.893 [error] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:638:void wirestead::transport::Serial::Impl::handle_error(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Error: Connection timed out
+153: 2026-10-17 09:34:46.895 [info] [serial] [retry] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:660:void wirestead::transport::Serial::Impl::schedule_retry(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Scheduling retry at rx_idle_timeout
+153: 2026-10-17 09:34:46.996 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: DTR retention: boots 186 -> 186, connects 3
+153: [       OK ] SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen (5541 ms)
+153: [----------] 1 test from SerialHilTest (5541 ms total)
+153:
+153: [----------] Global test environment tear-down
+153: [==========] 1 test from 1 test suite ran. (5541 ms total)
+153: [  PASSED  ] 1 test.
+    Test #153: SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen ...   Passed    5.55 sec
+    Start 153: SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+
+153: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen" "--gtest_also_run_disabled_tests"
+153: Working Directory: /home/jorin/followup-20261017/build/test/integration
+153: Test timeout computed to be: 120
+153: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+153: Note: Google Test filter = SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+153: [==========] Running 1 test from 1 test suite.
+153: [----------] Global test environment set-up.
+153: [----------] 1 test from SerialHilTest
+153: [ RUN      ] SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+153: 2026-10-17 09:34:48.321 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: 2026-10-17 09:34:49.633 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: 2026-10-17 09:34:52.439 [warning] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:682:wirestead::transport::Serial::Impl::reset_rx_idle_timer(std::shared_ptr<wirestead::transport::Serial>)::<lambda(const boost::system::error_code&)>] No data received for 2500ms on /dev/ttyACM0
+153: 2026-10-17 09:34:52.439 [error] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:638:void wirestead::transport::Serial::Impl::handle_error(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Error: Connection timed out
+153: 2026-10-17 09:34:52.441 [info] [serial] [retry] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:660:void wirestead::transport::Serial::Impl::schedule_retry(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Scheduling retry at rx_idle_timeout
+153: 2026-10-17 09:34:52.542 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: DTR retention: boots 187 -> 187, connects 3
+153: [       OK ] SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen (5541 ms)
+153: [----------] 1 test from SerialHilTest (5541 ms total)
+153:
+153: [----------] Global test environment tear-down
+153: [==========] 1 test from 1 test suite ran. (5541 ms total)
+153: [  PASSED  ] 1 test.
+    Test #153: SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen ...   Passed    5.55 sec
+    Start 153: SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+
+153: Test command: /home/jorin/followup-20261017/build/bin/run_integration_test_serial_hil "--gtest_filter=SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen" "--gtest_also_run_disabled_tests"
+153: Working Directory: /home/jorin/followup-20261017/build/test/integration
+153: Test timeout computed to be: 120
+153: Running main() from /home/jorin/followup-20261017/build/_deps/googletest-src/googletest/src/gtest_main.cc
+153: Note: Google Test filter = SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+153: [==========] Running 1 test from 1 test suite.
+153: [----------] Global test environment set-up.
+153: [----------] 1 test from SerialHilTest
+153: [ RUN      ] SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen
+153: 2026-10-17 09:34:53.869 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: 2026-10-17 09:34:55.181 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: 2026-10-17 09:34:57.986 [warning] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:682:wirestead::transport::Serial::Impl::reset_rx_idle_timer(std::shared_ptr<wirestead::transport::Serial>)::<lambda(const boost::system::error_code&)>] No data received for 2500ms on /dev/ttyACM0
+153: 2026-10-17 09:34:57.987 [error] [serial] [rx_idle_timeout] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:638:void wirestead::transport::Serial::Impl::handle_error(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Error: Connection timed out
+153: 2026-10-17 09:34:57.988 [info] [serial] [retry] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:660:void wirestead::transport::Serial::Impl::schedule_retry(std::shared_ptr<wirestead::transport::Serial>, const char*, const boost::system::error_code&)] Scheduling retry at rx_idle_timeout
+153: 2026-10-17 09:34:58.090 [info] [serial] [connect] [/home/jorin/followup-20261017/src/wirestead/transport/serial/serial.cc:483:void wirestead::transport::Serial::Impl::open_and_configure(std::shared_ptr<wirestead::transport::Serial>)] Device opened: /dev/ttyACM0
+153: DTR retention: boots 188 -> 188, connects 3
+153: [       OK ] SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen (5541 ms)
+153: [----------] 1 test from SerialHilTest (5541 ms total)
+153:
+153: [----------] Global test environment tear-down
+153: [==========] 1 test from 1 test suite ran. (5541 ms total)
+153: [  PASSED  ] 1 test.
+4/4 Test #153: SerialHilTest.KeepDtrOnClosePreservesBootCounterAcrossStopAndIdleReopen ...   Passed    5.55 sec
+
+100% tests passed out of 4
+
+Label Time Summary:
+hil    =  15.55 sec*proc (4 tests)
+
+Total Test time (real) =  77.84 sec

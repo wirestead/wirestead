@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="5" failures="0" disabled="0" errors="0" time="0." timestamp="2026-10-17T09:34:44.361" name="AllTests">
+  <testsuite name="SerialConfigMappingTest" tests="5" failures="0" disabled="0" skipped="0" errors="0" time="0." timestamp="2026-10-17T09:34:44.361">
+    <testcase name="MapsParityFlowBitsAndBaud" file="/home/jorin/followup-20261017/src/test/unit/wrapper/test_serial_config_mapping.cc" line="36" status="run" result="completed" time="0." timestamp="2026-10-17T09:34:44.361" classname="SerialConfigMappingTest" />
+    <testcase name="InvalidValuesPreservePriorConfiguration" file="/home/jorin/followup-20261017/src/test/unit/wrapper/test_serial_config_mapping.cc" line="58" status="run" result="completed" time="0." timestamp="2026-10-17T09:34:44.361" classname="SerialConfigMappingTest" />
+    <testcase name="MapsRs485AndModemLineOptions" file="/home/jorin/followup-20261017/src/test/unit/wrapper/test_serial_config_mapping.cc" line="76" status="run" result="completed" time="0." timestamp="2026-10-17T09:34:44.362" classname="SerialConfigMappingTest" />
+    <testcase name="UntouchedRs485AndModemLinesKeepConfigDefaults" file="/home/jorin/followup-20261017/src/test/unit/wrapper/test_serial_config_mapping.cc" line="106" status="run" result="completed" time="0." timestamp="2026-10-17T09:34:44.362" classname="SerialConfigMappingTest" />
+    <testcase name="DtrRetentionDefaultsOffAndRejectsConflictingLineSettings" file="/home/jorin/followup-20261017/src/test/unit/wrapper/test_serial_config_mapping.cc" line="118" status="run" result="completed" time="0." timestamp="2026-10-17T09:34:44.362" classname="SerialConfigMappingTest" />
+  </testsuite>
+</testsuites>

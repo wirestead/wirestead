@@ -79,6 +79,10 @@ class WIRESTEAD_API SerialPortInterface {
     return false;
   }
 
+  // Linux: assert DTR and disable hangup-on-close. A refusal must not be
+  // reported as Connected when the caller explicitly requested retention.
+  virtual bool keep_dtr_on_close() { return false; }
+
   virtual void async_read_some(const net::mutable_buffer& buffer,
                                std::function<void(const boost::system::error_code&, std::size_t)> handler) = 0;
   virtual void async_write(const net::const_buffer& buffer,

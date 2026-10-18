@@ -127,6 +127,12 @@ class FakeSerialPort : public interface::SerialPortInterface {
   bool rs485_rx_during_tx() const { return rs485_rx_during_tx_; }
   unsigned rs485_delay_before() const { return rs485_delay_before_; }
   unsigned rs485_delay_after() const { return rs485_delay_after_; }
+  bool keep_dtr_on_close() override {
+    ++keep_dtr_requests_;
+    return keep_dtr_supported_;
+  }
+  int keep_dtr_requests_ = 0;
+  bool keep_dtr_supported_ = true;
   int modem_requests() const { return modem_requests_; }
   std::optional<bool> modem_dtr() const { return modem_dtr_; }
   std::optional<bool> modem_rts() const { return modem_rts_; }
@@ -436,6 +442,38 @@ TEST(TransportSerialTest, ModemLinesAreOnlyTouchedWhenSet) {
   EXPECT_EQ(port_raw->modem_requests(), 0) << "an unset line was still written";
   wirestead::test::stop_with_context(serial, ioc);
   ioc.run_for(50ms);
+}
+
+TEST(TransportSerialTest, DtrRetentionIsOptInAndUnsupportedRequestsFailWithoutRetry) {
+  for (bool enable : {false, true}) {
+    boost::asio::io_context ioc;
+    config::SerialConfig cfg;
+    cfg.keep_dtr_on_close = enable;
+    cfg.retry_interval_ms = 100;
+    auto port = std::make_unique<FakeSerialPort>(ioc);
+    auto* raw = port.get();
+    raw->keep_dtr_supported_ = false;
+    auto serial = Serial::create(cfg, std::move(port), ioc);
+    serial->start();
+    ioc.run_for(250ms);
+    EXPECT_EQ(raw->keep_dtr_requests_, enable ? 1 : 0);
+    EXPECT_EQ(serial->is_connected(), !enable);
+    if (enable) {
+      EXPECT_FALSE(raw->is_open());
+      const auto error = serial->last_error_info();
+      ASSERT_TRUE(error.has_value());
+      EXPECT_FALSE(error->retryable);
+    }
+    wirestead::test::stop_with_context(serial, ioc);
+  }
+}
+
+TEST(TransportSerialTest, ConflictingDtrRetentionIsRejectedBeforeOpen) {
+  boost::asio::io_context ioc;
+  config::SerialConfig cfg;
+  cfg.keep_dtr_on_close = true;
+  cfg.dtr = false;
+  EXPECT_THROW(Serial::create(cfg, std::make_unique<FakeSerialPort>(ioc), ioc), std::invalid_argument);
 }
 
 TEST(TransportSerialTest, ModemLinesAreAppliedWhenSet) {
