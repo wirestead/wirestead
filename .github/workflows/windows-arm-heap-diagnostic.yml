@@ -2,6 +2,15 @@ name: Windows ARM heap diagnostic
 
 on:
   workflow_dispatch:
+    inputs:
+      modes:
+        description: "Comma-separated capture modes, run in order: plain, wer, procdump"
+        required: true
+        default: "wer,procdump"
+      repetitions:
+        description: "Fresh-process executions per mode (1-5000); each mode stops at its first failure"
+        required: true
+        default: "2000"
 
 permissions:
   contents: read
@@ -10,26 +19,34 @@ permissions:
 jobs:
   reproduce:
     runs-on: windows-11-arm
-    timeout-minutes: 20
+    timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}
+      # The original run 38118047733 build artifact expired (7-day retention).
+      # Diagnostic run 38986794870 preserved the same executable and DLLs.
+      SOURCE_RUN: "38986794870"
+      SOURCE_ARTIFACT: windows-arm-heap-evidence-38986794870-1
+      EXPECTED_EXE_SHA256: 6E74610262433771B1B60D4599B58ACE22F7FDF2D62CAF1D4E809D9085339170
     steps:
       - uses: actions/checkout@v7
-      - name: Download the original source revision's preserved Windows ARM build
+      - name: Download the preserved Windows ARM build
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force evidence | Out-Null
-          gh api repos/wirestead/wirestead/actions/runs/38118047733 > evidence/source-run.json
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve source run' }
-          $sourceRun = Get-Content evidence/source-run.json -Raw | ConvertFrom-Json
-          if ($sourceRun.head_sha -ne 'c96135070a61d07752f6d703366a3189d6972bf6') { throw 'Unexpected source SHA' }
-          gh api repos/wirestead/wirestead/actions/runs/38118047733/artifacts > evidence/source-artifacts.json
+          gh api "repos/wirestead/wirestead/actions/runs/$env:SOURCE_RUN/artifacts" > evidence/source-artifacts.json
           if ($LASTEXITCODE -ne 0) { throw 'Cannot resolve artifacts' }
-          gh run download 38118047733 --repo wirestead/wirestead --name windows-build-windows-11-arm --dir build
+          gh run download $env:SOURCE_RUN --repo wirestead/wirestead --name $env:SOURCE_ARTIFACT --dir source
           if ($LASTEXITCODE -ne 0) { throw 'Artifact download failed' }
+          # Keep only the binaries; the earlier evidence must not mix with this run's.
+          Move-Item source/build build
+          $exe = Get-ChildItem build -Recurse -Filter run_integration_test_tcp_stop_admission.exe
+          if ((Get-FileHash $exe.FullName -Algorithm SHA256).Hash -ne $env:EXPECTED_EXE_SHA256) { throw 'Unexpected executable hash' }
       - name: Record environment and repeat with crash capture
         shell: pwsh
-        run: ./scripts/diagnose_windows_arm_heap.ps1 -CaptureOnly -Repetitions 2000
+        env:
+          MODES: ${{ inputs.modes }}
+          REPETITIONS: ${{ inputs.repetitions }}
+        run: ./scripts/diagnose_windows_arm_heap.ps1 -Repetitions ([int]$env:REPETITIONS) -Modes ($env:MODES -split ',').Trim()
       - name: Preserve diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v7

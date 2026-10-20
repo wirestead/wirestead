@@ -1,13 +1,17 @@
-param([int]$Repetitions = 500, [switch]$CaptureOnly)
+param(
+    [int]$Repetitions = 2000,
+    [ValidateSet('plain', 'wer', 'procdump')][string[]]$Modes = @('wer', 'procdump')
+)
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
-if ($Repetitions -lt 1 -or $Repetitions -gt 2000) { throw 'Repetitions must be 1..2000' }
+if ($Repetitions -lt 1 -or $Repetitions -gt 5000) { throw 'Repetitions must be 1..5000' }
 $evidence = (New-Item -ItemType Directory -Force evidence).FullName
 $dumps = (New-Item -ItemType Directory -Force evidence/dumps).FullName
 $binary = @(Get-ChildItem build -Recurse -Filter run_integration_test_tcp_stop_admission.exe)
 if ($binary.Count -ne 1) { throw 'Expected one TCP stop admission executable' }
 $testBinary = $binary[0].FullName
+$imageName = $binary[0].Name
 $filter = 'ClientAndServer/TcpStopAdmissionTest.BothOutsideStopsWaitUntilCleanupActuallyCompletes/0'
 Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, OsVersion, OsArchitecture |
     ConvertTo-Json | Set-Content evidence/environment.json
@@ -16,48 +20,145 @@ Get-ChildItem Env: | Where-Object Name -Match '^(ImageOS|ImageVersion|RUNNER_OS|
 Get-ChildItem $binary[0].Directory -File | Where-Object Extension -In '.exe', '.dll', '.pdb' |
     Get-FileHash -Algorithm SHA256 | ConvertTo-Json | Set-Content evidence/binary-hashes.json
 
+# Record why earlier capture may have been bypassed: WER policy, the AeDebug
+# registration and the WER service state as the runner image ships them.
+$werRoot = 'HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting'
+$aeDebug = 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AeDebug'
+& reg query $werRoot /s 2>&1 | Out-File evidence/wer-config-before.txt
+& reg query $aeDebug 2>&1 | Out-File evidence/aedebug-before.txt
+Get-Service WerSvc | Select-Object Name, Status, StartType | Format-List | Out-File evidence/wersvc-before.txt
+
+# Heap corruption terminates through fail-fast, which skips unhandled
+# exception filters. A dump may land after the process exit is observed,
+# so wait until WER has finished and the newest dump stops growing.
+function Wait-Dump([datetime]$since) {
+    $deadline = (Get-Date).AddSeconds(120)
+    $last = -1
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 3
+        $dump = Get-ChildItem $dumps -Recurse -Filter *.dmp | Where-Object LastWriteTime -ge $since |
+            Sort-Object LastWriteTime | Select-Object -Last 1
+        $busy = @(Get-Process WerFault, WerFaultSecure -ErrorAction SilentlyContinue).Count -gt 0
+        if ($dump -and -not $busy -and $dump.Length -eq $last) { return $dump }
+        if ($dump) { $last = $dump.Length }
+    }
+    return $null
+}
+
 $results = [System.Collections.Generic.List[object]]::new()
-function Invoke-RepeatedTest([string]$mode) {
+function Invoke-RepeatedTest([string]$mode, [scriptblock]$launch) {
     for ($iteration = 1; $iteration -le $Repetitions; ++$iteration) {
         $report = Join-Path $evidence "$mode-$iteration.xml"
-        & $testBinary "--gtest_filter=$filter" "--gtest_output=xml:$report" 2>&1 |
-            Out-File -Append "evidence/$mode.log"
-        $testExit = $LASTEXITCODE
+        $started = Get-Date
+        $testExit = & $launch $report
         $validReport = $false
         if (Test-Path $report) {
             [xml]$xml = Get-Content $report -Raw
             $validReport = $xml.testsuites.tests -eq '1' -and $xml.testsuites.failures -eq '0' -and
                 $xml.testsuites.disabled -eq '0'
+            # Passing reports are reproducible from results.json; keep failures only.
+            if ($testExit -eq 0 -and $validReport) { Remove-Item $report }
         }
-        $results.Add([pscustomobject]@{ mode=$mode; iteration=$iteration; exit_code=$testExit; valid_report=$validReport })
-        $results | ConvertTo-Json | Set-Content evidence/results.json
-        if ($testExit -ne 0 -or -not $validReport) { return $false }
+        $result = [ordered]@{ mode=$mode; iteration=$iteration; exit_code=$testExit; valid_report=$validReport }
+        if ($testExit -ne 0 -or -not $validReport) {
+            $dump = Wait-Dump $started
+            $result.dump = if ($dump) { $dump.FullName.Substring($evidence.Length + 1) } else { $null }
+            $results.Add([pscustomobject]$result)
+            $results | ConvertTo-Json | Set-Content evidence/results.json
+            return $false
+        }
+        $results.Add([pscustomobject]$result)
+        if ($iteration % 100 -eq 0) { $results | ConvertTo-Json | Set-Content evidence/results.json }
     }
+    $results | ConvertTo-Json | Set-Content evidence/results.json
     return $true
 }
 
-# Preserve the original fresh-process execution pattern before attaching a
-# debugger: instrumentation can suppress timing-sensitive teardown faults.
-$plainPassed = $true
-if (-not $CaptureOnly) { $plainPassed = Invoke-RepeatedTest 'plain' }
-
-# The native ARM64 postmortem debugger captures unhandled exceptions without
-# having to attach after the process has already terminated.
-Invoke-WebRequest https://download.sysinternals.com/files/Procdump.zip -OutFile evidence/procdump.zip
-Expand-Archive evidence/procdump.zip -DestinationPath evidence/procdump -Force
-$procDump = Join-Path $evidence 'procdump/procdump64a.exe'
-if (-not (Test-Path $procDump)) { throw 'Native ARM64 ProcDump is missing' }
-Get-AuthenticodeSignature $procDump | Format-List | Out-File evidence/procdump-signature.txt
-if ((Get-AuthenticodeSignature $procDump).Status -ne 'Valid') { throw 'Invalid ProcDump signature' }
-Get-FileHash $procDump -Algorithm SHA256 | Format-List | Out-File evidence/procdump-hash.txt
-$installed = $false
-try {
-    & $procDump -accepteula -ma -i $dumps 2>&1 | Out-File evidence/procdump-install.log
-    if ($LASTEXITCODE -ne 0) { throw 'Postmortem debugger registration failed' }
-    $installed = $true
-    $capturedPassed = Invoke-RepeatedTest 'postmortem'
-} finally {
-    if ($installed) { & $procDump -accepteula -u 2>&1 | Out-File evidence/procdump-uninstall.log }
-    Get-ChildItem $dumps -File | Select-Object Name, Length | ConvertTo-Json | Set-Content evidence/dump-inventory.json
+$plainLaunch = {
+    param($report)
+    & $testBinary "--gtest_filter=$filter" "--gtest_output=xml:$report" 2>&1 | Out-File -Append evidence/plain.log
+    $LASTEXITCODE
 }
-if (-not $plainPassed -or -not $capturedPassed) { throw 'TCP stop admission reproduction failed; inspect evidence' }
+
+# WER LocalDumps captures fail-fast terminations without attaching a debugger,
+# so the fresh-process timing that reproduced the fault is unchanged.
+function Invoke-WerMode {
+    $key = "$werRoot\LocalDumps\$imageName"
+    $disabled = (Get-ItemProperty "Registry::$werRoot" -Name Disabled -ErrorAction SilentlyContinue).Disabled
+    $werDumps = (New-Item -ItemType Directory -Force (Join-Path $dumps 'wer')).FullName
+    try {
+        & reg add $key /v DumpFolder /t REG_EXPAND_SZ /d $werDumps /f | Out-Null
+        & reg add $key /v DumpType /t REG_DWORD /d 2 /f | Out-Null
+        & reg add $key /v DumpCount /t REG_DWORD /d 10 /f | Out-Null
+        & reg add $werRoot /v Disabled /t REG_DWORD /d 0 /f | Out-Null
+        & reg add $werRoot /v DontShowUI /t REG_DWORD /d 1 /f | Out-Null
+        Set-Service WerSvc -StartupType Manual
+        Start-Service WerSvc
+        & reg query $key 2>&1 | Out-File evidence/wer-localdumps.txt
+        Invoke-RepeatedTest 'wer' { param($report)
+            & $testBinary "--gtest_filter=$filter" "--gtest_output=xml:$report" 2>&1 | Out-File -Append evidence/wer.log
+            $LASTEXITCODE
+        }
+    } finally {
+        & reg delete $key /f 2>&1 | Out-Null
+        if ($null -eq $disabled) { & reg delete $werRoot /v Disabled /f 2>&1 | Out-Null }
+        else { & reg add $werRoot /v Disabled /t REG_DWORD /d $disabled /f | Out-Null }
+    }
+}
+
+function Get-ProcDump {
+    Invoke-WebRequest https://download.sysinternals.com/files/Procdump.zip -OutFile evidence/procdump.zip
+    Expand-Archive evidence/procdump.zip -DestinationPath evidence/procdump -Force
+    $tool = Join-Path $evidence 'procdump/procdump64a.exe'
+    if (-not (Test-Path $tool)) { throw 'Native ARM64 ProcDump is missing' }
+    Get-AuthenticodeSignature $tool | Format-List | Out-File evidence/procdump-signature.txt
+    if ((Get-AuthenticodeSignature $tool).Status -ne 'Valid') { throw 'Invalid ProcDump signature' }
+    Get-FileHash $tool -Algorithm SHA256 | Format-List | Out-File evidence/procdump-hash.txt
+    $tool
+}
+
+# ProcDump launches the test itself and writes a dump on the unhandled or
+# fail-fast exception. _NO_DEBUG_HEAP keeps the release heap a debugger-started
+# process would otherwise replace with the debug heap.
+function Invoke-ProcDumpMode {
+    $tool = Get-ProcDump
+    $pdDumps = (New-Item -ItemType Directory -Force (Join-Path $dumps 'procdump')).FullName
+    $env:_NO_DEBUG_HEAP = '1'
+    try {
+        Invoke-RepeatedTest 'procdump' { param($report)
+            $out = & $tool -accepteula -ma -e -x $pdDumps $testBinary "--gtest_filter=$filter" "--gtest_output=xml:$report" 2>&1
+            $out | Out-File -Append evidence/procdump.log
+            # ProcDump's own exit status is not the test's; take the reported one.
+            $line = $out | Select-String 'exit code (-?\w+)' | Select-Object -Last 1
+            # [long]: 0xC0000374 does not fit [int]. The XML check still decides.
+            if (-not $line) { return 0 }
+            $code = $line.Matches[0].Groups[1].Value
+            if ($code -match '^0x') { [Convert]::ToInt64($code.Substring(2), 16) } else { [long]$code }
+        }
+    } finally {
+        Remove-Item Env:_NO_DEBUG_HEAP -ErrorAction SilentlyContinue
+    }
+}
+
+$passed = $true
+foreach ($mode in $Modes) {
+    $modePassed = switch ($mode) {
+        'plain' { Invoke-RepeatedTest 'plain' $plainLaunch }
+        'wer' { Invoke-WerMode }
+        'procdump' { Invoke-ProcDumpMode }
+    }
+    if (-not $modePassed) { $passed = $false; break }
+}
+
+Get-ChildItem $dumps -Recurse -File | Select-Object @{n='Name'; e={$_.FullName.Substring($evidence.Length + 1)}}, Length |
+    ConvertTo-Json | Set-Content evidence/dump-inventory.json
+
+# First-pass triage on the runner: exception record and stack with Microsoft
+# public symbols. The preserved binary has no PDB, so its frames stay offsets.
+$cdb = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\arm64\cdb.exe" -ErrorAction SilentlyContinue
+foreach ($dump in Get-ChildItem $dumps -Recurse -Filter *.dmp) {
+    if (-not $cdb) { 'cdb.exe not found on this image' | Out-File evidence/triage-missing.txt; break }
+    & $cdb.FullName -z $dump.FullName -y 'srv*C:\symbols*https://msdl.microsoft.com/download/symbols' `
+        -c '.exr -1; .ecxr; kn 64; !heap -s; ~*kn 32; lmv; q' 2>&1 | Out-File "evidence/triage-$($dump.BaseName).txt"
+}
+if (-not $passed) { throw 'TCP stop admission reproduction failed; inspect evidence' }
