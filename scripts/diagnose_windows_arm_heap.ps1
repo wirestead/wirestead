@@ -150,20 +150,28 @@ function Invoke-ProcDumpMode {
 }
 
 # A capture mechanism is only evidence once it has caught a known crash. Build
-# a deliberate double free, which the release heap reports as the same
-# 0xc0000374 fail-fast, and require a dump from both capture paths.
+# a deliberate heap corruption, which the release heap reports as the same
+# 0xc0000374 fail-fast, and require a dump from both capture paths. A small
+# double free alone was tolerated (run 39511435537 exited 0), so the crasher
+# overwrites a block header on a private heap without the low-fragmentation
+# front end and exits 3 if the heap still does not detect it.
 function Invoke-SelfTest {
     $dir = (New-Item -ItemType Directory -Force (Join-Path $evidence 'selftest')).FullName
     $src = Join-Path $dir 'heap_crash.c'
     $exe = Join-Path $dir 'heap_crash.exe'
     Set-Content $src @'
+#include <string.h>
 #include <windows.h>
 int main(void) {
-  HANDLE heap = GetProcessHeap();
-  void* block = HeapAlloc(heap, 0, 64);
+  HeapSetInformation(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
+  HANDLE heap = HeapCreate(0, 0, 0);
+  unsigned char* block = (unsigned char*)HeapAlloc(heap, 0, 256);
+  unsigned char* next = (unsigned char*)HeapAlloc(heap, 0, 256);
+  memset(block, 0x41, 256 + 64);
+  HeapFree(heap, 0, next);
   HeapFree(heap, 0, block);
-  HeapFree(heap, 0, block);
-  return 0;
+  HeapValidate(heap, 0, NULL);
+  return 3;
 }
 '@
     $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
