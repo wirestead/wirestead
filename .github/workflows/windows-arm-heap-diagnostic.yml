@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       modes:
-        description: "Comma-separated capture modes, run in order: plain, wer, procdump"
+        description: "Comma-separated modes, run in order: selftest, plain, wer, procdump"
         required: true
-        default: "wer,procdump"
+        default: "selftest,plain"
       repetitions:
         description: "Fresh-process executions per mode (1-5000); each mode stops at its first failure"
         required: true
