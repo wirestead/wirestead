@@ -151,10 +151,11 @@ function Invoke-ProcDumpMode {
 
 # A capture mechanism is only evidence once it has caught a known crash. Build
 # a deliberate heap corruption, which the release heap reports as the same
-# 0xc0000374 fail-fast, and require a dump from both capture paths. A small
-# double free alone was tolerated (run 39511435537 exited 0), so the crasher
-# overwrites a block header on a private heap without the low-fragmentation
-# front end and exits 3 if the heap still does not detect it.
+# 0xc0000374 fail-fast, and require a dump. A small double free alone was
+# tolerated (run 39511435537 exited 0), so the crasher overwrites a block
+# header on a private heap and exits 3 if the heap still does not detect it.
+# Run 39512414240: ProcDump caught the resulting 0xc0000409 heap fail-fast,
+# WER LocalDumps wrote nothing. Only ProcDump gates; WER is still recorded.
 function Invoke-SelfTest {
     $dir = (New-Item -ItemType Directory -Force (Join-Path $evidence 'selftest')).FullName
     $src = Join-Path $dir 'heap_crash.c'
@@ -194,7 +195,7 @@ int main(void) {
     & $tool -accepteula -ma -e -x $pdDumps $exe 2>&1 | Out-File evidence/selftest-procdump.log
     $outcome.procdump_dump = @(Get-ChildItem $pdDumps -Filter *.dmp).Count -gt 0
     $outcome | ConvertTo-Json | Set-Content evidence/selftest.json
-    $outcome.wer_dump -and $outcome.procdump_dump
+    $outcome.procdump_dump
 }
 
 $passed = $true

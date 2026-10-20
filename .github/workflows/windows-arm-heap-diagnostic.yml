@@ -6,19 +6,40 @@ on:
       modes:
         description: "Comma-separated modes, run in order: selftest, plain, wer, procdump"
         required: true
-        default: "selftest,plain"
+        default: "selftest,procdump"
       repetitions:
         description: "Fresh-process executions per mode (1-5000); each mode stops at its first failure"
         required: true
         default: "2000"
+      shards:
+        description: "Parallel runners, each running the same modes (1-8)"
+        required: true
+        default: "1"
 
 permissions:
   contents: read
   actions: read
 
 jobs:
+  shards:
+    runs-on: ubuntu-24.04
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - id: list
+        env:
+          SHARDS: ${{ inputs.shards }}
+        run: |
+          [[ "$SHARDS" =~ ^[1-8]$ ]] || { echo "shards must be 1-8"; exit 1; }
+          echo "list=$(seq -s, 1 "$SHARDS" | sed 's/^/[/; s/$/]/')" >> "$GITHUB_OUTPUT"
+
   reproduce:
+    needs: shards
     runs-on: windows-11-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.shards.outputs.list) }}
     timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}
@@ -51,7 +72,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: windows-arm-heap-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          name: windows-arm-heap-evidence-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
           path: |
             evidence/
             build/**/*.exe
