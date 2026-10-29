@@ -6,7 +6,7 @@ This project follows the Keep a Changelog section names where practical. The
 core C++ API is still pre-1.0; see `docs/api_stability.md` for compatibility
 and ABI policy.
 
-## Unreleased
+## v0.10.1 - 2026-10-29
 
 ### Added
 
