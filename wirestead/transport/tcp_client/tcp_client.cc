@@ -502,7 +502,7 @@ void TcpClient::fail_receive() {
   });
 }
 
-boost::asio::any_io_executor TcpClient::get_executor() { return impl_->socket_.get_executor(); }
+boost::asio::any_io_executor TcpClient::get_executor() { return impl_->strand_; }
 
 std::shared_ptr<detail::TcpWriteWait> TcpClient::capture_write_wait() const {
   std::lock_guard<std::mutex> lock(impl_->submission_mtx_);
