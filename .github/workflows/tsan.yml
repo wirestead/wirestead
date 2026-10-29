@@ -54,7 +54,7 @@ jobs:
           TSAN_OPTIONS: halt_on_error=1 second_deadlock_stack=1 history_size=7
         run: |
           ctest --test-dir build-tsan --output-on-failure --parallel 2 \
-            -R "StopContract|StopFromCallback|TcpClientLifecycle|TcpServerWrapperLifecycle|UdsClientWrapperLifecycle|UdsServerWrapperLifecycle|BackpressureStrategyTest|WrapperSendContractTest|ServerBroadcastContractTest"
+            -R "StopContract|StopFromCallback|TcpClientLifecycle|TcpClientExecutorTest|TcpServerWrapperLifecycle|UdsClientWrapperLifecycle|UdsServerWrapperLifecycle|BackpressureStrategyTest|WrapperSendContractTest|ServerBroadcastContractTest"
 
       - name: Upload TSAN test logs
         uses: actions/upload-artifact@v7
