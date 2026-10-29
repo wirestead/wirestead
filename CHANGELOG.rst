@@ -8,6 +8,17 @@ the ROS release tooling, which reads reStructuredText. ``CHANGELOG.md`` remains
 the full changelog and covers every release, including the ones before this
 file existed.
 
+0.10.1 (2026-10-29)
+-------------------
+* Fix heap corruption on Windows ARM64 when ``TcpClient::get_executor()`` runs
+  concurrently with ``start()``: it now returns the client's strand instead of
+  copying the socket's executor while that socket is replaced.
+* Fix an intermittent segfault at process exit when a running wrapper is
+  destroyed or move-assigned over while a callback holds the last reference.
+* Add opt-in Linux serial ``keep_dtr_on_close()``, which retains DTR across
+  close and reopen by clearing HUPCL. The default close policy is unchanged.
+* Contributors: Jinwoo Sung
+
 0.10.0 (2026-10-02)
 -------------------
 * Breaking: send and broadcast methods return structured ``SendResult`` /
