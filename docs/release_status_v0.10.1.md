@@ -21,6 +21,7 @@ opt-in serial `keep_dtr_on_close()` (#710). No API was removed or changed.
 | ROS adapter workspace | Core source pin advanced to v0.10.1; adapter remains at 0.1.0 | [PR #17](https://github.com/wirestead/wirestead-ros/pull/17), [CI](https://github.com/wirestead/wirestead-ros/actions/runs/40867102772) |
 | Documentation | `keep_dtr_on_close()` documented, held until the release was published; Pages deployment succeeded. `check_docs_coverage.sh v0.10.0` reports nothing undocumented. `check_docs_compile.sh` against the tag compiled 218 blocks and flagged one, the illustrative `MockSerialPort` in the contributor architecture guide's testing section, unchanged since the docs migration | [PR #26](https://github.com/wirestead/wirestead-docs/pull/26), [Pages](https://github.com/wirestead/wirestead-docs/actions/runs/40867118934) |
 | ROS bloom | 0.10.1-1 released for Jazzy and Humble; rosdistro metadata merged | [Jazzy #54940](https://github.com/ros/rosdistro/pull/54940), [Humble #54941](https://github.com/ros/rosdistro/pull/54941) |
+| Benchmark | Results published for the exact v0.10.1 core tag on Jetson Orin Nano Super. Against v0.10.0, 32 of 34 throughput cells and every latency p50 are within 10%; TCP besteffort 256 B (72%) and reliable 1024 B (70%) read lower, inside the 82-142 and 327-495 MiB/s spread of v0.10.0's own repeats of those cells | [Benchmark release](https://github.com/wirestead/wirestead-benchmarks/releases/tag/benchmark-wirestead-v0.10.1), [workflow](https://github.com/wirestead/wirestead-benchmarks/actions/runs/40967046021) |
 
 ## Downstream distribution still to verify
 
@@ -29,7 +30,6 @@ opt-in serial `keep_dtr_on_close()` (#710). No API was removed or changed.
 | ROS Jazzy and Humble | Metadata merged at 12:32 UTC; at 14:37 UTC the build farm had not yet rebuilt and `ros-testing` still served 0.10.0 | Verify build-farm results, installation from `ros-testing`, then availability after the distribution sync |
 | vcpkg | Port update to 0.10.1 open, CI green | Review and merge of [microsoft/vcpkg#54758](https://github.com/microsoft/vcpkg/pull/54758); then the examples README's tested vcpkg version |
 | Conan Center | New recipe updated to 0.10.1 in the still-open [PR #30653](https://github.com/conan-io/conan-center-index/pull/30653); scheduler check requires maintainer action | Approval, recipe CI and merge remain pending; this is not a published Conan Center package |
-| Benchmark | Not run against this tag: the Jetson Orin runner was offline | Run `benchmark-release.yml` for v0.10.1 and link the result from the release notes. No change in this release touches the send or receive path; [v0.10.0's results](https://github.com/wirestead/wirestead-benchmarks/releases/tag/benchmark-wirestead-v0.10.0) remain the reference |
 
 Neither registry PR was built locally: the vcpkg `git-tree` was computed with
 `git rev-parse` rather than `x-add-version`, and the Conan recipe was not run
