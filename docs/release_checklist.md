@@ -4,7 +4,8 @@ This checklist is maintained in the core repository because release packaging,
 CI, CPack, and consumer smoke workflows live here.
 
 This is a reusable procedure, not the completion record for a particular tag.
-For v0.10.0, see the dated [release status and evidence](release_status_v0.10.0.md).
+For v0.10.0 and v0.10.1, see the dated release status and evidence:
+[v0.10.0](release_status_v0.10.0.md), [v0.10.1](release_status_v0.10.1.md).
 
 ## Order
 
