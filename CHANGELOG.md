@@ -17,6 +17,10 @@ and ABI policy.
 
 ### Fixed
 
+- `TcpClient::get_executor()` returns the client's strand instead of copying
+  the socket's executor, which `start()` replaces on the strand. A concurrent
+  call could copy an executor while it was freed; on Windows ARM64 this
+  corrupted the heap and failed later with `0xc0000374` (#717).
 - Destroying a running wrapper now completes its shutdown on the destroying
   thread. A callback in flight could otherwise hold the last reference, so the
   transport was torn down on its own io thread, detached it and destroyed the
