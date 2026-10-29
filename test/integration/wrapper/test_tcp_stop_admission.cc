@@ -355,6 +355,35 @@ TEST(TcpCancelledIoCompletionTest, OutsideStopsWaitForTheLastCancelledHandler) {
   second.get();
 }
 
+// Every start replaces the socket on the strand. get_executor() used to copy
+// the socket's executor from the caller's thread while that happened, which
+// corrupted the heap on Windows ARM64 (#717). It must not touch the socket.
+TEST(TcpClientExecutorTest, GetExecutorIsSafeWhileStartReplacesTheSocket) {
+  Context context;
+  config::TcpClientConfig cfg;
+  cfg.host = "127.0.0.1";
+  cfg.port = test::TestUtils::getAvailableTestPort();
+  cfg.max_retries = 0;
+  auto client = transport::TcpClient::create(cfg, *context.io);
+  std::atomic<bool> done{false};
+  std::thread reader([&] {
+    while (!done.load()) (void)client->get_executor();
+  });
+  OnExit cleanup{[&] {
+    done.store(true);
+    reader.join();
+    client->stop();
+  }};
+  for (int i = 0; i < 200; ++i) {
+    client->start();
+    client->stop();
+  }
+  client->start();
+  Signal ran;
+  boost::asio::post(client->get_executor(), [&] { ran.notify(); });
+  EXPECT_TRUE(ran.wait());
+}
+
 INSTANTIATE_TEST_SUITE_P(ClientAndServer, TcpStopAdmissionTest, ::testing::Bool());
 
 }  // namespace
