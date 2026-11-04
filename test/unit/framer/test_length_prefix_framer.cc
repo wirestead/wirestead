@@ -159,6 +159,25 @@ TEST(LengthPrefixFramerTest, ResetDiscardsAPartialFrame) {
   EXPECT_EQ(msgs[0], "ok");
 }
 
+TEST(LengthPrefixFramerTest, ResetFromCallbackStopsProcessingTheClearedBuffer) {
+  LengthPrefixFramer framer(2, Endian::Big);
+  std::vector<std::string> msgs;
+  framer.on_message([&](wirestead::memory::ConstByteSpan m) {
+    msgs.emplace_back(reinterpret_cast<const char*>(m.data()), m.size());
+    framer.reset();
+  });
+
+  const std::vector<uint8_t> two_frames = {0x00, 0x01, 'a', 0x00, 0x01, 'b'};
+  framer.push_bytes(wirestead::memory::ConstByteSpan(two_frames.data(), two_frames.size()));
+  ASSERT_EQ(msgs.size(), 1u);
+  EXPECT_EQ(msgs[0], "a");
+
+  const std::vector<uint8_t> next = {0x00, 0x02, 'o', 'k'};
+  framer.push_bytes(wirestead::memory::ConstByteSpan(next.data(), next.size()));
+  ASSERT_EQ(msgs.size(), 2u);
+  EXPECT_EQ(msgs[1], "ok");
+}
+
 TEST(LengthPrefixFramerTest, RejectsUnsupportedConfiguration) {
   EXPECT_THROW(LengthPrefixFramer(3), std::invalid_argument);
   EXPECT_THROW(LengthPrefixFramer(0), std::invalid_argument);
