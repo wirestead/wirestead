@@ -93,7 +93,9 @@ class StrandHoldingSocket : public interface::TcpSocketInterface {
 // Data that arrived before the deadline, and was handled while that expiry
 // waited behind it, used to be followed immediately by an idle close.
 TEST(TcpSessionIdleTimeoutTest, ActivityBeforeDeadlineIsNotClosedByQueuedExpiry) {
-  constexpr auto kIdle = 200ms;
+  // Generous against scheduler jitter on shared CI runners: the data must land
+  // before the deadline for the scenario to exist at all.
+  constexpr auto kIdle = 1000ms;
   net::io_context ioc;
   auto guard = net::make_work_guard(ioc);
   std::thread io1([&] { ioc.run(); });
@@ -108,6 +110,25 @@ TEST(TcpSessionIdleTimeoutTest, ActivityBeforeDeadlineIsNotClosedByQueuedExpiry)
   std::mutex mutex;
   Clock::time_point last_rx{};
   Clock::time_point closed_at{};
+
+  // Stops the session and joins the io threads on every exit path, including
+  // a failed ASSERT or a skip, so a joinable std::thread never terminates.
+  // Declared after the state the callbacks touch, so it is destroyed first.
+  struct Cleanup {
+    std::shared_ptr<TcpServerSession>& session;
+    net::executor_work_guard<net::io_context::executor_type>& guard;
+    net::io_context& ioc;
+    std::thread& io1;
+    std::thread& io2;
+    ~Cleanup() {
+      session->stop();
+      guard.reset();
+      ioc.stop();
+      io1.join();
+      io2.join();
+    }
+  } cleanup{session, guard, ioc, io1, io2};
+
   session->on_bytes([&](memory::ConstByteSpan) {
     std::lock_guard<std::mutex> lock(mutex);
     last_rx = Clock::now();
@@ -116,6 +137,8 @@ TEST(TcpSessionIdleTimeoutTest, ActivityBeforeDeadlineIsNotClosedByQueuedExpiry)
     std::lock_guard<std::mutex> lock(mutex);
     closed_at = Clock::now();
   });
+  // The idle timer is armed after start(); this bounds the arm time from below.
+  const auto started = Clock::now();
   session->start();
   sock->wait_for_read();
 
@@ -123,26 +146,23 @@ TEST(TcpSessionIdleTimeoutTest, ActivityBeforeDeadlineIsNotClosedByQueuedExpiry)
   const uint8_t w = 'w';
   ASSERT_TRUE(session->async_write_copy(memory::ConstByteSpan(&w, 1)));
   while (!sock->write_started_) std::this_thread::yield();
-  std::this_thread::sleep_for(kIdle / 2);
+  std::this_thread::sleep_for(100ms);
+  const auto delivered = Clock::now();
+  if (delivered - started >= kIdle - 100ms) {
+    GTEST_SKIP() << "setup took too long to deliver before the idle deadline";
+  }
   sock->deliver("hello");
 
-  std::this_thread::sleep_for(4 * kIdle);
-  {
-    std::lock_guard<std::mutex> lock(mutex);
-    ASSERT_NE(last_rx, Clock::time_point{}) << "the delivered bytes never reached on_bytes";
-    if (closed_at != Clock::time_point{}) {
-      // Closing is fine once the connection has really been idle that long.
-      EXPECT_GE(closed_at - last_rx, kIdle - 20ms)
-          << "closed " << std::chrono::duration_cast<std::chrono::milliseconds>(closed_at - last_rx).count()
-          << " ms after the last received data";
-    }
+  // The stale expiry, if any, runs as soon as the write releases the strand.
+  std::this_thread::sleep_for(2 * kIdle + kIdle / 2);
+  std::lock_guard<std::mutex> lock(mutex);
+  ASSERT_NE(last_rx, Clock::time_point{}) << "the delivered bytes never reached on_bytes";
+  if (closed_at != Clock::time_point{}) {
+    // Closing is fine once the connection has really been idle that long.
+    EXPECT_GE(closed_at - last_rx, kIdle - 20ms)
+        << "closed " << std::chrono::duration_cast<std::chrono::milliseconds>(closed_at - last_rx).count()
+        << " ms after the last received data";
   }
-
-  session->stop();
-  guard.reset();
-  ioc.stop();
-  io1.join();
-  io2.join();
 }
 
 }  // namespace
