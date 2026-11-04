@@ -161,6 +161,7 @@ foreach(
   test_callback_blocking_send.cc
   test_receive_budget.cc
   test_bounded_receive.cc
+  test_bounded_receive_growth.cc
   test_lifecycle_events.cc
   test_config_policy.cc
   test_send_result.cc

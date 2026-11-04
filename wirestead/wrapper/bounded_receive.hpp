@@ -238,7 +238,8 @@ inline PreparedReceive prepare_receive(ReceiveState& state, const std::shared_pt
   const auto capacity = ReceiveFramerAccess::capacity(f.get());
   if (capacity > limit) throw ReceiveOverflow{ReceiveOverflowReason::FrameLimit};
   if (!state.frame_storage && capacity) state.frame_storage = reserve_receive(state.scope, capacity);
-  auto work_charge = reserve_receive(state.scope, capacity);
+  // A copied vector holds only the contents, not the source's growth headroom.
+  auto work_charge = reserve_receive(state.scope, ReceiveFramerAccess::size(f.get()));
   auto work = ReceiveFramerAccess::clone(f.get());
   work->on_message(
       [&](memory::ConstByteSpan message) { result.messages->emplace_back(retain_received(state.scope, id, message)); });
@@ -248,10 +249,19 @@ inline PreparedReceive prepare_receive(ReceiveState& state, const std::shared_pt
     if (used >= limit) throw ReceiveOverflow{ReceiveOverflowReason::FrameLimit};
     const auto n = std::min({input.size() - offset, limit - used, size_t(4096)});
     const auto needed = used + n;
-    if (needed > ReceiveFramerAccess::capacity(work.get())) {
+    const auto current = ReceiveFramerAccess::capacity(work.get());
+    if (needed > current) {
+      // Grow geometrically: a frame accumulating across chunks would otherwise
+      // be reallocated and recopied on every chunk, quadratic in frame size.
+      // Fall back to the exact size when the budget cannot cover the headroom.
+      size_t target = std::min(limit, std::max(needed, current > limit / 2 ? limit : current * 2));
+      auto next = target > needed ? state.scope->reserve(target) : nullptr;
+      if (!next) {
+        target = needed;
+        next = reserve_receive(state.scope, needed);
+      }
       // Keep the old allocation charged until reserve_exact has destroyed it.
-      auto next = reserve_receive(state.scope, needed);
-      ReceiveFramerAccess::reserve_exact(work.get(), needed);
+      ReceiveFramerAccess::reserve_exact(work.get(), target);
       work_charge = std::move(next);
     }
     work->push_bytes(input.subspan(offset, n));
