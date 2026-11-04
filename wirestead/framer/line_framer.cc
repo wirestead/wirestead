@@ -223,6 +223,10 @@ size_t LineFramer::scan_and_process(memory::ConstByteSpan data, size_t search_st
       if (on_message_) {
         size_t payload_len = include_delimiter_ ? current_msg_total_len : content_len;
         on_message_(memory::ConstByteSpan(data.data() + processed_count, payload_len));
+        // reset() from the callback cleared buffer_. When scanning buffer_
+        // itself, stop before touching the cleared storage; nothing is left
+        // for the caller to erase.
+        if (data.data() == buffer_.data() && buffer_.empty()) return 0;
       }
     }
 

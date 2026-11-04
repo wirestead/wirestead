@@ -88,6 +88,8 @@ void LengthPrefixFramer::push_bytes(memory::ConstByteSpan data) {
 
     if (on_message_) {
       on_message_(memory::ConstByteSpan(buffer_.data() + consumed + prefix_bytes_, payload_len));
+      // reset() from the callback cleared the buffer this loop indexes into.
+      if (buffer_.empty()) return;
     }
     consumed = frame_end;
   }
