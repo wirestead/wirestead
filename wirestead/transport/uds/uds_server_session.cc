@@ -630,6 +630,9 @@ void UdsServerSession::reset_idle_timer() {
   auto self = shared_from_this();
   idle_timer_.async_wait(net::bind_executor(strand_, [self](const boost::system::error_code& ec) {
     if (ec == boost::asio::error::operation_aborted) return;
+    // cancel() cannot abort an expiry already queued on the strand. Activity
+    // handled in that window re-armed the timer; this completion is stale.
+    if (self->idle_timer_.expiry() > std::chrono::steady_clock::now()) return;
     if (!self->alive_ || self->closing_) return;
     WIRESTEAD_LOG_WARNING("uds_server_session", "timeout", "Connection idle timeout expired, closing session");
     self->do_close();
