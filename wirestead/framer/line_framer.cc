@@ -44,6 +44,15 @@ void append_bytes(std::vector<uint8_t>& buffer, memory::ConstByteSpan data, size
   std::memcpy(buffer.data() + old_size, data.data() + offset, append_size);
 }
 
+// Longest unterminated tail that can still become a valid message: up to
+// max_length content bytes plus the leading bytes of a delimiter split across
+// pushes. Anything longer is already over the limit.
+size_t max_partial_length(size_t max_length, size_t delimiter_length) {
+  const size_t split = delimiter_length - 1;
+  return max_length > std::numeric_limits<size_t>::max() - split ? std::numeric_limits<size_t>::max()
+                                                                 : max_length + split;
+}
+
 }  // namespace
 
 LineFramer::LineFramer(std::string_view delimiter, bool include_delimiter, size_t max_length)
@@ -116,7 +125,7 @@ void LineFramer::push_bytes_internal(memory::ConstByteSpan data) {
       scanned_idx_ = buffer_.size();  // We scanned all of it
 
       // DoS protection for partial message overflow
-      if (buffer_.size() > max_length_) {
+      if (buffer_.size() > max_partial_length(max_length_, delimiter_.size())) {
         buffer_.clear();
         scanned_idx_ = 0;
         discarding_ = true;
@@ -153,7 +162,7 @@ void LineFramer::push_bytes_internal(memory::ConstByteSpan data) {
 
   // Final check: if the *remaining* partial message in the buffer already exceeds max_length_,
   // we must reset to prevent unbound growth (DoS protection).
-  if (buffer_.size() > max_length_) {
+  if (buffer_.size() > max_partial_length(max_length_, delimiter_.size())) {
     buffer_.clear();
     scanned_idx_ = 0;
     discarding_ = true;

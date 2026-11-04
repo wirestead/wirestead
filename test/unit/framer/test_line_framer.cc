@@ -207,5 +207,39 @@ TEST_F(LineFramerTest, OverflowTailIsNotDeliveredAsAMessage) {
   EXPECT_EQ(messages_[0], "ok");
 }
 
+TEST_F(LineFramerTest, MaxLengthMessageWithSplitMultiByteDelimiterIsDelivered) {
+  // A max_length body whose "\r\n" is split across pushes leaves max_length + 1
+  // bytes buffered. That tail is still a valid message, not an overflow.
+  framer_ = std::make_unique<LineFramer>("\r\n", false, 10);
+  framer_->on_message([this](memory::ConstByteSpan msg) {
+    messages_.emplace_back(reinterpret_cast<const char*>(msg.data()), msg.size());
+  });
+
+  std::string part1 = "0123456789\r";
+  std::string part2 = "\nok\r\n";
+  framer_->push_bytes(memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(part1.data()), part1.size()));
+  ASSERT_EQ(messages_.size(), 0);
+  framer_->push_bytes(memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(part2.data()), part2.size()));
+  ASSERT_EQ(messages_.size(), 2);
+  EXPECT_EQ(messages_[0], "0123456789");
+  EXPECT_EQ(messages_[1], "ok");
+}
+
+TEST_F(LineFramerTest, OverMaxLengthWithSplitMultiByteDelimiterIsStillRejected) {
+  framer_ = std::make_unique<LineFramer>("\r\n", false, 10);
+  framer_->on_message([this](memory::ConstByteSpan msg) {
+    messages_.emplace_back(reinterpret_cast<const char*>(msg.data()), msg.size());
+  });
+
+  // 11 bytes fit the split-delimiter allowance while buffered, but the body
+  // still exceeds max_length once its delimiter arrives.
+  std::string part1 = "0123456789A";
+  std::string part2 = "\r\nok\r\n";
+  framer_->push_bytes(memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(part1.data()), part1.size()));
+  framer_->push_bytes(memory::ConstByteSpan(reinterpret_cast<const uint8_t*>(part2.data()), part2.size()));
+  ASSERT_EQ(messages_.size(), 1);
+  EXPECT_EQ(messages_[0], "ok");
+}
+
 }  // namespace test
 }  // namespace wirestead
