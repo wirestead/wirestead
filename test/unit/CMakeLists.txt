@@ -273,6 +273,12 @@ wirestead_add_unit_gtest(
 )
 
 wirestead_add_unit_gtest(
+  run_unit_test_tcp_session_idle_timeout
+  ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_tcp_session_idle_timeout.cc
+  "unit_transport_tcp_fast" 30
+)
+
+wirestead_add_unit_gtest(
   run_unit_test_udp_error
   ${CMAKE_CURRENT_SOURCE_DIR}/transport/test_udp_error.cc
   "unit_transport_udp_error" 30

@@ -90,6 +90,9 @@ struct Serial::Impl {
   // Watchdog for cfg_.rx_idle_timeout_ms: armed on connect, pushed back by
   // every read that carries bytes, so it only ever fires on silence.
   net::steady_timer rx_idle_timer_;
+  // Bumped on every re-arm. Re-arming cannot abort an expiry already queued
+  // for delivery, so a completion from an older arm must not fire.
+  std::atomic<uint64_t> rx_idle_arm_{0};
 
   std::shared_ptr<std::vector<uint8_t>> rx_;
   using Ledger = diagnostics::SendAccountingLedger;
@@ -673,10 +676,12 @@ struct Serial::Impl {
     if (timeout_ms == 0 || stopping_.load()) return;
 
     const auto connection = connection_seq_.load();
+    const auto arm = ++rx_idle_arm_;
     rx_idle_timer_.expires_after(std::chrono::milliseconds(timeout_ms));
-    rx_idle_timer_.async_wait(track_io(self, [self, timeout_ms, connection](const boost::system::error_code& e) {
+    rx_idle_timer_.async_wait(track_io(self, [self, timeout_ms, connection, arm](const boost::system::error_code& e) {
       if (e) return;  // rearmed or cancelled
       auto impl = self->get_impl();
+      if (arm != impl->rx_idle_arm_.load()) return;  // rearmed after this expiry was queued
       if (impl->stopping_.load() || !impl->opened_.load() || connection != impl->connection_seq_) return;
 
       WIRESTEAD_LOG_WARNING("serial", "rx_idle_timeout",

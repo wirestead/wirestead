@@ -155,6 +155,9 @@ struct TcpClient::Impl {
   net::steady_timer retry_timer_;
   net::steady_timer connect_timer_;
   net::steady_timer idle_timer_;
+  // Bumped on every idle re-arm. cancel() cannot abort an expiry already
+  // queued for delivery, so a completion from an older arm must not fire.
+  std::atomic<uint64_t> idle_arm_{0};
   bool owns_ioc_ = true;
   // Orders caller-side write admission and strand submission before stop.
   // Never run strand handlers/user callbacks while holding this mutex.
@@ -1848,11 +1851,12 @@ void TcpClient::Impl::reset_idle_timer(std::shared_ptr<TcpClient> self, uint64_t
   idle_timer_.cancel();
   idle_timer_.expires_after(std::chrono::milliseconds(idle_timeout_ms));
   const auto connection = connection_seq_.load();
+  const auto arm = ++idle_arm_;
   ++pending_io_;
-  idle_timer_.async_wait([self, seq, connection](const boost::system::error_code& ec) {
+  idle_timer_.async_wait([self, seq, connection, arm](const boost::system::error_code& ec) {
     IoCompletion completion{self->impl_.get()};
     if (ec == net::error::operation_aborted || seq != self->impl_->current_seq_.load() ||
-        connection != self->impl_->connection_seq_.load()) {
+        connection != self->impl_->connection_seq_.load() || arm != self->impl_->idle_arm_.load()) {
       return;
     }
     if (!ec) {
