@@ -161,7 +161,6 @@ foreach(
   test_callback_blocking_send.cc
   test_receive_budget.cc
   test_bounded_receive.cc
-  test_bounded_receive_growth.cc
   test_lifecycle_events.cc
   test_config_policy.cc
   test_send_result.cc
@@ -187,6 +186,15 @@ foreach(
     "${test_label}" 120
   )
 endforeach()
+
+# Replaces global operator new, which TSan's runtime also defines.
+if(NOT WIRESTEAD_ENABLE_TSAN)
+  wirestead_add_unit_gtest(
+    run_unit_test_bounded_receive_growth
+    ${CMAKE_CURRENT_SOURCE_DIR}/wrapper/test_bounded_receive_growth.cc
+    "unit_wrapper" 120
+  )
+endif()
 
 # Callback gate (D-1)
 wirestead_add_unit_gtest(
