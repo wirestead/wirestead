@@ -87,19 +87,30 @@ runs:
           vcpkg_exe="${VCPKG_ROOT}/vcpkg"
         fi
 
+        # GitHub-hosted downloads (the vcpkg tool from GitHub Releases, the CMake
+        # vcpkg pins) return runs of 504s that outlast a minute; three tries 10s
+        # and 20s apart all landed inside one such window on #714 and #730. Back
+        # off exponentially (15s, 30s, 60s, 120s) so a five-try download spans
+        # nearly four minutes. `vcpkg install` keeps three tries: on a cache miss
+        # each one rebuilds ports, and a baseline that genuinely fails to build
+        # should not be rebuilt five times before reporting it.
         retry() {
           local what="$1"
-          shift
-          local attempt
-          for attempt in 1 2 3; do
+          local tries="$2"
+          shift 2
+          local attempt=1
+          local delay=15
+          while :; do
             if "$@"; then
               return 0
             fi
-            if [ "${attempt}" -eq 3 ]; then
+            if [ "${attempt}" -ge "${tries}" ]; then
               return 1
             fi
-            echo "${what} failed; retrying attempt $((attempt + 1)) of 3..."
-            sleep $((attempt * 10))
+            attempt=$((attempt + 1))
+            echo "${what} failed; retrying attempt ${attempt} of ${tries} in ${delay}s..."
+            sleep "${delay}"
+            delay=$((delay * 2))
           done
         }
 
@@ -110,7 +121,7 @@ runs:
           VCPKG_BASELINE_SHA="$(tr -d '\r' < "${workspace}/VCPKG_BASELINE")"
           git init "${VCPKG_ROOT}"
           git -C "${VCPKG_ROOT}" remote add origin https://github.com/microsoft/vcpkg.git
-          retry "vcpkg fetch" git -C "${VCPKG_ROOT}" fetch --depth 1 origin "${VCPKG_BASELINE_SHA}"
+          retry "vcpkg fetch" 5 git -C "${VCPKG_ROOT}" fetch --depth 1 origin "${VCPKG_BASELINE_SHA}"
           git -C "${VCPKG_ROOT}" checkout FETCH_HEAD
         fi
 
@@ -130,7 +141,7 @@ runs:
             CMAKE_DIR="${runner_temp}/vcpkg-cmake"
             CMAKE_ARCHIVE="${runner_temp}/$(basename "${CMAKE_URL}")"
             mkdir -p "${CMAKE_DIR}"
-            retry "cmake download" curl -fsSL "${CMAKE_URL}" -o "${CMAKE_ARCHIVE}"
+            retry "cmake download" 5 curl -fsSL "${CMAKE_URL}" -o "${CMAKE_ARCHIVE}"
             echo "${CMAKE_SHA512}  ${CMAKE_ARCHIVE}" | sha512sum -c -
             tar -xzf "${CMAKE_ARCHIVE}" -C "${CMAKE_DIR}"
             PATH="$(dirname "${CMAKE_DIR}/${CMAKE_EXE}"):${PATH}"
@@ -146,10 +157,10 @@ runs:
           overlay_args=(--overlay-triplets="${workspace}/${{ inputs.overlay-triplets }}")
         fi
 
-        retry "vcpkg bootstrap" "${bootstrap}" -disableMetrics
+        retry "vcpkg bootstrap" 5 "${bootstrap}" -disableMetrics
         # macOS runners still ship bash 3.2, where "${arr[@]}" on an empty array
         # trips set -u; the +expansion form is the portable way to pass no args.
-        retry "vcpkg install" \
+        retry "vcpkg install" 3 \
           "${vcpkg_exe}" install ${{ inputs.packages }} --triplet "${{ inputs.triplet }}" \
           ${overlay_args[@]+"${overlay_args[@]}"} --clean-after-build
         {

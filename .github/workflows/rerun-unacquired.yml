@@ -1,0 +1,86 @@
+name: Rerun unacquired jobs
+
+# Hosted runners are sometimes unavailable -- macOS arm64 most often ("Due to
+# capacity constraints, jobs targeting macOS arm64 runners may experience longer
+# queue times."). GitHub then cancels the job after ~15 minutes without running
+# a single step, and the run reports failure. That says nothing about the code,
+# but on an automated PR such as the weekly vcpkg baseline bump nobody reruns it,
+# so the PR sits red for days (#731, and #726-#728 needed manual reruns too).
+#
+# This reruns a run only when every job that did not succeed is one GitHub never
+# handed to a runner, identified by its "was not acquired by Runner" annotation.
+# A real step failure, a timeout, or a job cancelled by concurrency or by hand is
+# left for a person to look at. Nothing here checks out or runs the triggering
+# commit's code, so it is safe for runs from forks too.
+#
+# workflow_run is read from the default branch, so this takes effect once merged.
+
+on:
+  workflow_run:
+    workflows: [CMake, CI, "CI - install & consume"]
+    types: [completed]
+
+permissions:
+  actions: write
+  checks: read
+
+jobs:
+  rerun:
+    name: Rerun jobs that never got a runner
+    # Two automatic reruns at most, so a lasting runner outage cannot loop.
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt < 3
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Rerun if only unacquired jobs failed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          WORKFLOW_ID: ${{ github.event.workflow_run.workflow_id }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          EVENT: ${{ github.event.workflow_run.event }}
+        run: |
+          set -euo pipefail
+
+          # A newer commit on the branch has its own run; rerunning this one
+          # would only spend runner time on a result nobody will read.
+          latest_sha="$(gh api "repos/${REPO}/actions/workflows/${WORKFLOW_ID}/runs" \
+            -X GET -f branch="${HEAD_BRANCH}" -f event="${EVENT}" -f per_page=1 \
+            --jq '.workflow_runs[0].head_sha // empty')"
+          if [ -n "${latest_sha}" ] && [ "${latest_sha}" != "${HEAD_SHA}" ]; then
+            echo "${HEAD_BRANCH} has moved on to ${latest_sha}; not rerunning ${HEAD_SHA}"
+            exit 0
+          fi
+
+          not_ok="$(gh api --paginate \
+            "repos/${REPO}/actions/runs/${RUN_ID}/attempts/${ATTEMPT}/jobs?per_page=100" \
+            --jq '.jobs[] | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral") | "\(.id)\t\(.conclusion)\t\(.name)"')"
+          if [ -z "${not_ok}" ]; then
+            echo "no unsuccessful jobs in attempt ${ATTEMPT}"
+            exit 0
+          fi
+
+          unacquired=0
+          while IFS=$'\t' read -r job_id conclusion name; do
+            # Matched in bash rather than piped to `grep -q`: grep exits on the
+            # first match, and under pipefail gh's SIGPIPE would read as no match.
+            annotations=""
+            if [ "${conclusion}" = "cancelled" ]; then
+              annotations="$(gh api "repos/${REPO}/check-runs/${job_id}/annotations" --jq '.[].message')"
+            fi
+            if [[ "${annotations}" == *"was not acquired by Runner"* ]]; then
+              echo "never got a runner: ${name}"
+              unacquired=$((unacquired + 1))
+            else
+              echo "${conclusion}: ${name} -- leaving this run for a person"
+              exit 0
+            fi
+          done <<< "${not_ok}"
+
+          echo "rerunning ${unacquired} job(s) of run ${RUN_ID} (attempt ${ATTEMPT})"
+          gh api -X POST "repos/${REPO}/actions/runs/${RUN_ID}/rerun-failed-jobs"
