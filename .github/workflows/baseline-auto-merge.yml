@@ -1,0 +1,66 @@
+name: Baseline auto-merge
+
+# Merges the PR that the vcpkg baseline workflow opens, once CI is green.
+# Neither repository has required status checks (docs-only PRs run none), so
+# `gh pr merge --auto` would merge before CI starts. Instead this re-checks
+# the PR every time one of its workflows finishes, and merges only when every
+# check on the head commit has passed. A failed or pending check means no
+# merge; a later rerun that goes green triggers this again.
+
+on:
+  workflow_run:
+    workflows: [CI, CMake, "CI - install & consume", Code Quality, CodeQL, Code Coverage, Consumer Smoke, Boost floor, spdlog floor]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'automation/vcpkg-baseline' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    steps:
+      - name: Merge when every check is green
+        shell: bash
+        env:
+          # A merge made with GITHUB_TOKEN does not start the push workflows on
+          # main, so prefer the PAT the bump workflow already uses.
+          GH_TOKEN: ${{ secrets.VCPKG_BUMP_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          pr="$(gh pr list --head automation/vcpkg-baseline --state open --json number,headRefOid \
+            --jq ".[] | select(.headRefOid == \"${HEAD_SHA}\") | .number")"
+          if [ -z "${pr}" ]; then
+            echo "no open baseline PR at ${HEAD_SHA}; branch moved on"
+            exit 0
+          fi
+
+          files="$(gh pr diff "${pr}" --name-only)"
+          if [ "${files}" != "VCPKG_BASELINE" ]; then
+            echo "::warning::PR #${pr} touches more than VCPKG_BASELINE; leaving it for review"
+            printf '%s\n' "${files}"
+            exit 0
+          fi
+
+          # Check runs report conclusion, commit statuses report state.
+          not_green="$(gh pr view "${pr}" --json statusCheckRollup --jq '
+            [.statusCheckRollup[]
+              | select(((.conclusion // .state) | IN("SUCCESS", "SKIPPED", "NEUTRAL")) | not)
+              | "\(.name // .context): \(.status // "") \(.conclusion // .state)"]
+            | .[]')"
+          total="$(gh pr view "${pr}" --json statusCheckRollup --jq '.statusCheckRollup | length')"
+          if [ "${total}" -eq 0 ] || [ -n "${not_green}" ]; then
+            echo "PR #${pr} not ready (${total} checks):"
+            printf '%s\n' "${not_green}"
+            exit 0
+          fi
+
+          gh pr merge "${pr}" --squash --delete-branch --match-head-commit "${HEAD_SHA}"

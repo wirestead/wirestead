@@ -33,6 +33,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # The push below must use GH_TOKEN, not the GITHUB_TOKEN checkout
+          # would persist: a GITHUB_TOKEN push to an already-open PR leaves its
+          # CI runs stuck in action_required, so auto-merge never fires.
+          persist-credentials: false
 
       - name: Resolve candidate commit
         id: candidate
@@ -116,7 +121,7 @@ jobs:
           printf '%s\n' "${CANDIDATE}" > VCPKG_BASELINE
           git add VCPKG_BASELINE
           git commit -m "ci: bump the vcpkg baseline to ${short}"
-          git push --force origin "${branch}"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${branch}"
 
           {
             printf 'Moves `VCPKG_BASELINE` from `%s` to [`%s`](https://github.com/microsoft/vcpkg/commit/%s).\n\n' \
