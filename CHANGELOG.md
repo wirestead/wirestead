@@ -6,6 +6,32 @@ This project follows the Keep a Changelog section names where practical. The
 core C++ API is still pre-1.0; see `docs/api_stability.md` for compatibility
 and ABI policy.
 
+## v0.10.2 - 2026-11-21
+
+### Fixed
+
+- An idle timeout no longer closes a connection right after data that arrived
+  before the deadline. Re-arming the timer could not abort an expiry asio had
+  already queued, so a long user callback or a read completing in the same
+  reactor pass as the expiry triggered an idle close with no idle gap. Affects
+  `TcpServerSession`, `UdsServerSession`, `TcpClient` and `Serial`, only when
+  an idle timeout is enabled (#726).
+- `LineFramer` delivers a line of exactly `max_length` when its multi-byte
+  delimiter is split across reads. It was discarded depending only on where
+  the transport segmented the bytes (#727).
+- Calling `reset()` from `on_message()` no longer reads freed or out-of-range
+  memory in `LineFramer` and `LengthPrefixFramer`; processing stops after the
+  reset, as `PacketFramer` already did. The wrapper receive path is unaffected,
+  since it runs user callbacks after framing finishes (#728).
+
+### Performance
+
+- The receive staging buffer grows geometrically, capped at
+  `max_frame_bytes`, instead of to the exact size on each 4 KiB step. Staging a
+  1 MiB frame drops from 139 MiB of allocation to 27 MiB. A receive budget too
+  tight for the headroom falls back to exact growth, so it accepts the same
+  input as before (#725).
+
 ## v0.10.1 - 2026-10-29
 
 ### Added
