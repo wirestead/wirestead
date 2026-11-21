@@ -8,6 +8,19 @@ the ROS release tooling, which reads reStructuredText. ``CHANGELOG.md`` remains
 the full changelog and covers every release, including the ones before this
 file existed.
 
+0.10.2 (2026-11-21)
+-------------------
+* Fix an idle timeout closing a connection immediately after data that arrived
+  before the deadline, when the expiry was already queued as the timer was
+  re-armed.
+* Fix ``LineFramer`` dropping a line of exactly ``max_length`` when its
+  multi-byte delimiter is split across reads.
+* Fix out-of-range reads in ``LineFramer`` and ``LengthPrefixFramer`` when
+  ``reset()`` is called from ``on_message()``.
+* Grow the receive staging buffer geometrically instead of reallocating on
+  every 4 KiB step.
+* Contributors: Jinwoo Sung
+
 0.10.1 (2026-10-29)
 -------------------
 * Fix heap corruption on Windows ARM64 when ``TcpClient::get_executor()`` runs
