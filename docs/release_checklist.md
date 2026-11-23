@@ -176,19 +176,25 @@ GitHub archive (`/archive/refs/tags/vX.Y.Z.tar.gz`), not a release asset.
       `portfile.cmake` `SHA512`. `REF` is `v${VERSION}`, so nothing else moves.
       Regenerate the version database with `./vcpkg x-add-version wirestead` —
       never edit `versions/` by hand.
-- [ ] `conan-center-index` recipe updated: `recipes/wirestead/config.yml` and
-      `recipes/wirestead/all/conandata.yml`. Conan Center wants a new recipe to
-      carry **only** the latest version, so replace the version rather than
-      appending to it.
-- [ ] Conan recipe still matches the build system: every `WIRESTEAD_*` cache
+- [ ] `conan-center-index` recipe: while conan-io/conan-center-index#30653 is
+      open, do **not** push a routine version bump to the `wirestead-recipe`
+      fork branch. Approvals there count only on the latest commit, and every
+      push needs a maintainer to approve its CI run again, so each bump sends
+      the review back to the start. Push only when a maintainer asks for a
+      change, or as a deliberate, planned update (such as 1.0.0). When you do,
+      replace the version in `recipes/wirestead/config.yml` and
+      `recipes/wirestead/all/conandata.yml` rather than appending to it:
+      Conan Center wants a new recipe to carry **only** the latest version.
+- [ ] Conan recipe still matches the build system, checked locally with
+      `conan create` whether or not it is pushed: every `WIRESTEAD_*` cache
       variable `conanfile.py` sets still exists, new options default to values
       the recipe can live with, and `test_package` compiles against the release
       API. The test package links the shared library, so a change to
       `cmake/wirestead.map` that narrows exports would break it.
-- [ ] Conan recipe is not published yet — until conan-io/conan-center-index#30653
-      is merged, updating it is a push to the `wirestead-recipe` fork branch and
-      does not ship anything. CI there needs a maintainer to approve each run, so
-      `Job scheduler: action_required` is the expected state, not a failure.
+- [ ] Nothing is published to Conan Center until #30653 merges.
+      `Job scheduler: action_required` on the PR means no maintainer has
+      approved the CI run yet. It is not a build failure, but nothing moves
+      until someone acts on it: to ask, comment on the PR instead of pushing.
       Leave `docs/installation.md` free of Conan instructions until it merges.
 
 ## Release notes
