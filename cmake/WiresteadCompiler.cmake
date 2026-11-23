@@ -13,6 +13,13 @@ if(MSVC)
   # Microsoft Visual C++ (including clang-cl)
   set(WIRESTEAD_COMPILER_MSVC ON)
 
+  if(MSVC_VERSION LESS 1930)
+    message(
+      FATAL_ERROR
+        "MSVC 2022 (19.30)+ is required for wirestead's C++20 features"
+    )
+  endif()
+
   # Remove any existing /W[0-4] flags the generator might have added so we
   # control warning level explicitly.
   foreach(
@@ -70,15 +77,18 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     set(WIRESTEAD_COMPILER_CLANG ON)
   endif()
 
+  # The binding constraint is std::source_location (diagnostics/logger.hpp
+  # includes <source_location> unconditionally): libstdc++ ships it from GCC 11,
+  # and Clang needs __builtin_source_location, added in Clang 15.
   if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION
-                                              VERSION_LESS "10.0"
+                                              VERSION_LESS "11.0"
   )
-    message(FATAL_ERROR "GCC 10.0+ is required for wirestead's C++20 features")
+    message(FATAL_ERROR "GCC 11.0+ is required for wirestead's C++20 features")
   elseif(WIRESTEAD_COMPILER_CLANG AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS
-                                      "14.0"
+                                      "15.0"
   )
     message(
-      FATAL_ERROR "Clang 14.0+ is required for wirestead's C++20 features"
+      FATAL_ERROR "Clang 15.0+ is required for wirestead's C++20 features"
     )
   endif()
 

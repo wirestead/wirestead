@@ -69,7 +69,7 @@ Wirestead fits best when one application speaks over more than one transport —
 
 ## Requirements
 
-* **C++20 compiler**: GCC 10+, Clang 14+, or MSVC 2022. CMake enforces these and fails the configure step below them. CI builds GCC on Ubuntu 22.04 and 24.04, Clang on Ubuntu 24.04 and macOS, and MSVC on Windows, each on x64 and arm64.
+* **C++20 compiler**: GCC 11+, Clang 15+, or MSVC 2022. CMake enforces these and fails the configure step below them. CI builds GCC on Ubuntu 22.04 and 24.04, Clang on Ubuntu 24.04 and macOS, and MSVC on Windows, each on x64 and arm64.
 * CMake 3.12 or later for plain builds; CMake 3.21 or later for the repository presets
 * Boost 1.74.0 or later, which covers the system packages on Ubuntu 22.04 (1.74), RHEL 9 (1.75) and Ubuntu 24.04 (1.83). vcpkg remains the recommended dependency supplier; CI builds against the 1.74 floor as well as current Boost.
 
