@@ -42,7 +42,7 @@ Wirestead is a **multi-transport async library**. Most alternatives are either a
 
 | | Transports | Async | Platforms | Install |
 | --- | --- | --- | --- | --- |
-| **Wirestead** | Serial, TCP, UDP, UDS | yes, one `io_context` model across all four | Linux, macOS, Windows — x64 and arm64 | vcpkg, FetchContent, PyPI |
+| **Wirestead** | Serial, TCP, UDP, UDS | yes, one `io_context` model across all four | Linux, macOS, Windows — x64 and arm64 | vcpkg, ROS 2 apt, FetchContent, PyPI |
 | [transport_drivers](https://github.com/ros-drivers/transport_drivers) | Serial, UDP | yes (standalone Asio) | Linux (ROS 2) | rosdep / apt |
 | [libserial](https://github.com/crayzeewulf/libserial) | Serial | no | Linux only | `apt install libserial-dev` |
 | [serialib](https://github.com/imabot2/serialib) | Serial | no | Linux, Windows | copy two files |
@@ -79,6 +79,12 @@ Wirestead fits best when one application speaks over more than one transport —
 
 ```bash
 vcpkg install wirestead
+```
+
+### ROS 2 (Humble, Jazzy)
+
+```bash
+sudo apt install ros-jazzy-wirestead   # or ros-humble-wirestead
 ```
 
 ### CMake FetchContent
