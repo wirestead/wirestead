@@ -20,6 +20,32 @@ gate and rejects Boost versions older than the configured minimum.
 vcpkg install wirestead
 ```
 
+## ROS 2
+
+Wirestead is released into ROS 2 Humble and Jazzy, so on those distributions
+it installs from the ROS apt repository like any other ROS package:
+
+```bash
+sudo apt install ros-jazzy-wirestead   # or ros-humble-wirestead
+```
+
+In a ROS package, declare it in `package.xml` and let rosdep install it:
+
+```xml
+<depend>wirestead</depend>
+```
+
+```bash
+rosdep install --from-paths src --ignore-src -y
+```
+
+It is the same C++ library, built against the distribution's own Boost and
+spdlog, and is consumed with the `find_package(wirestead CONFIG REQUIRED)`
+shown below; it does not depend on `rclcpp`. A new release reaches the main
+ROS apt repository at the next distribution sync, which can be a few weeks
+after the tag. The ROS adapters (lifecycle shutdown gate, `diagnostic_updater`
+reporting) live in the separate `wirestead_ros` package.
+
 For Unilink migration details, see
 [Migrating from Unilink](migration-from-unilink.md).
 
