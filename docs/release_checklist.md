@@ -119,9 +119,19 @@ release and its one-time setup are described in `wirestead-ros`'s
 - [ ] Bloomed for every distribution:
 
       ```bash
-      bloom-release --rosdistro jazzy  wirestead
-      bloom-release --rosdistro humble wirestead
+      bloom-release --rosdistro rolling wirestead
+      bloom-release --rosdistro lyrical wirestead
+      bloom-release --rosdistro jazzy   wirestead
+      bloom-release --rosdistro humble  wirestead
       ```
+
+      Rolling and Lyrical both build on Ubuntu 26.04; the `Ubuntu 26.04` rows
+      of `boost-floor.yml` must be green before either is bloomed. The first
+      release into a distribution has no track yet: run it once with
+      `--new-track`, and answer the prompts as the existing `jazzy` track does
+      (`bloom-release --edit-track` shows them). Packages released into Rolling
+      are carried into future distributions automatically, so after Lyrical
+      the next new distribution needs no first release of its own.
 
       The track's version is `:{auto}`, which bloom reads from `package.xml` on
       `main` **at the time it runs**. If `main` has already moved to the next

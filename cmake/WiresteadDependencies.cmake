@@ -113,10 +113,22 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND NOT _wirestead_using_vcpkg)
   )
 endif()
 
+# Boost 1.89 removed the Boost.System stub library (System has been header-only
+# since 1.69), and with it the boost_system CMake package, so a REQUIRED system
+# component fails on Ubuntu 26.04 and anything else shipping 1.89+. Ask for it
+# as optional, as the 1.89 release notes suggest, and link whichever target
+# exists.
 find_package(
   Boost ${WIRESTEAD_MIN_BOOST_VERSION} REQUIRED
-  COMPONENTS ${WIRESTEAD_BOOST_COMPONENTS}
+  OPTIONAL_COMPONENTS ${WIRESTEAD_BOOST_COMPONENTS}
 )
+if(TARGET Boost::system)
+  set(_WIRESTEAD_BOOST_TARGET Boost::system)
+elseif(TARGET Boost::headers)
+  set(_WIRESTEAD_BOOST_TARGET Boost::headers)
+else()
+  set(_WIRESTEAD_BOOST_TARGET Boost::boost)
+endif()
 
 if(_wirestead_using_vcpkg)
   message(
@@ -285,10 +297,16 @@ endif()
 if(WIRESTEAD_LINK_BOOST_SYSTEM)
   target_link_libraries(
     wirestead_dependencies
-    INTERFACE $<BUILD_INTERFACE:Boost::system>
+    INTERFACE $<BUILD_INTERFACE:${_WIRESTEAD_BOOST_TARGET}>
               $<INSTALL_INTERFACE:wirestead_boost_system_proxy>
   )
-  list(APPEND WIRESTEAD_PKGCONFIG_LIBS_PRIVATE "-lboost_system")
+  # Only a real (pre-1.89) stub library has anything for -l to find.
+  if(TARGET Boost::system)
+    get_target_property(_wirestead_boost_system_type Boost::system TYPE)
+    if(NOT _wirestead_boost_system_type STREQUAL "INTERFACE_LIBRARY")
+      list(APPEND WIRESTEAD_PKGCONFIG_LIBS_PRIVATE "-lboost_system")
+    endif()
+  endif()
   if(TARGET Boost::asio)
     target_link_libraries(
       wirestead_dependencies
@@ -382,7 +400,7 @@ if(_WIRESTEAD_SPDLOG_BUILD_TARGET)
   list(APPEND _WIRESTEAD_DEPENDENCY_TARGETS ${_WIRESTEAD_SPDLOG_BUILD_TARGET})
 endif()
 if(WIRESTEAD_LINK_BOOST_SYSTEM)
-  list(APPEND _WIRESTEAD_DEPENDENCY_TARGETS Boost::system)
+  list(APPEND _WIRESTEAD_DEPENDENCY_TARGETS ${_WIRESTEAD_BOOST_TARGET})
 endif()
 set(WIRESTEAD_DEPENDENCIES
     ${_WIRESTEAD_DEPENDENCY_TARGETS}

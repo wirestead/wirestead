@@ -29,7 +29,8 @@ name: Boost floor
 # build farm actually produces packages for, each with the Boost that platform
 # supplies. Ubuntu 24.04 with Boost 1.83 is not a floor test at all; it is there
 # because arm64 is Tier 1 and nothing else builds this project on arm64 against
-# distribution packages rather than vcpkg.
+# distribution packages rather than vcpkg. Ubuntu 26.04 joins for the same
+# reason: it is Tier 1 for Lyrical and the platform Rolling builds on.
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -77,6 +78,19 @@ jobs:
             boost: "1.74.0"
           - label: Ubuntu 24.04 arm64
             image: ubuntu:24.04
+            runner: ubuntu-24.04-arm
+            boost: "1.83.0"
+          # Ubuntu 26.04 is Tier 1 for Lyrical (the LTS after Jazzy) and is
+          # also where Rolling builds, so these two rows are what a bloom into
+          # lyrical or rolling would meet on the build farm. Like 24.04 they
+          # are not floor tests: 26.04 ships a Boost newer than the declared
+          # 1.83.0 default, and the real version is printed in the log.
+          - label: Ubuntu 26.04 amd64
+            image: ubuntu:26.04
+            runner: ubuntu-24.04
+            boost: "1.83.0"
+          - label: Ubuntu 26.04 arm64
+            image: ubuntu:26.04
             runner: ubuntu-24.04-arm
             boost: "1.83.0"
           # RHEL is Tier 2 and amd64 only - REP-2000 leaves the arm64 cell

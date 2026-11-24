@@ -15,12 +15,11 @@
 
   <!-- Boost.Asio and Boost.System are header-only since 1.69, so Boost is a
        build-time dependency only; libwirestead.so has no Boost NEEDED entry.
-       wiresteadConfig.cmake calls find_dependency(Boost COMPONENTS system),
-       so consumers need the same two at their build time. -->
+       wiresteadConfig.cmake asks for the system component only as optional,
+       so the headers in libboost-dev are all consumers need. Boost 1.89+
+       (Ubuntu 26.04: Lyrical, Rolling) no longer ships libboost-system-dev. -->
   <build_depend>libboost-dev</build_depend>
-  <build_depend>libboost-system-dev</build_depend>
   <build_export_depend>libboost-dev</build_export_depend>
-  <build_export_depend>libboost-system-dev</build_export_depend>
 
   <depend>spdlog</depend>
 
