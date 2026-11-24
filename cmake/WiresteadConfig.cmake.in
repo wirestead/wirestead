@@ -16,8 +16,9 @@ if(_WIRESTEAD_CONFIG_REQUIRES_THREADS)
 endif()
 
 if(_WIRESTEAD_CONFIG_REQUIRES_BOOST)
+  # Optional: Boost 1.89+ has no boost_system package (System is header-only).
   find_dependency(
-    Boost @WIRESTEAD_MIN_BOOST_VERSION@ REQUIRED COMPONENTS system
+    Boost @WIRESTEAD_MIN_BOOST_VERSION@ REQUIRED OPTIONAL_COMPONENTS system
   )
 endif()
 
@@ -29,6 +30,10 @@ if(_WIRESTEAD_CONFIG_REQUIRES_BOOST AND NOT TARGET wirestead_boost_system_proxy)
   add_library(wirestead_boost_system_proxy INTERFACE IMPORTED)
   if(TARGET Boost::system)
     target_link_libraries(wirestead_boost_system_proxy INTERFACE Boost::system)
+  elseif(TARGET Boost::headers)
+    target_link_libraries(wirestead_boost_system_proxy INTERFACE Boost::headers)
+  elseif(TARGET Boost::boost)
+    target_link_libraries(wirestead_boost_system_proxy INTERFACE Boost::boost)
   endif()
 endif()
 
@@ -38,6 +43,10 @@ if(_WIRESTEAD_CONFIG_REQUIRES_BOOST AND NOT TARGET wirestead_boost_asio_proxy)
     target_link_libraries(wirestead_boost_asio_proxy INTERFACE Boost::asio)
   elseif(TARGET Boost::system)
     target_link_libraries(wirestead_boost_asio_proxy INTERFACE Boost::system)
+  elseif(TARGET Boost::headers)
+    target_link_libraries(wirestead_boost_asio_proxy INTERFACE Boost::headers)
+  elseif(TARGET Boost::boost)
+    target_link_libraries(wirestead_boost_asio_proxy INTERFACE Boost::boost)
   endif()
 endif()
 

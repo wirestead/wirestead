@@ -71,14 +71,13 @@ elseif(UNIX)
   set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
   # This package ships the headers as well as the shared library, and those
   # headers include boost/asio, so a consumer needs Boost's headers to compile
-  # against it - libboost-dev. libboost-system-dev comes too because
-  # wiresteadConfig.cmake calls find_dependency(Boost COMPONENTS system) and
-  # that needs the component's CMake files. libwirestead.so links no Boost
-  # library of its own; Asio and Boost.System have been header-only since 1.69.
-  # These are the same two keys package.xml declares.
+  # against it - libboost-dev. libwirestead.so links no Boost library of its
+  # own; Asio and Boost.System have been header-only since 1.69, and
+  # wiresteadConfig.cmake asks for the system component only as optional, so
+  # libboost-system-dev is not needed (and Boost 1.89+, as on Ubuntu 26.04, does
+  # not ship it). This is the same key package.xml declares.
   set(_wirestead_debian_package_depends
       "libboost-dev (>= ${WIRESTEAD_MIN_BOOST_VERSION})"
-      "libboost-system-dev (>= ${WIRESTEAD_MIN_BOOST_VERSION})"
   )
   if(NOT WIRESTEAD_SPDLOG_BUNDLED)
     list(APPEND _wirestead_debian_package_depends
